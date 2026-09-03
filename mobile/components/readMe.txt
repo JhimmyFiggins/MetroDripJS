@@ -1,0 +1,1 @@
+Used for storing navigation bar, footer, etc. Para same sila every page iimport nalang natin.

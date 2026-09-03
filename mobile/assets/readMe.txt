@@ -1,0 +1,1 @@
+Used for storing images like product image, icons, etc.
