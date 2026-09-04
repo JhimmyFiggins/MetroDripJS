@@ -1,8 +1,9 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View, Button } from 'react-native'; // ⭐ CHANGED: added Button
-import { useState } from 'react'; // ⭐ CHANGED
+import { StyleSheet, View, Button } from 'react-native'; 
+import { useState } from 'react'; 
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { NavigationContainer } from '@react-navigation/native';
 
 import { useAppFonts } from './src/theme/font';
 import Header from './mobile/components/Header.jsx';
@@ -18,8 +19,9 @@ import Cart from './mobile/Cart/ShoppingCart';
 export default function App() {
   const { fontsLoaded } = useAppFonts();
 
-  // ⭐ CHANGED: create a state to determine which page is shown
-  const [currentPage, setCurrentPage] = useState('Home');
+
+  const [currentPage, setCurrentPage] = useState('Shop');
+  
 
   if (!fontsLoaded) {
     return <View style={styles.container} />;
@@ -27,26 +29,27 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <View style={styles.container}>
+      <NavigationContainer>
+        <View style={styles.container}>
 
-        {currentPage === 'Checkout' && <CheckoutHeader />}
-        {currentPage === 'Shop' && <Header />}
-        {currentPage === 'Home' && <Header />}
-        
+          {currentPage === 'Checkout' && <CheckoutHeader />}
+          {currentPage === 'Shop' && <Header />}
+          {currentPage === 'Home' && <Header />}
+          
 
-        {/* ⭐ CHANGED: Render the selected page */}
-        <View style={styles.content}>
-          {currentPage === 'Home' && <Home />}
-          {currentPage === 'Shop' && <Shop />}
-          {currentPage === 'Checkout' && <Checkout />}
-          {currentPage === 'LoginScreen' && <LoginScreen />}
-          {currentPage === 'Cart' && <Cart />}
+          <View style={styles.content}>
+            {currentPage === 'Home' && <Home />}
+            {currentPage === 'Shop' && <Shop />}
+            {currentPage === 'Checkout' && <Checkout />}
+            {currentPage === 'LoginScreen' && <LoginScreen />}
+            {currentPage === 'Cart' && <Cart />}
+          </View>
+
+          <StatusBar style="auto" />
+
         </View>
-
-        <StatusBar style="auto" />
-
-      </View>
-      <Footer/>
+        <Footer/>
+        </NavigationContainer>
     </SafeAreaProvider>
   );
 }
@@ -57,7 +60,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // ⭐ CHANGED
+  
   navigation: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -65,7 +68,7 @@ const styles = StyleSheet.create({
     marginTop: 60,
   },
 
-  // ⭐ CHANGED
+  
   content: {
     flex: 1,
   },

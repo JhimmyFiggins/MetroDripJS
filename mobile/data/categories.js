@@ -13,7 +13,48 @@ export const categories = [
     {
         id: 3,
         category_name: "Cat 3",
-    }
+    },
+    {
+        id: 4,
+        category_name: "Cat 5",
+    },
+    {
+        id: 6,
+        category_name: "Cat 7",
+    },
+    {
+        id: 8,
+        category_name: "Cat 9",
+    },
+    {
+        id: 10,
+        category_name: "Cat 11",
+    },
+    {
+        id: 12,
+        category_name: "Cat 14",
+    },
+    {
+        id: 13,
+        category_name: "Cat 3",
+    },
+    {
+        id: 110,
+        category_name: "Cat 3",
+    },
+    {
+        id: 111,
+        category_name: "Cat 3",
+    },
+    {
+        id: 112,
+        category_name: "Cat 3",
+    },
+    {
+        id: 113,
+        category_name: "Cat 3",
+    },
+    
 
 ]
 

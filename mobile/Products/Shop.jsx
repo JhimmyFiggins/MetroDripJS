@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
 import { StyleSheet, FlatList, Text, View, TouchableOpacity } from 'react-native';
+import { createDrawerNavigator } from '@react-navigation/drawer';
+import { Ionicons } from '@expo/vector-icons';
 import SearchField from './SearchField.jsx';
 import FilterContainer from './FilterContainer.jsx';
 import ProductCards from './ProductCards.jsx';
 import ProductDetails from './ProductDetails.jsx';
 import { products } from '../data/product.js';
 
-export default function Shop() {
+const Drawer = createDrawerNavigator();
+
+// Inner screen rendering your products grid
+function ShopContent({ navigation }) {
   const [selectedProductId, setSelectedProductId] = useState(null);
 
   const items = products.length;
@@ -17,11 +22,21 @@ export default function Shop() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.searchContainer}>
-        <SearchField />
+      {/* Top Search Bar with Hamburger Button */}
+      <View style={styles.topHeader}>
+        <TouchableOpacity 
+          style={styles.hamburgerBtn} 
+          onPress={() => navigation.toggleDrawer()}
+        >
+          <Ionicons name="menu" size={28} color="rgb(0, 0, 0)" />
+        </TouchableOpacity>
+
+        <View style={styles.searchContainer}>
+          <SearchField />
+        </View>
       </View>
 
-      {/* Conditionally Render: Product Details OR Main Shop Grid */}
+      {/* Conditionally Render Details or Products */}
       {selectedProductId ? (
         <ProductDetails
           selectedProductId={selectedProductId}
@@ -29,7 +44,6 @@ export default function Shop() {
         />
       ) : (
         <>
-          {/* Category Header Bar */}
           <FlatList
             style={styles.pCHeader}
             data={data}
@@ -43,12 +57,7 @@ export default function Shop() {
             keyExtractor={(item) => item.id}
           />
 
-          {/* Main Content Layout: Sidebar Filters + Product Grid */}
           <View style={styles.mainLayout}>
-            <View style={styles.catSide}>
-              <FilterContainer />
-            </View>
-
             <View style={styles.prodSide}>
               <ProductCards
                 onSelectProduct={(id) => setSelectedProductId(id)}
@@ -61,14 +70,41 @@ export default function Shop() {
   );
 }
 
+// Export Drawer wrapping ShopContent
+export default function Shop() {
+  return (
+    <Drawer.Navigator
+      styles={styles.drawerContainer}
+      drawerContent={(props) => <FilterContainer {...props} />}
+      screenOptions={{
+        headerShown: false,
+        drawerPosition: 'left',
+        drawerStyle: styles.drawerContainer,
+      }}
+    >
+      <Drawer.Screen name="ShopContent" component={ShopContent} />
+    </Drawer.Navigator>
+  );
+}
+
 const styles = StyleSheet.create({
+  drawerContainer:{
+    width: '60%',
+  },  
   container: {
     flex: 1,
-    backgroundColor: '#FFF',
+    backgroundColor: 'rgb(255, 255, 255)',
+  },
+  topHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+  },
+  hamburgerBtn: {
+    paddingRight: 10,
   },
   searchContainer: {
-    width: '80%',
-    alignSelf: 'center',
+    flex: 1,
     paddingVertical: 5,
     backgroundColor: 'rgb(240, 240, 240)',
     borderRadius: 25,
@@ -94,23 +130,12 @@ const styles = StyleSheet.create({
   },
   mainLayout: {
     flex: 1,
-    flexDirection: 'row',
-  },
-  catSide: {
-    // minWidth: '30%',
-    // maxWidth: '35',
-    width: '30%',
-    backgroundColor: 'rgb(244, 244, 242)',
-    borderRadius: 10,
-    margin: 10,
   },
   prodSide: {
     flex: 1,
     backgroundColor: '#FFF',
     borderRadius: 10,
-    marginTop: 10,
-    marginBottom: 10,
-    marginRight: 10,
+    margin: 10,
   },
   row: {
     justifyContent: 'space-between',

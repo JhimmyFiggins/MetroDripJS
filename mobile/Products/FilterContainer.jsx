@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
-import { StyleSheet, TouchableOpacity, FlatList, Text, View } from 'react-native';
+import { StyleSheet, ScrollView, TouchableOpacity, Text, View } from 'react-native';
+import { DrawerContentScrollView } from '@react-navigation/drawer'; // Added import
 
-// Import font keys from your theme
 import { fonts } from '../../src/theme/font'; 
-
-// Import data definitions
 import { categories, size, fit, sort, subCategories } from '../data/categories.js';
 
-export default function FilterContainer() {
+export default function FilterContainer(props) {
     const [activeCategory, setActiveCategory] = useState(1);
     const [activeSubCategory, setActiveSubCategory] = useState(null);
     const [activeSize, setActiveSize] = useState(1);
@@ -15,49 +13,49 @@ export default function FilterContainer() {
     const [activeSort, setActiveSort] = useState(null);
 
     return (
-        <View style={styles.container}> 
-            <Text style={styles.titleFilter}>FILTERS</Text>
-            
-            <Text style={styles.title}>Category</Text>
-            
-            {/* --- MAIN CATEGORIES GROUP --- */}
-            <View style={styles.buttonRowContainer}>
-                {categories.map((item) => {
-                    const isActive = item.id === activeCategory;
+        <DrawerContentScrollView {...props} contentContainerStyle={styles.container}> 
+            <ScrollView>
+                <Text style={styles.titleFilter}>FILTERS</Text>
+                
+                <Text style={styles.title}>Category</Text>
+                
+                <View style={styles.buttonRowContainer}>
+                    {categories.map((item) => {
+                        const isActive = item.id === activeCategory;
 
-                    return (
-                        <View key={item.id} style={styles.fullWidthItem}>
-                            {/* Main Category Button */}
-                            <TouchableOpacity 
-                                style={[styles.baseButton, isActive && styles.activeButton]}
-                                onPress={() => {
-                                    setActiveCategory(item.id); 
-                                    setActiveSubCategory(null); // Reset sub-category on main change
-                                }}
-                            >
-                                <Text style={[styles.baseButtonText, isActive && styles.activeButtonText]}>
-                                    {item.category_name}
-                                </Text>
-                            </TouchableOpacity>
+                        return (
+                            <View key={item.id} style={styles.fullWidthItem}>
+                                <TouchableOpacity 
+                                    style={[styles.baseButton, isActive && styles.activeButton]}
+                                    onPress={() => {
+                                        setActiveCategory(item.id); 
+                                        setActiveSubCategory(null);
+                                    }}
+                                >
+                                    <Text style={[styles.baseButtonText, isActive && styles.activeButtonText]}>
+                                        {item.category_name}
+                                    </Text>
+                                </TouchableOpacity>
 
-                            {/* Render active sub-categories underneath */}
-                            {isActive && renderSubCategory(activeCategory, activeSubCategory, setActiveSubCategory)}
-                        </View>
-                    );
-                })}
-            </View>
+                                {isActive && renderSubCategory(activeCategory, activeSubCategory, setActiveSubCategory)}
+                            </View>
+                        );
+                    })}
+                </View>
 
-            <Text style={styles.title}>Size</Text>
-            {renderSizes(activeSize, setActiveSize)}
+                <Text style={styles.title}>Size</Text>
+                {renderSizes(activeSize, setActiveSize)}
 
-            <Text style={styles.title}>Fit</Text>
-            {renderFits(activeFit, setActiveFit)}
+                <Text style={styles.title}>Fit</Text>
+                {renderFits(activeFit, setActiveFit)}
 
-            <Text style={styles.title}>Sort</Text>
-            {renderSort(activeSort, setActiveSort)}
-        </View>
+                <Text style={styles.title}>Sort</Text>
+                {renderSort(activeSort, setActiveSort)}
+                </ScrollView>
+        </DrawerContentScrollView>
     );
 }
+
 
 // Sub-Category Component Renderer
 const renderSubCategory = (activeCategory, activeSubCategory, setActiveSubCategory) => {
@@ -89,37 +87,32 @@ const renderSubCategory = (activeCategory, activeSubCategory, setActiveSubCatego
 // Sizes Renderer
 const renderSizes = (activeSize, setActiveSize) => {
     return (
-        <View>
-            <FlatList
-                data={size}
-                numColumns={2}
-                columnWrapperStyle={styles.row}
-                renderItem={({ item }) => {
-                    const isSizeActive = item.id === activeSize;
+        <View style={styles.buttonRowContainer}>
+            {size.map((item) => {
+                const isSizeActive = item.id === activeSize;
 
-                    return (
-                        <TouchableOpacity
+                return (
+                    <TouchableOpacity
+                        key={item.id}
+                        style={[
+                            styles.baseButton,
+                            styles.sizeButton,
+                            isSizeActive && styles.activeButton
+                        ]}
+                        onPress={() => setActiveSize(item.id)}
+                    >
+                        <Text
                             style={[
-                                styles.baseButton,
-                                styles.sizeButton,
-                                isSizeActive && styles.activeButton
+                                styles.baseButtonText,
+                                styles.sizeButtonText,
+                                isSizeActive && styles.activeButtonText
                             ]}
-                            onPress={() => setActiveSize(item.id)}
                         >
-                            <Text
-                                style={[
-                                    styles.baseButtonText,
-                                    styles.sizeButtonText,
-                                    isSizeActive && styles.activeButtonText
-                                ]}
-                            >
-                                {item.size_attribute}
-                            </Text>
-                        </TouchableOpacity>
-                    );
-                }}
-                keyExtractor={(item) => item.id.toString()}
-            />
+                            {item.size_attribute}
+                        </Text>
+                    </TouchableOpacity>
+                );
+            })}
         </View>
     );
 };
