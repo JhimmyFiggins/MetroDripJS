@@ -24,6 +24,8 @@ export default function ProductCards({ onSelectProduct }) {
     return (
         <View style={styles.container}>
             <FlatList
+            showsVerticalScrollIndicator={false}
+            showsHorizontalScrollIndicator={false}
                 data={products}
                 numColumns={2}
                 columnWrapperStyle={styles.row}
@@ -58,20 +60,25 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: 2,
         paddingBottom: 10,
+        // backgroundColor: 'rgb(0,0,0)',
+        marginHorizontal: 10,
     },
 
     productCard: {
-        width: '48%',
+        width: '45%',
         height: 200,
         borderColor: 'black',
         borderWidth: .5,
         backgroundColor: 'rgb(255, 255, 255)',
         borderRadius: 10,
         
+
+        
     },
     productImage:{
         backgroundColor: 'rgb(244, 244, 242)',
-        height: 120,
+        height: 150,
+        width: '99.8%',
         paddingTop: 10,
         paddingLeft: 10,
         borderRadius: 10,

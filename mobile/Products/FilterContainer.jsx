@@ -13,8 +13,13 @@ export default function FilterContainer(props) {
     const [activeSort, setActiveSort] = useState(null);
 
     return (
-        <DrawerContentScrollView {...props} contentContainerStyle={styles.container}> 
-            <ScrollView>
+        <DrawerContentScrollView {...props} contentContainerStyle={styles.container}
+            
+        > 
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                showsHorizontalScrollIndicator={false}
+            >
                 <Text style={styles.titleFilter}>FILTERS</Text>
                 
                 <Text style={styles.title}>Category</Text>

@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   SafeAreaView,
   View,
@@ -10,13 +12,14 @@ import {
   Alert,
 } from 'react-native';
 
-
+import Footer from '../components/Footer';
+import AdaptHeader from '../components/AdaptHeader';
 const PRODUCTS = [
   {
     id: 1,
     name: 'METRODRIP OVERSIZED HOODIE',
     size: 'Large',
-    color: 'Black / Lime',
+    color: 'Lime',
     price: 1899,
     quantity: 1,
     image: 'https://via.placeholder.com/300x350',
@@ -30,10 +33,37 @@ const PRODUCTS = [
     quantity: 2,
     image: 'https://via.placeholder.com/300x350',
   },
+  {
+    id: 3,
+    name: 'METRODRIP GRAPHIC TEE',
+    size: 'Medium',
+    color: 'White / Black',
+    price: 899,
+    quantity: 2,
+    image: 'https://via.placeholder.com/300x350',
+  },
+  {
+    id: 4,
+    name: 'METRODRIP GRAPHIC TEE',
+    size: 'Medium',
+    color: 'White / Black',
+    price: 899,
+    quantity: 2,
+    image: 'https://via.placeholder.com/300x350',
+  },
+  {
+    id: 5,
+    name: 'METRODRIP GRAPHIC TEE',
+    size: 'Medium',
+    color: 'White / Black',
+    price: 899,
+    quantity: 2,
+    image: 'https://via.placeholder.com/300x350',
+  },
 ];
 
 
-export default function App() {
+export default function CartScreen({navigation}) {
   const [cart, setCart] = useState(PRODUCTS);
 
 
@@ -70,7 +100,7 @@ export default function App() {
   const shipping = subtotal > 0 ? 150 : 0;
   const discount = 0;
   const total = subtotal + shipping - discount;
-
+  const screenTitle = 'Your Cart';
 
   const formatPrice = price => {
     return `₱${price.toLocaleString('en-PH', {
@@ -79,18 +109,18 @@ export default function App() {
   };
 
 
-  const checkout = () => {
-    Alert.alert(
-      'MetroDrip Checkout',
-      'Proceeding to MetroDrip Checkout...'
-    );
-  };
+  // const checkout = () => {
+  //   Alert.alert(
+  //     'MetroDrip Checkout',
+  //     'Proceeding to MetroDrip Checkout...'
+  //   );
+  // };
 
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaProvider style={styles.safeArea}>
       {/* NAVIGATION */}
-      <View style={styles.navbar}>
+      {/* <View style={styles.navbar}>
         <Text style={styles.logo}>
           METRO<Text style={styles.logoAccent}>DRIP</Text>
         </Text>
@@ -102,7 +132,7 @@ export default function App() {
           <Text style={styles.navLink}>ABOUT</Text>
           <Text style={styles.navLink}>CART</Text>
         </View>
-      </View>
+      </View> */}
 
 
       <ScrollView
@@ -110,14 +140,16 @@ export default function App() {
         showsVerticalScrollIndicator={false}
       >
         {/* PAGE HEADER */}
-        <Text style={styles.pageLabel}>
-          METRODRIP / CART
-        </Text>
+        {/* <View style={styles.header}>
+          <TouchableOpacity 
+          onPress={() => navigation.navigate('Shop')}
+          >
+            <Text style={styles.backButton}> <Ionicons name="chevron-back" size={24} color="#111111" /> </Text>
+          </TouchableOpacity>
 
-
-        <Text style={styles.title}>YOUR CART</Text>
-
-
+          <Text style={styles.title}>{screenTitle}</Text>
+        </View> */}
+        <AdaptHeader screenTitle={screenTitle}/>
         {cart.length === 0 ? (
           /* EMPTY CART */
           <View style={styles.emptyCart}>
@@ -131,7 +163,10 @@ export default function App() {
             </Text>
 
 
-            <TouchableOpacity style={styles.shopButton}>
+            <TouchableOpacity 
+              style={styles.shopButton}
+              onPress={() => navigation.navigate('Shop')}
+            >
               <Text style={styles.shopButtonText}>
                 CONTINUE SHOPPING
               </Text>
@@ -151,37 +186,25 @@ export default function App() {
                     style={styles.productImage}
                   />
 
-
+                  {/* Product Details and Quantity */}
                   <View style={styles.productDetails}>
                     <Text style={styles.productName}>
                       {item.name}
                     </Text>
 
-
-                    <Text style={styles.productInfo}>
-                      Size: {item.size}
-                      {'\n'}
-                      {item.color}
-                    </Text>
-
-
-                    <Text style={styles.productPrice}>
-                      {formatPrice(item.price)}
-                    </Text>
-
-
-                    <TouchableOpacity
-                      onPress={() => removeItem(item.id)}
-                    >
-                      <Text style={styles.remove}>
-                        REMOVE
+                    <View style={styles.productInfoContainer}>
+                      <Text style={styles.productInfo}>
+                        {item.size}
                       </Text>
-                    </TouchableOpacity>
-                  </View>
+                      <Text style={styles.productInfo}>
+                        ●
+                      </Text>
+                      <Text style={styles.productInfo}>
+                        {item.color}
+                      </Text>
+                    </View>
+                    
 
-
-                  {/* QUANTITY */}
-                  <View style={styles.itemActions}>
                     <View style={styles.quantity}>
                       <TouchableOpacity
                         style={styles.quantityButton}
@@ -211,7 +234,27 @@ export default function App() {
                         </Text>
                       </TouchableOpacity>
                     </View>
+
+                    {/* Remove Button */}
+                    <TouchableOpacity
+                      onPress={() => removeItem(item.id)}
+                    >
+                      <Text style={styles.remove}>
+                        REMOVE
+                      </Text>
+                    </TouchableOpacity>
+
+                    
                   </View>
+                  
+
+                  {/* Price */}
+                  <View style={styles.priceContainer}>
+                    <Text style={styles.productPrice}>
+                      {formatPrice(item.price)}
+                    </Text>
+                  </View>
+
                 </View>
               ))}
             </View>
@@ -271,20 +314,25 @@ export default function App() {
                 </Text>
               </View>
 
+            </View>
 
+            
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Checkout/Footer */}
+            <View style={styles.checkoutContainer}>
               <TouchableOpacity
                 style={styles.checkout}
-                onPress={checkout}
+                onPress={() => navigation.navigate('Checkout') }
               >
                 <Text style={styles.checkoutText}>
                   PROCEED TO CHECKOUT
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
@@ -292,27 +340,50 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#111111',
+    // backgroundColor: '#111111',
+    backgroundColor: 'rgb(255, 255, 255)',
   },
 
 
   /* NAVBAR */
-  navbar: {
-    height: 75,
-    paddingHorizontal: 20,
+  // navbar: {
+  //   height: 75,
+  //   paddingHorizontal: 20,
+  //   flexDirection: 'row',
+  //   justifyContent: 'space-between',
+  //   alignItems: 'center',
+  //   borderBottomWidth: 1,
+  //   borderBottomColor: '#333333',
+  // },
+  header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#333333',
+    alignItems: 'center',       // Centers both items vertically on the Y-axis
+    justifyContent: 'center',    // Centers the title horizontally on the screen
+    position: 'relative',       // Provides a reference point for the back button
+    width: '100%',
+    minHeight: 60,
+  },  
+  backButton: {
+    color: '#111111',
+    fontSize: 30,
+    alignSelf: 'center',
+    fontWeight: '900',
+    right: 75,
+    
   },
-
-
+  title: {
+    color: '#111111',
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: -1,
+    justifyContent: 'center',
+    marginRight: 30,
+  },
   logo: {
     fontSize: 27,
     fontWeight: '900',
     letterSpacing: -2,
-    color: '#FFFFFF',
+    color: '#060505',
   },
 
 
@@ -351,15 +422,6 @@ const styles = StyleSheet.create({
   },
 
 
-  title: {
-    color: '#FFFFFF',
-    fontSize: 42,
-    fontWeight: '900',
-    letterSpacing: -2,
-    marginBottom: 35,
-  },
-
-
   /* CART */
   cartItems: {
     borderTopWidth: 1,
@@ -379,6 +441,7 @@ const styles = StyleSheet.create({
   productImage: {
     width: 95,
     height: 115,
+    borderRadius: 10,
     backgroundColor: '#222222',
     marginRight: 15,
   },
@@ -390,23 +453,36 @@ const styles = StyleSheet.create({
 
 
   productName: {
-    color: '#FFFFFF',
-    fontSize: 16,
+    color: '#111111',
+    fontSize: 12,
     fontWeight: 'bold',
     marginBottom: 8,
   },
 
-
+  productInfoContainer: {
+    borderRadius: 5,
+    borderWidth: 1,
+    flexDirection: 'row',     
+    alignItems: 'center',     
+    
+    justifyContent: 'center', 
+    alignSelf: 'flex-start',  
+    
+    paddingHorizontal: 4,     
+    paddingVertical: 2,       
+  },
   productInfo: {
     color: '#999999',
-    fontSize: 13,
-    lineHeight: 20,
-    marginBottom: 12,
+    fontSize: 12,
+    marginHorizontal: 2,
+    textAlign: 'center',
   },
 
-
+  priceContainer:{
+    marginTop: 100,
+  },
   productPrice: {
-    color: '#FFFFFF',
+    color: '#111111',
     fontSize: 17,
     fontWeight: 'bold',
   },
@@ -420,31 +496,32 @@ const styles = StyleSheet.create({
 
 
   /* QUANTITY */
-  itemActions: {
-    marginLeft: 10,
-    marginTop: 2,
-  },
-
 
   quantity: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
+    borderRadius: 5,
     borderColor: '#555555',
+    marginTop: 10,
+    
+    justifyContent: 'center', //Center the contents
+    alignSelf: 'flex-start', //To fit the border the contents
   },
 
 
   quantityButton: {
     width: 32,
     height: 35,
-    backgroundColor: '#222222',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    marginHorizontal: '2',
   },
 
 
   quantityButtonText: {
-    color: '#FFFFFF',
+    color: '#222222',
     fontSize: 19,
   },
 
@@ -452,23 +529,25 @@ const styles = StyleSheet.create({
   quantityText: {
     width: 32,
     textAlign: 'center',
-    color: '#FFFFFF',
+    color: '#111111',
     fontSize: 14,
   },
 
 
   /* SUMMARY */
   summary: {
-    backgroundColor: '#1B1B1B',
+    backgroundColor: '#FFFFFF',
     padding: 25,
     marginTop: 35,
     borderWidth: 1,
     borderColor: '#333333',
+    // borderStyle: 'dotted',
+    borderRadius: 5,    
   },
 
 
   summaryTitle: {
-    color: '#FFFFFF',
+    color: '#333333',
     fontSize: 22,
     fontWeight: 'bold',
     marginBottom: 20,
@@ -478,18 +557,18 @@ const styles = StyleSheet.create({
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 11,
+    paddingVertical: 5,
   },
 
 
   summaryLabel: {
-    color: '#BBBBBB',
+    color: '#111111',
     fontSize: 14,
   },
 
 
   summaryValue: {
-    color: '#BBBBBB',
+    color: '#333333',
     fontSize: 14,
   },
 
@@ -505,25 +584,36 @@ const styles = StyleSheet.create({
 
 
   totalLabel: {
-    color: '#FFFFFF',
+    color: '#111111',
     fontSize: 22,
     fontWeight: 'bold',
   },
 
 
   totalValue: {
-    color: '#FFFFFF',
+    color: '#111111',
     fontSize: 22,
     fontWeight: 'bold',
   },
 
 
   /* CHECKOUT */
+  checkoutContainer:{
+    paddingVertical: 20,
+    paddingHorizontal: 30,
+    backgroundColor:'rgb(255, 255, 255)',
+    borderTopWidth: 2,
+    borderTopColor: '#bcbbbb', 
+    paddingTop: 15,            
+              
+    
+    
+  },
   checkout: {
     width: '100%',
-    marginTop: 25,
     paddingVertical: 17,
-    backgroundColor: '#BAFF00',
+    backgroundColor: 'rgb(186, 255, 0)',
+    borderRadius: 25,
     alignItems: 'center',
   },
 
@@ -539,9 +629,11 @@ const styles = StyleSheet.create({
   emptyCart: {
     paddingVertical: 70,
     paddingHorizontal: 20,
+    borderRadius: 12.5,
     borderWidth: 1,
     borderColor: '#333333',
     alignItems: 'center',
+
   },
 
 
@@ -549,7 +641,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 28,
     fontWeight: '900',
-    marginBottom: 12,
+    marginBottom: 2,
     textAlign: 'center',
   },
 
@@ -564,6 +656,7 @@ const styles = StyleSheet.create({
     marginTop: 25,
     paddingVertical: 15,
     paddingHorizontal: 25,
+    borderRadius: 25,
     backgroundColor: '#BAFF00',
   },
 

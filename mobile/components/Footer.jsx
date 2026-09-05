@@ -1,41 +1,52 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-const data = [
-  { id: '0', name: 'MetroDrip' },
-  { id: '1', name: '🔒' },
-];
+import { useNavigation } from '@react-navigation/native';
 
 export default function Footer() {
+  const navigation = useNavigation();
   return (
-    <View> 
+    
         <View style={styles.container}>
-        <NavItem icon="home-outline" label="Home" active />
-        <NavItem icon="search-outline" label="Shop" />
-        <NavItem icon="heart-outline" label="Saved" />
-        <NavItem icon="receipt-outline" label="Orders" />
-        <NavItem icon="person-circle-outline" label="Account" />
+        <NavItem
+            icon="home-outline"
+            label="Home"
+            active
+            onPress={() => navigation.navigate('Home')}
+        />
+
+        <NavItem icon="search-outline" label="Shop" onPress={() => navigation.navigate('Shop')} />
+        <NavItem icon="heart-outline" label="Saved" onPress={() => navigation.navigate('Saved')} />
+        <NavItem icon="receipt-outline" label="Orders" onPress={() => navigation.navigate('Cart')} />
+        <NavItem icon="person-circle-outline" label="Account" onPress={() => navigation.navigate('Account')} />
         </View>
-    </View>
+    
 
     
   );
 }
 
-const NavItem = ({ icon, label, active = false }) => {
+const NavItem = ({ icon, label, active = false, onPress }) => {
   return (
-    <View style={styles.item}>
-      <Ionicons 
-        name={icon} 
-        size={24} 
-        color={active ? '#000' : '#888'} 
-      />
-      <Text style={[styles.label, active && styles.activeLabel]}>{label}</Text>
-      {active && <View style={styles.indicator} />}
-    </View>
+      <TouchableOpacity 
+        style={styles.item} 
+        onPress={onPress}
+      >
+        <Ionicons 
+          name={icon} 
+          size={24} 
+          color={active ? '#000' : '#888'} 
+        />
+        <Text style={[styles.label, active && styles.activeLabel]}>
+          {label}
+        </Text>
+        {active && <View style={styles.indicator} />}
+      </TouchableOpacity>
   );
 };
+
+
 
 const styles = StyleSheet.create({
     container: {

@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { ScrollView, FlatList, StyleSheet, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { fonts } from '../../src/theme/font';
-import Header from '../components/Header';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { categoryService } from '../../src/services/categoryService';
 
+//Components
+import Header from '../components/Header';
+import Footer from '../components/Footer';
+
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+// Temp API Services
+import { categoryService } from '../../src/services/categoryService';
 import { productService } from '../../src/services/productService';
 import { products } from '../data/product.js';
 
@@ -46,6 +51,7 @@ export default function Home() {
 
     return (
         <SafeAreaProvider style={styles.Container}>
+            <Header/>
             <View style={styles.HeroBanner}>
                 <Text style={styles.HeroBannerUpper}>Metro Manila Streetwear</Text>
                 <Text style={styles.HeroBannerTitle}>
@@ -116,6 +122,7 @@ export default function Home() {
                     keyExtractor={(item) => item.id.toString()}
                 />
             </View> 
+            <Footer/>
         </SafeAreaProvider>
     );
 }

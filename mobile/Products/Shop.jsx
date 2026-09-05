@@ -3,16 +3,25 @@ import { StyleSheet, FlatList, Text, View, TouchableOpacity } from 'react-native
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
 import SearchField from './SearchField.jsx';
+
 import FilterContainer from './FilterContainer.jsx';
 import ProductCards from './ProductCards.jsx';
 import ProductDetails from './ProductDetails.jsx';
 import { products } from '../data/product.js';
+
+//Components
+import ShopHeader from '../components/ShopHeader.jsx';
+import AdaptHeader from '../components/AdaptHeader.jsx';
+import Footer from '../components/Footer';
 
 const Drawer = createDrawerNavigator();
 
 // Inner screen rendering your products grid
 function ShopContent({ navigation }) {
   const [selectedProductId, setSelectedProductId] = useState(null);
+  
+  // Track whether we should show header/search
+  const [showTopSection, setShowTopSection] = useState(true);
 
   const items = products.length;
   const data = [
@@ -20,27 +29,44 @@ function ShopContent({ navigation }) {
     { id: '1', name: `${items} Items` },
   ];
 
+  const screenTitle = 'Shop';
+
+  const handleSelectProduct = (id) => {
+    setSelectedProductId(id);
+    setShowTopSection(false); // Hide header and search
+  };
+
+  const handleBack = () => {
+    setSelectedProductId(null);
+    setShowTopSection(true); // Show header and search again
+  };
+
   return (
     <View style={styles.container}>
-      {/* Top Search Bar with Hamburger Button */}
-      <View style={styles.topHeader}>
-        <TouchableOpacity 
-          style={styles.hamburgerBtn} 
-          onPress={() => navigation.toggleDrawer()}
-        >
-          <Ionicons name="menu" size={28} color="rgb(0, 0, 0)" />
-        </TouchableOpacity>
+      {/* Conditionally render header and search based on selectedProductId */}
+      {showTopSection && (
+        <>
+          <ShopHeader screenTitle={screenTitle} />
+          <View style={styles.topHeader}>
+            <TouchableOpacity 
+              style={styles.hamburgerBtn} 
+              onPress={() => navigation.toggleDrawer()}
+            >
+              <Ionicons name="menu" size={28} color="rgb(0, 0, 0)" />
+            </TouchableOpacity>
 
-        <View style={styles.searchContainer}>
-          <SearchField />
-        </View>
-      </View>
+            <View style={styles.searchContainer}>
+              <SearchField />
+            </View>
+          </View>
+        </>
+      )}
 
       {/* Conditionally Render Details or Products */}
       {selectedProductId ? (
         <ProductDetails
           selectedProductId={selectedProductId}
-          onBack={() => setSelectedProductId(null)}
+          onBack={handleBack}
         />
       ) : (
         <>
@@ -60,12 +86,15 @@ function ShopContent({ navigation }) {
           <View style={styles.mainLayout}>
             <View style={styles.prodSide}>
               <ProductCards
-                onSelectProduct={(id) => setSelectedProductId(id)}
+                onSelectProduct={handleSelectProduct}
               />
             </View>
           </View>
         </>
       )}
+      
+      {/* Always show footer */}
+      <Footer />
     </View>
   );
 }
@@ -99,6 +128,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 15,
+    marginTop: 10,
   },
   hamburgerBtn: {
     paddingRight: 10,

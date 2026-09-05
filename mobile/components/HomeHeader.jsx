@@ -5,7 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 
 
 
-export default function Header() {
+export default function ShopHeader() {
   const navigation = useNavigation();
   return (
     <View style={styles.container}>

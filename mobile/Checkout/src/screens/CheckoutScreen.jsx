@@ -15,6 +15,8 @@ import {
 // Read the device bottom inset for the fixed, safe payment footer.
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useNavigation } from '@react-navigation/native';
+
 // Compose the screen from focused reusable controls.
 import { CheckoutProgress } from '../components/CheckoutProgress';
 import { LabeledField } from '../components/LabeledField';
@@ -53,6 +55,7 @@ function WebStatusBar() {
 
 // Export the complete Checkout & Payment module.
 export function CheckoutScreen() {
+  const navigation = useNavigation();
   // Track delivery values as one object so the future API payload is straightforward.
   const [address, setAddress] = useState(initialDeliveryAddress);
   // Match Figma by selecting GCash initially.
@@ -76,7 +79,7 @@ export function CheckoutScreen() {
   const handlePay = () => {
     // Require every displayed delivery field for this demonstration module.
     const emptyFields = Object.keys(address).filter(
-      (field) => address[field].trim().length === 0
+      (field) => address[field].trim().length === 0,
     );
     // Persist validation state so invalid controls receive a visible red border.
     setInvalidFields(emptyFields);
@@ -92,7 +95,7 @@ export function CheckoutScreen() {
     // Simulate the backend handoff because no PayMongo key or order API was supplied.
     Alert.alert(
       'Ready for payment',
-      `${paymentOptions.find((option) => option.id === paymentMethod)?.title} selected for ${formatPeso(orderTotal)}.`
+      `${paymentOptions.find((option) => option.id === paymentMethod)?.title} selected for ${formatPeso(orderTotal)}.`,
     );
   };
 
@@ -108,7 +111,9 @@ export function CheckoutScreen() {
 
           <View style={styles.header}>
             <View style={styles.headerTitleGroup}>
-              <Pressable accessibilityLabel="Go back" hitSlop={10} style={styles.backButton}>
+              <Pressable accessibilityLabel="Go back" hitSlop={10} style={styles.backButton}
+                onPress={() => navigation.navigate('Shop')}
+              >
                 <Text style={styles.backIcon}>‹</Text>
               </Pressable>
               <Text style={styles.headerTitle}>Checkout</Text>

@@ -2,12 +2,14 @@ export const products = [
     {
         id: 1,
         product_name: "Product 1",
-        description: "Description",
+        description: "Description here",
     },
     {
         id: 2,
         product_name: "Product 2",
         description: "Description",
+        description: "Description",
+
     },
     {
         id: 3,
@@ -25,7 +27,7 @@ export const products = [
         description: "Description",
     },
     {
-        id: 6,
+        id: 7,
         product_name: "Product 6",
         description: "Description",
     },
