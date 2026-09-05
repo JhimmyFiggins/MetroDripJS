@@ -22,7 +22,5 @@ export const fonts = {
   helveticaNeue: 'Helvetica Neue',
   helveticaNeueBold: 'HelveticaNeue-Bold',
   helveticaNeueMedium: 'HelveticaNeue-Medium',
-  
-  // Fallback to system default if Helvetica isn't found (Android)
   default: 'System',
-} as const;
+};

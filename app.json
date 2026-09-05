@@ -27,6 +27,11 @@
     },
     "plugins": [
       "expo-font"
+    ],
+    "font": [
+      "@expo-google-fonts/inter",
+      "@expo-google-fonts/ibm-plex-mono"
     ]
+
   }
 }
