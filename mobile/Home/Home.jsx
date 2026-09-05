@@ -3,8 +3,9 @@ import { ScrollView, FlatList, StyleSheet, Text, View, TouchableOpacity, Activit
 import { fonts } from '../../src/theme/font';
 
 //Components
-import Header from '../components/Header';
+import HomeHeader from '../components/HomeHeader';
 import Footer from '../components/Footer';
+
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -19,6 +20,12 @@ export default function Home() {
     const [productList, setProductList] = useState([]);
     const [currentCategory, setCurrentCategory] = useState(1);
     const [loading, setLoading] = useState(true);
+
+    const formatPrice = price => {
+        return `₱${price.toLocaleString('en-PH', {
+        minimumFractionDigits: 2,
+        })}`;
+    };
 
     useEffect(() => {
         async function fetchCategories() {
@@ -51,7 +58,7 @@ export default function Home() {
 
     return (
         <SafeAreaProvider style={styles.Container}>
-            <Header/>
+            <HomeHeader/>
             <View style={styles.HeroBanner}>
                 <Text style={styles.HeroBannerUpper}>Metro Manila Streetwear</Text>
                 <Text style={styles.HeroBannerTitle}>
@@ -70,6 +77,8 @@ export default function Home() {
                     <ScrollView
                         horizontal 
                         showsHorizontalScrollIndicator={false}
+                        showsVerticalScrollIndicator={false}
+            
                         contentContainerStyle={styles.CategoryScroll}
                     >
                         {categoryList.map((category, index) => {
@@ -101,6 +110,8 @@ export default function Home() {
 
             <View style={styles.Container}>
                 <FlatList
+                    showsHorizontalScrollIndicator={false}
+                    showsVerticalScrollIndicator={false}
                     data={products}
                     numColumns={2}
                     columnWrapperStyle={styles.row}
@@ -115,7 +126,7 @@ export default function Home() {
                                 {item.product_name}
                             </Text>
                             <Text style={styles.productDetails}>
-                                {item.description}
+                                {formatPrice(item.price)}
                             </Text>
                         </TouchableOpacity>
                     )}
@@ -141,13 +152,13 @@ const styles = StyleSheet.create({
     },
     HeroBannerUpper: {
         color: 'rgb(186, 222, 53)',
-        fontSize: 15,
-        fontWeight: '400',
+        fontSize: 13,
+        fontFamily: fonts.interRegular,
     },
     HeroBannerTitle: {
         color: 'rgb(255, 255, 255)',
-        fontSize: 48,
-        fontWeight: '900',
+        fontSize: 40,
+        fontFamily: fonts.interBold,
     },
     HeroLowerButton: {
         backgroundColor: 'rgb(255, 255, 255)',
@@ -160,7 +171,7 @@ const styles = StyleSheet.create({
     HeroBannerLower: {
         color: 'rgb(21, 21, 21)',
         fontSize: 18,
-        fontWeight: '800',
+        fontFamily: fonts.interBold,
         textAlign: 'center',
     },
     CategorySection: {
@@ -194,20 +205,23 @@ const styles = StyleSheet.create({
     },
     CategoryText: {
         fontSize: 14,
-        fontWeight: '600',
+        fontFamily: fonts.interSemiBold,
         color: 'rgb(17, 17, 17)',
     },
+    row: {
+        justifyContent: 'space-between',
+        paddingHorizontal: 10, // Keep your padding here
+        paddingBottom: 10,
+        gap: 10, // <-- Add this! Controls the gap size explicitly
+    },
+
     productCard: {
-        width: '45%',
+        width: '48%', // <-- Changed from 45% to 48%
         height: 200,
         borderColor: 'black',
         borderWidth: .5,
         backgroundColor: 'rgb(255, 255, 255)',
         borderRadius: 10,
-        marginLeft: 10,
-        marginRight: 5,
-        marginBottom: 10,
-        
     },
     productImage:{
         backgroundColor: 'rgb(244, 244, 242)',
@@ -221,5 +235,6 @@ const styles = StyleSheet.create({
         paddingTop: 5,
         paddingLeft: 5,
         fontSize: 12,
+        fontFamily: fonts.monoSemiBold,
     },
 });

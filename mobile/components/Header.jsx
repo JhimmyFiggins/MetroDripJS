@@ -2,7 +2,7 @@ import { StyleSheet, FlatList, TouchableOpacity, Text, View } from 'react-native
 import { Ionicons } from '@expo/vector-icons';
 
 import { useNavigation } from '@react-navigation/native';
-
+import {fonts} from '../Checkout/src/theme';
 
 
 export default function Header() {

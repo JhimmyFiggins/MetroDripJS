@@ -3,33 +3,38 @@ export const products = [
         id: 1,
         product_name: "Product 1",
         description: "Description here",
+        price: 100.00
     },
     {
         id: 2,
         product_name: "Product 2",
         description: "Description",
-        description: "Description",
+        price: 100.11
 
     },
     {
         id: 3,
         product_name: "Product 3",
         description: "Description",
+        price: 100.00
     },
     {
         id: 4,
         product_name: "Product 4",
         description: "Description",
+        price: 100.00
     },
     {
         id: 5,
         product_name: "Product 5",
         description: "Description",
+        price: 100.00
     },
     {
         id: 7,
         product_name: "Product 6",
         description: "Description",
+        price: 100.00
     },
 ]
 

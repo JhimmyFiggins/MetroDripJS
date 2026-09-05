@@ -3,9 +3,17 @@ import { StyleSheet, FlatList, TouchableOpacity, Text, View } from 'react-native
 import { products } from '../data/product.js';
 import { productService } from '../../src/services/productService';
 
+import {fonts} from '../Checkout/src/theme';
+ 
 export default function ProductCards({ onSelectProduct }) {
     const [productList, setProductList] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    const formatPrice = price => {
+        return `₱${price.toLocaleString('en-PH', {
+        minimumFractionDigits: 2,
+        })}`;
+    };
 
     useEffect(() => {
         async function fetchProducts() {
@@ -40,7 +48,7 @@ export default function ProductCards({ onSelectProduct }) {
                             {item.product_name}
                         </Text>
                         <Text style={styles.productDetails}>
-                            {item.description}
+                            {formatPrice(item.price)}
                         </Text>
                     </TouchableOpacity>
                 )}
@@ -58,22 +66,18 @@ const styles = StyleSheet.create({
 
     row: {
         justifyContent: 'space-between',
-        paddingHorizontal: 2,
+        paddingHorizontal: 10, // Keep your padding here
         paddingBottom: 10,
-        // backgroundColor: 'rgb(0,0,0)',
-        marginHorizontal: 10,
+        gap: 10, // <-- Add this! Controls the gap size explicitly
     },
 
     productCard: {
-        width: '45%',
+        width: '48%', // <-- Changed from 45% to 48%
         height: 200,
         borderColor: 'black',
         borderWidth: .5,
         backgroundColor: 'rgb(255, 255, 255)',
         borderRadius: 10,
-        
-
-        
     },
     productImage:{
         backgroundColor: 'rgb(244, 244, 242)',
@@ -87,5 +91,6 @@ const styles = StyleSheet.create({
         paddingTop: 5,
         paddingLeft: 5,
         fontSize: 12,
+        fontFamily: fonts.monoSemiBold,
     },
 });

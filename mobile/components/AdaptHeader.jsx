@@ -27,6 +27,7 @@ const styles = StyleSheet.create({
         position: 'relative',       // Provides a reference point for the back button
         width: '100%',
         minHeight: 60,
+        borderBottomWidth: 1,
     },  
     backButton: {
         color: '#111111',

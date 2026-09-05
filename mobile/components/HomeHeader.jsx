@@ -2,7 +2,7 @@ import { StyleSheet, FlatList, TouchableOpacity, Text, View } from 'react-native
 import { Ionicons } from '@expo/vector-icons';
 
 import { useNavigation } from '@react-navigation/native';
-
+import {fonts} from '../Checkout/src/theme';
 
 
 export default function ShopHeader() {
@@ -43,8 +43,8 @@ const styles = StyleSheet.create({
   },
   title:{
     fontSize: 25,
-    fontWeight: 'bold',
     textAlign: 'left',
+    fontFamily:fonts.interBold,
     // marginRight: 170,
   }, 
   buttonTitle:{

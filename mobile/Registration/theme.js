@@ -4,7 +4,7 @@ import { useColorScheme } from 'react-native';
 
 const LIGHT = {
   mode: 'light',
-  background: '#F3F3F1',
+  background: 'rgb(255, 255, 255)',
   surface: '#FFFFFF',
   border: '#D8D8D6',
   text: '#111111',

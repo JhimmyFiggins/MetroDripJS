@@ -1,5 +1,8 @@
 import { useState } from 'react'; 
 
+// Theme
+import {colors, fonts} from '../../Checkout/src/theme';
+
 import {View, Text, TouchableOpacity, StyleSheet} from 'react-native';
 
 export default function InitialScreen({navigation}){
@@ -44,9 +47,9 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgb(255, 255, 255)',
     },
     title:{
+        fontFamily: fonts.interBold,
         textAlign: 'center',
         fontSize: 50,
-        fontWeight: '800',
         color: 'rgb(0, 0, 0)',
         backgroundColor: 'rgb(255, 255, 255)',
     },
@@ -54,6 +57,7 @@ const styles = StyleSheet.create({
         marginTop: 300,
     },
     subTextUpper:{
+        fontFamily:fonts.interMedium,
         color:'rgb(97, 117, 24)',
         textAlign: 'center',
         fontWeight: '500',
@@ -61,6 +65,7 @@ const styles = StyleSheet.create({
         marginVertical: 20,
     },
     subText:{
+        fontFamily: fonts.interRegular,
         color: 'rgb(67, 67, 67)',
         textAlign: 'center',
         fontSize: 17,
@@ -80,7 +85,7 @@ const styles = StyleSheet.create({
         color: 'white',
         textAlign: 'center',
         fontSize: 20,
-        fontWeight: '800',
+        fontFamily: fonts.interBold,
     },
     signInBtn:{
         backgroundColor: 'rgb(212, 255, 55)',
@@ -93,7 +98,7 @@ const styles = StyleSheet.create({
         color: 'rgb(0, 0, 0)',
         textAlign: 'center',
         fontSize: 20,
-        fontWeight: '800',
+        fontFamily: fonts.interBold,
     },
 
 

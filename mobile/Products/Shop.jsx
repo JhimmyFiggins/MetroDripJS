@@ -14,6 +14,7 @@ import ShopHeader from '../components/ShopHeader.jsx';
 import AdaptHeader from '../components/AdaptHeader.jsx';
 import Footer from '../components/Footer';
 
+import {fonts} from '../Checkout/src/theme';
 const Drawer = createDrawerNavigator();
 
 // Inner screen rendering your products grid
@@ -149,14 +150,15 @@ const styles = StyleSheet.create({
   },
   leftSide: {
     fontSize: 25,
-    fontWeight: 'bold',
     textAlign: 'left',
+    fontFamily: fonts.interBold,
   },
   rightSide: {
     fontSize: 15,
     paddingTop: 10,
     fontWeight: '300',
     textAlign: 'right',
+    fontFamily: fonts.interBold,
   },
   mainLayout: {
     flex: 1,

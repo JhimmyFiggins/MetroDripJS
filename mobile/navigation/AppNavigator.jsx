@@ -14,6 +14,9 @@ import CheckoutScreen from '../Checkout/App';
 
 
 
+import ProfileManagement from '../ProfileManagement/Account';
+
+
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
@@ -27,6 +30,7 @@ export default function AppNavigator() {
                 <Stack.Screen name="Shop" component={ShopScreen} />
                 <Stack.Screen name="Cart" component={ShoppingCart}/>
                 <Stack.Screen name="Checkout" component={CheckoutScreen} />
+                <Stack.Screen name="Account" component={ProfileManagement} />
             </Stack.Navigator>
         </NavigationContainer>
     );

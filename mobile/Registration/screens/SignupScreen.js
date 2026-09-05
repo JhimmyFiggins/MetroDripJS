@@ -12,7 +12,11 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+
 import { useTheme } from '../theme';
+import { fonts } from '../../Checkout/src/theme';
 
 export default function SignupScreen({ navigation }) {
   const { theme, mode, setMode } = useTheme();
@@ -83,7 +87,7 @@ export default function SignupScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaProvider style={styles.container}>
       <KeyboardAvoidingView
         style={styles.keyboard}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -96,7 +100,7 @@ export default function SignupScreen({ navigation }) {
         >
 
           {/* LOGO + DARK MODE TOGGLE */}
-          <View style={styles.topRow}>
+          {/* <View style={styles.topRow}>
             <View style={styles.logoContainer}>
               <Text style={styles.logo}>METRODRIP</Text>
               <Text style={styles.logoSub}>
@@ -116,7 +120,7 @@ export default function SignupScreen({ navigation }) {
                 {isDark ? 'LIGHT' : 'DARK'}
               </Text>
             </TouchableOpacity>
-          </View>
+          </View> */}
 
           {/* HEADER */}
           <View style={styles.header}>
@@ -126,6 +130,26 @@ export default function SignupScreen({ navigation }) {
             </Text>
           </View>
 
+          {/* Navigation of Sign in and Register */}
+          <View style={styles.navigationContainer}>
+            <TouchableOpacity 
+              style={styles.signInBtn}
+              onPress={() => navigation.navigate('Login')}
+            >
+              <Text style={styles.signInBtnText}>  
+                Sign in
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.registerBtn}
+              onPress={() => navigation.navigate('Signup')}
+            >
+              <Text style={styles.registerBtnText}>  
+                Register
+              </Text>
+            </TouchableOpacity>
+          </View>
           {/* FORM */}
           <View style={styles.form}>
 
@@ -281,12 +305,12 @@ export default function SignupScreen({ navigation }) {
           </View>
 
           {/* LOGIN */}
-          <View style={styles.bottomContainer}>
+          {/* <View style={styles.bottomContainer}>
             <Text style={styles.accountText}>Already have an account?</Text>
             <TouchableOpacity onPress={() => navigation.navigate('Login')}>
               <Text style={styles.loginText}>BACK TO LOGIN</Text>
             </TouchableOpacity>
-          </View>
+          </View> */}
 
         </ScrollView>
 
@@ -296,7 +320,7 @@ export default function SignupScreen({ navigation }) {
         </View>
 
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
@@ -355,7 +379,11 @@ function makeStyles(theme) {
       letterSpacing: 0.5,
     },
     header: {
-      marginBottom: 30,
+      marginTop: 70,
+      borderTopWidth: 1,
+      borderTopColor: 'rgb(0,0,0)',
+      marginBottom: 10,
+      paddingTop:30,
     },
     title: {
       fontSize: 28,
@@ -369,22 +397,65 @@ function makeStyles(theme) {
       marginTop: 8,
       lineHeight: 18,
     },
+    navigationContainer:{
+      flexDirection: 'row',
+      justifyContent: 'center',
+      backgroundColor: 'rgb(244, 244, 242)',
+      borderRadius: 10,
+      width: '100%',
+      marginBottom: 10,
+    },
+    signInBtn:{
+      alignItems: 'center',
+      // backgroundColor: 'rgb(180, 102, 102) ',
+      // borderRadius: 5,
+      // borderColor: 'rgb(0, 0, 0)',
+      // borderWidth: 1,
+      width: '47%',
+      marginVertical:5,
+      marginLeft: 3,
+      marginRight: 5,
+      paddingVertical:7,
+      
+    },
+    signInBtnText:{
+      fontSize: 15,
+      fontFamily: fonts.interBold,
+      
+    },
+    registerBtnText:{
+      fontSize: 15,
+      fontFamily: fonts.interBold
+    },
+
+    registerBtn:{
+      alignItems: 'center',
+      borderRadius: 5,
+      // borderColor: 'rgb(0, 0, 0)',
+      // borderWidth: 1,
+      width: '47%',
+      marginVertical:5,
+      marginRight: 3,
+      backgroundColor: 'rgb(255,255,255)',
+      paddingVertical:7,
+    },
     form: {
       width: '100%',
     },
     label: {
       fontSize: 10,
-      fontWeight: '900',
+      // fontWeight: '900',
       color: theme.label,
       marginBottom: 8,
       letterSpacing: 0.5,
+      fontFamily:fonts.interBold,
     },
     input: {
       height: 50,
       backgroundColor: theme.surface,
       borderWidth: 1,
       borderColor: theme.border,
-      borderRadius: 3,
+      borderRadius: 5,
       paddingHorizontal: 14,
       fontSize: 13,
       color: theme.text,
@@ -427,6 +498,7 @@ function makeStyles(theme) {
       justifyContent: 'center',
       alignItems: 'center',
       marginTop: 5,
+      borderRadius:25,
     },
     buttonDisabled: {
       opacity: 0.7,
@@ -436,6 +508,7 @@ function makeStyles(theme) {
       fontWeight: '900',
       color: theme.accentText,
       letterSpacing: 0.8,
+      
     },
     bottomContainer: {
       alignItems: 'center',

@@ -19,4 +19,10 @@ export const fonts = {
   interBold: 'Inter_700Bold',
   monoRegular: 'IBMPlexMono_400Regular',
   monoSemiBold: 'IBMPlexMono_600SemiBold',
+  helveticaNeue: 'Helvetica Neue',
+  helveticaNeueBold: 'HelveticaNeue-Bold',
+  helveticaNeueMedium: 'HelveticaNeue-Medium',
+  
+  // Fallback to system default if Helvetica isn't found (Android)
+  default: 'System',
 } as const;

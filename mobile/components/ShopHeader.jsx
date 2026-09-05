@@ -1,7 +1,7 @@
 import { StyleSheet, FlatList, TouchableOpacity, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-
+import {fonts} from '../Checkout/src/theme';
 export default function AdaptHeader({screenTitle}){
     const navigation = useNavigation();
     return(
@@ -41,7 +41,7 @@ const styles = StyleSheet.create({
     title: {
         color: '#111111',
         fontSize: 20,
-        fontWeight: '900',
+        fontFamily:fonts.interBold,
         letterSpacing: -1,
         justifyContent: 'center',
         // marginRight: 30,
