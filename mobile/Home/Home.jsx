@@ -13,6 +13,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { categoryService } from '../../src/services/categoryService';
 import { productService } from '../../src/services/productService';
 import { products } from '../data/product.js';
+import ProductCards from '../Products/ProductCards';
 
 export default function Home() {
     // 1. Hooks MUST sit inside the function component
@@ -108,7 +109,7 @@ export default function Home() {
                 )}
             </View>
 
-            <View style={styles.Container}>
+            {/* <View style={styles.Container}>
                 <FlatList
                     showsHorizontalScrollIndicator={false}
                     showsVerticalScrollIndicator={false}
@@ -132,7 +133,8 @@ export default function Home() {
                     )}
                     keyExtractor={(item) => item.id.toString()}
                 />
-            </View> 
+            </View>  */}
+            <ProductCards/>
             <Footer/>
         </SafeAreaProvider>
     );
