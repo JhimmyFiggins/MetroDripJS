@@ -25,7 +25,11 @@ SECRET_KEY = 'django-insecure-=1%m3ag4!mnnu*s$=^3_jj@raa@(b*zfgtmfhcgs5q$i9g02u-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '10.0.2.2']
+ALLOWED_HOSTS = ['localhost',
+                 '127.0.0.1', 
+                 '10.0.2.2', 
+                 'metrodripjs.onrender.com',
+                ]
 
 
 # Application definition
