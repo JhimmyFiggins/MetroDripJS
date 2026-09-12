@@ -112,7 +112,6 @@ CREATE TABLE inventory_stockrecord (
         FOREIGN KEY (variant_id) REFERENCES catalog_productvariant(id)
         ON DELETE CASCADE,
     UNIQUE KEY uniq_stock_variant (variant_id),
-    CONSTRAINT chk_stock_integrity CHECK (qty_reserved <= qty_on_hand),
     INDEX idx_variant_id (variant_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -132,8 +131,6 @@ CREATE TABLE inventory_reservation (
     CONSTRAINT fk_reservation_variant
         FOREIGN KEY (variant_id) REFERENCES catalog_productvariant(id)
         ON DELETE RESTRICT,
-    CONSTRAINT chk_reservation_qty CHECK (qty >= 1),
-    CONSTRAINT chk_reservation_status CHECK (status IN ('active', 'committed', 'released', 'expired')),
     INDEX idx_status_expires (status, expires_at),
     INDEX idx_checkout_id (checkout_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -162,13 +159,7 @@ CREATE TABLE inventory_stockmovement (
         FOREIGN KEY (variant_id) REFERENCES catalog_productvariant(id)
         ON DELETE RESTRICT,
     INDEX idx_ref_order_ref (ref_order_ref),
-    CONSTRAINT chk_stockmovement_delta CHECK (
-        (reason = 'sale' AND delta < 0) OR
-        (reason IN ('restock', 'return') AND delta > 0) OR
-        (reason = 'adjustment' AND delta != 0)
-    ),
-    CONSTRAINT chk_stockmovement_reason CHECK (reason IN ('sale', 'restock', 'adjustment', 'return')),
-    INDEX idx_variant_created (variant_id, created_at)
+INDEX idx_variant_created (variant_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- db_orders
@@ -185,8 +176,6 @@ CREATE TABLE orders_order (
 
     PRIMARY KEY (id),
     UNIQUE KEY uniq_order_no (order_no),
-    CONSTRAINT chk_order_total CHECK (total = subtotal + shipping_fee),
-    CONSTRAINT chk_order_status CHECK (status IN ('pending', 'paid', 'packed', 'shipped', 'delivered', 'cancelled', 'refunded')),
     INDEX idx_customer_ref (customer_ref),
     INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -206,6 +195,7 @@ CREATE TABLE orders_orderitem (
     fit_snapshot            VARCHAR(10)     NOT NULL,
     image_url_snapshot      VARCHAR(2048)   NOT NULL,
     snapshot_source         VARCHAR(16)     NOT NULL DEFAULT 'checkout',
+    created_at              DATETIME(6)     NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
 
     PRIMARY KEY (id),
     CONSTRAINT fk_orderitem_order
@@ -215,7 +205,6 @@ CREATE TABLE orders_orderitem (
         FOREIGN KEY (variant_ref) REFERENCES catalog_productvariant(id)
         ON DELETE RESTRICT,
     UNIQUE KEY uniq_order_variant (order_id, variant_ref),
-    CONSTRAINT chk_orderitem_qty CHECK (qty >= 1),
     INDEX idx_product_ref (product_ref),
     INDEX idx_order_created (order_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -226,9 +215,7 @@ CREATE TABLE orders_ordernumbersequence (
     last_value  INT UNSIGNED    NOT NULL DEFAULT 0,
 
     PRIMARY KEY (id),
-    UNIQUE KEY uniq_year (year),
-    CONSTRAINT chk_year_range CHECK (year >= 1000 AND year <= 9999),
-    CONSTRAINT chk_last_value CHECK (last_value <= 99999)
+    UNIQUE KEY uniq_year (year)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE orders_stockhold (
@@ -245,7 +232,6 @@ CREATE TABLE orders_stockhold (
         FOREIGN KEY (order_id) REFERENCES orders_order(id)
         ON DELETE CASCADE,
     UNIQUE KEY uniq_checkout (checkout_id),
-    CONSTRAINT chk_stockhold_state CHECK (state IN ('active', 'committed', 'released', 'unknown')),
     INDEX idx_state_expires (state, expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -262,7 +248,6 @@ CREATE TABLE orders_outboxmessage (
     sent_at         DATETIME(6)     NULL,
 
     PRIMARY KEY (id),
-    CONSTRAINT chk_outbox_state CHECK (state IN ('pending', 'sent', 'dead')),
     INDEX idx_dispatch (state, next_attempt_at),
     INDEX idx_correlation (correlation_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -282,9 +267,6 @@ CREATE TABLE payments_payment (
         ON DELETE CASCADE,
     UNIQUE KEY uniq_provider_ref (provider_ref),
     UNIQUE KEY uniq_order_payment (order_id),
-    CONSTRAINT chk_payment_method CHECK (method IN ('card', 'gcash', 'maya')),
-    CONSTRAINT chk_payment_status CHECK (status IN ('pending', 'paid', 'failed', 'refunded')),
-    CONSTRAINT chk_payment_amount CHECK (amount > 0),
     INDEX idx_provider_ref (provider_ref)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -309,8 +291,6 @@ CREATE TABLE reviews_review (
         FOREIGN KEY (order_id) REFERENCES orders_order(id)
         ON DELETE RESTRICT,
     UNIQUE KEY uniq_customer_product (customer_ref, product_ref),
-    CONSTRAINT chk_review_rating CHECK (rating >= 1 AND rating <= 5),
-    CONSTRAINT chk_review_status CHECK (status IN ('pending', 'approved', 'rejected')),
     INDEX idx_product_reviews (product_ref, status),
     INDEX idx_customer_reviews (customer_ref, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -337,7 +317,6 @@ CREATE TABLE shipping_shipment (
 
     PRIMARY KEY (id),
     UNIQUE KEY uniq_shipment_order (order_ref),
-    CONSTRAINT chk_shipment_status CHECK (status IN ('pending', 'booked', 'in_transit', 'out_for_delivery', 'delivered', 'failed')),
     INDEX idx_order_ref (order_ref),
     INDEX idx_courier (courier)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -355,7 +334,6 @@ CREATE TABLE notifications_devicetoken (
         FOREIGN KEY (customer_ref) REFERENCES accounts_customer(id)
         ON DELETE CASCADE,
     UNIQUE KEY uniq_token_platform (token, platform),
-    CONSTRAINT chk_device_platform CHECK (platform IN ('ios', 'android')),
     INDEX idx_customer_token (customer_ref, platform)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -373,7 +351,6 @@ CREATE TABLE notifications_notification (
     CONSTRAINT fk_notification_customer
         FOREIGN KEY (customer_ref) REFERENCES accounts_customer(id)
         ON DELETE CASCADE,
-    CONSTRAINT chk_notification_category CHECK (category IN ('order', 'drop', 'stock', 'review')),
     INDEX idx_inbox (customer_ref, is_read, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
