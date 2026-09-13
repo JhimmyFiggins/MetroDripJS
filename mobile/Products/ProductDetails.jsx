@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator, Image } from 'react-native';
 import { fonts } from '../../src/theme/font';
 import { productService } from '../../src/services/productService';
 
@@ -94,7 +94,7 @@ export default function ProductDetails({ selectedProductId, onBack }) {
                 <TouchableOpacity onPress={onBack}>
                     <Text style={styles.backArrow}>←</Text>
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>{product.product_name || product.name}</Text>
+                <Text style={styles.headerTitle}>{product.name}</Text>
                 <TouchableOpacity>
                     <Text style={styles.heartIcon}>♡</Text>
                 </TouchableOpacity>
@@ -102,9 +102,11 @@ export default function ProductDetails({ selectedProductId, onBack }) {
 
             {/* Image Carousel */}
             <View style={styles.imageContainer}>
-                <View style={styles.imagePlaceholder}>
-                    <Text style={styles.watermark}>P</Text>
-                </View>
+                <Image
+                    source={require("../assets/products/Men's Round T-shirt.webp")}
+                    style={styles.imagePlaceholder}
+                    resizeMode="contain"
+                />
                 <View style={styles.dotsContainer}>
                     {dots}
                 </View>
@@ -114,7 +116,7 @@ export default function ProductDetails({ selectedProductId, onBack }) {
             {/* <Text style={styles.sku}>{product.id}</Text> */}
             <View style={styles.productHeader}>
                 <Text style={styles.title}>{product.product_name || product.name}</Text>
-                <Text style={styles.price}>₱{product.price || '100.00'}</Text>
+                <Text style={styles.price}>₱{product.base_price}</Text>
             </View>
             <Text style={styles.description}>{product.description}</Text>
 
@@ -250,7 +252,9 @@ export default function ProductDetails({ selectedProductId, onBack }) {
 
             {/* Add to Cart Button */}
             <TouchableOpacity style={styles.addToCartButton}>
-                <Text style={styles.addToCartText}>Add to Cart — ₱{product.price || '100.00'}</Text>
+                <Text style={styles.addToCartText}>
+                    Add to Cart — ₱{product.base_price}
+                </Text>
             </TouchableOpacity>
         </ScrollView>
     );

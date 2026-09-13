@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, FlatList, TouchableOpacity, Text, View, ActivityIndicator } from 'react-native';
+import { StyleSheet, FlatList, TouchableOpacity, Text, View, ActivityIndicator, Image } from 'react-native';
 import { productService } from '../../src/services/productService';
 import { fonts } from '../Checkout/src/theme';
 
-const API_URL = 'http://10.0.2.2:8000/api/v1/products/';
+const API_URL = 'https://metrodripjs.onrender.com/products/';//API URL
 
 export default function ProductCards({ onSelectProduct }) {
     const [productList, setProductList] = useState([]);
@@ -64,7 +64,10 @@ export default function ProductCards({ onSelectProduct }) {
                         style={styles.productCard}
                         onPress={() => onSelectProduct(item.id)}
                     >
-                        <Text style={styles.productImage}>*Insert Image Here</Text>
+                        <Image
+                            source={require('../assets/products/Men\'s Round T-shirt.webp')}
+                            style={styles.productImage}
+                        />
                         <Text style={styles.productDetails}>
                             {item.name}
                         </Text>
@@ -100,13 +103,14 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgb(255, 255, 255)',
         borderRadius: 10,
     },
-    productImage:{
+    productImage: {
         backgroundColor: 'rgb(244, 244, 242)',
         height: 150,
         width: '99.8%',
         paddingTop: 10,
         paddingLeft: 10,
         borderRadius: 10,
+        resizeMode: 'contain',
     },
     productDetails:{
         paddingTop: 5,
