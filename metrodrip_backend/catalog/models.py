@@ -77,6 +77,31 @@ class CatalogProduct(models.Model):
         ]
 
 
+class CatalogColor(models.Model):
+    id = models.BigAutoField(primary_key=True)
+
+    name = models.CharField(max_length=100)
+    hex_code = models.CharField(max_length=7)
+
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField()
+    updated_at = models.DateTimeField()
+
+    class Meta:
+        db_table = 'catalog_color'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['name'],
+                name='uniq_catalog_color_name'
+            ),
+            models.UniqueConstraint(
+                fields=['hex_code'],
+                name='uniq_catalog_color_hex'
+            ),
+        ]
+
+
 class CatalogProductVariant(models.Model):
     id = models.BigAutoField(primary_key=True)
 
@@ -90,6 +115,15 @@ class CatalogProductVariant(models.Model):
     sku = models.CharField(
         max_length=50,
         unique=True
+    )
+
+    color = models.ForeignKey(
+        CatalogColor,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        db_column='color_id',
+        related_name='variants'
     )
 
     attributes = models.JSONField()
@@ -240,3 +274,5 @@ class InventoryStockEvent(models.Model):
                 name='uniq_stockevent_product_variant_warehouse_created'
             ),
         ]
+
+
