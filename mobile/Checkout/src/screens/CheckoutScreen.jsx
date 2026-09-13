@@ -21,6 +21,7 @@ import { useNavigation } from '@react-navigation/native';
 import { CheckoutProgress } from '../components/CheckoutProgress';
 import { LabeledField } from '../components/LabeledField';
 import { PaymentOption } from '../components/PaymentOption';
+import { PayMongoFooter } from '../components/PayMongoFooter';
 // Import the exact Figma content and local formatter.
 import {
   deliveryZones,
@@ -226,7 +227,7 @@ export function CheckoutScreen() {
             >
               <Text style={styles.payButtonText}>Pay {formatPeso(orderTotal)}</Text>
             </Pressable>
-            <Text style={styles.securityCopy}>Secured by PayMongo · card details never stored</Text>
+            <PayMongoFooter />
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -473,15 +474,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.interBold,
     fontSize: 16,
     lineHeight: 19,
-  },
-  // Match the centered 10-pixel PayMongo security note.
-  securityCopy: {
-    width: '100%',
-    color: colors.muted,
-    fontFamily: fonts.monoRegular,
-    fontSize: 10,
-    lineHeight: 13,
-    textAlign: 'center',
   },
   // Apply restrained opacity feedback to selector interactions.
   pressed: {
