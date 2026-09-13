@@ -17,10 +17,12 @@ import Footer from '../components/Footer';
 import {fonts} from '../Checkout/src/theme';
 const Drawer = createDrawerNavigator();
 
+
 // Inner screen rendering your products grid
-function ShopContent({ navigation }) {
-  const [selectedProductId, setSelectedProductId] = useState(null);
+function ShopContent({ navigation, route }) {
   
+  const [selectedProductId, setSelectedProductId] = useState(null);
+  const selectedCategory = route.params?.selectedCategory ?? null;
   // Track whether we should show header/search
   const [showTopSection, setShowTopSection] = useState(true);
 
@@ -66,32 +68,33 @@ function ShopContent({ navigation }) {
       {/* Conditionally Render Details or Products */}
       {selectedProductId ? (
         <ProductDetails
-          selectedProductId={selectedProductId}
-          onBack={handleBack}
+            selectedProductId={selectedProductId}
+            onBack={handleBack}
         />
-      ) : (
+        ) : (
         <>
-          <FlatList
-            style={styles.pCHeader}
-            data={data}
-            numColumns={2}
-            columnWrapperStyle={styles.row}
-            renderItem={({ item, index }) => (
-              <Text style={index === 0 ? styles.leftSide : styles.rightSide}>
-                {item.name}
-              </Text>
-            )}
-            keyExtractor={(item) => item.id}
-          />
-
-          <View style={styles.mainLayout}>
-            <View style={styles.prodSide}>
-              <ProductCards
-                onSelectProduct={handleSelectProduct}
+              <FlatList
+                  style={styles.pCHeader}
+                  data={data}
+                  numColumns={2}
+                  columnWrapperStyle={styles.row}
+                  renderItem={({ item, index }) => (
+                      <Text style={index === 0 ? styles.leftSide : styles.rightSide}>
+                          {item.name}
+                      </Text>
+                  )}
+                  keyExtractor={(item) => item.id}
               />
-            </View>
-          </View>
-        </>
+
+              <View style={styles.mainLayout}>
+                  <View style={styles.prodSide}>
+                      <ProductCards
+                          selectedCategory={selectedCategory}
+                          onSelectProduct={handleSelectProduct}
+                      />
+                  </View>
+              </View>
+          </>
       )}
       
       {/* Always show footer */}
@@ -105,7 +108,9 @@ export default function Shop() {
   return (
     <Drawer.Navigator
       styles={styles.drawerContainer}
-      drawerContent={(props) => <FilterContainer {...props} />}
+      drawerContent={(props) => (
+          <FilterContainer {...props} />
+      )}
       screenOptions={{
         headerShown: false,
         drawerPosition: 'left',

@@ -9,6 +9,7 @@ import SignupScreen from '../Registration/screens/SignupScreen';
 import HomeScreen from '../Home/Home';
 
 import ShopScreen from '../Products/Shop';
+import ProductDetailsScreen from '../Products/ProductDetails'
 import ShoppingCart from '../Cart/CartScreen';
 import CheckoutScreen from '../Checkout/App';
 
@@ -33,6 +34,7 @@ export default function AppNavigator() {
                 <Stack.Screen name="Signup" component={SignupScreen} />
                 <Stack.Screen name="Home" component={HomeScreen} />
                 <Stack.Screen name="Shop" component={ShopScreen} />
+                <Stack.Screen name="ProductDetails" component={ProductDetailsScreen}/>
                 <Stack.Screen name="Cart" component={ShoppingCart}/>
                 <Stack.Screen name="Checkout" component={CheckoutScreen} />
                 <Stack.Screen name="Account" component={ProfileManagement} />

@@ -1,22 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator, Image } from 'react-native';
 import { fonts } from '../../src/theme/font';
 import { productService } from '../../src/services/productService';
 
+import { useNavigation } from '@react-navigation/native';
+
 export default function ProductDetails({ selectedProductId, onBack }) {
+
     const [product, setProduct] = useState(null);
     const [loading, setLoading] = useState(true);
+
+    const [variants, setVariants] = useState([]);
     const [selectedColor, setSelectedColor] = useState(null);
     const [selectedSize, setSelectedSize] = useState(null);
     const [selectedFit, setSelectedFit] = useState(null);
     const [activeDotIndex, setActiveDotIndex] = useState(0);
 
+    const productId = selectedProductId; 
+
+    useEffect(() => {
+        fetch(`https://metrodripjs.onrender.com/products/${productId}/variants/`)
+            .then(response => response.json())
+            .then(data => setVariants(data))
+            .catch(error => console.error('Failed to load variants:', error));
+    }, [productId]);
+
     useEffect(() => {
         async function fetchDetails() {
-            if (!selectedProductId) return;
+            if (!productId) return;
             try {
                 setLoading(true);
-                const data = await productService.getProductById(selectedProductId);
+                const data = await productService.getProductById(productId);
                 setProduct(data);
                 
                 // Extract options with safe fallbacks
@@ -35,7 +49,7 @@ export default function ProductDetails({ selectedProductId, onBack }) {
             }
         }
         fetchDetails();
-    }, [selectedProductId]);
+    }, [productId]);
 
     if (loading) {
         return (
@@ -57,6 +71,18 @@ export default function ProductDetails({ selectedProductId, onBack }) {
     }
 
     // Colors, Sizes, and Fits lists derived from data or fallbacks
+    const sizes = [...new Set(
+        variants.map(variant => variant.attributes.size)
+    )];
+
+    const colors = [...new Set(
+        variants.map(variant => variant.attributes.color)
+    )];
+
+    const fits = [...new Set(
+        variants.map(variant => variant.attributes.fit)
+    )];
+    
     const colorsList = product.colors && product.colors.length > 0 ? product.colors : ['Black', 'White'];
     const sizesList = product.sizes && product.sizes.length > 0 ? product.sizes : ['S', 'M', 'L'];
     const fitsList = product.fits && product.fits.length > 0 ? product.fits : (product.fit ? [product.fit] : ['Regular']);
@@ -86,6 +112,7 @@ export default function ProductDetails({ selectedProductId, onBack }) {
 
     return (
         <ScrollView 
+        
             showsVerticalScrollIndicator={false}
             showsHorizontalScrollIndicator={false}
             style={styles.container}>
@@ -94,17 +121,20 @@ export default function ProductDetails({ selectedProductId, onBack }) {
                 <TouchableOpacity onPress={onBack}>
                     <Text style={styles.backArrow}>←</Text>
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>{product.product_name || product.name}</Text>
+                <Text style={styles.headerTitle}>{product.name}</Text>
                 <TouchableOpacity>
                     <Text style={styles.heartIcon}>♡</Text>
                 </TouchableOpacity>
+                
             </View>
 
             {/* Image Carousel */}
             <View style={styles.imageContainer}>
-                <View style={styles.imagePlaceholder}>
-                    <Text style={styles.watermark}>P</Text>
-                </View>
+                <Image
+                    source={require("../assets/products/Men's Round T-shirt.webp")}
+                    style={styles.imagePlaceholder}
+                    resizeMode="contain"
+                />
                 <View style={styles.dotsContainer}>
                     {dots}
                 </View>
@@ -114,7 +144,7 @@ export default function ProductDetails({ selectedProductId, onBack }) {
             {/* <Text style={styles.sku}>{product.id}</Text> */}
             <View style={styles.productHeader}>
                 <Text style={styles.title}>{product.product_name || product.name}</Text>
-                <Text style={styles.price}>₱{product.price || '100.00'}</Text>
+                <Text style={styles.price}>₱{product.base_price}</Text>
             </View>
             <Text style={styles.description}>{product.description}</Text>
 
@@ -151,8 +181,9 @@ export default function ProductDetails({ selectedProductId, onBack }) {
             {/* Size Selector */}
             <View style={styles.selectorRow}>
                 <Text style={styles.selectorLabel}>Size</Text>
-                {/* <View style={styles.sizeOptions}>
-                    {sizesList.map((size) => (
+
+                <View style={styles.sizeOptions}>
+                    {sizes.map((size) => (
                         <TouchableOpacity
                             key={size}
                             style={[
@@ -169,13 +200,12 @@ export default function ProductDetails({ selectedProductId, onBack }) {
                             </Text>
                         </TouchableOpacity>
                     ))}
-                </View> */}
-                <Text style={styles.selectorValue}>{selectedSize}</Text>
+                </View>
             </View>
 
             {/* Size Options */}
 
-            <View style={styles.sizeOptions}>
+            {/* <View style={styles.sizeOptions}>
                 {sizesList.map((size) => (
                     <TouchableOpacity
                         key={size}
@@ -193,7 +223,7 @@ export default function ProductDetails({ selectedProductId, onBack }) {
                         </Text>
                     </TouchableOpacity>
                 ))}
-            </View>
+            </View> */}
 
 
             {/* Fit Selector */}
@@ -250,7 +280,9 @@ export default function ProductDetails({ selectedProductId, onBack }) {
 
             {/* Add to Cart Button */}
             <TouchableOpacity style={styles.addToCartButton}>
-                <Text style={styles.addToCartText}>Add to Cart — ₱{product.price || '100.00'}</Text>
+                <Text style={styles.addToCartText}>
+                    Add to Cart — ₱{product.base_price}
+                </Text>
             </TouchableOpacity>
         </ScrollView>
     );
@@ -370,6 +402,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 16,
+        marginTop:10,
     },
     selectorLabel: {
         fontFamily: fonts.interRegular,
