@@ -21,7 +21,12 @@ const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
     return (
-        <NavigationContainer>
+        <NavigationContainer
+            linking={{
+                prefixes: [],
+                config: { screens: { Checkout: 'checkout' } },
+            }}
+        >
             <Stack.Navigator initialRouteName="Initial" screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="Initial" component={InitialScreen} />
                 <Stack.Screen name="Login" component={LoginScreen} />
