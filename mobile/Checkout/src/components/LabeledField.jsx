@@ -4,7 +4,7 @@ import { StyleSheet, Text, TextInput, View } from 'react-native';
 // Consume shared tokens to reproduce the Figma field styling.
 import { colors, fonts } from '../theme';
 
-// Render the compact uppercase label and editable value as one 54-pixel control.
+// Render the compact uppercase label, optional error message, and editable value.
 export function LabeledField({
   label,
   accessibilityLabel,
@@ -18,9 +18,18 @@ export function LabeledField({
   // Merge optional flex sizing with the fixed Figma field shell.
   return (
     <View style={[styles.wrapper, error ? styles.wrapperError : undefined, style]}>
-      <Text style={[styles.label, error ? styles.errorText : undefined]}>{label}</Text>
+      <View style={styles.labelRow}>
+        <Text style={[styles.label, error ? styles.errorText : undefined]}>{label}</Text>
+        {error ? (
+          <Text numberOfLines={1} style={styles.errorInline}>
+            {error}
+          </Text>
+        ) : null}
+      </View>
       <TextInput
+        accessibilityInvalid={Boolean(error)}
         accessibilityLabel={accessibilityLabel}
+        aria-invalid={Boolean(error)}
         autoCapitalize={autoCapitalize}
         autoCorrect={false}
         keyboardType={keyboardType}
@@ -52,6 +61,12 @@ const styles = StyleSheet.create({
     borderColor: colors.danger,
   },
   // Match IBM Plex Mono's tiny uppercase field label.
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 4,
+  },
   label: {
     color: colors.muted,
     fontFamily: fonts.monoRegular,
@@ -62,6 +77,13 @@ const styles = StyleSheet.create({
   // Keep validation labels visually connected to their invalid control.
   errorText: {
     color: colors.danger,
+  },
+  // Display succinct error guidance inline with the field label.
+  errorInline: {
+    color: colors.danger,
+    fontFamily: fonts.interMedium,
+    fontSize: 9,
+    lineHeight: 12,
   },
   // Remove platform input padding so the value sits on the Figma baseline.
   input: {

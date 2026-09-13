@@ -21,7 +21,7 @@ export default function Header() {
       </TouchableOpacity>
       
       <TouchableOpacity style={styles.button}
-        onPress={() => navigation.navigate('ShoppingCart')}
+        onPress={() => navigation.navigate('Cart')}
       >
         <Text style={styles.buttonText}>🛍️</Text>
       </TouchableOpacity>

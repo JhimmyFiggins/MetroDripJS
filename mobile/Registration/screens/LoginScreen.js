@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -78,6 +79,7 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <SafeAreaProvider style={styles.container}>
+      <StatusBar style={isDark ? "light" : "dark"} />
       <KeyboardAvoidingView
         style={styles.keyboard}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -123,18 +125,14 @@ export default function LoginScreen({ navigation }) {
               style={styles.signInBtn}
               onPress={() => navigation.navigate('Login')}
             >
-              <Text style={styles.signInBtnText}>  
-                Sign in
-              </Text>
+              <Text style={styles.signInBtnText}>Sign In</Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
               style={styles.registerBtn}
               onPress={() => navigation.navigate('Signup')}
             >
-              <Text style={styles.registerBtnText}>  
-                Register
-              </Text>
+              <Text style={styles.registerBtnText}>Register</Text>
             </TouchableOpacity>
           </View>
 
@@ -338,44 +336,40 @@ function makeStyles(theme) {
       marginTop: 8,
       lineHeight: 18,
     },
-    navigationContainer:{
+    navigationContainer: {
       flexDirection: 'row',
-      justifyContent: 'center',
       backgroundColor: 'rgb(244, 244, 242)',
       borderRadius: 10,
+      padding: 4,
       width: '100%',
-      marginBottom: 10,
+      marginBottom: 15,
     },
-    signInBtn:{
+    signInBtn: {
+      flex: 1,
       alignItems: 'center',
-      borderRadius: 5,
-      width: '47%',
-      marginVertical:5,
-      marginLeft: 3,
-      marginRight: 5,
-      paddingVertical:7,
-      backgroundColor:'rgb(255,255,255)',
-      
+      justifyContent: 'center',
+      borderRadius: 8,
+      paddingVertical: 10,
+      backgroundColor: 'rgb(255, 255, 255)',
     },
-    signInBtnText:{
-      fontSize: 15,
-      fontFamily: fonts.interBold
+    signInBtnText: {
+      fontSize: 14,
+      fontFamily: fonts.interBold,
+      color: theme.text,
+      textAlign: 'center',
     },
-    registerBtnText:{
-      fontSize: 15,
-      fontFamily: fonts.interBold
+    registerBtnText: {
+      fontSize: 14,
+      fontFamily: fonts.interBold,
+      color: theme.textMuted,
+      textAlign: 'center',
     },
-
-    registerBtn:{
+    registerBtn: {
+      flex: 1,
       alignItems: 'center',
-      // backgroundColor: 'rgb(180, 102, 102, 0.5) ',
-      // borderRadius: 5,
-      // borderColor: 'rgb(0, 0, 0)',
-      // borderWidth: 1,
-      width: '47%',
-      marginVertical:5,
-      marginRight: 3,
-      paddingVertical:7,
+      justifyContent: 'center',
+      borderRadius: 8,
+      paddingVertical: 10,
     },
     form: {
       width: '100%',

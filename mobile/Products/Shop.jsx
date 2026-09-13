@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, FlatList, Text, View, TouchableOpacity } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
 import SearchField from './SearchField.jsx';
@@ -46,6 +47,7 @@ function ShopContent({ navigation, route }) {
 
   return (
     <View style={styles.container}>
+      <StatusBar style="dark" />
       {/* Conditionally render header and search based on selectedProductId */}
       {showTopSection && (
         <>

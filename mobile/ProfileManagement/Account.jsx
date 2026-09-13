@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 
 import { colors, fonts } from '../Checkout/src/theme';
 import AdaptHeader from '../components/AdaptHeader';
@@ -15,6 +16,7 @@ export default function Account({navigate}) {
   return (
     
     <View style={styles.screen}>
+      <StatusBar style="dark" />
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}

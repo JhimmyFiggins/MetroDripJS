@@ -1,6 +1,6 @@
 // Import React state for the editable form, payment radios, and selector modal.
 import { useState } from 'react';
-// Import the native primitives required by this complete mobile checkout surface.
+// Import native primitives required by this adaptive checkout surface.
 import {
   Alert,
   KeyboardAvoidingView,
@@ -10,19 +10,21 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
-// Read the device bottom inset for the fixed, safe payment footer.
+// Read device safe area insets for fixed elements.
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useNavigation } from '@react-navigation/native';
+import { useCart } from '../../../context/CartContext';
 
 // Compose the screen from focused reusable controls.
 import { CheckoutProgress } from '../components/CheckoutProgress';
 import { LabeledField } from '../components/LabeledField';
 import { PaymentOption } from '../components/PaymentOption';
 import { PayMongoFooter } from '../components/PayMongoFooter';
-// Import the exact Figma content and local formatter.
+// Import the shared checkout data and formatter.
 import {
   deliveryZones,
   formatPeso,
@@ -30,90 +32,222 @@ import {
   orderTotal,
   paymentOptions,
 } from '../data/checkout';
-// Import the shared visual tokens.
+// Import shared visual tokens.
 import { colors, fonts } from '../theme';
 
-// Render the Figma status bar only on web, where no native OS status bar exists.
-function WebStatusBar() {
-  // Native devices already supply this 44-pixel system area.
-  if (Platform.OS !== 'web') {
-    // Avoid duplicating the device clock and signal indicators.
-    return null;
-  }
-
-  // Reproduce the exact status strip visible in the supplied 390×844 frame.
-  return (
-    <View style={styles.webStatusBar}>
-      <Text style={styles.webTime}>9:41</Text>
-      <View style={styles.webIndicators}>
-        <Text style={styles.webIndicatorText}>▪▪▪</Text>
-        <Text style={styles.webIndicatorText}>◗</Text>
-        <Text style={styles.webIndicatorText}>▰</Text>
-      </View>
-    </View>
-  );
-}
-
-// Export the complete Checkout & Payment module.
+// Export the complete, fully responsive Checkout & Payment module.
 export function CheckoutScreen() {
   const navigation = useNavigation();
-  // Track delivery values as one object so the future API payload is straightforward.
+  const { width } = useWindowDimensions();
+  // 768px breakpoint distinguishes mobile devices from tablets and desktop screens.
+  const isWide = width >= 768;
+
+  // Track delivery values as one object for structured form handling.
   const [address, setAddress] = useState(initialDeliveryAddress);
-  // Match Figma by selecting GCash initially.
+  // Default to GCash.
   const [paymentMethod, setPaymentMethod] = useState('gcash');
-  // Open the custom selector only when the zone control is pressed.
+  // Control delivery zone selector modal visibility.
   const [zoneSelectorVisible, setZoneSelectorVisible] = useState(false);
-  // Store invalid field names without altering the pristine initial design.
+  // Store invalid field names without altering pristine state.
   const [invalidFields, setInvalidFields] = useState([]);
-  // Read the device's home-indicator inset for the fixed payment area.
+  // Read safe area insets.
   const insets = useSafeAreaInsets();
 
-  // Update one address value while preserving the rest of the controlled form.
+  // Update one address value while clearing its validation error upon editing.
   const updateAddress = (field, value) => {
-    // Write the edited value into its named field.
     setAddress((current) => ({ ...current, [field]: value }));
-    // Clear that field's error as soon as the customer corrects it.
     setInvalidFields((current) => current.filter((item) => item !== field));
   };
 
-  // Validate the user-editable delivery payload before initiating payment.
+  // Cross-platform alert messaging (react-native-web's Alert.alert is an empty stub).
+  const showAlert = (title, message) => {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+        window.alert(`${title}\n\n${message}`);
+      }
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+
+  const cartContext = useCart();
+  const cart = cartContext?.cart || [];
+  const clearCart = cartContext?.clearCart || (() => {});
+
+  // Validate all fields before simulated payment initiation.
   const handlePay = () => {
-    // Require every displayed delivery field for this demonstration module.
     const emptyFields = Object.keys(address).filter(
       (field) => address[field].trim().length === 0,
     );
-    // Persist validation state so invalid controls receive a visible red border.
     setInvalidFields(emptyFields);
 
-    // Stop before the payment handoff when delivery data is incomplete.
     if (emptyFields.length > 0) {
-      // Explain the correction without discarding the customer's existing values.
-      Alert.alert('Check your details', 'Complete every delivery field before paying.');
-      // Exit the handler before producing a simulated success state.
+      showAlert('Check your details', 'Complete every delivery field before paying.');
       return;
     }
 
-    // Simulate the backend handoff because no PayMongo key or order API was supplied.
-    Alert.alert(
-      'Ready for payment',
-      `${paymentOptions.find((option) => option.id === paymentMethod)?.title} selected for ${formatPeso(orderTotal)}.`,
-    );
+    const selectedOption = paymentOptions.find((opt) => opt.id === paymentMethod);
+    const orderItems =
+      cart && cart.length > 0
+        ? cart.map((it) => ({
+            id: it.id,
+            name: it.name,
+            variant: `${(it.color || 'BLACK').toUpperCase()} · ${(it.size || 'M').toUpperCase()} · ${(it.fit || 'OVS').toUpperCase()} ×${it.quantity || 1}`,
+            price: it.price,
+            quantity: it.quantity || 1,
+            image: it.image,
+            badge: it.name ? it.name.charAt(0) : 'M',
+          }))
+        : [
+            {
+              id: '1',
+              name: 'Drip Zip-Up Hoodie',
+              variant: 'BLACK · M · OVS ×1',
+              price: 1249,
+              quantity: 1,
+              badge: 'H',
+            },
+            {
+              id: '2',
+              name: 'Metro Core Boxy Tee',
+              variant: 'WHITE · L · REG ×2',
+              price: 691.5,
+              quantity: 2,
+              badge: 'T',
+            },
+          ];
+
+    const orderDraft = {
+      orderId: `MD-2026-00${Math.floor(100 + Math.random() * 900)}`,
+      total: orderTotal,
+      paymentMethod: selectedOption?.title || 'GCash',
+      email: address.email,
+      fullName: address.fullName,
+      mobile: address.mobile,
+      address: `${address.address}, ${address.city}, ${address.zone}`,
+      items: orderItems,
+    };
+
+    // Navigate sequentially to Payment Details screen (Figma M07/M07a/M07b)
+    navigation.navigate('PaymentDetails', {
+      orderDraft,
+      paymentMethod,
+    });
   };
 
-  // Render the responsive 390-pixel design shell and safe footer.
+  // Delivery Address Form Section
+  const deliverySection = (
+    <View style={styles.formSection}>
+      <Text style={styles.sectionTitle}>Delivery address</Text>
+
+      <LabeledField
+        accessibilityLabel="Full name"
+        error={invalidFields.includes('fullName') ? 'Full name is required' : undefined}
+        label="FULL NAME"
+        onChangeText={(value) => updateAddress('fullName', value)}
+        value={address.fullName}
+      />
+
+      <View style={styles.fieldRow}>
+        <LabeledField
+          accessibilityLabel="Mobile"
+          error={invalidFields.includes('mobile') ? 'Mobile is required' : undefined}
+          keyboardType="phone-pad"
+          label="MOBILE"
+          onChangeText={(value) => updateAddress('mobile', value)}
+          style={styles.flexField}
+          value={address.mobile}
+        />
+        <LabeledField
+          accessibilityLabel="Email"
+          autoCapitalize="none"
+          error={invalidFields.includes('email') ? 'Email is required' : undefined}
+          keyboardType="email-address"
+          label="EMAIL"
+          onChangeText={(value) => updateAddress('email', value)}
+          style={styles.flexField}
+          value={address.email}
+        />
+      </View>
+
+      <LabeledField
+        accessibilityLabel="Address"
+        error={invalidFields.includes('address') ? 'Address is required' : undefined}
+        label="ADDRESS"
+        onChangeText={(value) => updateAddress('address', value)}
+        value={address.address}
+      />
+
+      <View style={styles.fieldRow}>
+        <LabeledField
+          accessibilityLabel="City"
+          error={invalidFields.includes('city') ? 'City is required' : undefined}
+          label="CITY"
+          onChangeText={(value) => updateAddress('city', value)}
+          style={styles.flexField}
+          value={address.city}
+        />
+
+        <Pressable
+          accessibilityLabel={`Delivery zone, ${address.zone}`}
+          accessibilityRole="button"
+          onPress={() => setZoneSelectorVisible(true)}
+          style={({ pressed }) => [
+            styles.zoneField,
+            invalidFields.includes('zone') ? styles.invalidField : undefined,
+            pressed ? styles.pressed : undefined,
+          ]}
+        >
+          <Text style={styles.zoneLabel}>ZONE</Text>
+          <View style={styles.zoneValueRow}>
+            <Text numberOfLines={1} style={styles.zoneValue}>
+              {address.zone}
+            </Text>
+            <Text style={styles.chevron}>⌄</Text>
+          </View>
+        </Pressable>
+      </View>
+    </View>
+  );
+
+  // Payment Method Options Section
+  const paymentSection = (
+    <View style={styles.paymentSection}>
+      <Text style={styles.sectionTitle}>Payment method</Text>
+
+      {paymentOptions.map((option) => (
+        <PaymentOption
+          key={option.id}
+          onSelect={setPaymentMethod}
+          option={option}
+          selected={paymentMethod === option.id}
+        />
+      ))}
+    </View>
+  );
+
   return (
     <SafeAreaView edges={Platform.OS === 'web' ? [] : ['top']} style={styles.safeArea}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <View style={styles.phoneCanvas}>
-          <WebStatusBar />
-
-          <View style={styles.header}>
+        {/* Navigation Header spanning responsive container */}
+        <View style={styles.header}>
+          <View style={styles.headerInner}>
             <View style={styles.headerTitleGroup}>
-              <Pressable accessibilityLabel="Go back" hitSlop={10} style={styles.backButton}
-                onPress={() => navigation.navigate('Shop')}
+              <Pressable
+                accessibilityLabel="Go back"
+                accessibilityRole="button"
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                onPress={() => {
+                  if (navigation.canGoBack()) {
+                    navigation.goBack();
+                  } else {
+                    navigation.navigate('Cart');
+                  }
+                }}
+                style={({ pressed }) => [styles.backButton, pressed ? styles.pressed : undefined]}
               >
                 <Text style={styles.backIcon}>‹</Text>
               </Pressable>
@@ -123,115 +257,77 @@ export function CheckoutScreen() {
               🔒
             </Text>
           </View>
+        </View>
 
+        {/* Responsive Content: 2-Column Grid on Desktop/Tablet, 1-Column on Mobile */}
+        {isWide ? (
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={styles.desktopScrollContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             style={styles.scrollView}
           >
-            <CheckoutProgress />
-
-            <View style={styles.form}>
-              <Text style={styles.sectionTitle}>Delivery address</Text>
-
-              <LabeledField
-                accessibilityLabel="Full name"
-                error={invalidFields.includes('fullName') ? 'Full name is required' : undefined}
-                label="FULL NAME"
-                onChangeText={(value) => updateAddress('fullName', value)}
-                value={address.fullName}
-              />
-
-              <View style={styles.fieldRow}>
-                <LabeledField
-                  accessibilityLabel="Mobile"
-                  error={invalidFields.includes('mobile') ? 'Mobile is required' : undefined}
-                  keyboardType="phone-pad"
-                  label="MOBILE"
-                  onChangeText={(value) => updateAddress('mobile', value)}
-                  style={styles.flexField}
-                  value={address.mobile}
-                />
-                <LabeledField
-                  accessibilityLabel="Email"
-                  autoCapitalize="none"
-                  error={invalidFields.includes('email') ? 'Email is required' : undefined}
-                  keyboardType="email-address"
-                  label="EMAIL"
-                  onChangeText={(value) => updateAddress('email', value)}
-                  style={styles.flexField}
-                  value={address.email}
-                />
+            <View style={styles.desktopContainer}>
+              <View style={styles.leftColumn}>
+                <CheckoutProgress />
+                {deliverySection}
               </View>
 
-              <LabeledField
-                accessibilityLabel="Address"
-                error={invalidFields.includes('address') ? 'Address is required' : undefined}
-                label="ADDRESS"
-                onChangeText={(value) => updateAddress('address', value)}
-                value={address.address}
-              />
+              <View style={styles.rightColumn}>
+                <View style={styles.desktopPaymentPanel}>
+                  {paymentSection}
 
-              <View style={styles.fieldRow}>
-                <LabeledField
-                  accessibilityLabel="City"
-                  error={invalidFields.includes('city') ? 'City is required' : undefined}
-                  label="CITY"
-                  onChangeText={(value) => updateAddress('city', value)}
-                  style={styles.flexField}
-                  value={address.city}
-                />
-
-                <Pressable
-                  accessibilityLabel={`Delivery zone, ${address.zone}`}
-                  accessibilityRole="button"
-                  onPress={() => setZoneSelectorVisible(true)}
-                  style={({ pressed }) => [
-                    styles.zoneField,
-                    invalidFields.includes('zone') ? styles.invalidField : undefined,
-                    pressed ? styles.pressed : undefined,
-                  ]}
-                >
-                  <Text style={styles.zoneLabel}>ZONE</Text>
-                  <View style={styles.zoneValueRow}>
-                    <Text numberOfLines={1} style={styles.zoneValue}>
-                      {address.zone}
-                    </Text>
-                    <Text style={styles.chevron}>⌄</Text>
+                  <View style={styles.desktopActionArea}>
+                    <Pressable
+                      accessibilityLabel={`Continue to payment details for ${formatPeso(orderTotal)}`}
+                      accessibilityRole="button"
+                      onPress={handlePay}
+                      style={({ pressed }) => [
+                        styles.payButton,
+                        pressed ? styles.payButtonPressed : undefined,
+                      ]}
+                    >
+                      <Text style={styles.payButtonText}>Continue to Payment Details</Text>
+                    </Pressable>
+                    <PayMongoFooter />
                   </View>
-                </Pressable>
+                </View>
               </View>
-
-              <Text style={styles.sectionTitle}>Payment method</Text>
-
-              {paymentOptions.map((option) => (
-                <PaymentOption
-                  key={option.id}
-                  onSelect={setPaymentMethod}
-                  option={option}
-                  selected={paymentMethod === option.id}
-                />
-              ))}
             </View>
-
-            <View style={styles.scrollSpacer} />
           </ScrollView>
-
-          <View style={[styles.paymentFooter, { paddingBottom: Math.max(insets.bottom, 30) }]}>
-            <Pressable
-              accessibilityLabel={`Pay ${formatPeso(orderTotal)}`}
-              accessibilityRole="button"
-              onPress={handlePay}
-              style={({ pressed }) => [styles.payButton, pressed ? styles.payButtonPressed : undefined]}
+        ) : (
+          <View style={styles.mobileContainer}>
+            <ScrollView
+              contentContainerStyle={styles.mobileScrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              style={styles.scrollView}
             >
-              <Text style={styles.payButtonText}>Pay {formatPeso(orderTotal)}</Text>
-            </Pressable>
-            <PayMongoFooter />
+              <CheckoutProgress />
+              <View style={styles.mobileForm}>
+                {deliverySection}
+                {paymentSection}
+              </View>
+              <View style={styles.scrollSpacer} />
+            </ScrollView>
+
+            {/* Mobile Fixed Safe Payment Footer */}
+            <View style={[styles.paymentFooter, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+              <Pressable
+                accessibilityLabel={`Continue to payment details for ${formatPeso(orderTotal)}`}
+                accessibilityRole="button"
+                onPress={handlePay}
+                style={({ pressed }) => [styles.payButton, pressed ? styles.payButtonPressed : undefined]}
+              >
+                <Text style={styles.payButtonText}>Continue to Payment Details</Text>
+              </Pressable>
+              <PayMongoFooter />
+            </View>
           </View>
-        </View>
+        )}
       </KeyboardAvoidingView>
 
+      {/* Zone Selector Modal: Bottom Sheet on Mobile, Centered Card on Desktop */}
       <Modal
         animationType="fade"
         onRequestClose={() => setZoneSelectorVisible(false)}
@@ -241,9 +337,12 @@ export function CheckoutScreen() {
         <Pressable
           accessibilityLabel="Close delivery zone selector"
           onPress={() => setZoneSelectorVisible(false)}
-          style={styles.modalBackdrop}
+          style={[styles.modalBackdrop, isWide ? styles.modalBackdropDesktop : undefined]}
         >
-          <View style={styles.zoneSheet}>
+          <Pressable
+            onPress={(e) => e.stopPropagation?.()}
+            style={[styles.zoneSheet, isWide ? styles.zoneSheetDesktop : undefined]}
+          >
             <Text style={styles.zoneSheetTitle}>Delivery zone</Text>
             {deliveryZones.map((zone) => (
               <Pressable
@@ -260,140 +359,154 @@ export function CheckoutScreen() {
                 <Text style={styles.zoneChoiceCheck}>{address.zone === zone ? '●' : '○'}</Text>
               </Pressable>
             ))}
-          </View>
+          </Pressable>
         </Pressable>
       </Modal>
     </SafeAreaView>
   );
 }
 
-// Translate every Figma measurement into native React Native styles.
 const styles = StyleSheet.create({
-  // Fill the device and center the fixed-width reference canvas on wider displays.
   safeArea: {
     flex: 1,
-    alignItems: 'center',
     backgroundColor: colors.paper,
   },
-  // Allow keyboard avoidance to resize the complete screen.
   keyboardView: {
     flex: 1,
     width: '100%',
     alignItems: 'center',
   },
-  // Preserve the 390-pixel Figma width while remaining usable on narrower devices.
-  phoneCanvas: {
+  scrollView: {
     flex: 1,
     width: '100%',
-    maxWidth: 390,
-    backgroundColor: colors.paper,
   },
-  // Recreate the iOS status-bar area only for browser-based visual validation.
-  webStatusBar: {
-    height: 44,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 8,
-  },
-  // Match the 14-pixel semibold system time in the reference.
-  webTime: {
-    color: colors.ink,
-    fontFamily: fonts.interSemiBold,
-    fontSize: 14,
-    lineHeight: 17,
-  },
-  // Keep the three Figma status symbols grouped at the right edge.
-  webIndicators: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  // Match the compact indicator glyph size from the design.
-  webIndicatorText: {
-    color: colors.ink,
-    fontFamily: fonts.interRegular,
-    fontSize: 11,
-    lineHeight: 15,
-  },
-  // Match the 52-pixel checkout navigation bar and one-pixel separators.
+
+  // Navigation Header
   header: {
+    width: '100%',
     height: 52,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderTopWidth: 1,
     borderBottomWidth: 1,
     borderColor: colors.border,
-    paddingHorizontal: 16,
     backgroundColor: colors.paper,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  // Align the back affordance and title with a 10-pixel design gap.
+  headerInner: {
+    width: '100%',
+    maxWidth: 960,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+  },
   headerTitleGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-  // Give the narrow chevron a reliable 10-pixel visual width.
   backButton: {
-    width: 10,
-    height: 31,
+    minWidth: 32,
+    minHeight: 44,
+    alignItems: 'center',
     justifyContent: 'center',
   },
-  // Match the 26-pixel Figma chevron glyph.
   backIcon: {
     color: colors.ink,
     fontFamily: fonts.interRegular,
     fontSize: 26,
     lineHeight: 31,
   },
-  // Match the 17-pixel bold checkout title.
   headerTitle: {
     color: colors.ink,
     fontFamily: fonts.interBold,
     fontSize: 17,
     lineHeight: 21,
   },
-  // Use the design's lock-as-text treatment and exact size.
   lockIcon: {
     color: colors.ink,
     fontSize: 15,
     lineHeight: 18,
   },
-  // Let the address/payment region consume all space above the fixed footer.
-  scrollView: {
+
+  // Mobile Layout Container (screens < 768px)
+  mobileContainer: {
     flex: 1,
+    width: '100%',
+    maxWidth: 540,
+    alignSelf: 'center',
+    backgroundColor: colors.paper,
   },
-  // Keep scroll content at full canvas width.
-  scrollContent: {
+  mobileScrollContent: {
     flexGrow: 1,
   },
-  // Apply the design's 16-pixel side inset and 12-pixel vertical rhythm.
-  form: {
+  mobileForm: {
+    width: '100%',
+    paddingHorizontal: 16,
+    gap: 20,
+  },
+
+  // Desktop/Tablet Layout (screens >= 768px)
+  desktopScrollContent: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+  },
+  desktopContainer: {
+    width: '100%',
+    maxWidth: 960,
+    flexDirection: 'row',
+    gap: 32,
+    alignItems: 'flex-start',
+  },
+  leftColumn: {
+    flex: 1.1,
+    minWidth: 340,
+    gap: 16,
+  },
+  rightColumn: {
+    flex: 0.9,
+    minWidth: 320,
+    maxWidth: 420,
+  },
+  desktopPaymentPanel: {
+    width: '100%',
+    backgroundColor: colors.paper,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    padding: 20,
+    gap: 20,
+  },
+  desktopActionArea: {
+    marginTop: 4,
+    gap: 10,
+  },
+
+  // Shared Form & Section Styles
+  formSection: {
     width: '100%',
     gap: 12,
-    paddingHorizontal: 16,
   },
-  // Match both Figma section headings.
+  paymentSection: {
+    width: '100%',
+    gap: 12,
+  },
   sectionTitle: {
     color: colors.ink,
     fontFamily: fonts.interBold,
     fontSize: 16,
-    lineHeight: 19,
+    lineHeight: 20,
+    marginBottom: 2,
   },
-  // Place paired fields side-by-side with a 10-pixel gap.
   fieldRow: {
     width: '100%',
     flexDirection: 'row',
     gap: 10,
   },
-  // Give each paired field an equal share of available width.
   flexField: {
     flex: 1,
     minWidth: 0,
   },
-  // Reproduce the selected two-pixel zone field from the Figma frame.
   zoneField: {
     flex: 1,
     minWidth: 0,
@@ -401,16 +514,14 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.ink,
     borderRadius: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 11,
     paddingTop: 7,
     paddingBottom: 5,
     backgroundColor: colors.paper,
   },
-  // Reuse the validation color without affecting the initial frame.
   invalidField: {
     borderColor: colors.danger,
   },
-  // Match the zone's tiny monospaced uppercase label.
   zoneLabel: {
     color: colors.ink,
     fontFamily: fonts.monoRegular,
@@ -418,7 +529,6 @@ const styles = StyleSheet.create({
     lineHeight: 12,
     letterSpacing: 0.8,
   },
-  // Align the selected zone and dropdown chevron on one baseline.
   zoneValueRow: {
     flex: 1,
     flexDirection: 'row',
@@ -426,7 +536,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 4,
   },
-  // Match the 13-pixel semibold selected zone copy.
   zoneValue: {
     flex: 1,
     color: colors.ink,
@@ -434,18 +543,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 17,
   },
-  // De-emphasize the dropdown affordance exactly like Figma.
   chevron: {
     color: colors.muted,
     fontFamily: fonts.interRegular,
     fontSize: 13,
     lineHeight: 17,
   },
-  // Preserve the small blank tail at the bottom of the Figma scroll content.
   scrollSpacer: {
-    height: 12,
+    height: 16,
   },
-  // Reproduce the fixed white footer and top divider.
+
+  // Fixed Footer on Mobile
   paymentFooter: {
     width: '100%',
     gap: 8,
@@ -455,7 +563,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: colors.paper,
   },
-  // Match the 54-pixel full-width volt pill.
+
+  // Action Button
   payButton: {
     width: '100%',
     height: 54,
@@ -464,40 +573,47 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.volt,
   },
-  // Darken the button slightly during touch feedback.
   payButtonPressed: {
     opacity: 0.78,
   },
-  // Match the 16-pixel bold payment call to action.
   payButtonText: {
     color: colors.onVolt,
     fontFamily: fonts.interBold,
     fontSize: 16,
     lineHeight: 19,
   },
-  // Apply restrained opacity feedback to selector interactions.
   pressed: {
     opacity: 0.7,
   },
-  // Dim the app behind the delivery-zone selection sheet.
+
+  // Modal Backdrop & Sheet
   modalBackdrop: {
     flex: 1,
     justifyContent: 'flex-end',
     alignItems: 'center',
     backgroundColor: colors.overlay,
   },
-  // Present the selector as a compact, mobile-friendly bottom sheet.
+  modalBackdropDesktop: {
+    justifyContent: 'center',
+    padding: 24,
+  },
   zoneSheet: {
     width: '100%',
-    maxWidth: 390,
+    maxWidth: 540,
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingTop: 20,
     paddingBottom: 30,
     backgroundColor: colors.paper,
   },
-  // Introduce the zone options with the existing section-title hierarchy.
+  zoneSheetDesktop: {
+    maxWidth: 420,
+    borderRadius: 18,
+    paddingBottom: 24,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   zoneSheetTitle: {
     marginBottom: 10,
     color: colors.ink,
@@ -505,7 +621,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     lineHeight: 22,
   },
-  // Give every zone a generous 48-pixel touch target.
   zoneChoice: {
     minHeight: 48,
     flexDirection: 'row',
@@ -514,14 +629,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderColor: colors.border,
   },
-  // Match regular body copy in the selector.
   zoneChoiceText: {
     color: colors.ink,
     fontFamily: fonts.interRegular,
     fontSize: 14,
     lineHeight: 18,
   },
-  // Use volt for the selected option indicator.
   zoneChoiceCheck: {
     color: colors.volt,
     fontFamily: fonts.interBold,
