@@ -1,25 +1,23 @@
-// src/services/productService.js
-import { products } from '../../mobile/data/product';
-
-// Helper to simulate network latency in development (optional)
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const API_URL = 'https://metrodripjs.onrender.com';
 
 export const productService = {
-  // Get all products
   getAllProducts: async () => {
-    await delay(200); // Simulates network load
-    return products;
+    const response = await fetch(`${API_URL}/products/`);
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch products.');
+    }
+
+    return await response.json();
   },
 
-  // Get a single product by its ID
   getProductById: async (productId) => {
-    await delay(200); // Simulates network load
-    const product = products.find((item) => item.id === productId);
-    
-    if (!product) {
+    const response = await fetch(`${API_URL}/products/${productId}/`);
+
+    if (!response.ok) {
       throw new Error(`Product with ID ${productId} not found.`);
     }
-    
-    return product;
+
+    return await response.json();
   },
 };

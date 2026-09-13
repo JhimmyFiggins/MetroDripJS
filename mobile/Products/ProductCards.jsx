@@ -9,7 +9,7 @@ export default function ProductCards({ onSelectProduct }) {
     const [productList, setProductList] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-
+    
     const formatPrice = price => {
         return `₱${price.toLocaleString('en-PH', {
             minimumFractionDigits: 2,
