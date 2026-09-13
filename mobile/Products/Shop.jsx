@@ -17,10 +17,12 @@ import Footer from '../components/Footer';
 import {fonts} from '../Checkout/src/theme';
 const Drawer = createDrawerNavigator();
 
+
 // Inner screen rendering your products grid
-function ShopContent({ navigation }) {
-  const [selectedProductId, setSelectedProductId] = useState(null);
+function ShopContent({ navigation, route }) {
   
+  const [selectedProductId, setSelectedProductId] = useState(null);
+  const selectedCategory = route.params?.selectedCategory ?? null;
   // Track whether we should show header/search
   const [showTopSection, setShowTopSection] = useState(true);
 
@@ -87,7 +89,7 @@ function ShopContent({ navigation }) {
           <View style={styles.mainLayout}>
             <View style={styles.prodSide}>
               <ProductCards
-                onSelectProduct={handleSelectProduct}
+                  selectedCategory={selectedCategory}
               />
             </View>
           </View>
@@ -105,7 +107,9 @@ export default function Shop() {
   return (
     <Drawer.Navigator
       styles={styles.drawerContainer}
-      drawerContent={(props) => <FilterContainer {...props} />}
+      drawerContent={(props) => (
+          <FilterContainer {...props} />
+      )}
       screenOptions={{
         headerShown: false,
         drawerPosition: 'left',

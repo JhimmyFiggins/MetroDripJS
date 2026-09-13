@@ -2,10 +2,18 @@ import { useState, useEffect } from 'react';
 import { StyleSheet, FlatList, TouchableOpacity, Text, View, ActivityIndicator, Image } from 'react-native';
 import { productService } from '../../src/services/productService';
 import { fonts } from '../Checkout/src/theme';
+import { useNavigation } from '@react-navigation/native'; // Import navigation hook
 
-const API_URL = 'https://metrodripjs.onrender.com/products/';//API URL
+const API_URL = 'https://metrodripjs.onrender.com/products/';
 
-export default function ProductCards({ onSelectProduct }) {
+export default function ProductCards({ selectedCategory }) { 
+
+    const filteredProducts = selectedCategory
+    ? productList.filter(product => product.category === selectedCategory)
+    : productList;
+
+    const navigation = useNavigation(); 
+
     const [productList, setProductList] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -14,6 +22,11 @@ export default function ProductCards({ onSelectProduct }) {
         return `₱${price.toLocaleString('en-PH', {
             minimumFractionDigits: 2,
         })}`;
+    };
+
+    const handleSelectProduct = (id) => {
+        // Now navigation is guaranteed to exist
+        navigation.navigate('ProductDetails', { selectedProductId: id });
     };
 
     useEffect(() => {
@@ -56,13 +69,14 @@ export default function ProductCards({ onSelectProduct }) {
             <FlatList
                 showsVerticalScrollIndicator={false}
                 showsHorizontalScrollIndicator={false}
-                data={productList}
+                data={filteredProducts}
                 numColumns={2}
                 columnWrapperStyle={styles.row}
                 renderItem={({ item }) => (
                     <TouchableOpacity
                         style={styles.productCard}
-                        onPress={() => onSelectProduct(item.id)}
+                        // 3. Fixed: Use item.id instead of 'id'
+                        onPress={() => navigation.navigate('ProductDetails', { selectedProductId: item.id })}
                     >
                         <Image
                             source={require('../assets/products/Men\'s Round T-shirt.webp')}
@@ -87,16 +101,14 @@ const styles = StyleSheet.create({
         width: '100%',
         flex: 1,
     },
-
     row: {
         justifyContent: 'space-between',
-        paddingHorizontal: 10, // Keep your padding here
+        paddingHorizontal: 10,
         paddingBottom: 10,
-        gap: 10, // <-- Add this! Controls the gap size explicitly
+        gap: 10,
     },
-
     productCard: {
-        width: '48%', // <-- Changed from 45% to 48%
+        width: '48%',
         height: 200,
         borderColor: 'black',
         borderWidth: .5,

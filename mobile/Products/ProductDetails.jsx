@@ -3,7 +3,11 @@ import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator
 import { fonts } from '../../src/theme/font';
 import { productService } from '../../src/services/productService';
 
-export default function ProductDetails({ selectedProductId, onBack }) {
+import { useNavigation } from '@react-navigation/native';
+
+export default function ProductDetails({ }) {
+    const route = useRoute();
+    const navigation = useNavigation();
     const [product, setProduct] = useState(null);
     const [loading, setLoading] = useState(true);
     const [selectedColor, setSelectedColor] = useState(null);
@@ -11,12 +15,14 @@ export default function ProductDetails({ selectedProductId, onBack }) {
     const [selectedFit, setSelectedFit] = useState(null);
     const [activeDotIndex, setActiveDotIndex] = useState(0);
 
+    const productId = route.params?.selectedProductId; 
+
     useEffect(() => {
         async function fetchDetails() {
-            if (!selectedProductId) return;
+            if (!productId) return;
             try {
                 setLoading(true);
-                const data = await productService.getProductById(selectedProductId);
+                const data = await productService.getProductById(productId);
                 setProduct(data);
                 
                 // Extract options with safe fallbacks
@@ -35,7 +41,7 @@ export default function ProductDetails({ selectedProductId, onBack }) {
             }
         }
         fetchDetails();
-    }, [selectedProductId]);
+    }, [productId]);
 
     if (loading) {
         return (

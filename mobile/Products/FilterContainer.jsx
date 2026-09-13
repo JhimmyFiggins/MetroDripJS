@@ -1,16 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, ScrollView, TouchableOpacity, Text, View } from 'react-native';
 import { DrawerContentScrollView } from '@react-navigation/drawer'; // Added import
 
 import { fonts } from '../../src/theme/font'; 
-import { categories, size, fit, sort, subCategories } from '../data/categories.js';
+import { size, fit, sort, subCategories } from '../data/categories.js';
 
-export default function FilterContainer(props) {
+export default function FilterContainer({ onCategoryChange, ...props }) {
+    const [categories, setCategories] = useState([]);
     const [activeCategory, setActiveCategory] = useState(1);
     const [activeSubCategory, setActiveSubCategory] = useState(null);
     const [activeSize, setActiveSize] = useState(1);
     const [activeFit, setActiveFit] = useState(null);
     const [activeSort, setActiveSort] = useState(null);
+
+    useEffect(() => {
+        fetch('https://metrodripjs.onrender.com/categories/')
+            .then(response => response.json())
+            .then(data => setCategories(data))
+            .catch(error => console.error('Failed to load categories:', error));
+    }, []);
 
     return (
         <DrawerContentScrollView {...props} contentContainerStyle={styles.container}
@@ -33,12 +41,15 @@ export default function FilterContainer(props) {
                                 <TouchableOpacity 
                                     style={[styles.baseButton, isActive && styles.activeButton]}
                                     onPress={() => {
-                                        setActiveCategory(item.id); 
+                                        setActiveCategory(item.id);
                                         setActiveSubCategory(null);
+                                        props.navigation.navigate('ShopContent', {
+                                            selectedCategory: item.id,
+                                        });
                                     }}
                                 >
                                     <Text style={[styles.baseButtonText, isActive && styles.activeButtonText]}>
-                                        {item.category_name}
+                                        {item.name}
                                     </Text>
                                 </TouchableOpacity>
 

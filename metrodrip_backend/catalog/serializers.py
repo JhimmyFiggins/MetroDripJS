@@ -10,6 +10,7 @@ class ProductSerializer(serializers.ModelSerializer):
             'name',
             'description',
             'image_url',
+            'category',
             'base_price',
             'currency',
             'is_active',

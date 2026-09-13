@@ -29,18 +29,26 @@ export default function Home() {
     };
 
     useEffect(() => {
-        async function fetchCategories() {
-            try {
-                const data = await categoryService.getAllCategories();
-                setCategoryList(data);
-            } catch (error) {
-                console.error('Failed to load categories:', error);
-            } finally {
-                setLoading(false);
-            }
-        }
-        fetchCategories();
-    }, []);
+            fetch('https://metrodripjs.onrender.com/categories/')
+                .then(response => response.json())
+                .then(data => setCategoryList(data))
+                .catch(error => console.error('Failed to load categories:', error));
+        }, []);
+
+    // useEffect(() => {
+    //     async function fetchCategories() {
+    //         try {
+    //             const data = await categoryService.getAllCategories();
+    //             setCategoryList(data);
+    //         } catch (error) {
+    //             console.error('Failed to load categories:', error);
+    //         } finally {
+    //             setLoading(false);
+    //         }
+    //     }
+
+    //     fetchCategories();
+    // }, []);
 
     useEffect(() => {
             async function fetchProducts() {
@@ -99,7 +107,7 @@ export default function Home() {
                                             
                                             ]}>
                                         {/* {typeof category === 'string' ? category : category.name} */}
-                                        {category.category_name}
+                                        {category.name}
                                         
                                     </Text>
                                 </TouchableOpacity>
