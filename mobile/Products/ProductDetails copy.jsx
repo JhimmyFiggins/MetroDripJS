@@ -75,27 +75,21 @@ export default function ProductDetails({ selectedProductId, onBack }) {
         );
     }
 
-    // Colors, Sizes, and Fits lists derived from variants
+    // Colors, Sizes, and Fits lists derived from data or fallbacks
     const sizes = [...new Set(
         variants.map(variant => variant.attributes.size)
+    )];
+
+    const colors = [...new Set(
+        variants.map(variant => variant.attributes.color)
     )];
 
     const fits = [...new Set(
         variants.map(variant => variant.attributes.fit)
     )];
-
-    const colorsList = variants
-        .filter(variant => variant.color_hex)
-        .map(variant => ({
-            name: variant.color_name,
-            hex_code: variant.color_hex,
-        }))
-        .filter(
-            (color, index, self) =>
-                index === self.findIndex(c => c.name === color.name)
-        );
-    // console.log("COLORS:", colorsList);
-    console.log("VARIANTS:", variants);
+    
+    const colorsList = product.colors && product.colors.length > 0 ? product.colors : ['Black', 'White'];
+    const sizesList = product.sizes && product.sizes.length > 0 ? product.sizes : ['S', 'M', 'L'];
     const fitsList = product.fits && product.fits.length > 0 ? product.fits : (product.fit ? [product.fit] : ['Regular']);
 
     // Generate dot indicators based on image count
@@ -110,6 +104,16 @@ export default function ProductDetails({ selectedProductId, onBack }) {
         );
     }
 
+    // Helper to extract a color string or fallback to dark gray
+    const getColorHex = (colorName) => {
+        const lower = colorName.toLowerCase();
+        if (lower === 'white') return '#FFFFFF';
+        if (lower === 'black') return '#111111';
+        if (lower === 'red') return '#FF3B30';
+        if (lower === 'blue') return '#007AFF';
+        if (lower === 'gray' || lower === 'grey') return '#8E8E93';
+        return lower.startsWith('#') ? lower : '#333333';
+    };
 
     const handleAddToCart = () => {
         if (!product) return;
@@ -128,7 +132,6 @@ export default function ProductDetails({ selectedProductId, onBack }) {
         navigation.navigate('Cart');
     };
 
-   
     return (
         <ScrollView 
         
@@ -178,34 +181,25 @@ export default function ProductDetails({ selectedProductId, onBack }) {
                 <Text style={styles.selectorLabel}>Color</Text>
                 <Text style={styles.selectorValue}>{selectedColor}</Text>
             </View>
-
             {/* Color Options */}
             <View style={styles.colorOptions}>
                 {colorsList.map((color, index) => {
-                    const isSelected = selectedColor === color.name;
-
+                    const isSelected = selectedColor === color;
                     return (
                         <TouchableOpacity
                             key={index}
                             style={[
                                 styles.colorSwatch,
-                                { backgroundColor: color.hex_code },
+                                { backgroundColor: getColorHex(color) },
                                 isSelected && styles.selectedColorSwatch
                             ]}
-                            onPress={() => setSelectedColor(color.name)}
+                            onPress={() => setSelectedColor(color)}
                         >
                             {isSelected && (
-                                <View
-                                    style={[
-                                        styles.colorInnerRing,
-                                        {
-                                            backgroundColor:
-                                                color.hex_code.toLowerCase() === '#ffffff'
-                                                    ? '#000'
-                                                    : '#FFF'
-                                        }
-                                    ]}
-                                />
+                                <View style={[
+                                    styles.colorInnerRing,
+                                    { backgroundColor: color.toLowerCase() === 'white' ? '#000' : '#FFF' }
+                                ]} />
                             )}
                         </TouchableOpacity>
                     );

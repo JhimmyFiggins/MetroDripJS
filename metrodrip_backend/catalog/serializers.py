@@ -1,20 +1,21 @@
 from rest_framework import serializers
 from .models import CatalogProduct, CatalogCategory, CatalogProductVariant
 
-class ProductSerializer(serializers.ModelSerializer):
+class ProductVariantSerializer(serializers.ModelSerializer):
+    color_name = serializers.CharField(source='color.name', read_only=True)
+    color_hex = serializers.CharField(source='color.hex_code', read_only=True)
+
     class Meta:
-        model = CatalogProduct
+        model = CatalogProductVariant
         fields = [
             'id',
             'sku',
-            'name',
-            'description',
-            'image_url',
-            'category',
-            'base_price',
-            'currency',
+            'color',
+            'color_name',
+            'color_hex',
+            'attributes',
+            'price_adjustment',
             'is_active',
-            'is_featured',
             'created_at',
             'updated_at',
         ]
@@ -32,15 +33,3 @@ class CategorySerializer(serializers.ModelSerializer):
             'updated_at',
         ]
 
-class ProductVariantSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CatalogProductVariant
-        fields = [
-            'id',
-            'sku',
-            'attributes',
-            'price_adjustment',
-            'is_active',
-            'created_at',
-            'updated_at',
-        ]
