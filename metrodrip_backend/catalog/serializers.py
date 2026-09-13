@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import CatalogProduct, CatalogCategory
+from .models import CatalogProduct, CatalogCategory, CatalogProductVariant
 
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:
@@ -27,6 +27,19 @@ class CategorySerializer(serializers.ModelSerializer):
             'name',
             'slug',
             'description',
+            'is_active',
+            'created_at',
+            'updated_at',
+        ]
+
+class ProductVariantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CatalogProductVariant
+        fields = [
+            'id',
+            'sku',
+            'attributes',
+            'price_adjustment',
             'is_active',
             'created_at',
             'updated_at',

@@ -5,9 +5,8 @@ import { productService } from '../../src/services/productService';
 
 import { useNavigation } from '@react-navigation/native';
 
-export default function ProductDetails({ }) {
-    const route = useRoute();
-    const navigation = useNavigation();
+export default function ProductDetails({ selectedProductId, onBack }) {
+
     const [product, setProduct] = useState(null);
     const [loading, setLoading] = useState(true);
     const [selectedColor, setSelectedColor] = useState(null);
@@ -15,7 +14,7 @@ export default function ProductDetails({ }) {
     const [selectedFit, setSelectedFit] = useState(null);
     const [activeDotIndex, setActiveDotIndex] = useState(0);
 
-    const productId = route.params?.selectedProductId; 
+    const productId = selectedProductId; 
 
     useEffect(() => {
         async function fetchDetails() {

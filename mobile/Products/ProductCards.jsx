@@ -6,28 +6,32 @@ import { useNavigation } from '@react-navigation/native'; // Import navigation h
 
 const API_URL = 'https://metrodripjs.onrender.com/products/';
 
-export default function ProductCards({ selectedCategory }) { 
-
-    const filteredProducts = selectedCategory
-    ? productList.filter(product => product.category === selectedCategory)
-    : productList;
-
-    const navigation = useNavigation(); 
+export default function ProductCards({ selectedCategory, onSelectProduct }) {
+    const navigation = useNavigation();
 
     const [productList, setProductList] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    
+
+    let filteredProducts;
+
+    // Add new arrivals and trending logic here
+    if (selectedCategory) {
+        if(selectedCategory === 1){ //Default Category - All
+            filteredProducts = productList;
+        }else{
+            filteredProducts = productList.filter(product => 
+            product.category === selectedCategory);
+        }
+    } else {
+        filteredProducts = productList;
+    }
     const formatPrice = price => {
         return `₱${price.toLocaleString('en-PH', {
             minimumFractionDigits: 2,
         })}`;
     };
-
-    const handleSelectProduct = (id) => {
-        // Now navigation is guaranteed to exist
-        navigation.navigate('ProductDetails', { selectedProductId: id });
-    };
+    
 
     useEffect(() => {
         const fetchProducts = async () => {
@@ -76,7 +80,7 @@ export default function ProductCards({ selectedCategory }) {
                     <TouchableOpacity
                         style={styles.productCard}
                         // 3. Fixed: Use item.id instead of 'id'
-                        onPress={() => navigation.navigate('ProductDetails', { selectedProductId: item.id })}
+                        onPress={() => onSelectProduct(item.id)}
                     >
                         <Image
                             source={require('../assets/products/Men\'s Round T-shirt.webp')}

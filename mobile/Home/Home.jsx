@@ -14,19 +14,31 @@ import { categoryService } from '../../src/services/categoryService';
 import { productService } from '../../src/services/productService';
 import { products } from '../data/product.js';
 import ProductCards from '../Products/ProductCards';
+import ProductDetails from '../Products/ProductDetails';
 
-export default function Home() {
-    // 1. Hooks MUST sit inside the function component
+export default function Home({ navigation, route }) {
+    
+    //Rendering of Products
     const [categoryList, setCategoryList] = useState([]);
-    const [productList, setProductList] = useState([]);
+    const [selectedProductId, setSelectedProductId] = useState(null);
+    const selectedCategory = route.params?.selectedCategory ?? null;
+
+    const [productList, setProductList] = useState([]); 
+    
     const [currentCategory, setCurrentCategory] = useState(1);
     const [loading, setLoading] = useState(true);
-
+    const [showTopSection, setShowTopSection] = useState(true);
     const formatPrice = price => {
         return `₱${price.toLocaleString('en-PH', {
         minimumFractionDigits: 2,
         })}`;
     };
+
+    const items = products.length;
+    const data = [
+        { id: '0', name: 'All' },
+        { id: '1', name: `${items} Items` },
+    ];
 
     useEffect(() => {
             fetch('https://metrodripjs.onrender.com/categories/')
@@ -64,85 +76,111 @@ export default function Home() {
             fetchProducts();
         }, []);
 
+    // const handleSelectProduct = (id) => {
+    //     navigation.navigate('ProductDetails', {
+    //         selectedProductId: id,
+    //     });
+    // };
+    const handleSelectProduct = (id) => {
+        setSelectedProductId(id);
+        setShowTopSection(false); // Hide header and search
+    };
 
+    const handleBack = () => {
+        setSelectedProductId(null);
+        setShowTopSection(true); // Show header and search again
+    };
     return (
         <SafeAreaProvider style={styles.Container}>
-            <HomeHeader/>
-            <View style={styles.HeroBanner}>
-                <Text style={styles.HeroBannerUpper}>Metro Manila Streetwear</Text>
-                <Text style={styles.HeroBannerTitle}>
-                    Urban Style Redefined
-                </Text>
+            {showTopSection && (
+                <>
+                <HomeHeader/>
+                <View style={styles.HeroBanner}>
+                    <Text style={styles.HeroBannerUpper}>Metro Manila Streetwear</Text>
+                    <Text style={styles.HeroBannerTitle}>
+                        Urban Style Redefined
+                    </Text>
 
-                <TouchableOpacity style={styles.HeroLowerButton}>
-                    <Text style={styles.HeroBannerLower}>Shop the Drop</Text>
-                </TouchableOpacity>
-            </View>
+                    <TouchableOpacity style={styles.HeroLowerButton}>
+                        <Text style={styles.HeroBannerLower}>Shop the Drop</Text>
+                    </TouchableOpacity>
+                </View>
 
-            <View style={styles.CategorySection}>
-                {loading ? (
-                    <ActivityIndicator size="small" color="#000" style={{ padding: 20 }} />
-                ) : (
-                    <ScrollView
-                        horizontal 
-                        showsHorizontalScrollIndicator={false}
-                        showsVerticalScrollIndicator={false}
-            
-                        contentContainerStyle={styles.CategoryScroll}
-                    >
-                        {categoryList.map((category, index) => {
-                            const isActive = category.id === currentCategory;
-                            return(
-                                <TouchableOpacity 
-                                    key={category.id || index} 
-                                    style={[
-                                        styles.CategoryChip,
-                                        isActive && styles.ActiveCategoryChip
-                                    ]}
-                                    onPress={() => setCurrentCategory(category.id)}
-                                >
-                                    <Text 
-                                        style={[
-                                            styles.CategoryText, isActive && styles.ActiveCategoryText
-                                            
-                                            ]}>
-                                        {/* {typeof category === 'string' ? category : category.name} */}
-                                        {category.name}
-                                        
-                                    </Text>
-                                </TouchableOpacity>
-                            );
-                        })}
-                    </ScrollView>
-                )}
-            </View>
-
-            {/* <View style={styles.Container}>
-                <FlatList
-                    showsHorizontalScrollIndicator={false}
-                    showsVerticalScrollIndicator={false}
-                    data={products}
-                    numColumns={2}
-                    columnWrapperStyle={styles.row}
-                    renderItem={({ item }) => (
-                        <TouchableOpacity 
-                            style={styles.productCard}
-                            onPress={() => onSelectProduct(item.id)}
+                <View style={styles.CategorySection}>
+                    {loading ? (
+                        <ActivityIndicator size="small" color="#000" style={{ padding: 20 }} />
+                    ) : (
+                        <ScrollView
+                            horizontal 
+                            showsHorizontalScrollIndicator={false}
+                            showsVerticalScrollIndicator={false}
+                
+                            contentContainerStyle={styles.CategoryScroll}
                         >
-                            <Text style={styles.productImage}>*Insert Image Here</Text>
-    
-                            <Text style={styles.productDetails}>
-                                {item.product_name}
-                            </Text>
-                            <Text style={styles.productDetails}>
-                                {formatPrice(item.price)}
-                            </Text>
-                        </TouchableOpacity>
+                            {categoryList.map((category, index) => {
+                                const isActive = category.id === currentCategory;
+                                return(
+                                    <TouchableOpacity 
+                                        key={category.id || index} 
+                                        style={[
+                                            styles.CategoryChip,
+                                            isActive && styles.ActiveCategoryChip
+                                        ]}
+                                        onPress={() => 
+                                            setCurrentCategory(category.id)
+                                            
+
+                                        }
+                                    >
+                                        <Text 
+                                            style={[
+                                                styles.CategoryText, isActive && styles.ActiveCategoryText
+                                                
+                                                ]}>
+                                            {/* {typeof category === 'string' ? category : category.name} */}
+                                            {category.name}
+                                            
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
                     )}
-                    keyExtractor={(item) => item.id.toString()}
+                </View>
+                </>
+            )}
+            
+
+            {selectedProductId ? (
+                <ProductDetails
+                    selectedProductId={selectedProductId}
+                    onBack={handleBack}
                 />
-            </View>  */}
-            <ProductCards/>
+                ) : (
+                <>
+                        {/* <FlatList
+                            style={styles.pCHeader}
+                            data={data}
+                            numColumns={2}
+                            columnWrapperStyle={styles.row}
+                            renderItem={({ item, index }) => (
+                                <Text style={index === 0 ? styles.leftSide : styles.rightSide}>
+                                    {item.name}
+                                </Text>
+                            )}
+                            keyExtractor={(item) => item.id}
+                        /> */}
+        
+                        <View style={styles.mainLayout}>
+                            <View style={styles.prodSide}>
+                                <ProductCards
+                                    selectedCategory={currentCategory}
+                                    onSelectProduct={handleSelectProduct}
+                                />
+                            </View>
+                        </View>
+                    </>
+                )}
             <Footer/>
         </SafeAreaProvider>
     );
@@ -223,6 +261,15 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10, // Keep your padding here
         paddingBottom: 10,
         gap: 10, // <-- Add this! Controls the gap size explicitly
+    },
+    mainLayout: {
+        flex: 1,
+    },
+    prodSide: {
+        flex: 1,
+        backgroundColor: '#FFF',
+        borderRadius: 10,
+        margin: 10,
     },
 
     productCard: {

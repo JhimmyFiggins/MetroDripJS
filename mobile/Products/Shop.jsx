@@ -68,32 +68,33 @@ function ShopContent({ navigation, route }) {
       {/* Conditionally Render Details or Products */}
       {selectedProductId ? (
         <ProductDetails
-          selectedProductId={selectedProductId}
-          onBack={handleBack}
+            selectedProductId={selectedProductId}
+            onBack={handleBack}
         />
-      ) : (
+        ) : (
         <>
-          <FlatList
-            style={styles.pCHeader}
-            data={data}
-            numColumns={2}
-            columnWrapperStyle={styles.row}
-            renderItem={({ item, index }) => (
-              <Text style={index === 0 ? styles.leftSide : styles.rightSide}>
-                {item.name}
-              </Text>
-            )}
-            keyExtractor={(item) => item.id}
-          />
-
-          <View style={styles.mainLayout}>
-            <View style={styles.prodSide}>
-              <ProductCards
-                  selectedCategory={selectedCategory}
+              <FlatList
+                  style={styles.pCHeader}
+                  data={data}
+                  numColumns={2}
+                  columnWrapperStyle={styles.row}
+                  renderItem={({ item, index }) => (
+                      <Text style={index === 0 ? styles.leftSide : styles.rightSide}>
+                          {item.name}
+                      </Text>
+                  )}
+                  keyExtractor={(item) => item.id}
               />
-            </View>
-          </View>
-        </>
+
+              <View style={styles.mainLayout}>
+                  <View style={styles.prodSide}>
+                      <ProductCards
+                          selectedCategory={selectedCategory}
+                          onSelectProduct={handleSelectProduct}
+                      />
+                  </View>
+              </View>
+          </>
       )}
       
       {/* Always show footer */}
