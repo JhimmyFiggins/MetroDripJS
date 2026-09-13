@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator, Image } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { fonts } from '../../src/theme/font';
 import { productService } from '../../src/services/productService';
+import { useCart } from '../context/CartContext';
 
 import { useNavigation } from '@react-navigation/native';
+import CustomerReviews from './components/CustomerReviews';
 
 export default function ProductDetails({ selectedProductId, onBack }) {
+    const { addToCart } = useCart();
+    const navigation = useNavigation();
 
     const [product, setProduct] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -110,12 +115,30 @@ export default function ProductDetails({ selectedProductId, onBack }) {
         return lower.startsWith('#') ? lower : '#333333';
     };
 
+    const handleAddToCart = () => {
+        if (!product) return;
+        const productItem = {
+            id: `${product.id || productId}-${selectedColor || 'Default'}-${selectedSize || 'M'}-${selectedFit || 'Regular'}`,
+            productId: product.id || productId,
+            name: product.product_name || product.name || 'MetroDrip Product',
+            size: selectedSize || 'M',
+            color: selectedColor || 'Black',
+            fit: selectedFit || 'Regular',
+            price: parseFloat(product.base_price) || 0,
+            quantity: 1,
+            image: 'https://via.placeholder.com/300x350',
+        };
+        addToCart(productItem);
+        navigation.navigate('Cart');
+    };
+
     return (
         <ScrollView 
         
             showsVerticalScrollIndicator={false}
             showsHorizontalScrollIndicator={false}
             style={styles.container}>
+            <StatusBar style="dark" />
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={onBack}>
@@ -145,6 +168,11 @@ export default function ProductDetails({ selectedProductId, onBack }) {
             <View style={styles.productHeader}>
                 <Text style={styles.title}>{product.product_name || product.name}</Text>
                 <Text style={styles.price}>₱{product.base_price}</Text>
+            </View>
+            <View style={styles.ratingBadgeRow}>
+                <Text style={styles.ratingBadgeStars}>★★★★★</Text>
+                <Text style={styles.ratingBadgeScore}>4.6</Text>
+                <Text style={styles.ratingBadgeCount}>23 reviews</Text>
             </View>
             <Text style={styles.description}>{product.description}</Text>
 
@@ -278,10 +306,13 @@ export default function ProductDetails({ selectedProductId, onBack }) {
                 <Text style={styles.redDot}>●</Text> Only 4 left in this variant
             </Text>
 
+            {/* Customer Reviews Section (Figma M04a) */}
+            <CustomerReviews productId={productId} />
+
             {/* Add to Cart Button */}
-            <TouchableOpacity style={styles.addToCartButton}>
+            <TouchableOpacity style={styles.addToCartButton} onPress={handleAddToCart}>
                 <Text style={styles.addToCartText}>
-                    Add to Cart — ₱{product.base_price}
+                    Add To Cart {product.product_name || product.name}
                 </Text>
             </TouchableOpacity>
         </ScrollView>
@@ -375,7 +406,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        marginBottom: 8,
+        marginBottom: 4,
     },
     title: {
         fontFamily: fonts.interBold,
@@ -388,6 +419,28 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#000',
         marginLeft: 8,
+    },
+    ratingBadgeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 12,
+        gap: 6,
+    },
+    ratingBadgeStars: {
+        fontSize: 12,
+        color: '#5C6B12',
+        letterSpacing: 1,
+    },
+    ratingBadgeScore: {
+        fontSize: 13,
+        fontFamily: fonts.interBold || fonts.helveticaNeueBold,
+        fontWeight: '700',
+        color: '#141414',
+    },
+    ratingBadgeCount: {
+        fontSize: 12,
+        fontFamily: fonts.interRegular,
+        color: '#63635C',
     },
     description: {
         fontFamily: fonts.interRegular,

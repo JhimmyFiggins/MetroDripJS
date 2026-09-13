@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ScrollView, FlatList, StyleSheet, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { fonts } from '../../src/theme/font';
 
 //Components
@@ -92,6 +93,7 @@ export default function Home({ navigation, route }) {
     };
     return (
         <SafeAreaProvider style={styles.Container}>
+            <StatusBar style="dark" />
             {showTopSection && (
                 <>
                 <HomeHeader/>

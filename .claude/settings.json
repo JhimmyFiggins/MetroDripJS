@@ -1,5 +1,6 @@
 {
   "enabledPlugins": {
-    "expo@claude-plugins-official": true
+    "expo@claude-plugins-official": true,
+    "figma@claude-plugins-official": true
   }
 }

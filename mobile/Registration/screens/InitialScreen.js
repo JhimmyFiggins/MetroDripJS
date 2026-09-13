@@ -1,4 +1,5 @@
 import { useState } from 'react'; 
+import { StatusBar } from 'expo-status-bar';
 
 // Theme
 import {colors, fonts} from '../../Checkout/src/theme';
@@ -9,6 +10,7 @@ export default function InitialScreen({navigation}){
     
     return(
         <View style={styles.container}>
+            <StatusBar style="dark" />
 
             <View style={styles.titleContainer}>
                 <Text style={styles.title}>MetroDrip</Text>

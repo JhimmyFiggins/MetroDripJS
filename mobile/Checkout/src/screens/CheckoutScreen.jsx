@@ -17,6 +17,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useNavigation } from '@react-navigation/native';
+import { useCart } from '../../../context/CartContext';
 
 // Compose the screen from focused reusable controls.
 import { CheckoutProgress } from '../components/CheckoutProgress';
@@ -69,6 +70,10 @@ export function CheckoutScreen() {
     }
   };
 
+  const cartContext = useCart();
+  const cart = cartContext?.cart || [];
+  const clearCart = cartContext?.clearCart || (() => {});
+
   // Validate all fields before simulated payment initiation.
   const handlePay = () => {
     const emptyFields = Object.keys(address).filter(
@@ -81,10 +86,53 @@ export function CheckoutScreen() {
       return;
     }
 
-    showAlert(
-      'Ready for payment',
-      `${paymentOptions.find((option) => option.id === paymentMethod)?.title} selected for ${formatPeso(orderTotal)}.`,
-    );
+    const selectedOption = paymentOptions.find((opt) => opt.id === paymentMethod);
+    const orderItems =
+      cart && cart.length > 0
+        ? cart.map((it) => ({
+            id: it.id,
+            name: it.name,
+            variant: `${(it.color || 'BLACK').toUpperCase()} · ${(it.size || 'M').toUpperCase()} · ${(it.fit || 'OVS').toUpperCase()} ×${it.quantity || 1}`,
+            price: it.price,
+            quantity: it.quantity || 1,
+            image: it.image,
+            badge: it.name ? it.name.charAt(0) : 'M',
+          }))
+        : [
+            {
+              id: '1',
+              name: 'Drip Zip-Up Hoodie',
+              variant: 'BLACK · M · OVS ×1',
+              price: 1249,
+              quantity: 1,
+              badge: 'H',
+            },
+            {
+              id: '2',
+              name: 'Metro Core Boxy Tee',
+              variant: 'WHITE · L · REG ×2',
+              price: 691.5,
+              quantity: 2,
+              badge: 'T',
+            },
+          ];
+
+    const orderDraft = {
+      orderId: `MD-2026-00${Math.floor(100 + Math.random() * 900)}`,
+      total: orderTotal,
+      paymentMethod: selectedOption?.title || 'GCash',
+      email: address.email,
+      fullName: address.fullName,
+      mobile: address.mobile,
+      address: `${address.address}, ${address.city}, ${address.zone}`,
+      items: orderItems,
+    };
+
+    // Navigate sequentially to Payment Details screen (Figma M07/M07a/M07b)
+    navigation.navigate('PaymentDetails', {
+      orderDraft,
+      paymentMethod,
+    });
   };
 
   // Delivery Address Form Section
@@ -231,7 +279,7 @@ export function CheckoutScreen() {
 
                   <View style={styles.desktopActionArea}>
                     <Pressable
-                      accessibilityLabel={`Pay ${formatPeso(orderTotal)}`}
+                      accessibilityLabel={`Continue to payment details for ${formatPeso(orderTotal)}`}
                       accessibilityRole="button"
                       onPress={handlePay}
                       style={({ pressed }) => [
@@ -239,7 +287,7 @@ export function CheckoutScreen() {
                         pressed ? styles.payButtonPressed : undefined,
                       ]}
                     >
-                      <Text style={styles.payButtonText}>Pay {formatPeso(orderTotal)}</Text>
+                      <Text style={styles.payButtonText}>Continue to Payment Details</Text>
                     </Pressable>
                     <PayMongoFooter />
                   </View>
@@ -266,12 +314,12 @@ export function CheckoutScreen() {
             {/* Mobile Fixed Safe Payment Footer */}
             <View style={[styles.paymentFooter, { paddingBottom: Math.max(insets.bottom, 24) }]}>
               <Pressable
-                accessibilityLabel={`Pay ${formatPeso(orderTotal)}`}
+                accessibilityLabel={`Continue to payment details for ${formatPeso(orderTotal)}`}
                 accessibilityRole="button"
                 onPress={handlePay}
                 style={({ pressed }) => [styles.payButton, pressed ? styles.payButtonPressed : undefined]}
               >
-                <Text style={styles.payButtonText}>Pay {formatPeso(orderTotal)}</Text>
+                <Text style={styles.payButtonText}>Continue to Payment Details</Text>
               </Pressable>
               <PayMongoFooter />
             </View>

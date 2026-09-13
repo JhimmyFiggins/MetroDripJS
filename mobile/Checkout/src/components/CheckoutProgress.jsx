@@ -22,15 +22,20 @@ function Step({ number, label, active }) {
 }
 
 // Render the Address → Shipping → Payment sequence shown above the form.
-export function CheckoutProgress() {
-  // Mark Address and Shipping as active to reproduce the supplied Figma state.
+export function CheckoutProgress({ currentStep = 2 }) {
+  const isPaymentStep = currentStep >= 3;
   return (
-    <View accessibilityLabel="Checkout progress: shipping step" style={styles.container}>
-      <Step active label="Address" number={1} />
+    <View
+      accessibilityLabel={
+        isPaymentStep ? 'Checkout progress: payment step' : 'Checkout progress: shipping step'
+      }
+      style={styles.container}
+    >
+      <Step active={currentStep >= 1} label="Address" number={1} />
       <View style={styles.connector} />
-      <Step active label="Shipping" number={2} />
-      <View style={styles.connector} />
-      <Step active={false} label="Payment" number={3} />
+      <Step active={currentStep >= 2} label="Shipping" number={2} />
+      <View style={[styles.connector, isPaymentStep && styles.connectorActive]} />
+      <Step active={isPaymentStep} label="Payment" number={3} />
     </View>
   );
 }
@@ -102,5 +107,9 @@ const styles = StyleSheet.create({
     minWidth: 10,
     height: 2,
     backgroundColor: colors.border,
+  },
+  // Active connector line highlighted with volt per Figma node 452:23
+  connectorActive: {
+    backgroundColor: colors.volt,
   },
 });

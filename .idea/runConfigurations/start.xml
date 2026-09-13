@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="android:run (npm run android:run)" type="ShConfigurationType">
-    <option name="SCRIPT_TEXT" value="export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64; unset ANDROID_PREFS_ROOT; export ANDROID_USER_HOME=$HOME/.android; export PATH=$PATH:/home/kakashi70-0/.nvm/versions/node/v22.23.2/bin:$HOME/.local/bin:/usr/local/bin:/usr/bin:$JAVA_HOME/bin; export ANDROID_HOME=$HOME/Android/Sdk; npm run android:run" />
+  <configuration default="false" name="start (npm start)" type="ShConfigurationType">
+    <option name="SCRIPT_TEXT" value="export PATH=$PATH:/home/kakashi70-0/.nvm/versions/node/v22.23.2/bin:$HOME/Android/Sdk/platform-tools:$HOME/Android/Sdk/emulator; export ANDROID_HOME=$HOME/Android/Sdk; npm start" />
     <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
     <option name="SCRIPT_PATH" value="" />
     <option name="SCRIPT_OPTIONS" value="" />

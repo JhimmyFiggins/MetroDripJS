@@ -14,6 +14,8 @@ import {
 
 import Footer from '../components/Footer';
 import AdaptHeader from '../components/AdaptHeader';
+import { useCart } from '../context/CartContext';
+import { StatusBar } from 'expo-status-bar';
 const PRODUCTS = [
   {
     id: 1,
@@ -64,32 +66,7 @@ const PRODUCTS = [
 
 
 export default function CartScreen({navigation}) {
-  const [cart, setCart] = useState(PRODUCTS);
-
-
-  const changeQuantity = (id, amount) => {
-    setCart(currentCart =>
-      currentCart.map(item => {
-        if (item.id === id) {
-          return {
-            ...item,
-            quantity: Math.max(1, item.quantity + amount),
-          };
-        }
-
-
-        return item;
-      })
-    );
-  };
-
-
-  const removeItem = id => {
-    setCart(currentCart =>
-      currentCart.filter(item => item.id !== id)
-    );
-  };
-
+  const { cart, changeQuantity, removeItem } = useCart();
 
   const subtotal = cart.reduce(
     (total, item) => total + item.price * item.quantity,
@@ -119,6 +96,7 @@ export default function CartScreen({navigation}) {
 
   return (
     <SafeAreaProvider style={styles.safeArea}>
+      <StatusBar style="dark" />
       {/* NAVIGATION */}
       {/* <View style={styles.navbar}>
         <Text style={styles.logo}>
@@ -322,16 +300,18 @@ export default function CartScreen({navigation}) {
       </ScrollView>
 
       {/* Checkout/Footer */}
-            <View style={styles.checkoutContainer}>
-              <TouchableOpacity
-                style={styles.checkout}
-                onPress={() => navigation.navigate('Checkout') }
-              >
-                <Text style={styles.checkoutText}>
-                  PROCEED TO CHECKOUT
-                </Text>
-              </TouchableOpacity>
-            </View>
+      {cart.length > 0 && (
+        <View style={styles.checkoutContainer}>
+          <TouchableOpacity
+            style={styles.checkout}
+            onPress={() => navigation.navigate('Checkout') }
+          >
+            <Text style={styles.checkoutText}>
+              PROCEED TO CHECKOUT
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaProvider>
   );
 }
@@ -638,10 +618,10 @@ const styles = StyleSheet.create({
 
 
   emptyTitle: {
-    color: '#FFFFFF',
-    fontSize: 28,
+    color: '#111111',
+    fontSize: 24,
     fontWeight: '900',
-    marginBottom: 2,
+    marginBottom: 8,
     textAlign: 'center',
   },
 

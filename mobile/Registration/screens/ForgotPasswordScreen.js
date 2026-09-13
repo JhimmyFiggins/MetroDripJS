@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { useTheme } from '../theme';
 
 export default function ForgotPasswordScreen({ navigation }) {
@@ -50,6 +51,7 @@ export default function ForgotPasswordScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar style={isDark ? "light" : "dark"} />
       <KeyboardAvoidingView
         style={styles.keyboard}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
