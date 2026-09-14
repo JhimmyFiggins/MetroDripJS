@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import CatalogProduct, CatalogCategory, CatalogProductVariant, InventoryStockEntry,
+from .models import CatalogProduct, CatalogCategory, CatalogProductVariant, InventoryStockEntry
 
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:
