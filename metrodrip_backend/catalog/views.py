@@ -1,7 +1,7 @@
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.renderers import JSONRenderer
 
-from .models import CatalogProduct, CatalogCategory, CatalogProductVariant, InventoryStockEntry,
+from .models import CatalogProduct, CatalogCategory, CatalogProductVariant, InventoryStockEntry
 
 from .serializers import (
     ProductSerializer,
