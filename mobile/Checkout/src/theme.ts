@@ -5,8 +5,9 @@ export const colors = {
   muted: '#63635C',
   border: '#E4E4DF',
   surface: '#F4F4F2',
-  volt: '#C8F031',
+  volt: '#D3EE42',
   onVolt: '#141414',
+  olive: '#5C6B12',
   danger: '#B42318',
   overlay: 'rgba(20, 20, 20, 0.34)',
 } as const;
@@ -19,6 +20,7 @@ export const fonts = {
   interBold: 'Inter_700Bold',
   monoRegular: 'IBMPlexMono_400Regular',
   monoSemiBold: 'IBMPlexMono_600SemiBold',
+  anton: 'Anton_400Regular',
   helveticaNeue: 'Helvetica Neue',
   helveticaNeueBold: 'HelveticaNeue-Bold',
   helveticaNeueMedium: 'HelveticaNeue-Medium',

@@ -1,60 +1,100 @@
-import { StyleSheet, FlatList, TouchableOpacity, Text, View } from 'react-native';
+import React from 'react';
+import { StyleSheet, TouchableOpacity, Text, View, Platform, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
 import { useNavigation } from '@react-navigation/native';
-import {fonts} from '../Checkout/src/theme';
-
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { fonts, colors } from '../Checkout/src/theme';
 
 export default function Header() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
       <TouchableOpacity 
-        style={styles.buttonTitle}
+        style={styles.logoButton}
         onPress={() => navigation.navigate('Home')}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel="MetroDrip Home"
       >
-        <Text style={styles.title}>MetroDrip</Text>
+        <Text style={styles.logoMetro}>Metro</Text>
+        <Text style={styles.logoDrip}>Drip</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.button}>
-        <Text style={styles.buttonText}>🔔</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity style={styles.button}
-        onPress={() => navigation.navigate('Cart')}
-      >
-        <Text style={styles.buttonText}>🛍️</Text>
-      </TouchableOpacity>
+      <View style={styles.actionsRow}>
+        <TouchableOpacity 
+          style={styles.iconButton}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Notifications"
+        >
+          <Ionicons name="notifications-outline" size={22} color={colors.ink} />
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.iconButton}
+          onPress={() => navigation.navigate('Cart')}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Shopping Cart"
+        >
+          <Image 
+            source={require('../assets/cart_icon.png')} 
+            style={styles.cartIcon} 
+            resizeMode="contain"
+          />
+        </TouchableOpacity>
+      </View>
     </View>
-    
   );
 }
 
-
-
 const styles = StyleSheet.create({
- container: {
-    paddingTop: 50,
+  container: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingBottom: 10,
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  title:{
-    fontSize: 25,
-    fontWeight: 'bold',
-    textAlign: 'left',
-    // marginRight: 170,
-  }, 
-  buttonTitle:{
-    marginRight: '40%',
+  logoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  button:{
-  
+  logoMetro: {
+    fontFamily: fonts.anton || 'Anton_400Regular',
+    fontSize: 26,
+    color: '#141414',
+    letterSpacing: -0.3,
+    ...Platform.select({
+      web: { fontFamily: 'Anton_400Regular, Anton, Impact, sans-serif' },
+    }),
   },
-  buttonText:{
-    fontSize: 20,
-    
+  logoDrip: {
+    fontFamily: fonts.anton || 'Anton_400Regular',
+    fontSize: 26,
+    color: '#5C6B12',
+    letterSpacing: -0.3,
+    ...Platform.select({
+      web: { fontFamily: 'Anton_400Regular, Anton, Impact, sans-serif' },
+    }),
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  iconButton: {
+    padding: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cartIcon: {
+    width: 24,
+    height: 24,
   },
 });

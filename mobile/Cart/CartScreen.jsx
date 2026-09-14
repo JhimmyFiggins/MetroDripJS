@@ -368,7 +368,7 @@ const styles = StyleSheet.create({
 
 
   logoAccent: {
-    color: '#BAFF00',
+    color: '#D3EE42',
   },
 
 
@@ -394,7 +394,7 @@ const styles = StyleSheet.create({
 
 
   pageLabel: {
-    color: '#BAFF00',
+    color: '#D3EE42',
     fontSize: 13,
     letterSpacing: 2,
     fontWeight: 'bold',
@@ -592,14 +592,14 @@ const styles = StyleSheet.create({
   checkout: {
     width: '100%',
     paddingVertical: 17,
-    backgroundColor: 'rgb(186, 255, 0)',
+    backgroundColor: '#D3EE42',
     borderRadius: 25,
     alignItems: 'center',
   },
 
 
   checkoutText: {
-    color: '#000000',
+    color: '#141414',
     fontSize: 14,
     fontWeight: '900',
   },
@@ -637,12 +637,12 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     paddingHorizontal: 25,
     borderRadius: 25,
-    backgroundColor: '#BAFF00',
+    backgroundColor: '#D3EE42',
   },
 
 
   shopButtonText: {
-    color: '#000000',
+    color: '#141414',
     fontWeight: 'bold',
   },
 });

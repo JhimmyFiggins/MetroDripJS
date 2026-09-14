@@ -1,3 +1,12 @@
+# Project Architectural Scope: Mobile App Only (iOS & Android)
+
+> [!IMPORTANT]
+> **Platform Target**: This codebase is exclusively for the **MetroDrip Mobile App (iOS / Android)** built on React Native & Expo.
+> - **Canvas Reference**: Figma canvas `MetroDrip Mobile App (iOS/Android)` (390×844 base dimensions for iPhone 14/15, safe-area aware, bottom tab navigation).
+> - All UI patterns, gestures, status bars, action buttons, headers, and screens are designed, prioritized, and formatted purely for mobile handheld devices.
+
+---
+
 # Module / File: mobile/navigation/AppNavigator.jsx
 
 ## Purpose
@@ -133,8 +142,15 @@ Provide global shopping cart state management (`CartContext`) and update `Produc
 - **Empty Cart Handling**: Wrapped `<View style={styles.checkoutContainer}>` in `{cart.length > 0 && (...)}` so the **Proceed to Checkout** button is hidden when the cart is empty.
 - **Theme Contrast**: Updated `emptyTitle` color from `#FFFFFF` to `#111111` for clean readability on light mode backgrounds.
 
+### Component: Home.jsx
+- **Hero CTA Design**: Updated `HeroBanner`, `HeroBannerTitle`, `HeroLowerButton`, and `HeroBannerLower` matching Figma node `63:2`:
+  - Title: `"Urban Style Redefined"` (white 38px Inter Bold, line-height 42px).
+  - CTA Button: Neon Volt `#D3EE42` pill button with `alignSelf: 'flex-start'` and black text `"Shop the drop →"`.
+  - Press Action: Navigates directly to `'Shop'`.
+
 ## Verification Status
 - Validated all JavaScript/JSX files with `analyze_file` (0 errors reported across `CartContext.js`, `App.js`, `ProductDetails.jsx`, `CartScreen.jsx`, `Header.jsx`, `HomeHeader.jsx`, `Home.jsx`, `Shop.jsx`, `Account.jsx`, `InitialScreen.js`, `LoginScreen.js`, `SignupScreen.js`, `ForgotPasswordScreen.js`).
+
 
 
 ---
@@ -193,7 +209,7 @@ Render the Order Confirmation and Payment Success screen based on Figma frame `M
 - **Inputs**: Route params `route.params.order` (optional, falls back gracefully to default Figma mock data).
 - **Outputs**: React Native component tree:
   - Header: Back to shop and brand title.
-  - Success Hero: Dark `#141414` card with neon lime `#C8F031` circular checkmark, `PAYMENT SUCCESSFUL` badge, order headline, and `MD-2026-00318` chip.
+  - Success Hero: Dark `#141414` card with neon lime `#D3EE42` circular checkmark, `PAYMENT SUCCESSFUL` badge, order headline, and `MD-2026-00318` chip.
   - Payment Details: Total amount paid, payment method with mobile handle, PayMongo reference number, and receipt email confirmation.
   - Delivery Details: Customer name, destination address, neon dot ETA indicator, and `J&T Express` badge.
   - Items Summary: Line items with thumbnails/initials, product titles, variant specs, and line totals.
@@ -218,7 +234,7 @@ Render the product customer reviews section on `ProductDetails.jsx` matching Fig
 - **Outputs**:
   - Reviews header with average score, star rating, and review count.
   - "See all" / "Show less" toggle.
-  - Review cards with reviewer name, `#C8F031` `VERIFIED` pill badge, star rating, comment text, and date.
+  - Review cards with reviewer name, `#D3EE42` `VERIFIED` pill badge, star rating, comment text, and date.
   - "+ Write a Review" interactive modal with star selection and comment submission.
 - **Helper Methods**: `getReviewsForProduct(productId)`, `getReviewStats(reviews)`, `addReviewForProduct(productId, newReview)`.
 - **Dependencies**: React Native primitives, `mobile/Checkout/src/theme`.
@@ -241,14 +257,14 @@ Render the intermediate Payment Details screen based directly on Figma frames `M
   - Header: 52px height with back navigation `‹`, title `Payment`, and security lock icon `🔒`.
   - Progress Stepper: `CheckoutProgress` with step 3 highlighted (`currentStep={3}`).
   - Amount Due Card: `#F4F4F2` card showing `AMOUNT DUE`, Anton display price `₱2,632.00`, and order item summary.
-  - Selected Method Banner: 2px `#141414` border, radio indicator with volt dot (`#C8F031`), method title, subtitle, and `Change` action button (opens payment method modal switcher).
+  - Selected Method Banner: 2px `#141414` border, radio indicator with volt dot (`#D3EE42`), method title, subtitle, and `Change` action button (opens payment method modal switcher).
   - Method-Specific Credential Forms:
     - **GCash (`452:2`)**: Headline `GCash account`, `GCASH MOBILE NUMBER`, `ACCOUNT NAME`, redirect warning notice `ⓘ`, and `Save GCash for faster checkout` checkbox.
     - **Maya (`452:99`)**: Headline `Maya account`, `Maya Wallet` vs `Maya Card` toggle pill, `MAYA MOBILE NUMBER`, `ACCOUNT NAME`, 6-digit OTP notice `ⓘ`, and `Save Maya for faster checkout` checkbox.
     - **Card (`453:2`)**: Headline `Card details`, `CARD NUMBER` with spaced formatting and `VISA` / `MC` brand badge, 2-column `EXPIRY` (`MM / YY`) and `CVV` (`•••`), `NAME ON CARD`, `Billing address same as delivery` checkbox, PayMongo tokenization security notice, and `Save card for faster checkout` checkbox.
     - **Cash on Delivery**: Cash preparation and delivery notice.
   - Sticky Action Footer (and Desktop Sidebar Action Panel):
-    - Volt pill button (`#C8F031`): `Pay ₱[total]` with loading indicator and press feedback.
+    - Volt pill button (`#D3EE42`): `Pay ₱[total]` with loading indicator and press feedback.
     - Subtitle: `Secured by PayMongo · card details never stored` (IBM Plex Mono 10px `#63635C`).
 - **Behavior & Flow**:
   1. Validates required method credentials upon tapping Pay.
@@ -258,3 +274,127 @@ Render the intermediate Payment Details screen based directly on Figma frames `M
 - **Dependencies**: React Navigation, `CartContext`, `CheckoutProgress`, `colors`, `fonts`.
 - **Accessibility & UX**: Follows WCAG 44×44px minimum touch targets, dynamic checkbox states, high-contrast typography, and responsive 2-column desktop / 1-column mobile layouts.
 - **Verification Status**: Validated via `@babel/parser` (0 syntax errors) and compiled cleanly in Expo web export (689 modules bundled with 0 errors).
+
+---
+
+# Module / File: web/Registration/ (staff login — Merchant & Administrator)
+
+## Purpose
+Static (no build step) browser login screens for merchant and administrator staff. They implement Figma file `SmJIlTZ9ZVRxQ5eKucmrd0`, page `MetroDrip Web UI` (0:1), frames `14 · Administrator Login (Desktop)` 461:2, `15 · Merchant Login (Desktop)` 464:2, and their dark variants D14 464:104 / D15 464:206. The folder layout mirrors `mobile/Registration/` and `mobile/assets/`. Dashboards, sign-up, and password reset are out of scope.
+
+## Files
+| Path | Responsibility |
+| --- | --- |
+| `web/Registration/screens/MerchantLoginScreen.html` | Merchant page markup (`data-login-role="merchant"`) |
+| `web/Registration/screens/AdminLoginScreen.html` | Administrator page markup (`data-login-role="admin"`) |
+| `web/Registration/screens/LoginScreen.css` | Shared layout; Figma measurements; breakpoints 980 / 860 / 500 px |
+| `web/Registration/theme.css` | Colour/font tokens named after Figma variables (`color/paper`, `color/ink`, `color/volt`, …); `:root[data-theme='dark']` overrides |
+| `web/Registration/theme.js` | Theme resolution and persistence; wires `[data-theme-option]` buttons |
+| `web/Registration/AppLogin.js` | Form validation, loading/success states, simulated sign-in |
+| `web/assets/deco-ring.svg` | Exact bytes of the Figma "Deco ring" export (all four frames share one identical asset) |
+| `web/assets/favicon.png` | Copied from `mobile/assets/favicon.png` |
+
+## Public Interfaces
+### Script: web/Registration/theme.js (IIFE, no globals)
+- **Purpose**: Set `document.documentElement.dataset.theme` before first paint and keep the Light/Dark switch in sync.
+- **Inputs**: `localStorage['metrodripTheme']` (`'light' | 'dark'`, same key as the ASP.NET console `common.js`); `prefers-color-scheme` media query; clicks on `[data-theme-option]` buttons.
+- **Outputs**: `data-theme` on `<html>`; `.is-active` and `aria-pressed` on the switch buttons.
+- **Errors**: Storage exceptions are caught; the theme then applies for the current page only.
+- **Behavior**: Saved choice → else OS preference; follows OS changes only while no explicit choice is saved. It must load synchronously in `<head>`.
+- **Side Effects**: Writes `localStorage['metrodripTheme']` on click.
+- **Verification Status**: Executed. See Verification below.
+
+### Script: web/Registration/AppLogin.js (IIFE, `defer`)
+- **Purpose**: Drive every `form[data-login-role]` on the page.
+- **Inputs**: Form fields `email` (required, `^[^\s@]+@[^\s@]+\.[^\s@]+$`), `password` (required, ≥ 6 chars — same rules as `mobile/Registration/screens/LoginScreen.js`), `code` (optional; if present exactly 6 digits).
+- **Outputs**: Per-field `aria-invalid` + visible `#<field>-error` text; `role="status"` message on success.
+- **Errors**: Validation errors are shown inline and focus moves to the first invalid field. Typing in a field clears its error.
+- **Behavior**: submit → validate → `aria-disabled="true"` + "SIGNING IN…" → `simulateSignIn()` (900 ms timer) → clear password/code → "✓ Signed in as …" status. Re-submits while busy are ignored.
+- **Side Effects**: None beyond DOM updates. No credentials are stored or transmitted.
+- **Security & Privacy Notes**: **Demo only.** `metrodrip_backend` exposes only `admin/` and catalog routes, with no staff-login API. Replace `simulateSignIn()` with a real POST and enforce role, 2FA, rate limiting, and lockout server-side. Pages carry `<meta name="robots" content="noindex">`.
+- **Accessibility / UX Notes**: Semantic labels; `aria-describedby` links each input to its error (and the code hint); `autocomplete` username / current-password / one-time-code; visible `:focus-visible` rings; theme buttons expose `aria-pressed`; `prefers-reduced-motion` disables transitions. Tab order: theme switch → return link → email → password → code → LOG IN.
+- **Verification Status**: Executed. See Verification below.
+
+## Data Flow
+Screen HTML → `theme.js` (sync, sets `data-theme`) → `theme.css` tokens → `LoginScreen.css` → `AppLogin.js` (deferred) → validate → simulated sign-in → status message.
+
+## Decisions
+- **Vanilla HTML/CSS/JS** instead of React Native Web: matches the provided ASP.NET static reference pages and needs no bundler. Alternative rejected: a new Expo route, because it couples staff consoles to the customer app bundle.
+- **Card border as an `::after` overlay**: Figma draws strokes inside frames. A real CSS border shrank the form column to 384 px, wrapped the 2FA hint, and made the card 728.8 px tall. The overlay keeps the 432/508 split exact.
+- **Markup duplicated across the two screens** (brand panel, form) instead of a JS-injected component: pages render fully without JavaScript, at the cost of editing two files for shared changes.
+- **Figma pill "Check out" node 52:402** (the originally shared link) belongs to the D05 Checkout frame, not to login. The login frames use a square LOG IN button, which was followed.
+
+## Verification
+- **Executed 2026-09-14**: headless Google Chrome via CDP (`python3 -m http.server` serving `web/`).
+  - Geometry at 1280×880 matches Figma within ≈1 px for both screens and both themes: card 170,81 940×718; panels 432/508; deco ring 272,358 280×280; barcode y 604 210×28; form inner 386×583.8 (Figma 583); email input y 215.1 (Figma 215.5); LOG IN y 509.1 (Figma 509.5); notice 68.8 (Figma 68).
+  - Computed dark tokens: paper `rgb(15,15,15)`, ink `rgb(242,242,239)`, surface `rgb(26,26,26)`, accent text `rgb(211,238,66)`.
+  - Fonts Anton / IBM Plex Mono / Inter reported loaded (`document.fonts.check`).
+  - Empty submit → email & password errors, focus on email; invalid input → 3 specific errors; typing clears an error; valid submit → loading state, a double submit is ignored, then success status and the password is cleared.
+  - Theme toggle persists across both screens; `aria-pressed` updates.
+  - No horizontal overflow at 320, 390, 768, or 1280 px. No console errors or failed requests.
+  - `node --check` passes for both scripts.
+- **Not verified**: Safari/Firefox rendering; screen-reader announcement order (reasoned from semantics only); offline font fallbacks.
+
+## Known Risks / Follow-ups
+- Replace simulated sign-in with a real backend endpoint (owner: backend team). Until then these pages grant nothing.
+- "← Return to storefront" points to `/`. Update it when the storefront deployment URL is known.
+- The theme-switch glyphs ☼/☾ fall back to a system font (Inter lacks them), so they render slightly smaller than in Figma.
+
+---
+
+# Design System Standard: Project-Wide CTA Button Color
+
+## Specification
+- **Primary CTA Fill**: `#D3EE42` (`colors.volt`, Figma variable `fill_c0421ffe`)
+- **Primary CTA Text**: `#141414` (`colors.ink` / `colors.onVolt`, Figma variable `fill_81eb06fd`, `fontFamily: fonts.interBold`)
+- **Corner Radius**: Pill shape (`borderRadius: 25` or `9999`)
+- **Secondary / Ghost Buttons**: Transparent with 1.5px stroke (`#141414` on light, `#63635C` on dark)
+
+## Surface Coverage
+1. **Welcome / Onboarding (`mobile/Registration/screens/InitialScreen.js`)**:
+   - `createAccountBtn`: Primary CTA styled with `#D3EE42` background and `#141414` bold text.
+   - `signInBtn`: Secondary outlined button with `#141414` border and text.
+2. **Authentication (`mobile/Registration/theme.js`, `LoginScreen.js`, `SignupScreen.js`, `ForgotPasswordScreen.js`)**:
+   - `theme.accent`: `#D3EE42`
+   - `theme.accentText`: `#111111` / `#141414`
+   - Covers `loginButton`, `signupButton`, and `resetButton`.
+3. **Cart (`mobile/Cart/CartScreen.jsx`)**:
+   - `checkout`: Proceed to Checkout CTA styled with `#D3EE42` and `#141414` text.
+   - `shopButton`: Empty cart CTA ("Start Shopping") styled with `#D3EE42` and `#141414` text.
+   - Accent highlights (`logoAccent`, `pageLabel`): `#D3EE42`.
+4. **Product Details (`mobile/Products/ProductDetails.jsx`)**:
+   - `addToCartButton`: Add to Cart CTA styled with `#D3EE42` and `#141414` text.
+5. **Customer Reviews (`mobile/Products/components/CustomerReviews.jsx`)**:
+   - `submitButton`: Review submission modal CTA styled with `colors.volt` (`#D3EE42`) and `colors.ink` (`#141414`) text with pill radius.
+6. **Checkout (`mobile/Checkout/src/screens/CheckoutScreen.jsx`)**:
+   - `payButton`: Payment CTA styled with `colors.volt` (`#D3EE42`) and `colors.onVolt` (`#141414`).
+7. **Payment Details (`mobile/Checkout/src/screens/PaymentDetailsScreen.jsx`)**:
+   - `payButton`: Authorize & Pay CTA styled with `colors.volt` (`#D3EE42`) and `colors.ink` (`#141414`).
+8. **Order Confirmation (`mobile/Checkout/src/screens/OrderConfirmationScreen.jsx`)**:
+   - `primaryButton`: "Track order" CTA styled with `colors.volt` (`#D3EE42`) and `colors.ink` (`#141414`).
+   - `modalDoneButton`: Receipt modal "Done" CTA styled with `colors.volt` (`#D3EE42`) and `colors.ink` (`#141414`).
+9. **Home (`mobile/Home/Home.jsx`)**:
+   - `HeroLowerButton`: "Shop the Drop" Hero CTA styled with `#D3EE42` and `#141414` text.
+10. **Global Indicators (`mobile/components/Footer.jsx`, `mobile/Checkout/src/components/CheckoutProgress.jsx`)**:
+    - Tab active dot and checkout progress step indicators styled with `#D3EE42`.
+
+---
+
+# Brand Identity: Top Header Brand Logo
+
+## Specification (Figma Node `63:75`)
+- **Typeface**: Anton Regular (`Anton_400Regular` from `@expo-google-fonts/anton`)
+- **"Metro" Text**:
+  - Value: `"Metro"`
+  - Fill: `#141414` (`colors.ink`, Figma `fill_81eb06fd`)
+  - Size: 26px, LineHeight: 28px
+- **"Drip" Text**:
+  - Value: `"Drip"`
+  - Fill: `#5C6B12` (`colors.olive`, Figma `fills=["#5C6B12"]`)
+  - Size: 26px, LineHeight: 28px
+- **Layout & Actions ([HomeHeader.jsx](file:///home/kakashi70-0/Documents/GitHub/MetroDripJS/mobile/components/HomeHeader.jsx))**:
+  - Row layout with `justifyContent: 'space-between'` and safe-area top inset support.
+  - Left: Interactive brand logo navigating to `Home`.
+  - Right: Notification bell with unread red badge (`#C2282D`) and shopping bag with dynamic cart badge indicator.
+
+

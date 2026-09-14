@@ -1,60 +1,144 @@
-import { StyleSheet, FlatList, TouchableOpacity, Text, View } from 'react-native';
+import React from 'react';
+import { StyleSheet, TouchableOpacity, Text, View, Platform, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
 import { useNavigation } from '@react-navigation/native';
-import {fonts} from '../Checkout/src/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { fonts, colors } from '../Checkout/src/theme';
+import { useCart } from '../context/CartContext';
 
-
-export default function ShopHeader() {
+export default function HomeHeader() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+  let cartCount = 0;
+  try {
+    const cartContext = useCart();
+    cartCount = cartContext?.cart?.reduce((sum, item) => sum + (item.quantity || 1), 0) || 0;
+  } catch (e) {
+    // fallback if context not provided
+  }
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
+      {/* Brand Logo: Metro (#141414) + Drip (#5C6B12) in Anton */}
       <TouchableOpacity 
-        style={styles.buttonTitle}
+        style={styles.logoButton}
         onPress={() => navigation.navigate('Home')}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel="MetroDrip Home"
       >
-        <Text style={styles.title}>MetroDrip</Text>
+        <Text style={styles.logoMetro}>Metro</Text>
+        <Text style={styles.logoDrip}>Drip</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.button}>
-        <Text style={styles.buttonText}>🔔</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity style={styles.button}
-        onPress={() => navigation.navigate('Cart')}
-      >
-        <Text style={styles.buttonText}>🛍️</Text>
-      </TouchableOpacity>
+      {/* Header Actions: Notification Bell + Figma Cart Bags */}
+      <View style={styles.actionsRow}>
+        <TouchableOpacity 
+          style={styles.iconButton}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Notifications"
+        >
+          <Ionicons name="notifications-outline" size={22} color={colors.ink} />
+          <View style={styles.notificationDot} />
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.iconButton}
+          onPress={() => navigation.navigate('Cart')}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Shopping Cart"
+        >
+          <Image 
+            source={require('../assets/cart_icon.png')} 
+            style={styles.cartIcon} 
+            resizeMode="contain"
+          />
+          {cartCount > 0 && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{cartCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
     </View>
-    
   );
 }
 
-
-
 const styles = StyleSheet.create({
- container: {
-    paddingTop: 50,
+  container: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingBottom: 10,
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  title:{
-    fontSize: 25,
-    textAlign: 'left',
-    fontFamily:fonts.interBold,
-    // marginRight: 170,
-  }, 
-  buttonTitle:{
-    marginRight: '40%',
+  logoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  button:{
-  
+  logoMetro: {
+    fontFamily: fonts.anton || 'Anton_400Regular',
+    fontSize: 26,
+    color: '#141414',
+    letterSpacing: -0.3,
+    ...Platform.select({
+      web: { fontFamily: 'Anton_400Regular, Anton, Impact, sans-serif' },
+    }),
   },
-  buttonText:{
-    fontSize: 20,
-    
+  logoDrip: {
+    fontFamily: fonts.anton || 'Anton_400Regular',
+    fontSize: 26,
+    color: '#5C6B12',
+    letterSpacing: -0.3,
+    ...Platform.select({
+      web: { fontFamily: 'Anton_400Regular, Anton, Impact, sans-serif' },
+    }),
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  iconButton: {
+    padding: 6,
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationDot: {
+    position: 'absolute',
+    top: 4,
+    right: 5,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#C2282D',
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: 0,
+    right: -2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#141414',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  cartBadgeText: {
+    color: colors.volt,
+    fontSize: 9,
+    fontFamily: fonts.interBold,
+    fontWeight: '700',
+  },
+  cartIcon: {
+    width: 24,
+    height: 24,
   },
 });

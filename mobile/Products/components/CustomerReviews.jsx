@@ -413,15 +413,16 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   submitButton: {
-    backgroundColor: colors.ink,
-    paddingVertical: 12,
-    borderRadius: 8,
+    backgroundColor: colors.volt,
+    paddingVertical: 14,
+    borderRadius: 9999,
     alignItems: 'center',
-    marginTop: 6,
+    marginTop: 10,
   },
   submitButtonText: {
-    color: colors.paper,
-    fontSize: 13,
+    color: colors.ink,
+    fontSize: 15,
     fontWeight: '700',
+    fontFamily: fonts.interBold,
   },
 });

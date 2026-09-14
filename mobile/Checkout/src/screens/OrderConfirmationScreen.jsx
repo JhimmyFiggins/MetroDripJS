@@ -671,16 +671,17 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   modalDoneButton: {
-    backgroundColor: colors.ink,
-    paddingVertical: 12,
-    borderRadius: 8,
+    backgroundColor: colors.volt,
+    paddingVertical: 14,
+    borderRadius: 9999,
     alignItems: 'center',
     marginTop: 16,
   },
   modalDoneButtonText: {
-    color: colors.paper,
+    color: colors.ink,
     fontWeight: '700',
-    fontSize: 13,
+    fontSize: 14,
+    fontFamily: fonts.interBold,
   },
 });
 export default OrderConfirmationScreen;

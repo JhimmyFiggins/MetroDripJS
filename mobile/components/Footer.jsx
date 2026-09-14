@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
         width: 6,
         height: 6,
         borderRadius: 3,
-        backgroundColor: '#a4d65e', // Green dot under "Home"
+        backgroundColor: '#D3EE42', // Volt dot under active tab per Figma
         marginTop: 2,
     },
   
