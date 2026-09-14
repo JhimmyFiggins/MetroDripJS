@@ -94,9 +94,21 @@ export default function ProductDetails({ selectedProductId, onBack }) {
             (color, index, self) =>
                 index === self.findIndex(c => c.name === color.name)
         );
+
     // console.log("COLORS:", colorsList);
-    console.log("VARIANTS:", variants);
-    const fitsList = product.fits && product.fits.length > 0 ? product.fits : (product.fit ? [product.fit] : ['Regular']);
+    // console.log("VARIANTS:", variants);
+
+    // const fitsList = product.fits && product.fits.length > 0 ? product.fits : (product.fit ? [product.fit] : ['Regular']);
+    const fitsList = fits;
+
+    const selectedVariant = variants.find(
+        variant =>
+            variant.attributes.color === selectedColor &&
+            variant.attributes.size === selectedSize &&
+            variant.attributes.fit === selectedFit
+    );
+
+    // console.log("SELECTED VARIANT:", selectedVariant);
 
     // Generate dot indicators based on image count
     const imageCount = product.images ? product.images.length : 1;
@@ -112,15 +124,22 @@ export default function ProductDetails({ selectedProductId, onBack }) {
 
 
     const handleAddToCart = () => {
+        if (!product || !selectedVariant) {
+            alert('Please select a valid product variant.');
+            return;
+        }
         if (!product) return;
         const productItem = {
             id: `${product.id || productId}-${selectedColor || 'Default'}-${selectedSize || 'M'}-${selectedFit || 'Regular'}`,
+            variantId: selectedVariant.id,
+            fit: selectedVariant.fit,
+            sku: selectedVariant.sku,
             productId: product.id || productId,
             name: product.product_name || product.name || 'MetroDrip Product',
             size: selectedSize || 'M',
             color: selectedColor || 'Black',
             fit: selectedFit || 'Regular',
-            price: parseFloat(product.base_price) || 0,
+            price: parseFloat(product.base_price || 0) + parseFloat(selectedVariant?.price_adjustment || 0).toFixed(2),
             quantity: 1,
             image: 'https://via.placeholder.com/300x350',
         };

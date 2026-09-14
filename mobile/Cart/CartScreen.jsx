@@ -180,6 +180,12 @@ export default function CartScreen({navigation}) {
                       <Text style={styles.productInfo}>
                         {item.color}
                       </Text>
+                      <Text style={styles.productInfo}>
+                        ●
+                      </Text>
+                      <Text style={styles.productInfo}>
+                        {item.fit}
+                      </Text>
                     </View>
                     
 

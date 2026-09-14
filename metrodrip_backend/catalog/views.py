@@ -1,12 +1,13 @@
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.renderers import JSONRenderer
 
-from .models import CatalogProduct, CatalogCategory, CatalogProductVariant
+from .models import CatalogProduct, CatalogCategory, CatalogProductVariant, InventoryStockEntry,
 
 from .serializers import (
     ProductSerializer,
     CategorySerializer,
     ProductVariantSerializer,
+    VariantStockSerializer,
 )
 
 
@@ -34,4 +35,12 @@ class ProductVariantListAPIView(ListAPIView):
         return CatalogProductVariant.objects.filter(
             product_id=self.kwargs['product_id'],
             is_active=True
+        )
+class VariantStockAPIView(ListAPIView):
+    serializer_class = VariantStockSerializer
+    renderer_classes = [JSONRenderer]
+
+    def get_queryset(self):
+        return InventoryStockEntry.objects.filter(
+            variant_id=self.kwargs['variant_id']
         )
