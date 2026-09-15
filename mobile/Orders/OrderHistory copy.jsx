@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
+
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
   TouchableOpacity,
+  
 } from 'react-native';
+
+
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
 
 import { StatusBar } from 'expo-status-bar';
 
@@ -16,35 +19,27 @@ import { colors, fonts } from '../Checkout/src/theme';
 import AdaptHeader from '../components/AdaptHeader';
 import Footer from '../components/Footer';
 
-export default function Account({}) {
-  const navigation = useNavigation();
-  const screenTitle = 'My Account'
+
+
+export default function OrderHistory({navigate}) {
+  
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const ordersLength = orders.length;
+  
+  const screenTitle = 'Order History'
 
   useEffect(() => {
-      fetch('http://10.0.2.2:8000/orders/')
-        .then(response => response.json())
-        .then(data => {
-          setOrders(data);
-          setLoading(false);
-        })
-        .catch(error => {
-          console.error('Failed to load orders:', error);
-          setLoading(false);
-        });
-    }, []);
-
-  const orderList = orders
-    .slice(0, 2)
-    .map((order) => ({
-      id: order.id,
-      orderNumber: `MD-2026-${String(order.id).padStart(5, '0')}`,
-      details: `${order.lines?.reduce((sum, line) => sum + line.quantity, 0) || 0} items · ₱${order.total} · ${new Date(order.created_at).toLocaleDateString('en-US')}`,
-      status: order.status,
-    }));
-
+    fetch('http://10.0.2.2:8000/orders/')
+      .then(response => response.json())
+      .then(data => {
+        setOrders(data);
+        setLoading(false);
+      })
+      .catch(error => {
+        console.error('Failed to load orders:', error);
+        setLoading(false);
+      });
+  }, []);
   return (
     <SafeAreaProvider>
       <View style={styles.screen}>
@@ -55,45 +50,7 @@ export default function Account({}) {
         >
           <AdaptHeader screenTitle={screenTitle}/>
 
-    
-          {/* Profile */}
-          <View style={styles.profile}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>JD</Text>
-            </View>
-
-            <View style={styles.profileInfo}>
-              <Text style={styles.name}>Juan Dela Cruz</Text>
-
-              <View style={styles.memberInfo}>
-                <Text style={styles.memberText}>
-                  MEMBER SINCE 07.2026
-                </Text>
-
-                <Text style={styles.dot}>•</Text>
-
-                <Text style={styles.memberText}>
-                  3 ORDERS
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Order History */}
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>ORDER HISTORY</Text>
-
-            <TouchableOpacity onPress={() => {navigation.navigate('History')}}>
-              {orderList === 0 ? (<Text style={styles.viewAll}>No orders </Text>
-              ):(
-              <Text style={styles.viewAll}>View all · {ordersLength}</Text>)}
-            </TouchableOpacity>
-          </View>
-
-          {orderList.length === 0 ? (
-            <Text>No orders yet.</Text>
-          ) : (
-            orderList.map((order) => (
+          {orderList.map((order) => (
             <TouchableOpacity
               key={order.id}
               style={styles.orderCard}
@@ -109,105 +66,14 @@ export default function Account({}) {
                 </Text>
               </View>
 
-              <View
-                style={
-                  order.status === 'delivered'
-                    ? styles.deliveredBadge
-                    : styles.shippedBadge
-                }
-                >
+              <View style={styles.shippedBadge}>
                 <View style={styles.badgeDot} />
-
-                <Text
-                  style={
-                    order.status === 'delivered'
-                      ? styles.deliveredText
-                      : styles.shippedText
-                  }
-                >
+                <Text style={styles.shippedText}>
                   {order.status}
                 </Text>
               </View>
             </TouchableOpacity>
-               ))
-              )}
-
-          {/* Wishlist */}
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>WISHLIST</Text>
-
-            <TouchableOpacity onPress={() => {}}>
-              <Text style={styles.viewAll}>View all · 4</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.wishlistRow}>
-
-            <TouchableOpacity
-              style={styles.wishlistItem}
-              onPress={() => {}}
-            >
-              <Text style={styles.placeholderText}>H</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.wishlistItem}
-              onPress={() => {}}
-            >
-              <Text style={styles.placeholderText}>B</Text>
-            </TouchableOpacity>
-
-          </View>
-
-          {/* Account Options */}
-          <TouchableOpacity
-            style={styles.option}
-            onPress={() => {}}
-          >
-            <Text style={styles.optionTitle}>
-              Profile & saved addresses
-            </Text>
-
-            <Text style={styles.optionValue}>
-              Unit 4B, Maginghawa St.
-            </Text>
-
-            <Text style={styles.arrow}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.option}
-            onPress={() => {}}
-          >
-            <Text style={styles.optionTitle}>
-              Help & FAQ
-            </Text>
-
-            <Text style={styles.arrow}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.option}
-            onPress={() => {}}
-          >
-            <Text style={styles.optionTitle}>
-              Contact us
-            </Text>
-
-            <Text style={styles.arrow}>›</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.option}
-            onPress={() => {}}
-          >
-            <Text style={styles.signOut}>
-              Sign out
-            </Text>
-
-            <Text style={styles.arrow}>›</Text>
-          </TouchableOpacity>
-          
+          ))}
         </ScrollView>
         <Footer/>
       </View>
@@ -215,7 +81,6 @@ export default function Account({}) {
     </SafeAreaProvider>
   );
 }
-
 
 const styles = StyleSheet.create({
   screen: {
@@ -228,6 +93,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 40,
     paddingBottom: 40,
+    
   },
 
   // Header
@@ -332,6 +198,7 @@ const styles = StyleSheet.create({
     minHeight: 58,
     marginHorizontal: 10,
     marginBottom: 8,
+    marginTop: 10,
     paddingHorizontal: 10,
     paddingVertical: 9,
     borderWidth: 1,

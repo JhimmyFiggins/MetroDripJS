@@ -21,8 +21,19 @@ export default function ProductDetails({ selectedProductId, onBack }) {
     const [selectedFit, setSelectedFit] = useState(null);
     const [activeDotIndex, setActiveDotIndex] = useState(0);
 
+    const selectedVariant = variants.find(
+        variant =>
+        variant.attributes.color === selectedColor &&
+        variant.attributes.size === selectedSize &&
+        variant.attributes.fit === selectedFit
+    );
+
+    // Stock
+    const [stock, setStock] = useState(null);
+
     const productId = selectedProductId; 
 
+    //Variants
     useEffect(() => {
         fetch(`https://metrodripjs.onrender.com/products/${productId}/variants/`)
             .then(response => response.json())
@@ -30,6 +41,8 @@ export default function ProductDetails({ selectedProductId, onBack }) {
             .catch(error => console.error('Failed to load variants:', error));
     }, [productId]);
 
+    
+    // Check later if this is still important
     useEffect(() => {
         async function fetchDetails() {
             if (!productId) return;
@@ -55,6 +68,25 @@ export default function ProductDetails({ selectedProductId, onBack }) {
         }
         fetchDetails();
     }, [productId]);
+    
+    useEffect(() => {
+        if (!selectedVariant) {
+            setStock(null);
+            return;
+        }
+
+        fetch(
+            `https://metrodripjs.onrender.com/variants/${selectedVariant.id}/stock/`
+        )
+            .then(response => response.json())
+            .then(data => {
+                setStock(data[0] || null);
+            })
+            .catch(error => {
+                console.error('Failed to load stock:', error);
+                setStock(null);
+        });
+    }, [selectedVariant]);
 
     if (loading) {
         return (
@@ -74,6 +106,10 @@ export default function ProductDetails({ selectedProductId, onBack }) {
             </View>
         );
     }
+
+
+    
+
 
     // Colors, Sizes, and Fits lists derived from variants
     const sizes = [...new Set(
@@ -95,19 +131,15 @@ export default function ProductDetails({ selectedProductId, onBack }) {
                 index === self.findIndex(c => c.name === color.name)
         );
 
-    // console.log("COLORS:", colorsList);
-    // console.log("VARIANTS:", variants);
+    
 
     // const fitsList = product.fits && product.fits.length > 0 ? product.fits : (product.fit ? [product.fit] : ['Regular']);
     const fitsList = fits;
 
-    const selectedVariant = variants.find(
-        variant =>
-            variant.attributes.color === selectedColor &&
-            variant.attributes.size === selectedSize &&
-            variant.attributes.fit === selectedFit
-    );
+   
 
+    
+    
     // console.log("SELECTED VARIANT:", selectedVariant);
 
     // Generate dot indicators based on image count
@@ -128,18 +160,27 @@ export default function ProductDetails({ selectedProductId, onBack }) {
             alert('Please select a valid product variant.');
             return;
         }
+
+        if (!stock || stock.available_stock <= 0) {
+            alert('This variant is out of stock.');
+            return;
+        }
         if (!product) return;
         const productItem = {
             id: `${product.id || productId}-${selectedColor || 'Default'}-${selectedSize || 'M'}-${selectedFit || 'Regular'}`,
             variantId: selectedVariant.id,
             fit: selectedVariant.fit,
             sku: selectedVariant.sku,
+            stock: stock.available_stock,
             productId: product.id || productId,
             name: product.product_name || product.name || 'MetroDrip Product',
             size: selectedSize || 'M',
             color: selectedColor || 'Black',
             fit: selectedFit || 'Regular',
-            price: parseFloat(product.base_price || 0) + parseFloat(selectedVariant?.price_adjustment || 0).toFixed(2),
+            price: (
+                parseFloat(product.base_price || 0) +
+                parseFloat(selectedVariant?.price_adjustment || 0)
+            ).toFixed(2),
             quantity: 1,
             image: 'https://via.placeholder.com/300x350',
         };
@@ -282,25 +323,6 @@ export default function ProductDetails({ selectedProductId, onBack }) {
             {/* Fit Selector */}
             <View style={styles.selectorRow}>
                 <Text style={styles.selectorLabel}>Fit</Text>
-                {/* <View style={styles.fitOptions}>
-                    {fitsList.map((fit) => (
-                        <TouchableOpacity
-                            key={fit}
-                            style={[
-                                styles.fitButton,
-                                selectedFit === fit && styles.selectedFitButton
-                            ]}
-                            onPress={() => setSelectedFit(fit)}
-                        >
-                            <Text style={[
-                                styles.fitButtonText,
-                                selectedFit === fit && styles.selectedFitButtonText
-                            ]}>
-                                {fit}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-                </View> */}
                 <Text style={styles.selectorValue}>{selectedFit}</Text>
             </View>
 
@@ -328,7 +350,13 @@ export default function ProductDetails({ selectedProductId, onBack }) {
 
             {/* Stock Warning */}
             <Text style={styles.stockWarning}>
-                <Text style={styles.redDot}>●</Text> Only 4 left in this variant
+                {stock && (
+                    <Text style={styles.stockText}>
+                        {stock.available_stock > 0
+                            ? `Only ${stock.available_stock} left in this variant`
+                            : 'Out of stock'}
+                    </Text>
+                )}
             </Text>
 
             {/* Customer Reviews Section (Figma M04a) */}

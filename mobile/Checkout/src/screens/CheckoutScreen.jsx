@@ -29,7 +29,6 @@ import {
   deliveryZones,
   formatPeso,
   initialDeliveryAddress,
-  orderTotal,
   paymentOptions,
 } from '../data/checkout';
 // Import shared visual tokens.
@@ -72,6 +71,14 @@ export function CheckoutScreen() {
 
   const cartContext = useCart();
   const cart = cartContext?.cart || [];
+  const subtotal = cart.reduce(
+    (total, item) => total + item.price * item.quantity,
+    0
+  );
+
+  const shipping = subtotal > 0 ? 150 : 0;
+  const discount = 0;
+  const total = subtotal + shipping - discount;
   const clearCart = cartContext?.clearCart || (() => {});
 
   // Validate all fields before simulated payment initiation.
@@ -88,17 +95,19 @@ export function CheckoutScreen() {
 
     const selectedOption = paymentOptions.find((opt) => opt.id === paymentMethod);
     const orderItems =
-      cart && cart.length > 0
-        ? cart.map((it) => ({
-            id: it.id,
-            name: it.name,
-            variant: `${(it.color || 'BLACK').toUpperCase()} · ${(it.size || 'M').toUpperCase()} · ${(it.fit || 'OVS').toUpperCase()} ×${it.quantity || 1}`,
-            price: it.price,
-            quantity: it.quantity || 1,
-            image: it.image,
-            badge: it.name ? it.name.charAt(0) : 'M',
-          }))
-        : [
+    cart && cart.length > 0
+      ? cart.map((it) => ({
+          id: it.id,
+          productId: it.productId,
+          variantId: it.variantId,
+          name: it.name,
+          variant: `${(it.color || 'BLACK').toUpperCase()} · ${(it.size || 'M').toUpperCase()} · ${(it.fit || 'OVS').toUpperCase()} ×${it.quantity || 1}`,
+          price: it.price,
+          quantity: it.quantity || 1,
+          image: it.image,
+          badge: it.name ? it.name.charAt(0) : 'M',
+        }))
+      : [
             {
               id: '1',
               name: 'Drip Zip-Up Hoodie',
@@ -119,7 +128,7 @@ export function CheckoutScreen() {
 
     const orderDraft = {
       orderId: `MD-2026-00${Math.floor(100 + Math.random() * 900)}`,
-      total: orderTotal,
+      total: total,
       paymentMethod: selectedOption?.title || 'GCash',
       email: address.email,
       fullName: address.fullName,
@@ -279,7 +288,7 @@ export function CheckoutScreen() {
 
                   <View style={styles.desktopActionArea}>
                     <Pressable
-                      accessibilityLabel={`Continue to payment details for ${formatPeso(orderTotal)}`}
+                      accessibilityLabel={`Continue to payment details for ${formatPeso(total)}`}
                       accessibilityRole="button"
                       onPress={handlePay}
                       style={({ pressed }) => [
@@ -314,7 +323,7 @@ export function CheckoutScreen() {
             {/* Mobile Fixed Safe Payment Footer */}
             <View style={[styles.paymentFooter, { paddingBottom: Math.max(insets.bottom, 24) }]}>
               <Pressable
-                accessibilityLabel={`Continue to payment details for ${formatPeso(orderTotal)}`}
+                accessibilityLabel={`Continue to payment details for ${formatPeso(total)}`}
                 accessibilityRole="button"
                 onPress={handlePay}
                 style={({ pressed }) => [styles.payButton, pressed ? styles.payButtonPressed : undefined]}

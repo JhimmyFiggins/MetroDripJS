@@ -18,7 +18,7 @@ export default function Footer() {
 
         <NavItem icon="search-outline" label="Shop" onPress={() => navigation.navigate('Shop')} />
         <NavItem icon="heart-outline" label="Saved" onPress={() => navigation.navigate('Saved')} />
-        <NavItem icon="receipt-outline" label="Orders" onPress={() => navigation.navigate('Cart')} />
+        <NavItem icon="receipt-outline" label="Orders" onPress={() => navigation.navigate('History')} />
         <NavItem icon="person-circle-outline" label="Account" onPress={() => navigation.navigate('Account')} />
         </View>
     

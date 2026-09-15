@@ -28,8 +28,8 @@ const INITIAL_PRODUCTS = [
 ];
 
 export function CartProvider({ children }) {
-  const [cart, setCart] = useState(INITIAL_PRODUCTS);
-
+  const [cart, setCart] = useState([]);
+  
   const addToCart = (newItem) => {
     setCart((currentCart) => {
       const existingIndex = currentCart.findIndex(
@@ -38,10 +38,16 @@ export function CartProvider({ children }) {
 
       if (existingIndex > -1) {
         const updatedCart = [...currentCart];
+        const existingItem = updatedCart[existingIndex];
+
+        const newQuantity =
+          existingItem.quantity + (newItem.quantity || 1);
+
         updatedCart[existingIndex] = {
-          ...updatedCart[existingIndex],
-          quantity: updatedCart[existingIndex].quantity + (newItem.quantity || 1),
+          ...existingItem,
+          quantity: Math.min(newQuantity, existingItem.stock),
         };
+
         return updatedCart;
       }
 
@@ -52,13 +58,16 @@ export function CartProvider({ children }) {
   const changeQuantity = (id, amount) => {
     setCart((currentCart) =>
       currentCart.map((item) => {
-        if (item.id === id) {
-          return {
-            ...item,
-            quantity: Math.max(1, item.quantity + amount),
-          };
+        if (item.id !== id) {
+          return item;
         }
-        return item;
+
+        const newQuantity = item.quantity + amount;
+
+        return {
+          ...item,
+          quantity: Math.max(1, Math.min(newQuantity, item.stock)),
+        };
       })
     );
   };
