@@ -42,7 +42,7 @@ export default function Account({}) {
       id: order.id,
       orderNumber: `MD-2026-${String(order.id).padStart(5, '0')}`,
       details: `${order.lines?.reduce((sum, line) => sum + line.quantity, 0) || 0} items · ₱${order.total} · ${new Date(order.created_at).toLocaleDateString('en-US')}`,
-      status: order.status,
+      status: order.status.charAt(0).toUpperCase() + order.status.slice(1),
     }));
 
   return (

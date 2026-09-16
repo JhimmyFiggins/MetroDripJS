@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 
 import {
   StyleSheet,
@@ -28,18 +29,20 @@ export default function OrderHistory({navigate}) {
   const fixedOrders= new Array(2); 
   const screenTitle = 'Order History'
 
-  useEffect(() => {
-    fetch('http://10.0.2.2:8000/orders/')
-      .then(response => response.json())
-      .then(data => {
-        setOrders(data);
-        setLoading(false);
-      })
-      .catch(error => {
-        console.error('Failed to load orders:', error);
-        setLoading(false);
-      });
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetch('http://10.0.2.2:8000/orders/')
+        .then(response => response.json())
+        .then(data => {
+          setOrders(data);
+          setLoading(false);
+        })
+        .catch(error => {
+          console.error('Failed to load orders:', error);
+          setLoading(false);
+        });
+    }, [])
+  );
   return (
     <SafeAreaProvider>
       <View style={styles.screen}>
