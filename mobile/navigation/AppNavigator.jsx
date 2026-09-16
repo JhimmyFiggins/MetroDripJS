@@ -46,7 +46,7 @@ export default function AppNavigator() {
                 <Stack.Screen name="Signup" component={SignupScreen} />
                 <Stack.Screen name="Home" component={HomeScreen} />
                 <Stack.Screen name="Shop" component={ShopScreen} />
-                <Stack.Screen name="Saved" component={WishlistScreen} />
+                <Stack.Screen name="Saved" component={OrderHistory}/>
                 <Stack.Screen name="History" component={OrderHistory} />
                 <Stack.Screen name="ProductDetails" component={ProductDetailsScreen}/>
                 <Stack.Screen name="Cart" component={ShoppingCart}/>
