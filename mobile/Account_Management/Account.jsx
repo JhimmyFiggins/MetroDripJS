@@ -20,6 +20,7 @@ import Footer from '../components/Footer';
 import { useAuth } from '../context/AuthContext';
 
 export default function Account({}) {
+  const { login, logout } = useAuth();
   const navigation = useNavigation();
   const screenTitle = 'My Account'
   
@@ -40,7 +41,11 @@ export default function Account({}) {
   const ordersLength = orders.length;
 
   useEffect(() => {
-      fetch('http://10.0.2.2:8000/profile/')
+      fetch('http://10.0.2.2:8000/profile/', {
+        headers: {
+          'X-Customer-ID': '1',
+        },
+      })
           .then(response => response.json())
           .then(data => {
           setName(data.name);
@@ -70,7 +75,11 @@ export default function Account({}) {
 
   useFocusEffect(
       useCallback(() => {
-        fetch('http://10.0.2.2:8000/wishlist/')
+        fetch('http://10.0.2.2:8000/wishlist/', {
+          headers: {
+            'X-Customer-ID': '1',
+          },
+        })
           .then(response => response.json())
           .then(data => {
             setWishlistItems(data);
@@ -265,7 +274,10 @@ export default function Account({}) {
 
           <TouchableOpacity
             style={styles.option}
-            onPress={() => {}}
+            onPress={() => {
+              logout();
+              navigation.navigate('Initial')
+            }}
           >
             <Text style={styles.signOut}>
               Sign out

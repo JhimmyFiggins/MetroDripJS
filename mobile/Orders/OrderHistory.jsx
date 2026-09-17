@@ -31,7 +31,11 @@ export default function OrderHistory({navigate}) {
 
   useFocusEffect(
     useCallback(() => {
-      fetch('http://10.0.2.2:8000/orders/')
+      fetch('http://10.0.2.2:8000/orders/', {
+          headers: {
+            'X-Customer-ID': '1',
+          },
+        })
         .then(response => response.json())
         .then(data => {
           setOrders(data);
@@ -41,7 +45,7 @@ export default function OrderHistory({navigate}) {
           console.error('Failed to load orders:', error);
           setLoading(false);
         });
-    }, [])
+      }, [])
   );
   return (
     <SafeAreaProvider>

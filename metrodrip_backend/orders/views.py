@@ -5,14 +5,16 @@ from rest_framework.renderers import JSONRenderer
 
 from .models import OrdersOrder
 from .serializers import OrderSerializer
-
+from identity.authentication import CustomerAuthentication
 
 class CreateOrderAPIView(APIView):
-    
+    authentication_classes = [CustomerAuthentication]
     renderer_classes = [JSONRenderer]
 
     def get(self, request):
-        orders = OrdersOrder.objects.all().order_by('-created_at')
+        orders = OrdersOrder.objects.filter(
+            customer_id=request.user.id
+        ).order_by('-created_at')
         serializer = OrderSerializer(orders, many=True)
         return Response(serializer.data)
 
@@ -22,7 +24,7 @@ class CreateOrderAPIView(APIView):
         serializer = OrderSerializer(data=request.data)
 
         if serializer.is_valid():
-            order = serializer.save()
+            order = serializer.save(customer_id=request.user.id)
             return Response(
                 OrderSerializer(order).data,
                 status=status.HTTP_201_CREATED

@@ -17,11 +17,13 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useTheme } from '../theme.js';
 import { fonts} from '../../Checkout/src/theme.ts';
 import { useAuth } from '../../context/AuthContext';
+import { useCart } from '../../context/CartContext';
 
 export default function LoginScreen({ navigation }) {
   
 
-  const { login, logout } = useAuth();r
+  const { login, logout } = useAuth();
+  const { clearCart } = useCart();
   const { theme, mode, setMode } = useTheme();
   const styles = useMemoStyles(theme);
   const isDark = theme.mode === 'dark';
@@ -73,7 +75,7 @@ export default function LoginScreen({ navigation }) {
       });
 
       const data = await response.json();
-
+      console.log('LOGIN RESPONSE:', response.status, data);
       if (!response.ok) {
         alert(data.error || 'Invalid email or password.');
         return;
@@ -93,6 +95,7 @@ export default function LoginScreen({ navigation }) {
   // Requirement 25 — mobile app must support guest checkout at parity with
   // web. Skips auth and drops the user straight into the shopping flow.
   const handleContinueAsGuest = () => {
+    clearCart();
     logout();
     navigation.navigate('Home', { guest: true });
   };

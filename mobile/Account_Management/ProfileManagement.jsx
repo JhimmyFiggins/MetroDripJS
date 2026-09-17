@@ -25,7 +25,11 @@ export default function ProfileManagement() {
 
     const screenTitle = "Profile Management"
     useEffect(() => {
-    fetch('http://10.0.2.2:8000/profile/')
+    fetch('http://10.0.2.2:8000/profile/', {
+        headers: {
+            'X-Customer-ID': '1',
+        },
+        })
         .then(response => response.json())
         .then(data => {
         setName(data.name);

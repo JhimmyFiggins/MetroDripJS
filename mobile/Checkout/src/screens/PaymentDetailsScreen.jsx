@@ -246,8 +246,9 @@ export function PaymentDetailsScreen() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'X-Customer-ID': '1',
           },
-          body: JSON.stringify({
+            body: JSON.stringify({
             customer_id: null,
             status: 'pending',
             subtotal: orderDraft.items.reduce(

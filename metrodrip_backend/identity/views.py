@@ -5,13 +5,17 @@ from .models import AccountsWishlistItem
 from catalog.models import CatalogProduct
 from django.utils import timezone
 from .models import AccountsCustomer
-
+from rest_framework.authtoken.models import Token
+from .authentication import CustomerAuthentication
 
 class WishlistAPIView(APIView):
+    authentication_classes = [CustomerAuthentication]
     renderer_classes = [JSONRenderer]
 
     def get(self, request):
-        wishlist = AccountsWishlistItem.objects.all().order_by('-created_at')
+        wishlist = AccountsWishlistItem.objects.filter(
+            customer=request.user
+        ).order_by('-created_at')
 
         data = []
 
@@ -40,7 +44,7 @@ class WishlistAPIView(APIView):
             )
 
         wishlist_item = AccountsWishlistItem.objects.create(
-            customer_id=1,
+            customer=request.user,
             product_ref=product_ref,
             created_at=timezone.now(),
         )
@@ -75,10 +79,11 @@ class WishlistAPIView(APIView):
         )
 
 class ProfileAPIView(APIView):
+    authentication_classes = [CustomerAuthentication]
     renderer_classes = [JSONRenderer]
 
     def get(self, request):
-        customer = AccountsCustomer.objects.get(id=1)
+        customer = request.user
 
         return Response({
             'id': customer.id,
@@ -89,7 +94,7 @@ class ProfileAPIView(APIView):
         })
 
     def put(self, request):
-        customer = AccountsCustomer.objects.get(id=1)
+        customer = request.user
 
         customer.name = request.data.get('name', customer.name)
         customer.email = request.data.get('email', customer.email)
@@ -114,6 +119,8 @@ class LoginAPIView(APIView):
     renderer_classes = [JSONRenderer]
 
     def post(self, request):
+        print("LOGIN EMAIL:", request.data.get('email'))
+        print("LOGIN PASSWORD:", request.data.get('password'))
         email = request.data.get('email')
         password = request.data.get('password')
 
@@ -128,7 +135,7 @@ class LoginAPIView(APIView):
                 {'error': 'Invalid email or password.'},
                 status=401
             )
-
+        # token, created = Token.objects.get_or_create(user=customer)
         return Response({
             'id': customer.id,
             'name': customer.name,
@@ -155,3 +162,42 @@ class CheckCustomerAPIView(APIView):
             'password': customer.password,
             'is_active': customer.is_active,
         })
+        
+class SignupAPIView(APIView):
+    renderer_classes = [JSONRenderer]
+
+    def post(self, request):
+        name = request.data.get('name')
+        email = request.data.get('email')
+        password = request.data.get('password')
+
+        if not name or not email or not password:
+            return Response(
+                {'error': 'Name, email, and password are required.'},
+                status=400
+            )
+
+        if AccountsCustomer.objects.filter(email=email).exists():
+            return Response(
+                {'error': 'An account with this email already exists.'},
+                status=400
+            )
+
+        customer = AccountsCustomer.objects.create(
+            name=name,
+            email=email,
+            password=password,
+            phone='',
+            addresses={},
+            is_active=True,
+            is_staff=False,
+            is_superuser=False,
+            role='customer',
+            date_joined=timezone.now(),
+        )
+
+        return Response({
+            'id': customer.id,
+            'name': customer.name,
+            'email': customer.email,
+        }, status=201)

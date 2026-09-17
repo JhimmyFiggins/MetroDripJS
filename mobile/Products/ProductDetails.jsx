@@ -214,14 +214,15 @@ export default function ProductDetails({
                 <TouchableOpacity
                     onPress={() => {
                         fetch('http://10.0.2.2:8000/wishlist/', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            product_ref: product.id,
-                        }),
-                        });
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-Customer-ID': '1',
+                            },
+                            body: JSON.stringify({
+                                product_ref: productId,
+                            }),
+})
                     }}
                     >
                     <Text style={styles.heartIcon}>♡</Text>

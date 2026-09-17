@@ -29,7 +29,11 @@ export default function Wishlist({navigate}) {
 
   useFocusEffect(
     useCallback(() => {
-      fetch('http://10.0.2.2:8000/wishlist/')
+      fetch('http://10.0.2.2:8000/wishlist/', {
+        headers: {
+          'X-Customer-ID': '1',
+        },
+      })
         .then(response => response.json())
         .then(data => {
           setWishlistItems(data);
