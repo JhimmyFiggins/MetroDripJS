@@ -136,3 +136,22 @@ class LoginAPIView(APIView):
             'phone': customer.phone,
             'addresses': customer.addresses,
         })
+
+class CheckCustomerAPIView(APIView):
+    renderer_classes = [JSONRenderer]
+
+    def get(self, request):
+        customer = AccountsCustomer.objects.filter(id=1).first()
+
+        if not customer:
+            return Response({
+                'exists': False
+            })
+
+        return Response({
+            'exists': True,
+            'id': customer.id,
+            'email': customer.email,
+            'password': customer.password,
+            'is_active': customer.is_active,
+        })
