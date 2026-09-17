@@ -16,11 +16,12 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useTheme } from '../theme.js';
 import { fonts} from '../../Checkout/src/theme.ts';
+import { useAuth } from '../../context/AuthContext';
 
 export default function LoginScreen({ navigation }) {
   
 
-
+  const { login } = useAuth();
   const { theme, mode, setMode } = useTheme();
   const styles = useMemoStyles(theme);
   const isDark = theme.mode === 'dark';
@@ -54,17 +55,39 @@ export default function LoginScreen({ navigation }) {
     return Object.keys(nextErrors).length === 0;
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!validate()) return;
 
     setLoading(true);
 
-    // Simulated auth call — the public mobile API
-    // (/api/mobile/v1/) will replace this once the backend team wires it up.
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const response = await fetch('https://metrodripjs.onrender.com/login/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email.trim(),
+          password: password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.error || 'Invalid email or password.');
+        return;
+      }
+
+      login(data);
       navigation.navigate('Home');
-    }, 900);
+
+    } catch (error) {
+      console.error('Login failed:', error);
+      alert('Unable to connect to the server.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Requirement 25 — mobile app must support guest checkout at parity with

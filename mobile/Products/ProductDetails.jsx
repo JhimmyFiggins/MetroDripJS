@@ -8,9 +8,18 @@ import { useCart } from '../context/CartContext';
 import { useNavigation } from '@react-navigation/native';
 import CustomerReviews from './components/CustomerReviews';
 
-export default function ProductDetails({ selectedProductId, onBack }) {
+export default function ProductDetails({ 
+    route, 
+    navigation, 
+    selectedProductId: propProductId, 
+    onBack: propOnBack }) {
+    
+    const selectedProductId =
+    route?.params?.selectedProductId ?? propProductId;
+    const onBack = propOnBack ?? (() => navigation.goBack());
+
     const { addToCart } = useCart();
-    const navigation = useNavigation();
+
 
     const [product, setProduct] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -32,7 +41,7 @@ export default function ProductDetails({ selectedProductId, onBack }) {
     const [stock, setStock] = useState(null);
 
     const productId = selectedProductId; 
-
+    console.log('PRODUCT ID:', productId);
     //Variants
     useEffect(() => {
         fetch(`https://metrodripjs.onrender.com/products/${productId}/variants/`)
@@ -202,7 +211,19 @@ export default function ProductDetails({ selectedProductId, onBack }) {
                     <Text style={styles.backArrow}>←</Text>
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>{product.name}</Text>
-                <TouchableOpacity>
+                <TouchableOpacity
+                    onPress={() => {
+                        fetch('http://10.0.2.2:8000/wishlist/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            product_ref: product.id,
+                        }),
+                        });
+                    }}
+                    >
                     <Text style={styles.heartIcon}>♡</Text>
                 </TouchableOpacity>
                 

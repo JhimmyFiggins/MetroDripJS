@@ -145,7 +145,19 @@ export default function ProductDetails({ selectedProductId, onBack }) {
                     <Text style={styles.backArrow}>←</Text>
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>{product.name}</Text>
-                <TouchableOpacity>
+                <TouchableOpacity
+                    onPress={() => {
+                        fetch('http://10.0.2.2:8000/wishlist/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            product_ref: product.id,
+                        }),
+                        });
+                    }}
+                    >
                     <Text style={styles.heartIcon}>♡</Text>
                 </TouchableOpacity>
                 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,21 +8,53 @@ import {
 } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-
+import { useFocusEffect } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-
 import { colors, fonts } from '../Checkout/src/theme';
 
 import AdaptHeader from '../components/AdaptHeader';
 import Footer from '../components/Footer';
 
+
+// User
+import { useAuth } from '../context/AuthContext';
+
 export default function Account({}) {
   const navigation = useNavigation();
   const screenTitle = 'My Account'
+  
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+
   const [orders, setOrders] = useState([]);
+  const [wishlistItems, setWishlistItems] = useState([]);
+
   const [loading, setLoading] = useState(true);
+
+  // User
+  const { user, isGuest } = useAuth();
+
+
   const ordersLength = orders.length;
 
+  useEffect(() => {
+      fetch('http://10.0.2.2:8000/profile/')
+          .then(response => response.json())
+          .then(data => {
+          setName(data.name);
+          setEmail(data.email);
+          setPhone(data.phone);
+  
+          const savedAddress = data.addresses?.address || '';
+          setAddress(savedAddress);
+          })
+          .catch(error => {
+          console.error('Failed to load profile:', error);
+          });
+      }, []);
+      
   useEffect(() => {
       fetch('http://10.0.2.2:8000/orders/')
         .then(response => response.json())
@@ -36,6 +68,19 @@ export default function Account({}) {
         });
     }, []);
 
+  useFocusEffect(
+      useCallback(() => {
+        fetch('http://10.0.2.2:8000/wishlist/')
+          .then(response => response.json())
+          .then(data => {
+            setWishlistItems(data);
+          })
+          .catch(error => {
+            console.error('Failed to load wishlist:', error);
+          });
+      }, [])
+    );
+
   const orderList = orders
     .slice(0, 2)
     .map((order) => ({
@@ -44,6 +89,15 @@ export default function Account({}) {
       details: `${order.lines?.reduce((sum, line) => sum + line.quantity, 0) || 0} items · ₱${order.total} · ${new Date(order.created_at).toLocaleDateString('en-US')}`,
       status: order.status.charAt(0).toUpperCase() + order.status.slice(1),
     }));
+
+  const wishlistList = wishlistItems
+  .slice(0, 2)
+  .map((item) => ({
+    id: item.id,
+    productRef: item.product_ref,
+    name: item.name,
+    details: `₱${item.price} · Added ${new Date(item.created_at).toLocaleDateString('en-US')}`,
+  }));
 
   return (
     <SafeAreaProvider>
@@ -55,30 +109,40 @@ export default function Account({}) {
         >
           <AdaptHeader screenTitle={screenTitle}/>
 
-    
-          {/* Profile */}
-          <View style={styles.profile}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>JD</Text>
-            </View>
+          {isGuest ? (
+            <View style={styles.profile}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>G</Text>
+              </View>
 
-            <View style={styles.profileInfo}>
-              <Text style={styles.name}>Juan Dela Cruz</Text>
-
-              <View style={styles.memberInfo}>
-                <Text style={styles.memberText}>
-                  MEMBER SINCE 07.2026
-                </Text>
-
-                <Text style={styles.dot}>•</Text>
-
-                <Text style={styles.memberText}>
-                  3 ORDERS
-                </Text>
+              <View style={styles.profileInfo}>
+                <Text style={styles.name}>Guest</Text>
+                <Text style={styles.memberText}>NOT SIGNED IN</Text>
               </View>
             </View>
-          </View>
+          ) : (
+            <View style={styles.profile}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>JD</Text>
+              </View>
 
+              <View style={styles.profileInfo}>
+                <Text style={styles.name}>Juan Dela Cruz</Text>
+
+                <View style={styles.memberInfo}>
+                  <Text style={styles.memberText}>
+                    MEMBER SINCE 07.2026
+                  </Text>
+
+                  <Text style={styles.dot}>•</Text>
+
+                  <Text style={styles.memberText}>
+                    3 ORDERS
+                  </Text>
+                </View>
+              </View>
+            </View>
+            )}
           {/* Order History */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>ORDER HISTORY</Text>
@@ -136,33 +200,35 @@ export default function Account({}) {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>WISHLIST</Text>
 
-            <TouchableOpacity onPress={() => {}}>
-              <Text style={styles.viewAll}>View all · 4</Text>
+            <TouchableOpacity onPress={() => {navigation.navigate('Saved')}}>
+              <Text style={styles.viewAll}>
+                View all · {wishlistItems.length}
+              </Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.wishlistRow}>
-
-            <TouchableOpacity
-              style={styles.wishlistItem}
-              onPress={() => {}}
-            >
-              <Text style={styles.placeholderText}>H</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.wishlistItem}
-              onPress={() => {}}
-            >
-              <Text style={styles.placeholderText}>B</Text>
-            </TouchableOpacity>
-
+            {wishlistList.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.wishlistItem}
+                onPress={() =>
+                  navigation.navigate('ProductDetails', {
+                    selectedProductId: item.productRef,
+                  })
+                }
+              >
+                <Text style={styles.placeholderText}>
+                  {item.name?.charAt(0) || '?'}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
 
           {/* Account Options */}
           <TouchableOpacity
             style={styles.option}
-            onPress={() => {}}
+            onPress={() => {navigation.navigate('Profile')}}
           >
             <Text style={styles.optionTitle}>
               Profile & saved addresses
