@@ -21,7 +21,7 @@ import { useAuth } from '../../context/AuthContext';
 export default function LoginScreen({ navigation }) {
   
 
-  const { login } = useAuth();
+  const { login, logout } = useAuth();r
   const { theme, mode, setMode } = useTheme();
   const styles = useMemoStyles(theme);
   const isDark = theme.mode === 'dark';
@@ -93,6 +93,7 @@ export default function LoginScreen({ navigation }) {
   // Requirement 25 — mobile app must support guest checkout at parity with
   // web. Skips auth and drops the user straight into the shopping flow.
   const handleContinueAsGuest = () => {
+    logout();
     navigation.navigate('Home', { guest: true });
   };
 
