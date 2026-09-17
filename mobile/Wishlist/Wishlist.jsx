@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   
 } from 'react-native';
-
+import { useAuth } from '../context/AuthContext';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -22,7 +22,7 @@ import Footer from '../components/Footer';
 
 
 export default function Wishlist({navigate}) {
-
+  const { user } = useAuth();
   const navigation = useNavigation();
   const [wishlistItems, setWishlistItems] = useState([]);
   const screenTitle = 'Wish list'
@@ -31,7 +31,7 @@ export default function Wishlist({navigate}) {
     useCallback(() => {
       fetch('http://10.0.2.2:8000/wishlist/', {
         headers: {
-          'X-Customer-ID': '1',
+          'X-Customer-ID': String(user.id),
         },
       })
         .then(response => response.json())
@@ -41,7 +41,7 @@ export default function Wishlist({navigate}) {
         .catch(error => {
           console.error('Failed to load wishlist:', error);
         });
-    }, [])
+    }, [user])
   );
   return (
     <SafeAreaProvider>
@@ -82,7 +82,8 @@ export default function Wishlist({navigate}) {
                       fetch('http://10.0.2.2:8000/wishlist/', {
                           method: 'DELETE',
                           headers: {
-                              'Content-Type': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-Customer-ID': String(user.id),
                           },
                           body: JSON.stringify({
                               id: item.id,
