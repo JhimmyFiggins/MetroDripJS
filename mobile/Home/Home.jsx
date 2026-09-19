@@ -107,8 +107,11 @@ export default function Home({ navigation, route }) {
                         Urban Style Redefined
                     </Text>
 
-                    <TouchableOpacity style={styles.HeroLowerButton}>
-                        <Text style={styles.HeroBannerLower}>Shop the Drop</Text>
+                    <TouchableOpacity
+                        style={styles.HeroLowerButton}
+                        onPress={() => navigation.navigate('Shop')}
+                    >
+                        <Text style={styles.HeroBannerLower}>Shop the drop →</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -202,31 +205,34 @@ const styles = StyleSheet.create({
     },
     HeroBanner: {
         width: '100%',
-        backgroundColor: 'rgb(0, 0, 0)',
-        paddingLeft: 20,
-        paddingVertical: 20,
+        backgroundColor: '#141414',
+        paddingHorizontal: 20,
+        paddingVertical: 24,
     },
     HeroBannerUpper: {
-        color: 'rgb(186, 222, 53)',
+        color: '#D3EE42',
         fontSize: 13,
         fontFamily: fonts.interRegular,
+        marginBottom: 6,
     },
     HeroBannerTitle: {
-        color: 'rgb(255, 255, 255)',
-        fontSize: 40,
+        color: '#FFFFFF',
+        fontSize: 38,
         fontFamily: fonts.interBold,
+        letterSpacing: -1,
+        lineHeight: 42,
+        marginBottom: 16,
     },
     HeroLowerButton: {
-        backgroundColor: 'rgb(255, 255, 255)',
-        paddingVertical: 10,
-        paddingHorizontal: 20,
+        backgroundColor: '#D3EE42',
+        paddingVertical: 12,
+        paddingHorizontal: 22,
         borderRadius: 25,
-        marginVertical: 5,
-        maxWidth: 200,
+        alignSelf: 'flex-start',
     },
     HeroBannerLower: {
-        color: 'rgb(21, 21, 21)',
-        fontSize: 18,
+        color: '#141414',
+        fontSize: 15,
         fontFamily: fonts.interBold,
         textAlign: 'center',
     },
