@@ -111,16 +111,14 @@ export function PaymentDetailsScreen() {
   // Submission state
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const totalAmount = Number(orderDraft.total) || 2632;
-  const itemCount =
-    orderDraft.items?.reduce((sum, it) => sum + (it.quantity || 1), 0) || 3;
+  const totalAmount = Number(orderDraft.total) || 0;
+  const itemCount = orderDraft.items?.reduce((sum, it) => sum + (it.quantity || 1), 0) || 0;
 
   const formatPeso = (val) =>
     `₱${Number(val).toLocaleString('en-PH', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
-
   const formatCardInput = (text) => {
     const cleaned = text.replace(/\D/g, '').slice(0, 16);
     const parts = cleaned.match(/[\s\S]{1,4}/g) || [];
@@ -144,8 +142,8 @@ export function PaymentDetailsScreen() {
 
   const currentMethodObj =
     PAYMENT_METHODS.find((m) => m.id === selectedMethod) || PAYMENT_METHODS[0];
-
-  const handlePay = () => {
+  
+    const handlePay = async () => {
     // Validation
     if (selectedMethod === 'gcash') {
       if (!gcashMobile.trim() || !gcashAccountName.trim()) {
@@ -176,9 +174,10 @@ export function PaymentDetailsScreen() {
     setIsProcessing(true);
 
     // Simulate PayMongo transaction processing
-    setTimeout(() => {
+      setTimeout(async () => {
+      console.log('PAY BUTTON REACHED');
       setIsProcessing(false);
-
+      
       // Compute display payment details string for confirmation receipt
       let paymentDetailStr = '';
       if (selectedMethod === 'gcash') {
@@ -190,16 +189,120 @@ export function PaymentDetailsScreen() {
         paymentDetailStr = `${getCardBrand(cardNumber)} ending in ${last4}`;
       } else {
         paymentDetailStr = `Cash on Delivery · ${orderDraft.mobile}`;
+      } 
+      console.log('STARTING ORDER API REQUEST');
+      console.log('ORDER ITEMS:', JSON.stringify(orderDraft.items, null, 2));
+      console.log('FIRST ITEM:', orderDraft.items?.[0]);
+      
+      console.log('SHIPPING ADDRESS:', JSON.stringify({
+        name: orderDraft.fullName,
+        address_line1: orderDraft.address,
+        address_line2: null,
+        city: 'Quezon City',
+        state: 'Metro Manila (NCR)',
+        postal_code: null,
+        country: 'PH',
+        phone: orderDraft.mobile,
+      }, null, 2));
+
+      console.log('ORDER BODY:', JSON.stringify({
+        customer_id: null,
+        status: 'pending',
+        subtotal: orderDraft.items.reduce(
+          (sum, item) => sum + Number(item.price) * item.quantity,
+          0
+        ),
+        tax: 0,
+        shipping: 150,
+        discount: 0,
+        total: totalAmount,
+        currency: 'PHP',
+        notes: null,
+        shipping_address: {
+          name: orderDraft.fullName,
+          address_line1: orderDraft.address,
+          address_line2: null,
+          city: 'Quezon City',
+          state: 'Metro Manila (NCR)',
+          postal_code: null,
+          country: 'PH',
+          phone: orderDraft.mobile,
+        },
+        lines: orderDraft.items.map((item) => ({
+          product: item.productId,
+          variant: item.variantId,
+          quantity: item.quantity,
+          unit_price: Number(item.price),
+          discount_amount: 0,
+          tax_amount: 0,
+          tax_rate: 0,
+        })),
+      }, null, 2));
+
+      const orderResponse = await fetch(
+        
+        'http://10.0.2.2:8000/orders/',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Customer-ID': '1',
+          },
+            body: JSON.stringify({
+            customer_id: null,
+            status: 'pending',
+            subtotal: orderDraft.items.reduce(
+              (sum, item) => sum + Number(item.price) * item.quantity,
+              0
+            ),
+            tax: 0,
+            shipping: 150,
+            discount: 0,
+            total: totalAmount,
+            currency: 'PHP',
+            notes: null,
+
+            lines: orderDraft.items.map((item) => ({
+              product: item.productId,
+              variant: item.variantId,
+              quantity: item.quantity,
+              unit_price: Number(item.price),
+              discount_amount: 0,
+              tax_amount: 0,
+              tax_rate: 0,
+            })),
+            shipping_address: {
+              name: orderDraft.fullName,
+              address_line1: orderDraft.address,
+              address_line2: null,
+              city: 'Quezon City',
+              state: 'Metro Manila (NCR)',
+              postal_code: null,
+              country: 'PH',
+              phone: orderDraft.mobile,
+            },
+          }),
+        }
+      );
+      console.log('ORDER API RESPONSE:', orderResponse.status);
+      console.log('ORDER API ERROR:', await orderResponse.text());
+      if (!orderResponse.ok) {
+        throw new Error('Failed to create order');
       }
+
+      const savedOrder = await orderResponse.json();
 
       const now = new Date();
       const formattedDate = `${now.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
-      })} · ${now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+      })} · ${now.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+      })}`;
 
       const orderPayload = {
-        orderId: orderDraft.orderId || `MD-2026-00${Math.floor(100 + Math.random() * 900)}`,
+        orderId: savedOrder.id,
         refNo: `PM-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
         total: totalAmount,
         date: formattedDate,
@@ -213,11 +316,11 @@ export function PaymentDetailsScreen() {
         items: orderDraft.items || [],
       };
 
-      // Clear the shopping cart
       clearCart();
 
-      // Navigate to Order Confirmation (Figma M08 node 445:2)
-      navigation.navigate('OrderConfirmation', { order: orderPayload });
+      navigation.navigate('OrderConfirmation', {
+        order: orderPayload,
+      });
     }, 900);
   };
 

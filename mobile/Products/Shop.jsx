@@ -72,8 +72,9 @@ function ShopContent({ navigation, route }) {
         <ProductDetails
             selectedProductId={selectedProductId}
             onBack={handleBack}
+            navigation={navigation}
         />
-        ) : (
+          ) : (
         <>
               <FlatList
                   style={styles.pCHeader}

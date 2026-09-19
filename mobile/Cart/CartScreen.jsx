@@ -16,53 +16,6 @@ import Footer from '../components/Footer';
 import AdaptHeader from '../components/AdaptHeader';
 import { useCart } from '../context/CartContext';
 import { StatusBar } from 'expo-status-bar';
-const PRODUCTS = [
-  {
-    id: 1,
-    name: 'METRODRIP OVERSIZED HOODIE',
-    size: 'Large',
-    color: 'Lime',
-    price: 1899,
-    quantity: 1,
-    image: 'https://via.placeholder.com/300x350',
-  },
-  {
-    id: 2,
-    name: 'METRODRIP GRAPHIC TEE',
-    size: 'Medium',
-    color: 'White / Black',
-    price: 899,
-    quantity: 2,
-    image: 'https://via.placeholder.com/300x350',
-  },
-  {
-    id: 3,
-    name: 'METRODRIP GRAPHIC TEE',
-    size: 'Medium',
-    color: 'White / Black',
-    price: 899,
-    quantity: 2,
-    image: 'https://via.placeholder.com/300x350',
-  },
-  {
-    id: 4,
-    name: 'METRODRIP GRAPHIC TEE',
-    size: 'Medium',
-    color: 'White / Black',
-    price: 899,
-    quantity: 2,
-    image: 'https://via.placeholder.com/300x350',
-  },
-  {
-    id: 5,
-    name: 'METRODRIP GRAPHIC TEE',
-    size: 'Medium',
-    color: 'White / Black',
-    price: 899,
-    quantity: 2,
-    image: 'https://via.placeholder.com/300x350',
-  },
-];
 
 
 export default function CartScreen({navigation}) {
@@ -86,47 +39,17 @@ export default function CartScreen({navigation}) {
   };
 
 
-  // const checkout = () => {
-  //   Alert.alert(
-  //     'MetroDrip Checkout',
-  //     'Proceeding to MetroDrip Checkout...'
-  //   );
-  // };
-
 
   return (
     <SafeAreaProvider style={styles.safeArea}>
       <StatusBar style="dark" />
-      {/* NAVIGATION */}
-      {/* <View style={styles.navbar}>
-        <Text style={styles.logo}>
-          METRO<Text style={styles.logoAccent}>DRIP</Text>
-        </Text>
-
-
-        <View style={styles.navLinks}>
-          <Text style={styles.navLink}>SHOP</Text>
-          <Text style={styles.navLink}>COLLECTIONS</Text>
-          <Text style={styles.navLink}>ABOUT</Text>
-          <Text style={styles.navLink}>CART</Text>
-        </View>
-      </View> */}
-
+  
 
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       >
-        {/* PAGE HEADER */}
-        {/* <View style={styles.header}>
-          <TouchableOpacity 
-          onPress={() => navigation.navigate('Shop')}
-          >
-            <Text style={styles.backButton}> <Ionicons name="chevron-back" size={24} color="#111111" /> </Text>
-          </TouchableOpacity>
-
-          <Text style={styles.title}>{screenTitle}</Text>
-        </View> */}
+      
         <AdaptHeader screenTitle={screenTitle}/>
         {cart.length === 0 ? (
           /* EMPTY CART */
@@ -179,6 +102,12 @@ export default function CartScreen({navigation}) {
                       </Text>
                       <Text style={styles.productInfo}>
                         {item.color}
+                      </Text>
+                      <Text style={styles.productInfo}>
+                        ●
+                      </Text>
+                      <Text style={styles.productInfo}>
+                        {item.fit}
                       </Text>
                     </View>
                     

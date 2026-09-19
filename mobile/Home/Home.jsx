@@ -1,4 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+
+
 import { ScrollView, FlatList, StyleSheet, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { fonts } from '../../src/theme/font';
@@ -20,6 +23,7 @@ import ProductDetails from '../Products/ProductDetails';
 export default function Home({ navigation, route }) {
     
     //Rendering of Products
+
     const [categoryList, setCategoryList] = useState([]);
     const [selectedProductId, setSelectedProductId] = useState(null);
     const selectedCategory = route.params?.selectedCategory ?? null;
@@ -156,10 +160,12 @@ export default function Home({ navigation, route }) {
             )}
             
 
+            
             {selectedProductId ? (
-                <ProductDetails
+               <ProductDetails
                     selectedProductId={selectedProductId}
                     onBack={handleBack}
+                    navigation={navigation}
                 />
                 ) : (
                 <>

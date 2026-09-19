@@ -66,21 +66,43 @@ export default function SignupScreen({ navigation }) {
     return Object.keys(nextErrors).length === 0;
   };
 
-  const handleSignup = () => {
+  const handleSignup = async () => {
     if (!validate()) return;
 
     setLoading(true);
 
-    // Simulated account creation — the public mobile API
-    // (/api/mobile/v1/) will replace this once the backend team wires it up.
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const response = await fetch('https://metrodripjs.onrender.com/signup/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          password: password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        Alert.alert('Sign Up Failed', data.error || 'Unable to create account.');
+        return;
+      }
+
       Alert.alert(
         'Welcome to MetroDrip',
         'Your account has been created!',
         [{ text: 'LOGIN', onPress: () => navigation.navigate('Login') }]
       );
-    }, 900);
+
+    } catch (error) {
+      console.error('Signup failed:', error);
+      Alert.alert('Error', 'Unable to connect to the server.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleTheme = () => {

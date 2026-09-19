@@ -8,18 +8,9 @@ import { useCart } from '../context/CartContext';
 import { useNavigation } from '@react-navigation/native';
 import CustomerReviews from './components/CustomerReviews';
 
-export default function ProductDetails({ 
-    route, 
-    navigation, 
-    selectedProductId: propProductId, 
-    onBack: propOnBack }) {
-    
-    const selectedProductId =
-    route?.params?.selectedProductId ?? propProductId;
-    const onBack = propOnBack ?? (() => navigation.goBack());
-
+export default function ProductDetails({ selectedProductId, onBack }) {
     const { addToCart } = useCart();
-
+    const navigation = useNavigation();
 
     const [product, setProduct] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -30,19 +21,8 @@ export default function ProductDetails({
     const [selectedFit, setSelectedFit] = useState(null);
     const [activeDotIndex, setActiveDotIndex] = useState(0);
 
-    const selectedVariant = variants.find(
-        variant =>
-        variant.attributes.color === selectedColor &&
-        variant.attributes.size === selectedSize &&
-        variant.attributes.fit === selectedFit
-    );
-
-    // Stock
-    const [stock, setStock] = useState(null);
-
     const productId = selectedProductId; 
-    console.log('PRODUCT ID:', productId);
-    //Variants
+
     useEffect(() => {
         fetch(`https://metrodripjs.onrender.com/products/${productId}/variants/`)
             .then(response => response.json())
@@ -50,8 +30,6 @@ export default function ProductDetails({
             .catch(error => console.error('Failed to load variants:', error));
     }, [productId]);
 
-    
-    // Check later if this is still important
     useEffect(() => {
         async function fetchDetails() {
             if (!productId) return;
@@ -77,25 +55,6 @@ export default function ProductDetails({
         }
         fetchDetails();
     }, [productId]);
-    
-    useEffect(() => {
-        if (!selectedVariant) {
-            setStock(null);
-            return;
-        }
-
-        fetch(
-            `https://metrodripjs.onrender.com/variants/${selectedVariant.id}/stock/`
-        )
-            .then(response => response.json())
-            .then(data => {
-                setStock(data[0] || null);
-            })
-            .catch(error => {
-                console.error('Failed to load stock:', error);
-                setStock(null);
-        });
-    }, [selectedVariant]);
 
     if (loading) {
         return (
@@ -116,40 +75,22 @@ export default function ProductDetails({
         );
     }
 
-
-    
-
-
-    // Colors, Sizes, and Fits lists derived from variants
+    // Colors, Sizes, and Fits lists derived from data or fallbacks
     const sizes = [...new Set(
         variants.map(variant => variant.attributes.size)
+    )];
+
+    const colors = [...new Set(
+        variants.map(variant => variant.attributes.color)
     )];
 
     const fits = [...new Set(
         variants.map(variant => variant.attributes.fit)
     )];
-
-    const colorsList = variants
-        .filter(variant => variant.color_hex)
-        .map(variant => ({
-            name: variant.color_name,
-            hex_code: variant.color_hex,
-        }))
-        .filter(
-            (color, index, self) =>
-                index === self.findIndex(c => c.name === color.name)
-        );
-
     
-
-    // const fitsList = product.fits && product.fits.length > 0 ? product.fits : (product.fit ? [product.fit] : ['Regular']);
-    const fitsList = fits;
-
-   
-
-    
-    
-    // console.log("SELECTED VARIANT:", selectedVariant);
+    const colorsList = product.colors && product.colors.length > 0 ? product.colors : ['Black', 'White'];
+    const sizesList = product.sizes && product.sizes.length > 0 ? product.sizes : ['S', 'M', 'L'];
+    const fitsList = product.fits && product.fits.length > 0 ? product.fits : (product.fit ? [product.fit] : ['Regular']);
 
     // Generate dot indicators based on image count
     const imageCount = product.images ? product.images.length : 1;
@@ -163,33 +104,27 @@ export default function ProductDetails({
         );
     }
 
+    // Helper to extract a color string or fallback to dark gray
+    const getColorHex = (colorName) => {
+        const lower = colorName.toLowerCase();
+        if (lower === 'white') return '#FFFFFF';
+        if (lower === 'black') return '#111111';
+        if (lower === 'red') return '#FF3B30';
+        if (lower === 'blue') return '#007AFF';
+        if (lower === 'gray' || lower === 'grey') return '#8E8E93';
+        return lower.startsWith('#') ? lower : '#333333';
+    };
 
     const handleAddToCart = () => {
-        if (!product || !selectedVariant) {
-            alert('Please select a valid product variant.');
-            return;
-        }
-
-        if (!stock || stock.available_stock <= 0) {
-            alert('This variant is out of stock.');
-            return;
-        }
         if (!product) return;
         const productItem = {
             id: `${product.id || productId}-${selectedColor || 'Default'}-${selectedSize || 'M'}-${selectedFit || 'Regular'}`,
-            variantId: selectedVariant.id,
-            fit: selectedVariant.fit,
-            sku: selectedVariant.sku,
-            stock: stock.available_stock,
             productId: product.id || productId,
             name: product.product_name || product.name || 'MetroDrip Product',
             size: selectedSize || 'M',
             color: selectedColor || 'Black',
             fit: selectedFit || 'Regular',
-            price: (
-                parseFloat(product.base_price || 0) +
-                parseFloat(selectedVariant?.price_adjustment || 0)
-            ).toFixed(2),
+            price: parseFloat(product.base_price) || 0,
             quantity: 1,
             image: 'https://via.placeholder.com/300x350',
         };
@@ -197,7 +132,6 @@ export default function ProductDetails({
         navigation.navigate('Cart');
     };
 
-   
     return (
         <ScrollView 
         
@@ -214,15 +148,14 @@ export default function ProductDetails({
                 <TouchableOpacity
                     onPress={() => {
                         fetch('http://10.0.2.2:8000/wishlist/', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-Customer-ID': '1',
-                            },
-                            body: JSON.stringify({
-                                product_ref: productId,
-                            }),
-})
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            product_ref: product.id,
+                        }),
+                        });
                     }}
                     >
                     <Text style={styles.heartIcon}>♡</Text>
@@ -260,34 +193,25 @@ export default function ProductDetails({
                 <Text style={styles.selectorLabel}>Color</Text>
                 <Text style={styles.selectorValue}>{selectedColor}</Text>
             </View>
-
             {/* Color Options */}
             <View style={styles.colorOptions}>
                 {colorsList.map((color, index) => {
-                    const isSelected = selectedColor === color.name;
-
+                    const isSelected = selectedColor === color;
                     return (
                         <TouchableOpacity
                             key={index}
                             style={[
                                 styles.colorSwatch,
-                                { backgroundColor: color.hex_code },
+                                { backgroundColor: getColorHex(color) },
                                 isSelected && styles.selectedColorSwatch
                             ]}
-                            onPress={() => setSelectedColor(color.name)}
+                            onPress={() => setSelectedColor(color)}
                         >
                             {isSelected && (
-                                <View
-                                    style={[
-                                        styles.colorInnerRing,
-                                        {
-                                            backgroundColor:
-                                                color.hex_code.toLowerCase() === '#ffffff'
-                                                    ? '#000'
-                                                    : '#FFF'
-                                        }
-                                    ]}
-                                />
+                                <View style={[
+                                    styles.colorInnerRing,
+                                    { backgroundColor: color.toLowerCase() === 'white' ? '#000' : '#FFF' }
+                                ]} />
                             )}
                         </TouchableOpacity>
                     );
@@ -345,6 +269,25 @@ export default function ProductDetails({
             {/* Fit Selector */}
             <View style={styles.selectorRow}>
                 <Text style={styles.selectorLabel}>Fit</Text>
+                {/* <View style={styles.fitOptions}>
+                    {fitsList.map((fit) => (
+                        <TouchableOpacity
+                            key={fit}
+                            style={[
+                                styles.fitButton,
+                                selectedFit === fit && styles.selectedFitButton
+                            ]}
+                            onPress={() => setSelectedFit(fit)}
+                        >
+                            <Text style={[
+                                styles.fitButtonText,
+                                selectedFit === fit && styles.selectedFitButtonText
+                            ]}>
+                                {fit}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View> */}
                 <Text style={styles.selectorValue}>{selectedFit}</Text>
             </View>
 
@@ -372,13 +315,7 @@ export default function ProductDetails({
 
             {/* Stock Warning */}
             <Text style={styles.stockWarning}>
-                {stock && (
-                    <Text style={styles.stockText}>
-                        {stock.available_stock > 0
-                            ? `Only ${stock.available_stock} left in this variant`
-                            : 'Out of stock'}
-                    </Text>
-                )}
+                <Text style={styles.redDot}>●</Text> Only 4 left in this variant
             </Text>
 
             {/* Customer Reviews Section (Figma M04a) */}
@@ -635,7 +572,7 @@ const styles = StyleSheet.create({
     },
     /* Add to Cart Button */
     addToCartButton: {
-        backgroundColor: '#D3EE42',
+        backgroundColor: 'rgb(186, 255, 0)',
         borderRadius: 25,
         paddingVertical: 16,
         alignItems: 'center',
@@ -645,6 +582,6 @@ const styles = StyleSheet.create({
     addToCartText: {
         fontFamily: fonts.interBold,
         fontSize: 16,
-        color: '#141414',
+        color: '#000',
     },
 });

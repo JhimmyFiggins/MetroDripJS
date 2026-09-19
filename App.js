@@ -1,9 +1,11 @@
 import React from 'react';
 import { View } from 'react-native';
-import AppNavigator from './mobile/navigation/AppNavigator';
-import { CartProvider } from './mobile/context/CartContext';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+import AppNavigator from './mobile/navigation/AppNavigator';
+import { CartProvider } from './mobile/context/CartContext';
+import { AuthProvider } from './mobile/context/AuthContext';
 import { useAppFonts } from './src/theme/font';
 
 export default function App() {
@@ -17,7 +19,9 @@ export default function App() {
         <SafeAreaProvider>
             <CartProvider>
                 <StatusBar style="dark" />
-                <AppNavigator />
+                <AuthProvider>
+                    <AppNavigator />
+                </AuthProvider>
             </CartProvider>
         </SafeAreaProvider>
     );
