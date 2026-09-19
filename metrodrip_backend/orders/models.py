@@ -238,3 +238,20 @@ class ServicesService(models.Model):
             models.Index(fields=['type']),
             models.Index(fields=['status']),
         ]
+
+
+class ReviewsReview(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    customer_name = models.CharField(max_length=150)
+    product_name = models.CharField(max_length=255)
+    customer_ref = models.BigIntegerField(null=True, blank=True)
+    product_ref = models.BigIntegerField(null=True, blank=True)
+    order_id = models.BigIntegerField(null=True, blank=True)
+    rating = models.PositiveSmallIntegerField(default=5)
+    body = models.TextField()
+    status = models.CharField(max_length=10, default='pending')  # pending, approved, rejected
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'reviews_review'
+        ordering = ['-created_at']
