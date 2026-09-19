@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>MetroDrip · Merchant Dashboard</title>
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="../Registration/theme.css">
+  <link rel="stylesheet" href="../css/console.css">
+  <script src="../Registration/theme.js"></script>
+</head>
+<body>
+  <!-- Figma: 12 · Merchant Console — Dashboard (Desktop) 57:2 / D12 dark 58:315 -->
+  <div class="console-layout">
+    <!-- Left Navigation Sidebar -->
+    <aside class="console-sidebar" aria-label="Merchant Navigation">
+      <div class="sidebar-top">
+        <div class="brand-section">
+          <p class="brand-logo">METRO<span>DRIP</span></p>
+          <p class="console-role-tag">MERCHANT / SELLER CONSOLE</p>
+        </div>
+
+        <nav class="nav-group" aria-label="Merchant console views">
+          <a class="nav-item is-active" href="index.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Dashboard</span>
+          </a>
+          <a class="nav-item" href="catalog.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Products & Categories</span>
+          </a>
+          <a class="nav-item" href="#inventory" data-nav="inventory">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Inventory</span>
+            <span class="nav-badge volt" id="badge-inventory">6</span>
+          </a>
+          <a class="nav-item" href="#orders" data-nav="orders">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Orders</span>
+            <span class="nav-badge" id="badge-orders">5</span>
+          </a>
+          <a class="nav-item" href="#shipments" data-nav="shipments">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Shipments</span>
+          </a>
+          <a class="nav-item" href="catalog.html#reviews">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Reviews</span>
+            <span class="nav-badge" id="badge-reviews">2</span>
+          </a>
+          <a class="nav-item" href="#content" data-nav="content">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Content & Banners</span>
+          </a>
+          <a class="nav-item" href="#reports" data-nav="reports">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Reports</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-avatar" aria-hidden="true">MD</div>
+          <div class="user-meta">
+            <p class="user-name">Store Merchant</p>
+            <p class="user-role-badge">MERCHANT · 2FA ON</p>
+          </div>
+        </div>
+
+        <!-- Theme Switcher synced via theme.js -->
+        <div class="theme-switch-container" role="group" aria-label="Color theme selector">
+          <button type="button" class="theme-toggle-btn is-active" data-theme-option="light" aria-pressed="true">
+            <span aria-hidden="true">☼</span> Light
+          </button>
+          <button type="button" class="theme-toggle-btn" data-theme-option="dark" aria-pressed="false">
+            <span aria-hidden="true">☾</span> Dark
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace Content -->
+    <main class="console-main">
+      <!-- Top Action Bar -->
+      <header class="console-header">
+        <div class="header-meta">
+          <h1 class="page-title">Dashboard</h1>
+          <p class="page-subhead">/merchant/ · CATALOG · STOCK · ORDERS · CONTENT · REVIEWS</p>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="btn btn-secondary" id="btn-merchant-export-csv">
+            <span aria-hidden="true">↓</span> Export CSV
+          </button>
+          <button type="button" class="btn btn-primary" id="btn-merchant-add-product">
+            <span aria-hidden="true">+</span> Add product
+          </button>
+        </div>
+      </header>
+
+      <!-- 4 Stat Metric Cards -->
+      <section class="stat-cards-grid" aria-label="Operational sales and inventory metrics">
+        <article class="stat-card">
+          <p class="stat-label">TODAY'S SALES</p>
+          <p class="stat-value" id="metric-today-sales">₱18,540</p>
+          <p class="stat-subtext trend-up">▲ 12% vs last Sat</p>
+        </article>
+        <article class="stat-card">
+          <p class="stat-label">ORDERS TODAY</p>
+          <p class="stat-value" id="metric-orders-today">14</p>
+          <p class="stat-subtext">11 paid · 3 pending</p>
+        </article>
+        <article class="stat-card">
+          <p class="stat-label">LOW-STOCK SKUS</p>
+          <p class="stat-value" id="metric-low-stock">6</p>
+          <p class="stat-subtext alert-danger">Below reorder threshold</p>
+        </article>
+        <article class="stat-card">
+          <p class="stat-label">TO SHIP</p>
+          <p class="stat-value" id="metric-to-ship">5</p>
+          <p class="stat-subtext">Book with J&T today</p>
+        </article>
+      </section>
+
+      <!-- Split Table Panels: Low-stock Alerts + Recent Orders -->
+      <div class="panel-grid-2col">
+        <!-- Left: Low-stock alerts -->
+        <section class="panel-card" aria-labelledby="heading-low-stock">
+          <div class="panel-header">
+            <h2 class="panel-title" id="heading-low-stock">
+              <span class="panel-title-dot danger" aria-hidden="true"></span>
+              Low-stock alerts
+            </h2>
+            <a class="panel-link" href="catalog.html">Inventory →</a>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="low-stock-table">
+              <thead>
+                <tr>
+                  <th scope="col">PRODUCT</th>
+                  <th scope="col">VARIANT</th>
+                  <th scope="col">ON HAND</th>
+                  <th scope="col">MIN</th>
+                  <th scope="col">ACTION</th>
+                </tr>
+              </thead>
+              <tbody id="low-stock-tbody">
+                <!-- Seeded matching Figma frame 57:2 -->
+                <tr data-sku="MD-HD-002-BLK-M-OVS">
+                  <td class="td-strong">Drip Zip-Up Hoodie</td>
+                  <td class="td-mono td-muted">BLK · M · OVS</td>
+                  <td class="td-mono" style="color: var(--color-danger); font-weight: 600;">3</td>
+                  <td class="td-mono td-muted">10</td>
+                  <td>
+                    <button type="button" class="btn btn-secondary btn-sm btn-open-restock" data-product="Drip Zip-Up Hoodie" data-variant="BLK · M · OVS" data-sku="MD-HD-002-BLK-M-OVS">
+                      Restock
+                    </button>
+                  </td>
+                </tr>
+                <tr data-sku="MD-CP-001-BLK-OS">
+                  <td class="td-strong">Metro Snapback</td>
+                  <td class="td-mono td-muted">BLK · ONE SIZE</td>
+                  <td class="td-mono" style="color: var(--color-danger); font-weight: 600;">3</td>
+                  <td class="td-mono td-muted">8</td>
+                  <td>
+                    <button type="button" class="btn btn-secondary btn-sm btn-open-restock" data-product="Metro Snapback" data-variant="BLK · ONE SIZE" data-sku="MD-CP-001-BLK-OS">
+                      Restock
+                    </button>
+                  </td>
+                </tr>
+                <tr data-sku="MD-PO-001-ASH-L-REG">
+                  <td class="td-strong">Skyline Pullover</td>
+                  <td class="td-mono td-muted">ASH · L · REG</td>
+                  <td class="td-mono" style="color: var(--color-danger); font-weight: 600;">2</td>
+                  <td class="td-mono td-muted">10</td>
+                  <td>
+                    <button type="button" class="btn btn-secondary btn-sm btn-open-restock" data-product="Skyline Pullover" data-variant="ASH · L · REG" data-sku="MD-PO-001-ASH-L-REG">
+                      Restock
+                    </button>
+                  </td>
+                </tr>
+                <tr data-sku="MD-TS-001-WHT-XL-REG">
+                  <td class="td-strong">Metro Core Boxy Tee</td>
+                  <td class="td-mono td-muted">WHT · XL · REG</td>
+                  <td class="td-mono" style="color: var(--color-danger); font-weight: 600;">4</td>
+                  <td class="td-mono td-muted">12</td>
+                  <td>
+                    <button type="button" class="btn btn-secondary btn-sm btn-open-restock" data-product="Metro Core Boxy Tee" data-variant="WHT · XL · REG" data-sku="MD-TS-001-WHT-XL-REG">
+                      Restock
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Right: Recent orders -->
+        <section class="panel-card" aria-labelledby="heading-orders">
+          <div class="panel-header">
+            <h2 class="panel-title" id="heading-orders">Recent orders</h2>
+            <a class="panel-link" href="#all-orders">All orders →</a>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="orders-table">
+              <thead>
+                <tr>
+                  <th scope="col">ORDER</th>
+                  <th scope="col">CUSTOMER</th>
+                  <th scope="col">TOTAL</th>
+                  <th scope="col">PAY</th>
+                  <th scope="col">STATUS</th>
+                </tr>
+              </thead>
+              <tbody id="orders-tbody">
+                <!-- Seeded matching Figma frame 57:2 -->
+                <tr>
+                  <td class="td-mono td-strong">MD-2026-00318</td>
+                  <td>Juan Dela Cruz</td>
+                  <td class="td-mono td-strong">₱2,632</td>
+                  <td class="td-mono td-muted">GCASH</td>
+                  <td><span class="status-pill paid">Paid</span></td>
+                </tr>
+                <tr>
+                  <td class="td-mono td-strong">MD-2026-00317</td>
+                  <td>Bea Santos</td>
+                  <td class="td-mono td-strong">₱1,249</td>
+                  <td class="td-mono td-muted">MAYA</td>
+                  <td><span class="status-pill packed">Packed</span></td>
+                </tr>
+                <tr>
+                  <td class="td-mono td-strong">MD-2026-00316</td>
+                  <td>Miguel Reyes</td>
+                  <td class="td-mono td-strong">₱3,447</td>
+                  <td class="td-mono td-muted">CARD</td>
+                  <td><span class="status-pill shipped">Shipped</span></td>
+                </tr>
+                <tr>
+                  <td class="td-mono td-strong">MD-2026-00315</td>
+                  <td>Aliyah Cruz</td>
+                  <td class="td-mono td-strong">₱849</td>
+                  <td class="td-mono td-muted">GCASH</td>
+                  <td><span class="status-pill pending">Pending</span></td>
+                </tr>
+                <tr>
+                  <td class="td-mono td-strong">MD-2026-00314</td>
+                  <td>Marco Lim</td>
+                  <td class="td-mono td-strong">₱1,798</td>
+                  <td class="td-mono td-muted">GCASH</td>
+                  <td><span class="status-pill paid">Paid</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal: Quick Restock Dialog -->
+  <div class="modal-overlay" id="modal-restock" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-restock-title">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-restock-title">Restock Inventory</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-restock" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="form-restock">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="restock-product-name">Product</label>
+            <input class="form-input" id="restock-product-name" type="text" readonly disabled>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="restock-variant-code">Variant / SKU</label>
+            <input class="form-input" id="restock-variant-code" type="text" readonly disabled>
+            <input type="hidden" id="restock-sku-hidden" name="sku">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="restock-quantity">Quantity to Add</label>
+            <input class="form-input" id="restock-quantity" name="quantity" type="number" min="1" max="1000" value="25" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="restock-reason">Reason</label>
+            <select class="form-select" id="restock-reason" name="reason">
+              <option value="restock" selected>Supplier Restock</option>
+              <option value="return">Customer Return</option>
+              <option value="adjustment">Physical Inventory Count Correction</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-restock">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-restock">Commit Stock</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <script src="merchant.js"></script>
+</body>
+</html>

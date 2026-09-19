@@ -94,7 +94,11 @@
 
       fields.password.value = '';
       fields.code.value = '';
-      setStatus(`✓ Signed in as ${values.email}. The ${roleLabel} dashboard is not part of the web build yet.`);
+      const redirectUrl = form.dataset.loginRole === 'admin' ? '../../admin/index.html' : '../../merchant/index.html';
+      setStatus(`✓ Signed in as ${values.email}. Redirecting to ${roleLabel} console…`);
+      window.setTimeout(() => {
+        window.location.href = redirectUrl;
+      }, 700);
     });
   }
 

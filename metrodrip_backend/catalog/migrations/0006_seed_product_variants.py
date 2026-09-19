@@ -6,7 +6,9 @@ def seed_product_variants(apps, schema_editor):
     CatalogProduct = apps.get_model("catalog", "CatalogProduct")
     CatalogProductVariant = apps.get_model("catalog", "CatalogProductVariant")
 
-    product = CatalogProduct.objects.get(sku="MD-TSHIRT-001")
+    product = CatalogProduct.objects.filter(sku="MD-TSHIRT-001").first()
+    if not product:
+        return
 
     variants = [
         {
