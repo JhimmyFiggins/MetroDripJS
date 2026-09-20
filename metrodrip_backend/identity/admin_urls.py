@@ -11,6 +11,7 @@ from .admin_views import (
     AdminRolesAPIView,
     AdminSettingsAPIView,
 )
+from .views import LogoutAPIView, SwitchUserAPIView
 
 urlpatterns = [
     path('dashboard/', AdminDashboardAPIView.as_view(), name='admin-dashboard'),
@@ -24,6 +25,8 @@ urlpatterns = [
     path('shipping-zones/', AdminShippingZonesAPIView.as_view(), name='admin-shipping-zones'),
     path('shipping-zones/<int:pk>/', AdminShippingZonesAPIView.as_view(), name='admin-shipping-zones-detail'),
     path('roles/', AdminRolesAPIView.as_view(), name='admin-roles'),
+    path('logout/', LogoutAPIView.as_view(), name='admin-logout'),
+    path('switch-user/', SwitchUserAPIView.as_view(), name='admin-switch-user'),
 ]
 
 

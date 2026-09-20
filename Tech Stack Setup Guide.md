@@ -109,11 +109,13 @@ EXPO_PUBLIC_API_URL=http://10.0.2.2:5000
 
 | Command | Description |
 | --- | --- |
+| `npm run dev` | Start local web dev server on port 3000 (`python web/dev_server.py 3000`) |
 | `npm start` | Start Metro bundler |
 | `npm run android` | Launch app on connected Android emulator or device |
 | `npm run android:run` | Build native Android app and deploy to emulator |
 | `npm run web` | Run app in browser mode |
 | `npm run ios` | Run on iOS Simulator (macOS required) |
+
 
 ---
 
