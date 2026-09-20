@@ -5,12 +5,21 @@ from .models import OrdersOrder, OrdersOrderLine, OrdersShippingAddress
 
 
 class OrderLineSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='product.name', read_only=True)
+    product_image = serializers.CharField(source='product.image_url', read_only=True)
+    product_sku = serializers.CharField(source='product.sku', read_only=True)
+    variant_color = serializers.SerializerMethodField()
+
     class Meta:
         model = OrdersOrderLine
         fields = [
             'id',
             'product',
+            'product_name',
+            'product_image',
+            'product_sku',
             'variant',
+            'variant_color',
             'quantity',
             'unit_price',
             'total_price',
@@ -18,7 +27,12 @@ class OrderLineSerializer(serializers.ModelSerializer):
             'tax_amount',
             'tax_rate',
         ]
-        read_only_fields = ['id', 'total_price']
+        read_only_fields = ['id', 'total_price', 'product_name', 'product_image', 'product_sku', 'variant_color']
+
+    def get_variant_color(self, obj):
+        if obj.variant and hasattr(obj.variant, 'color') and obj.variant.color:
+            return obj.variant.color.name
+        return None
 
 class ShippingAddressSerializer(serializers.ModelSerializer):
     class Meta:

@@ -18,6 +18,14 @@ class AccountsCustomer(models.Model):
     class Meta:
         db_table = 'accounts_customer'
 
+    @property
+    def is_authenticated(self):
+        return True
+
+    @property
+    def is_anonymous(self):
+        return False
+
 
 class AccountsWishlistItem(models.Model):
     id = models.BigAutoField(primary_key=True)

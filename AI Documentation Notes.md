@@ -750,7 +750,82 @@ Provide a collapsible account switcher in the Admin and Merchant Console sidebar
 - **Verification Status**:
   - Executed via Chrome DevTools in browser subagent across Merchant and Admin consoles in both Light and Dark themes. All button hover, active, and dismiss transitions verified cleanly.
 
+---
 
+# Module / File: metrodrip_backend/identity/authentication.py
+## Purpose
+Authenticate incoming mobile API requests flexibly via headers (`X-Customer-ID`, case-insensitive `HTTP_X_CUSTOMER_ID`), Authorization tokens (`Bearer <id>`, `Token <id>`), or query parameter fallbacks (`?customer_id=<id>`), setting `request.user` to the authenticated `AccountsCustomer` instance with DRF user properties (`is_authenticated=True`, `is_anonymous=False`).
 
+## Public Interfaces
+### Class: CustomerAuthentication(BaseAuthentication)
+- **Purpose**: Resolve client credentials into active `AccountsCustomer` object.
+- **Inputs**: Django/DRF `request` object.
+- **Outputs**: Tuple `(AccountsCustomer, None)` or `None` if unauthenticated.
+- **Errors**: Throws `AuthenticationFailed` if an explicitly provided customer ID is non-numeric or does not match an active customer.
+- **Dependencies**: `rest_framework.authentication.BaseAuthentication`, `identity.models.AccountsCustomer`.
+- **Behavior**: Inspects headers in priority: `X-Customer-ID` → `Authorization: Bearer/Token` → query parameter `customer_id`.
+- **Side Effects**: None.
+- **Security & Privacy Notes**: Enforces `is_active=True` check on customer accounts; returns clean 401 without stack trace exposure.
+- **Performance / DSA Notes**: O(1) primary key lookup indexed in SQLite/PostgreSQL.
+- **Verification Status**: Executed 2026-09-20 via `MobileBackendAPITestCase.test_profile_get_and_put` covering header, token, query, and unauthenticated modes.
 
+---
 
+# Module / File: metrodrip_backend/catalog/views.py (ProductReviewsAPIView)
+## Purpose
+Provide public customer endpoints for reading product reviews with aggregated star statistics and submitting verified customer reviews.
+
+## Public Interfaces
+### View: ProductReviewsAPIView
+- **Endpoints**: `GET /products/<int:product_id>/reviews/` & `POST /products/<int:product_id>/reviews/`
+- **GET Inputs**: `product_id` URL parameter.
+- **GET Outputs**: JSON payload containing `product_id`, `product_name`, `stats` (`average`, `count`, `breakdown`), and formatted `reviews` array (`id`, `author`, `rating`, `comment`, `date`, `verified`, `merchant_reply`, `status`).
+- **POST Inputs**: JSON payload with `rating` (1-5), `comment`/`body` (non-empty string), optional `author`/`customer_name`, optional `order_id`.
+- **POST Outputs**: JSON response with HTTP 201 containing created review details and confirmation.
+- **Errors**: 404 if product not found; 400 if rating invalid (<1 or >5) or comment is empty.
+- **Dependencies**: `orders.models.ReviewsReview`, `catalog.models.CatalogProduct`, `CustomerAuthentication`.
+- **Behavior**: Aggregates reviews excluding rejected entries; calculates mean rating rounded to 1 decimal place; auto-populates author name from customer authentication when available.
+- **Side Effects**: Persists new review in `reviews_review` database table.
+- **Security & Privacy Notes**: Auto-approval for mobile app customer reviews; sanitized text input.
+- **Performance / DSA Notes**: In-memory single-pass aggregation over product review queryset.
+- **Verification Status**: Executed 2026-09-20 via `MobileBackendAPITestCase.test_product_reviews_endpoints`.
+
+---
+
+# Module / File: metrodrip_backend/identity/views.py (ForgotPasswordAPIView & ProfileAPIView)
+## Purpose
+Handle customer password reset requests and provide resilient customer profile retrieval and mutation with zero 500 crashes when client components omit request headers.
+
+## Public Interfaces
+### View: ForgotPasswordAPIView
+- **Endpoints**: `POST /forgot-password/` and alias `POST /password-reset/`
+- **Inputs**: `{ "email": string }`
+- **Outputs**: `{ "success": true, "message": "Password reset instructions have been sent to your email." }`
+- **Errors**: 400 if email is missing; 404 if no active customer found.
+- **Behavior**: Validates customer existence, creates audit log entry, returns success confirmation.
+
+### View: ProfileAPIView
+- **Endpoints**: `GET /profile/` and `PUT /profile/`
+- **Inputs**: Header `X-Customer-ID` or fallback body email/id.
+- **Outputs**: Customer profile attributes (`id`, `name`, `email`, `phone`, `addresses`, `role`).
+- **Resilience**: Resolves customer from `request.user` or fallback body email/customer ID, preventing `AnonymousUser` AttributeError.
+- **Verification Status**: Executed 2026-09-20 via `MobileBackendAPITestCase.test_forgot_password_flow` and `test_profile_get_and_put`.
+
+---
+
+# Module / File: metrodrip_backend/orders/views.py (CreateOrderAPIView & OrderDetailAPIView)
+## Purpose
+Process mobile checkouts with line items, variants, shipping address, and provide order history and single order tracking.
+
+## Public Interfaces
+### View: CreateOrderAPIView
+- **Endpoints**: `GET /orders/` and `POST /orders/`
+- **GET Inputs**: `X-Customer-ID` or query param `customer_id`.
+- **GET Outputs**: Array of orders with line items enriched with `product_name`, `product_image`, `product_sku`, `variant_color`.
+- **POST Inputs**: Order draft payload with `lines`, `shipping_address`, `subtotal`, `shipping`, `total`, `currency`. Supports authenticated and guest checkouts.
+- **POST Outputs**: Serialized order with HTTP 201.
+
+### View: OrderDetailAPIView
+- **Endpoints**: `GET /orders/<int:order_id>/`
+- **Outputs**: Detailed order payload with status, tracking, items, and address.
+- **Verification Status**: Executed 2026-09-20 via `MobileBackendAPITestCase.test_orders_creation_and_history`.

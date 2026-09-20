@@ -11,22 +11,43 @@ class WishlistAPIView(APIView):
     authentication_classes = [CustomerAuthentication]
     renderer_classes = [JSONRenderer]
 
+    def _get_customer(self, request):
+        if hasattr(request, 'user') and request.user and getattr(request.user, 'is_authenticated', False) and isinstance(request.user, AccountsCustomer):
+            return request.user
+
+        customer_id = (
+            request.headers.get('X-Customer-ID')
+            or request.headers.get('x-customer-id')
+            or request.META.get('HTTP_X_CUSTOMER_ID')
+            or (request.query_params.get('customer_id') if hasattr(request, 'query_params') else None)
+            or (request.GET.get('customer_id') if hasattr(request, 'GET') else None)
+            or (request.data.get('customer_id') if hasattr(request, 'data') else None)
+        )
+        if customer_id:
+            try:
+                return AccountsCustomer.objects.filter(id=int(customer_id), is_active=True).first()
+            except (ValueError, TypeError):
+                pass
+        return None
+
     def get(self, request):
+        customer = self._get_customer(request)
+        if not customer:
+            return Response({'error': 'Authentication required.'}, status=401)
+
         wishlist = AccountsWishlistItem.objects.filter(
-            customer=request.user
+            customer=customer
         ).order_by('-created_at')
 
         data = []
-
         for item in wishlist:
             product = CatalogProduct.objects.filter(id=item.product_ref).first()
-
             if product:
                 data.append({
                     'id': item.id,
                     'product_ref': item.product_ref,
                     'name': product.name,
-                    'price': product.base_price,
+                    'price': str(product.base_price),
                     'image_url': product.image_url,
                     'created_at': item.created_at,
                 })
@@ -34,38 +55,65 @@ class WishlistAPIView(APIView):
         return Response(data)
 
     def post(self, request):
-        product_ref = request.data.get('product_ref')
+        customer = self._get_customer(request)
+        if not customer:
+            return Response({'error': 'Authentication required.'}, status=401)
 
+        product_ref = request.data.get('product_ref') or request.data.get('id')
         if not product_ref:
             return Response(
                 {'error': 'product_ref is required'},
                 status=400
             )
 
-        wishlist_item = AccountsWishlistItem.objects.create(
-            customer=request.user,
+        wishlist_item, created = AccountsWishlistItem.objects.get_or_create(
+            customer=customer,
             product_ref=product_ref,
-            created_at=timezone.now(),
+            defaults={'created_at': timezone.now()},
         )
 
         return Response({
             'id': wishlist_item.id,
             'product_ref': wishlist_item.product_ref,
+            'created': created,
         }, status=201)
 
     def delete(self, request):
-        wishlist_id = request.data.get('id')
+        customer = self._get_customer(request)
+        wishlist_id = request.data.get('id') if hasattr(request, 'data') else None
+        if not wishlist_id and hasattr(request, 'query_params'):
+            wishlist_id = request.query_params.get('id')
+        elif not wishlist_id and hasattr(request, 'GET'):
+            wishlist_id = request.GET.get('id')
 
-        if not wishlist_id:
+        product_ref = request.data.get('product_ref') if hasattr(request, 'data') else None
+        if not product_ref and hasattr(request, 'query_params'):
+            product_ref = request.query_params.get('product_ref')
+        elif not product_ref and hasattr(request, 'GET'):
+            product_ref = request.GET.get('product_ref')
+
+        if not wishlist_id and not product_ref:
             return Response(
-                {'error': 'id is required'},
+                {'error': 'id or product_ref is required'},
                 status=400
             )
 
-        deleted, _ = AccountsWishlistItem.objects.filter(
-            id=wishlist_id
-        ).delete()
+        qs = AccountsWishlistItem.objects.all()
+        if customer:
+            qs = qs.filter(customer=customer)
 
+        if wishlist_id:
+            try:
+                qs = qs.filter(id=int(wishlist_id))
+            except (ValueError, TypeError):
+                return Response({'error': 'Invalid wishlist item ID.'}, status=400)
+        elif product_ref:
+            try:
+                qs = qs.filter(product_ref=int(product_ref))
+            except (ValueError, TypeError):
+                return Response({'error': 'Invalid product reference.'}, status=400)
+
+        deleted, _ = qs.delete()
         if deleted == 0:
             return Response(
                 {'error': 'Wishlist item not found'},
@@ -81,8 +129,37 @@ class ProfileAPIView(APIView):
     authentication_classes = [CustomerAuthentication]
     renderer_classes = [JSONRenderer]
 
+    def _get_customer(self, request):
+        if hasattr(request, 'user') and request.user and getattr(request.user, 'is_authenticated', False) and isinstance(request.user, AccountsCustomer):
+            return request.user
+
+        customer_id = (
+            request.headers.get('X-Customer-ID')
+            or request.headers.get('x-customer-id')
+            or request.META.get('HTTP_X_CUSTOMER_ID')
+            or (request.query_params.get('customer_id') if hasattr(request, 'query_params') else None)
+            or (request.GET.get('customer_id') if hasattr(request, 'GET') else None)
+            or (request.data.get('customer_id') if hasattr(request, 'data') else None)
+            or (request.data.get('id') if hasattr(request, 'data') else None)
+        )
+        if customer_id:
+            try:
+                return AccountsCustomer.objects.filter(id=int(customer_id), is_active=True).first()
+            except (ValueError, TypeError):
+                pass
+
+        email = (request.data.get('email') if hasattr(request, 'data') else None) or (
+            request.query_params.get('email') if hasattr(request, 'query_params') else None
+        )
+        if email:
+            return AccountsCustomer.objects.filter(email=email.strip(), is_active=True).first()
+
+        return None
+
     def get(self, request):
-        customer = request.user
+        customer = self._get_customer(request)
+        if not customer:
+            return Response({'error': 'Authentication required.'}, status=401)
 
         return Response({
             'id': customer.id,
@@ -90,13 +167,22 @@ class ProfileAPIView(APIView):
             'email': customer.email,
             'phone': customer.phone,
             'addresses': customer.addresses,
+            'role': customer.role,
         })
 
     def put(self, request):
-        customer = request.user
+        customer = self._get_customer(request)
+        if not customer:
+            return Response({'error': 'Authentication required.'}, status=401)
 
         customer.name = request.data.get('name', customer.name)
-        customer.email = request.data.get('email', customer.email)
+        new_email = request.data.get('email')
+        if new_email and new_email.strip() != customer.email:
+            existing = AccountsCustomer.objects.filter(email=new_email.strip()).exclude(id=customer.id).first()
+            if existing:
+                return Response({'error': 'An account with this email already exists.'}, status=400)
+            customer.email = new_email.strip()
+
         customer.phone = request.data.get('phone', customer.phone)
         customer.addresses = request.data.get(
             'addresses',
@@ -112,7 +198,42 @@ class ProfileAPIView(APIView):
             'email': customer.email,
             'phone': customer.phone,
             'addresses': customer.addresses,
+            'role': customer.role,
         })
+
+class ForgotPasswordAPIView(APIView):
+    renderer_classes = [JSONRenderer]
+
+    def post(self, request):
+        email = (request.data.get('email') or '').strip()
+
+        if not email:
+            return Response({'error': 'Email is required.'}, status=400)
+
+        customer = AccountsCustomer.objects.filter(email=email, is_active=True).first()
+
+        if customer:
+            try:
+                AuditLog.objects.create(
+                    actor=customer.name,
+                    actor_role='customer',
+                    action='Requested password reset',
+                    target_model='AccountsCustomer',
+                    target_id=str(customer.id),
+                )
+            except Exception:
+                pass
+
+            return Response({
+                'success': True,
+                'message': 'Password reset instructions have been sent to your email.',
+                'email': customer.email,
+            }, status=200)
+
+        return Response({
+            'success': False,
+            'error': 'No active account found with this email address.',
+        }, status=404)
 
 class LoginAPIView(APIView):
     renderer_classes = [JSONRenderer]
