@@ -31,26 +31,29 @@
           <a class="nav-item is-active" href="catalog.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Products & Categories</span>
           </a>
-          <a class="nav-item" href="index.html#inventory">
+          <a class="nav-item" href="inventory.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Inventory</span>
             <span class="nav-badge volt" id="badge-inventory">6</span>
           </a>
-          <a class="nav-item" href="index.html#orders">
+          <a class="nav-item" href="orders.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Orders</span>
             <span class="nav-badge" id="badge-orders">5</span>
           </a>
-          <a class="nav-item" href="index.html#shipments">
+          <a class="nav-item" href="shipments.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Shipments</span>
           </a>
-          <a class="nav-item" href="#reviews">
-            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Reviews</span>
-            <span class="nav-badge" id="badge-reviews">2</span>
+          <a class="nav-item" href="shipping-zones.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Shipping Zones</span>
           </a>
-          <a class="nav-item" href="index.html#content">
+          <a class="nav-item" href="reviews.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Reviews</span>
+            <span class="nav-badge volt" id="badge-reviews">2</span>
+          </a>
+          <a class="nav-item" href="content.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Content & Banners</span>
           </a>
-          <a class="nav-item" href="index.html#reports">
-            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Reports</span>
+          <a class="nav-item" href="analytics.html?v=1.1">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Analytics</span>
           </a>
         </nav>
       </div>
@@ -188,10 +191,10 @@
 
       <!-- Lower Split Section: Review Moderation Queue + Stock Adjustment Ledger -->
       <div class="panel-grid-2col">
-        <!-- Left Sub-Card: Review moderation queue -->
-        <section class="panel-card" id="reviews" aria-labelledby="heading-reviews-queue">
+        <!-- Left Sub-Card: Customer reviews (Figma 58:2 / 58:467) -->
+        <section class="panel-card" id="reviews" aria-labelledby="heading-customer-reviews">
           <div class="panel-header">
-            <h2 class="panel-title" id="heading-reviews-queue">Review moderation queue</h2>
+            <h2 class="panel-title" id="heading-customer-reviews">Customer reviews</h2>
             <a class="panel-link" href="#all-reviews">All reviews →</a>
           </div>
           <div class="table-responsive">
@@ -201,30 +204,30 @@
                   <th scope="col">CUSTOMER</th>
                   <th scope="col">PRODUCT / REVIEW</th>
                   <th scope="col">RATING</th>
-                  <th scope="col">ACTIONS</th>
+                  <th scope="col" style="text-align: right;">ACTIONS</th>
                 </tr>
               </thead>
               <tbody id="reviews-tbody">
-                <!-- Seeded matching Figma frame 58:2 -->
-                <tr data-review-id="1">
+                <!-- Seeded matching Figma frame 58:2 / 58:467 -->
+                <tr data-review-id="1" data-customer="Bea S." data-product="Drip Zip-Up Hoodie" data-rating="5" data-body="Super lapad ng fit, ang angas ng tela! Perfect for streetwear layering.">
                   <td class="td-strong">Bea S.</td>
                   <td class="td-muted">Drip Zip-Up Hoodie — “Super lapad ng fit…”</td>
-                  <td style="color: #f59e0b; letter-spacing: 1px;">★★★★★</td>
-                  <td>
-                    <div style="display: flex; gap: 8px;">
-                      <button type="button" class="btn btn-success-outline btn-sm btn-moderate-review" data-review-id="1" data-action="approved">Approve</button>
-                      <button type="button" class="btn btn-danger-outline btn-sm btn-moderate-review" data-review-id="1" data-action="rejected">Reject</button>
+                  <td class="review-stars">★★★★★</td>
+                  <td style="text-align: right;">
+                    <div style="display: inline-flex; gap: 8px; justify-content: flex-end;">
+                      <button type="button" class="btn-outline-pill btn-view-review" data-review-id="1">View</button>
+                      <button type="button" class="btn-volt-pill btn-reply-review" data-review-id="1">Reply</button>
                     </div>
                   </td>
                 </tr>
-                <tr data-review-id="2">
+                <tr data-review-id="2" data-customer="Marco L." data-product="Metro Snapback" data-rating="3" data-body="Color is slightly off from photo. The cap is good quality though.">
                   <td class="td-strong">Marco L.</td>
                   <td class="td-muted">Metro Snapback — “Color is slightly off.”</td>
-                  <td style="color: #f59e0b; letter-spacing: 1px;">★★★☆☆</td>
-                  <td>
-                    <div style="display: flex; gap: 8px;">
-                      <button type="button" class="btn btn-success-outline btn-sm btn-moderate-review" data-review-id="2" data-action="approved">Approve</button>
-                      <button type="button" class="btn btn-danger-outline btn-sm btn-moderate-review" data-review-id="2" data-action="rejected">Reject</button>
+                  <td class="review-stars">★★★☆☆</td>
+                  <td style="text-align: right;">
+                    <div style="display: inline-flex; gap: 8px; justify-content: flex-end;">
+                      <button type="button" class="btn-outline-pill btn-view-review" data-review-id="2">View</button>
+                      <button type="button" class="btn-volt-pill btn-reply-review" data-review-id="2">Reply</button>
                     </div>
                   </td>
                 </tr>
@@ -330,6 +333,189 @@
           <button type="submit" class="btn btn-primary" id="btn-submit-product">Publish Product</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal: View Customer Review (Figma 58:2 / 58:467) -->
+  <div class="modal-overlay" id="modal-view-review" role="dialog" aria-modal="true" aria-labelledby="modal-view-review-title" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-view-review-title">Customer Review</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-view-review" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="review-detail-card">
+          <div class="review-customer-header">
+            <div class="review-customer-info">
+              <div class="review-avatar-badge" id="view-review-avatar">BS</div>
+              <div>
+                <p class="review-customer-name" id="view-review-customer">Bea S.</p>
+                <p class="review-date-badge" id="view-review-date">Verified Customer · Sep 19, 2026</p>
+              </div>
+            </div>
+            <div class="review-stars" id="view-review-stars">★★★★★</div>
+          </div>
+          <div class="review-product-tag">
+            <span class="nav-glyph" aria-hidden="true">◇</span>
+            <span id="view-review-product">Drip Zip-Up Hoodie</span>
+          </div>
+          <blockquote class="review-body-text" id="view-review-body">
+            “Super lapad ng fit, ang angas ng tela! Perfect for streetwear layering.”
+          </blockquote>
+          <div id="view-review-reply-container" style="display: none;">
+            <div class="review-reply-card">
+              <div class="review-reply-header">
+                <span class="review-reply-title">Merchant Response</span>
+                <span class="review-date-badge" id="view-review-reply-date"></span>
+              </div>
+              <p class="review-reply-body" id="view-review-reply-text"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn-close-view-review-footer">Close</button>
+        <button type="button" class="btn btn-primary" id="btn-reply-from-view">Reply to review</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Reply to Customer Review (Figma 58:2 / 58:467) -->
+  <div class="modal-overlay" id="modal-reply-review" role="dialog" aria-modal="true" aria-labelledby="modal-reply-review-title" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-reply-review-title">Reply to Review</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-reply-review" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="form-reply-review">
+        <input type="hidden" id="reply-review-id" name="review_id" value="">
+        <div class="modal-body">
+          <div class="review-context-banner">
+            <p>Replying to <strong id="reply-customer-name">Bea S.</strong> regarding <strong id="reply-product-name">Drip Zip-Up Hoodie</strong></p>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reply-textarea">Your Public Merchant Response</label>
+            <textarea class="form-textarea" id="reply-textarea" name="reply" rows="4" placeholder="Thank the customer or address their feedback professionally..." required></textarea>
+            <span class="form-label" style="text-transform: none; font-size: 10px; color: var(--color-muted); margin-top: 4px;">
+              This reply will be publicly visible to customers on the storefront product detail page.
+            </span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-reply-review">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-reply-review">Send Reply</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Edit Product Dialog -->
+  <div class="modal-overlay" id="modal-edit-product" role="dialog" aria-modal="true" aria-labelledby="modal-edit-product-title" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-edit-product-title">Edit Product</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-edit-product" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="form-edit-product">
+        <input type="hidden" id="edit-prod-id" name="id" value="">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="edit-prod-name">Product Name</label>
+            <input class="form-input" id="edit-prod-name" name="name" type="text" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-prod-category">Category</label>
+            <select class="form-select" id="edit-prod-category" name="category" required>
+              <option value="Tops › Hoodies">Tops › Hoodies</option>
+              <option value="Tops › T-Shirts">Tops › T-Shirts</option>
+              <option value="Bottoms › Denim">Bottoms › Denim</option>
+              <option value="Accessories › Caps">Accessories › Caps</option>
+              <option value="Accessories › Socks">Accessories › Socks</option>
+            </select>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label" for="edit-prod-price">Base Price (PHP)</label>
+              <input class="form-input" id="edit-prod-price" name="price" type="number" min="1" step="1" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="edit-prod-stock">Stock on Hand</label>
+              <input class="form-input" id="edit-prod-stock" name="stock" type="number" min="0" required>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label" for="edit-prod-sku">SKU Code</label>
+              <input class="form-input" id="edit-prod-sku" name="sku" type="text" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="edit-prod-status">Listing Status</label>
+              <select class="form-select" id="edit-prod-status" name="status" required>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-prod-desc">Description</label>
+            <textarea class="form-textarea" id="edit-prod-desc" name="description" rows="2" placeholder="Fabric, fit details and care instructions..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-edit-product">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-edit-product">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Manage Categories Dialog -->
+  <div class="modal-overlay" id="modal-manage-categories" role="dialog" aria-modal="true" aria-labelledby="modal-manage-categories-title" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-manage-categories-title">Manage Categories</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-categories" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Active Catalog Categories</label>
+          <div class="category-list-card" id="categories-list-container">
+            <!-- Dynamic Category List -->
+            <div class="category-item-row">
+              <span class="category-item-name">Tops › Hoodies</span>
+              <span class="category-count-badge">24 items</span>
+            </div>
+            <div class="category-item-row">
+              <span class="category-item-name">Tops › T-Shirts</span>
+              <span class="category-count-badge">42 items</span>
+            </div>
+            <div class="category-item-row">
+              <span class="category-item-name">Bottoms › Denim</span>
+              <span class="category-count-badge">18 items</span>
+            </div>
+            <div class="category-item-row">
+              <span class="category-item-name">Accessories › Caps</span>
+              <span class="category-count-badge">16 items</span>
+            </div>
+            <div class="category-item-row">
+              <span class="category-item-name">Accessories › Socks</span>
+              <span class="category-count-badge">12 items</span>
+            </div>
+          </div>
+        </div>
+        <form id="form-add-category" style="display: flex; flex-direction: column; gap: 10px; margin-top: 6px;">
+          <div class="form-group">
+            <label class="form-label" for="new-cat-name">Add New Category</label>
+            <div style="display: flex; gap: 8px;">
+              <input class="form-input" id="new-cat-name" name="name" type="text" placeholder="e.g. Outerwear › Jackets" style="flex: 1;" required>
+              <button type="submit" class="btn btn-primary" id="btn-submit-category">+ Add</button>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn-close-categories-footer">Done</button>
+      </div>
     </div>
   </div>
 

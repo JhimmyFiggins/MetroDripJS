@@ -168,15 +168,6 @@
     if (e.target === modal) closeModal();
   });
 
-  // --- Escape key handler (BUG-02 fix) ---
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      if (modal && !modal.hidden) {
-        closeModal();
-      }
-    }
-  });
-
   formAddUser?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const formData = new FormData(formAddUser);
@@ -249,11 +240,89 @@
     logAuditEvent('Exported customer & staff directory to CSV');
   });
 
+  // --- Shipping Zones Manager Modal ---
+  const modalShipping = document.getElementById('modal-shipping-zones');
+  const btnCloseShipping = document.getElementById('btn-close-shipping-zones');
+  const btnCancelShipping = document.getElementById('btn-cancel-shipping-zones');
+  const formShipping = document.getElementById('form-shipping-zones');
+
+  async function openShippingZonesModal() {
+    if (!modalShipping) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/shipping-zones/`);
+      if (res.ok) {
+        const zones = await res.json();
+        zones.forEach((z) => {
+          const input = document.getElementById(`fee-zone-${z.id}`) || document.querySelector(`input[name="zone_${z.id}"]`);
+          if (input) input.value = z.fee;
+        });
+      }
+    } catch {
+      // Offline fallback
+    }
+
+    modalShipping.hidden = false;
+    document.getElementById('fee-zone-1')?.focus();
+  }
+
+  function closeShippingZonesModal() {
+    if (modalShipping) modalShipping.hidden = true;
+  }
+
+  btnCloseShipping?.addEventListener('click', closeShippingZonesModal);
+  btnCancelShipping?.addEventListener('click', closeShippingZonesModal);
+  modalShipping?.addEventListener('click', (e) => {
+    if (e.target === modalShipping) closeShippingZonesModal();
+  });
+
+  formShipping?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fee1 = parseInt(document.getElementById('fee-zone-1')?.value || '85', 10);
+    const fee2 = parseInt(document.getElementById('fee-zone-2')?.value || '120', 10);
+    const fee3 = parseInt(document.getElementById('fee-zone-3')?.value || '150', 10);
+
+    const updates = [
+      { id: 1, name: 'NCR', fee: fee1 },
+      { id: 2, name: 'Luzon', fee: fee2 },
+      { id: 3, name: 'VisMin', fee: fee3 },
+    ];
+
+    for (const u of updates) {
+      try {
+        await fetch(`${API_BASE}/shipping-zones/${u.id}/`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fee: u.fee }),
+        });
+      } catch {
+        // Offline fallback
+      }
+    }
+
+    logAuditEvent(`Updated shipping fees → NCR: ₱${fee1}, Luzon: ₱${fee2}, VisMin: ₱${fee3}`);
+    closeShippingZonesModal();
+    showToast('Regional shipping rates successfully updated.');
+  });
+
+  // --- Escape key handler ---
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (modal && !modal.hidden) closeModal();
+      if (modalShipping && !modalShipping.hidden) closeShippingZonesModal();
+    }
+  });
+
   // --- Navigation Links ---
   document.querySelectorAll('.nav-item').forEach((item) => {
     item.addEventListener('click', (e) => {
       document.querySelectorAll('.nav-item').forEach((nav) => nav.classList.remove('is-active'));
       item.classList.add('is-active');
+
+      const tab = item.dataset.tab || item.getAttribute('href')?.replace('#', '');
+      if (tab === 'shipping') {
+        openShippingZonesModal();
+      }
     });
   });
 

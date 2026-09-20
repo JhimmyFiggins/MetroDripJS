@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>MetroDrip · Merchant Analytics</title>
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="../Registration/theme.css">
+  <link rel="stylesheet" href="../css/console.css">
+  <script src="../Registration/theme.js"></script>
+</head>
+<body>
+  <!-- Figma: 16 · Merchant Console · Analytics (Desktop) 511:2 / D16 dark 514:14 -->
+  <div class="console-layout">
+    <!-- Left Navigation Sidebar -->
+    <aside class="console-sidebar" aria-label="Merchant Navigation">
+      <div class="sidebar-top">
+        <div class="brand-section">
+          <p class="brand-logo">METRO<span>DRIP</span></p>
+          <p class="console-role-tag">MERCHANT / SELLER CONSOLE</p>
+        </div>
+
+        <nav class="nav-group" aria-label="Merchant console views">
+          <a class="nav-item" href="index.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Dashboard</span>
+          </a>
+          <a class="nav-item" href="catalog.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Products & Categories</span>
+          </a>
+          <a class="nav-item" href="inventory.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Inventory</span>
+            <span class="nav-badge volt" id="badge-inventory">6</span>
+          </a>
+          <a class="nav-item" href="orders.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Orders</span>
+            <span class="nav-badge" id="badge-orders">5</span>
+          </a>
+          <a class="nav-item" href="shipments.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Shipments</span>
+          </a>
+          <a class="nav-item" href="shipping-zones.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Shipping Zones</span>
+          </a>
+          <a class="nav-item" href="reviews.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Reviews</span>
+            <span class="nav-badge volt" id="badge-reviews">2</span>
+          </a>
+          <a class="nav-item" href="content.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Content & Banners</span>
+          </a>
+          <a class="nav-item is-active" href="analytics.html?v=1.1">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Analytics</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-avatar" aria-hidden="true">MD</div>
+          <div class="user-meta">
+            <p class="user-name">Store Merchant</p>
+            <p class="user-role-badge">MERCHANT · 2FA ON</p>
+          </div>
+        </div>
+
+        <!-- Theme Switcher synced via theme.js -->
+        <div class="theme-switch-container" role="group" aria-label="Color theme selector">
+          <button type="button" class="theme-toggle-btn is-active" data-theme-option="light" aria-pressed="true">
+            <span aria-hidden="true">☼</span> Light
+          </button>
+          <button type="button" class="theme-toggle-btn" data-theme-option="dark" aria-pressed="false">
+            <span aria-hidden="true">☾</span> Dark
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace Content -->
+    <main class="console-main">
+      <!-- Top Action Bar -->
+      <header class="console-header">
+        <div class="header-meta">
+          <h1 class="page-title">Analytics</h1>
+          <p class="page-subhead">Product performance, from discovery to purchase.</p>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="btn btn-primary" id="btn-export-report">
+            Export report
+          </button>
+        </div>
+      </header>
+
+      <!-- Filter Controls & Metadata Row -->
+      <div class="analytics-filter-toolbar">
+        <div class="analytics-filters">
+          <select class="filter-select" id="select-date-range" aria-label="Select date range">
+            <option value="sep13-19" selected>Sep 13–19, 2026 ▾</option>
+            <option value="sep06-12">Sep 6–12, 2026 ▾</option>
+            <option value="last30">Last 30 days ▾</option>
+          </select>
+
+          <select class="filter-select" id="select-comparison" aria-label="Select comparison period">
+            <option value="prev7" selected>Compare: previous 7 days ▾</option>
+            <option value="prevYear">Compare: previous year ▾</option>
+            <option value="none">No comparison ▾</option>
+          </select>
+
+          <select class="filter-select" id="select-category" aria-label="Filter by category">
+            <option value="all" selected>All categories ▾</option>
+            <option value="tops">Tops ▾</option>
+            <option value="bottoms">Bottoms ▾</option>
+            <option value="accessories">Accessories ▾</option>
+          </select>
+        </div>
+        <p class="analytics-meta-note">SAMPLE DATA · PHP · Asia/Manila · Complete days only</p>
+      </div>
+
+      <!-- 4 Key Metrics (Cards) -->
+      <section class="stat-cards-grid" aria-label="Executive sales and conversion KPI metrics">
+        <article class="stat-card">
+          <p class="stat-label">Net sales</p>
+          <p class="stat-value" id="kpi-net-sales">₱248,600</p>
+          <p class="stat-subtext growth-indicator up" id="kpi-net-sales-growth">
+            <span aria-hidden="true">↑</span> 18.0% vs prior period
+          </p>
+        </article>
+
+        <article class="stat-card">
+          <p class="stat-label">Orders</p>
+          <p class="stat-value" id="kpi-orders">200</p>
+          <p class="stat-subtext growth-indicator up" id="kpi-orders-growth">
+            <span aria-hidden="true">↑</span> 11.1% vs prior period
+          </p>
+        </article>
+
+        <article class="stat-card">
+          <p class="stat-label">Net units sold</p>
+          <p class="stat-value" id="kpi-units-sold">320</p>
+          <p class="stat-subtext growth-indicator up" id="kpi-units-growth">
+            <span aria-hidden="true">↑</span> 14.3% vs prior period
+          </p>
+        </article>
+
+        <article class="stat-card">
+          <p class="stat-label">Purchase session rate</p>
+          <p class="stat-value" id="kpi-session-rate">2.50%</p>
+          <p class="stat-subtext growth-indicator up" id="kpi-session-growth">
+            <span aria-hidden="true">↑</span> 0.25 pp vs prior period
+          </p>
+        </article>
+      </section>
+
+      <!-- Middle Split Section: Net Sales Line Chart + Best Sellers Card -->
+      <div class="panel-grid-2col" style="grid-template-columns: 1.4fr 1fr; margin-bottom: 24px;">
+        <!-- Left: Net sales over time -->
+        <section class="panel-card" aria-labelledby="heading-sales-over-time">
+          <div class="chart-card-content">
+            <div class="chart-header">
+              <h2 class="chart-title" id="heading-sales-over-time">Net sales over time</h2>
+              <div class="chart-legend">
+                <span class="legend-item"><span class="legend-line-solid" aria-hidden="true"></span> Current: solid line</span>
+                <span class="legend-item"><span class="legend-line-dashed" aria-hidden="true"></span> Previous 7 days: dashed line</span>
+              </div>
+            </div>
+
+            <!-- SVG Line Chart Container -->
+            <div class="svg-chart-container" id="sales-chart-container">
+              <svg class="svg-chart" id="sales-svg-chart" viewBox="0 0 600 170" preserveAspectRatio="none" aria-label="Net sales line chart">
+                <!-- Grid Lines -->
+                <line x1="45" y1="20" x2="590" y2="20" class="chart-gridline" />
+                <line x1="45" y1="80" x2="590" y2="80" class="chart-gridline" />
+                <line x1="45" y1="140" x2="590" y2="140" class="chart-gridline" />
+
+                <!-- Y Axis Labels -->
+                <text x="5" y="24" class="chart-axis-text">₱50k</text>
+                <text x="5" y="84" class="chart-axis-text">₱25k</text>
+                <text x="5" y="144" class="chart-axis-text">₱0</text>
+
+                <!-- Dashed Prior Line -->
+                <path d="M 50,85 L 135,82 L 220,78 L 305,74 L 390,70 L 475,66 L 560,60" class="chart-path-prev" id="chart-path-prev" />
+
+                <!-- Solid Current Period Line -->
+                <path d="M 50,78 L 135,72 L 220,74 L 305,58 L 390,64 L 475,48 L 560,34" class="chart-path-current" id="chart-path-current" />
+
+                <!-- Data Points (Interactive Hover) -->
+                <g id="chart-points-group">
+                  <circle cx="50" cy="78" r="3.5" class="chart-point" data-val="₱26,000" data-date="13 Sep" />
+                  <circle cx="135" cy="72" r="3.5" class="chart-point" data-val="₱29,000" data-date="14 Sep" />
+                  <circle cx="220" cy="74" r="3.5" class="chart-point" data-val="₱28,000" data-date="15 Sep" />
+                  <circle cx="305" cy="58" r="3.5" class="chart-point" data-val="₱36,000" data-date="16 Sep" />
+                  <circle cx="390" cy="64" r="3.5" class="chart-point" data-val="₱33,000" data-date="17 Sep" />
+                  <circle cx="475" cy="48" r="3.5" class="chart-point" data-val="₱41,000" data-date="18 Sep" />
+                  <circle cx="560" cy="34" r="3.5" class="chart-point" data-val="₱48,000" data-date="19 Sep" />
+                </g>
+
+                <!-- X Axis Labels -->
+                <text x="50" y="162" text-anchor="middle" class="chart-axis-text">13 Sep</text>
+                <text x="135" y="162" text-anchor="middle" class="chart-axis-text">14 Sep</text>
+                <text x="220" y="162" text-anchor="middle" class="chart-axis-text">15 Sep</text>
+                <text x="305" y="162" text-anchor="middle" class="chart-axis-text">16 Sep</text>
+                <text x="390" y="162" text-anchor="middle" class="chart-axis-text">17 Sep</text>
+                <text x="475" y="162" text-anchor="middle" class="chart-axis-text">18 Sep</text>
+                <text x="560" y="162" text-anchor="middle" class="chart-axis-text">19 Sep</text>
+              </svg>
+            </div>
+
+            <!-- Footer Line Summary -->
+            <p class="chart-footer-summary" id="chart-footer-summary">
+              ₱248,600 net sales · <span class="growth-indicator up">↑ 18.0% vs ₱210,678</span>
+            </p>
+          </div>
+        </section>
+
+        <!-- Right: Best sellers -->
+        <section class="panel-card" aria-labelledby="heading-best-sellers">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title" id="heading-best-sellers">Best sellers</h2>
+              <p class="panel-link" style="font-size: 11px; margin-top: 2px;">Ranked by net sales · selected period</p>
+            </div>
+          </div>
+
+          <div class="best-seller-list" id="best-sellers-container">
+            <!-- 1: Drip Zip-Up Hoodie -->
+            <div class="best-seller-item">
+              <div class="best-seller-meta">
+                <span>Drip Zip-Up Hoodie</span>
+                <span class="best-seller-price">₱96,000</span>
+              </div>
+              <div class="meter-track">
+                <div class="meter-fill" style="width: 100%;"></div>
+              </div>
+            </div>
+
+            <!-- 2: Metro Core Boxy Tee -->
+            <div class="best-seller-item">
+              <div class="best-seller-meta">
+                <span>Metro Core Boxy Tee</span>
+                <span class="best-seller-price">₱74,000</span>
+              </div>
+              <div class="meter-track">
+                <div class="meter-fill" style="width: 77.1%;"></div>
+              </div>
+            </div>
+
+            <!-- 3: Metro Straight-Cut Jeans -->
+            <div class="best-seller-item">
+              <div class="best-seller-meta">
+                <span>Metro Straight-Cut Jeans</span>
+                <span class="best-seller-price">₱45,000</span>
+              </div>
+              <div class="meter-track">
+                <div class="meter-fill" style="width: 46.9%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <p class="panel-footer-note">Top 3 of 5 products · values exclude tax & shipping</p>
+        </section>
+      </div>
+
+      <!-- Full-Width Card: Product sales report -->
+      <section class="panel-card full-width" style="margin-bottom: 24px;" aria-labelledby="heading-product-sales-report">
+        <div class="panel-header">
+          <h2 class="panel-title" id="heading-product-sales-report">Product sales report</h2>
+          <span class="panel-link" style="cursor: default;">Sorted by net sales ↓</span>
+        </div>
+
+        <div class="table-responsive">
+          <table class="data-table sales-report-table" id="table-sales-report">
+            <thead>
+              <tr>
+                <th scope="col" style="min-width: 240px;">PRODUCT</th>
+                <th scope="col" class="text-right">NET UNITS</th>
+                <th scope="col" class="text-right">NET SALES ↓</th>
+                <th scope="col" class="text-right">ITEM VIEWS</th>
+                <th scope="col" class="text-right">ADDED TO CART</th>
+                <th scope="col" class="text-right">UNIT GROWTH</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-sales-report">
+              <!-- Seeded matching Figma frame 511:2 -->
+              <tr>
+                <td class="td-strong">Drip Zip-Up Hoodie</td>
+                <td class="td-mono text-right">80</td>
+                <td class="td-mono td-strong text-right">₱96,000</td>
+                <td class="td-mono text-right">2,400</td>
+                <td class="td-mono text-right">300</td>
+                <td class="td-mono text-right"><span class="growth-indicator up">↑ 33.3%</span></td>
+              </tr>
+              <tr>
+                <td class="td-strong">Metro Core Boxy Tee</td>
+                <td class="td-mono text-right">120</td>
+                <td class="td-mono td-strong text-right">₱74,000</td>
+                <td class="td-mono text-right">3,800</td>
+                <td class="td-mono text-right">420</td>
+                <td class="td-mono text-right"><span class="growth-indicator up">↑ 20.0%</span></td>
+              </tr>
+              <tr>
+                <td class="td-strong">Metro Straight-Cut Jeans</td>
+                <td class="td-mono text-right">45</td>
+                <td class="td-mono td-strong text-right">₱45,000</td>
+                <td class="td-mono text-right">1,600</td>
+                <td class="td-mono text-right">160</td>
+                <td class="td-mono text-right"><span class="growth-indicator down">↓ 10.0%</span></td>
+              </tr>
+              <tr>
+                <td class="td-strong">Metro Snapback</td>
+                <td class="td-mono text-right">50</td>
+                <td class="td-mono td-strong text-right">₱24,600</td>
+                <td class="td-mono text-right">1,800</td>
+                <td class="td-mono text-right">210</td>
+                <td class="td-mono text-right"><span class="growth-indicator up">↑ 100.0%</span></td>
+              </tr>
+              <tr>
+                <td class="td-strong">Drip Crew Socks 3-Pack</td>
+                <td class="td-mono text-right">25</td>
+                <td class="td-mono td-strong text-right">₱9,000</td>
+                <td class="td-mono text-right">800</td>
+                <td class="td-mono text-right">110</td>
+                <td class="td-mono text-right"><span class="growth-indicator down">↓ 44.4%</span></td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr class="sales-report-total-row">
+                <td class="td-strong">TOTAL</td>
+                <td class="td-mono td-strong text-right" id="total-units">320</td>
+                <td class="td-mono td-strong text-right" id="total-sales">₱248,600</td>
+                <td class="td-mono td-strong text-right" id="total-views">10,400</td>
+                <td class="td-mono td-strong text-right" id="total-cart">1,200</td>
+                <td class="td-mono td-strong text-right"><span class="growth-indicator up" id="total-growth">↑ 14.3%</span></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <p class="panel-footer-note">Net sales = gross sales − discounts − sales reversals. Tax and shipping excluded.</p>
+      </section>
+
+      <!-- Bottom Split Section: Trending products + User interactions -->
+      <div class="panel-grid-2col" style="grid-template-columns: 1fr 1fr;">
+        <!-- Left: Trending products -->
+        <section class="panel-card" aria-labelledby="heading-trending-products">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title" id="heading-trending-products">Trending products</h2>
+              <p class="panel-link" style="font-size: 11px; margin-top: 2px;">Net unit growth vs previous 7 days</p>
+            </div>
+          </div>
+
+          <div class="trending-list" id="trending-list-container">
+            <!-- 1 -->
+            <div class="trending-item">
+              <div class="trending-info">
+                <span class="trending-name">Metro Snapback</span>
+                <span class="trending-sub">25 → 50 net units</span>
+              </div>
+              <span class="growth-indicator up" style="font-size: 13px;">↑ 100.0%</span>
+            </div>
+
+            <!-- 2 -->
+            <div class="trending-item">
+              <div class="trending-info">
+                <span class="trending-name">Drip Zip-Up Hoodie</span>
+                <span class="trending-sub">60 → 80 net units</span>
+              </div>
+              <span class="growth-indicator up" style="font-size: 13px;">↑ 33.3%</span>
+            </div>
+
+            <!-- 3 -->
+            <div class="trending-item">
+              <div class="trending-info">
+                <span class="trending-name">Metro Core Boxy Tee</span>
+                <span class="trending-sub">100 → 120 net units</span>
+              </div>
+              <span class="growth-indicator up" style="font-size: 13px;">↑ 20.0%</span>
+            </div>
+          </div>
+
+          <p class="panel-footer-note">Minimum 20 prior-period net units. New products show “New” and are excluded from growth ranking.</p>
+        </section>
+
+        <!-- Right: User interactions -->
+        <section class="panel-card" aria-labelledby="heading-user-interactions">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title" id="heading-user-interactions">User interactions</h2>
+              <p class="panel-link" style="font-size: 11px; margin-top: 2px;">Sessions with each action · 8,000 total sessions</p>
+            </div>
+          </div>
+
+          <div class="interaction-list" id="interaction-list-container">
+            <!-- 1 -->
+            <div class="interaction-row">
+              <span class="interaction-action">Product viewed</span>
+              <div class="meter-track user-funnel">
+                <div class="meter-fill" style="width: 75%;"></div>
+              </div>
+              <span class="interaction-stat">6000 · 75%</span>
+            </div>
+
+            <!-- 2 -->
+            <div class="interaction-row">
+              <span class="interaction-action">Added to cart</span>
+              <div class="meter-track user-funnel">
+                <div class="meter-fill" style="width: 10%;"></div>
+              </div>
+              <span class="interaction-stat">800 · 10%</span>
+            </div>
+
+            <!-- 3 -->
+            <div class="interaction-row">
+              <span class="interaction-action">Checkout started</span>
+              <div class="meter-track user-funnel">
+                <div class="meter-fill" style="width: 5%;"></div>
+              </div>
+              <span class="interaction-stat">400 · 5%</span>
+            </div>
+
+            <!-- 4 -->
+            <div class="interaction-row">
+              <span class="interaction-action">Purchased</span>
+              <div class="meter-track user-funnel">
+                <div class="meter-fill" style="width: 2.5%;"></div>
+              </div>
+              <span class="interaction-stat">200 · 2.5%</span>
+            </div>
+          </div>
+
+          <p class="panel-footer-note">Each row counts distinct sessions independently, not a sequential funnel. Purchase rate: 200 ÷ 8,000 = 2.50%.</p>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <script src="analytics.js"></script>
+</body>
+</html>

@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "dev": "python web/dev_server.py 3000",
+    "web:server": "python web/dev_server.py 3000",
     "start": "expo start",
     "android": "expo run:android",
     "android:run": "expo run:android",

@@ -249,6 +249,8 @@ class ReviewsReview(models.Model):
     order_id = models.BigIntegerField(null=True, blank=True)
     rating = models.PositiveSmallIntegerField(default=5)
     body = models.TextField()
+    merchant_reply = models.TextField(blank=True, default='')
+    replied_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=10, default='pending')  # pending, approved, rejected
     created_at = models.DateTimeField(auto_now_add=True)
 

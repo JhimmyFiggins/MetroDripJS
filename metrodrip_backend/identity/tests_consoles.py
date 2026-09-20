@@ -10,6 +10,7 @@ from catalog.models import (
     InventoryStockMovement,
 )
 from orders.models import OrdersOrder, ReviewsReview
+from fulfillment.models import ShippingShippingZone
 from django.utils import timezone
 
 
@@ -141,10 +142,308 @@ class ConsolesAPITestCase(TestCase):
         # Verify InventoryStockMovement record
         self.assertTrue(InventoryStockMovement.objects.filter(sku=self.variant.sku, delta=25).exists())
 
-    def test_merchant_review_moderation(self):
+    def test_merchant_review_detail(self):
+        res = self.client.get(f'/api/merchant/reviews/{self.review.id}/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['customer_name'], self.review.customer_name)
+        self.assertEqual(res.data['product_name'], self.review.product_name)
+
+    def test_merchant_review_reply(self):
+        reply_msg = 'Thank you Bea! We designed the oversize fit specifically for streetwear layering.'
+        res = self.client.post(f'/api/merchant/reviews/{self.review.id}/reply/', {
+            'reply': reply_msg,
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.merchant_reply, reply_msg)
+        self.assertIsNotNone(self.review.replied_at)
+
+    def test_merchant_review_moderation_deprecated(self):
         res = self.client.post(f'/api/merchant/reviews/{self.review.id}/moderate/', {
             'status': 'approved',
         }, format='json')
         self.assertEqual(res.status_code, 200)
         self.review.refresh_from_db()
         self.assertEqual(self.review.status, 'approved')
+
+    def test_merchant_product_detail_and_patch(self):
+        # 1. GET product detail
+        res = self.client.get(f'/api/merchant/products/{self.product.id}/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['name'], self.product.name)
+        self.assertEqual(res.data['price'], int(self.product.base_price))
+        self.assertEqual(res.data['stock'], self.stock.quantity)
+
+        # 2. PATCH product detail (price, stock, name)
+        res = self.client.patch(f'/api/merchant/products/{self.product.id}/', {
+            'name': 'Drip Heavyweight Zip-Up Hoodie',
+            'price': 1499,
+            'stock': 40,
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['price'], 1499)
+        self.assertEqual(res.data['stock'], 40)
+
+        # Verify DB updates
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.name, 'Drip Heavyweight Zip-Up Hoodie')
+        self.assertEqual(int(self.product.base_price), 1499)
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, 40)
+
+    def test_merchant_categories_list_and_create(self):
+        # GET categories
+        res = self.client.get('/api/merchant/categories/')
+        self.assertEqual(res.status_code, 200)
+        self.assertGreaterEqual(len(res.data), 1)
+
+        # POST new category
+        res = self.client.post('/api/merchant/categories/', {
+            'name': 'Outerwear › Windbreakers',
+            'description': 'Streetwear windbreakers',
+        }, format='json')
+        self.assertEqual(res.status_code, 201)
+        self.assertTrue(CatalogCategory.objects.filter(name='Outerwear › Windbreakers').exists())
+
+    def test_merchant_orders_detail_and_status_update(self):
+        # GET order detail
+        res = self.client.get('/api/merchant/orders/318/')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('order_no', res.data)
+        self.assertIn('shipping_address', res.data)
+        self.assertIn('lines', res.data)
+
+        # PATCH order status
+        res = self.client.patch('/api/merchant/orders/318/status/', {
+            'status': 'packed',
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['status'], 'Packed')
+
+    def test_merchant_orders_export_csv(self):
+        res = self.client.get('/api/merchant/orders/export/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res['Content-Type'], 'text/csv')
+        self.assertIn('Order ID', res.content.decode('utf-8'))
+
+    def test_admin_shipping_zones_get_and_patch(self):
+        # GET shipping zones
+        res = self.client.get('/api/admin/shipping-zones/')
+        self.assertEqual(res.status_code, 200)
+        self.assertGreaterEqual(len(res.data), 1)
+
+        zone_id = res.data[0]['id']
+        # PATCH shipping zone fee
+        res = self.client.patch(f'/api/admin/shipping-zones/{zone_id}/', {
+            'fee': 95,
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['fee'], 95)
+
+        # Verify audit log was recorded
+        self.assertTrue(AuditLog.objects.filter(action__contains='shipping fee').exists())
+
+    def test_admin_roles_api(self):
+        res = self.client.get('/api/admin/roles/')
+        self.assertEqual(res.status_code, 200)
+        roles = [r['role'] for r in res.data]
+        self.assertIn('admin', roles)
+        self.assertIn('merchant', roles)
+        self.assertIn('customer', roles)
+
+    def test_admin_roles_create_custom(self):
+        res = self.client.post('/api/admin/roles/', {
+            'role': 'dispatcher',
+            'title': 'Warehouse Dispatcher',
+            'description': 'Handles fulfillment packing and courier handoffs.',
+            'permissions': ['manage_inventory', 'manage_orders'],
+        }, format='json')
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.data['role'], 'dispatcher')
+        self.assertTrue(AuditLog.objects.filter(action__contains='Warehouse Dispatcher').exists())
+
+    def test_admin_settings_get_and_patch(self):
+        # 1. GET settings
+        res = self.client.get('/api/admin/settings/')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('store_name', res.data)
+        self.assertIn('free_shipping_threshold', res.data)
+
+        # 2. PATCH settings
+        res = self.client.patch('/api/admin/settings/', {
+            'free_shipping_threshold': 3000,
+            'standard_shipping_rate': 140,
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['settings']['free_shipping_threshold'], 3000)
+        self.assertEqual(res.data['settings']['standard_shipping_rate'], 140)
+        self.assertTrue(AuditLog.objects.filter(action__contains='free_shipping_threshold').exists())
+
+    def test_admin_user_reset_password(self):
+        res = self.client.post(f'/api/admin/users/{self.customer.id}/reset-password/')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('reset_token', res.data)
+        self.assertTrue(AuditLog.objects.filter(action__contains=f'#{self.customer.id}').exists())
+
+    def test_admin_audit_logs_filter_and_export(self):
+        # GET with search
+        res = self.client.get('/api/admin/audit-logs/?search=Admin')
+        self.assertEqual(res.status_code, 200)
+
+        # GET export CSV
+        res = self.client.get('/api/admin/audit-logs/export/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res['Content-Type'], 'text/csv')
+        self.assertIn('Timestamp', res.content.decode('utf-8'))
+
+    def test_merchant_shipments_get_and_post(self):
+        # GET shipments
+        res = self.client.get('/api/merchant/shipments/')
+        self.assertEqual(res.status_code, 200)
+        self.assertGreaterEqual(len(res.data), 1)
+
+        # POST book shipment
+        res = self.client.post('/api/merchant/shipments/', {
+            'order_ref': 318,
+            'carrier': 'NinjaVan Express',
+        }, format='json')
+        self.assertEqual(res.status_code, 201)
+        self.assertIn('waybill_no', res.data)
+        self.assertEqual(res.data['order_ref'], 318)
+
+    def test_merchant_shipping_eligibility(self):
+        # NCR with free shipping qualification
+        res = self.client.post('/api/merchant/shipping-zones/eligibility/', {
+            'address': 'Salcedo Village, Makati City, Metro Manila',
+            'subtotal': 2999,
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.data['eligible'])
+        self.assertTrue(res.data['free_shipping_applied'])
+        self.assertEqual(res.data['final_fee'], 0)
+
+        # VisMin with standard rate
+        res = self.client.post('/api/merchant/shipping-zones/eligibility/', {
+            'address': 'Cebu City, Visayas',
+            'subtotal': 1200,
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.data['eligible'])
+        self.assertFalse(res.data['free_shipping_applied'])
+        self.assertEqual(res.data['final_fee'], 150)
+
+    def test_merchant_banners_get_and_patch(self):
+        # GET banners
+        res = self.client.get('/api/merchant/banners/')
+        self.assertEqual(res.status_code, 200)
+        self.assertGreaterEqual(len(res.data), 1)
+
+        banner_id = res.data[0]['id']
+        # PATCH banner
+        res = self.client.patch(f'/api/merchant/banners/{banner_id}/', {
+            'title': 'Cyber Heavyweight Drop 2026',
+            'is_active': True,
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['title'], 'Cyber Heavyweight Drop 2026')
+
+    def test_admin_users_api_negative_validation(self):
+        # 1. Missing required email or name
+        res = self.client.post('/api/admin/users/', {'name': 'No Email User'}, format='json')
+        self.assertEqual(res.status_code, 400)
+
+        # 2. Duplicate email registration
+        res = self.client.post('/api/admin/users/', {
+            'name': 'Duplicate Customer',
+            'email': self.customer.email,
+            'role': 'customer',
+        }, format='json')
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('already exists', res.data.get('error', ''))
+
+        # 3. PATCH non-existent user PK
+        res = self.client.patch('/api/admin/users/999999/', {'is_active': False}, format='json')
+        self.assertEqual(res.status_code, 404)
+
+        # 4. Reset password for non-existent user
+        res = self.client.post('/api/admin/users/999999/reset-password/', format='json')
+        self.assertEqual(res.status_code, 404)
+
+    def test_admin_roles_api_negative(self):
+        res = self.client.post('/api/admin/roles/', {
+            'role': '',
+            'title': '',
+        }, format='json')
+        self.assertEqual(res.status_code, 400)
+
+    def test_admin_shipping_zones_negative(self):
+        res = self.client.patch('/api/admin/shipping-zones/999999/', {'fee': 110}, format='json')
+        self.assertEqual(res.status_code, 404)
+
+    def test_merchant_products_api_negative(self):
+        # Missing required name and sku
+        res = self.client.post('/api/merchant/products/', {'price': 999}, format='json')
+        self.assertEqual(res.status_code, 400)
+
+        # Non-existent product GET
+        res = self.client.get('/api/merchant/products/999999/')
+        self.assertEqual(res.status_code, 404)
+
+        # Non-existent product PATCH
+        res = self.client.patch('/api/merchant/products/999999/', {'price': 1200}, format='json')
+        self.assertEqual(res.status_code, 404)
+
+    def test_merchant_review_reply_negative(self):
+        # Empty reply text
+        res = self.client.post(f'/api/merchant/reviews/{self.review.id}/reply/', {'reply': '   '}, format='json')
+        self.assertEqual(res.status_code, 400)
+
+        # Non-existent review
+        res = self.client.post('/api/merchant/reviews/999999/reply/', {'reply': 'Thanks!'}, format='json')
+        self.assertEqual(res.status_code, 404)
+
+    def test_merchant_shipments_negative(self):
+        # Missing order_ref
+        res = self.client.post('/api/merchant/shipments/', {}, format='json')
+        self.assertEqual(res.status_code, 400)
+
+    def test_merchant_shipping_eligibility_negative(self):
+        # Empty address
+        res = self.client.post('/api/merchant/shipping-zones/eligibility/', {'address': ''}, format='json')
+        self.assertEqual(res.status_code, 400)
+
+        # Unserviceable remote area
+        res = self.client.post('/api/merchant/shipping-zones/eligibility/', {
+            'address': 'Batanes Remote Island',
+            'subtotal': 1500,
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(res.data['eligible'])
+        self.assertEqual(res.data['final_fee'], 0)
+
+    def test_merchant_banners_crud_and_negative(self):
+        # Missing title
+        res = self.client.post('/api/merchant/banners/', {'link_url': '/promo'}, format='json')
+        self.assertEqual(res.status_code, 400)
+
+        # Create new banner
+        res = self.client.post('/api/merchant/banners/', {
+            'title': 'QA Test Flash Banner',
+            'link_url': '/flash',
+            'is_active': False,
+            'order': 6,
+        }, format='json')
+        self.assertEqual(res.status_code, 201)
+        created_id = res.data['id']
+
+        # Delete created banner
+        del_res = self.client.delete(f'/api/merchant/banners/{created_id}/')
+        self.assertEqual(del_res.status_code, 200)
+
+        # Non-existent banner PATCH
+        patch_res = self.client.patch('/api/merchant/banners/999999/', {'title': 'Ghost'}, format='json')
+        self.assertEqual(patch_res.status_code, 404)
+
+
+
+

@@ -25,22 +25,19 @@
         </div>
 
         <nav class="nav-group" aria-label="Console views">
-          <a class="nav-item is-active" href="#dashboard" data-tab="dashboard">
+          <a class="nav-item is-active" href="index.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Dashboard</span>
           </a>
-          <a class="nav-item" href="#users" data-tab="users">
+          <a class="nav-item" href="users.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> User Accounts</span>
           </a>
-          <a class="nav-item" href="#roles" data-tab="roles">
+          <a class="nav-item" href="roles.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Roles & Permissions</span>
           </a>
-          <a class="nav-item" href="#shipping" data-tab="shipping">
-            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Shipping Zones</span>
-          </a>
-          <a class="nav-item" href="#settings" data-tab="settings">
+          <a class="nav-item" href="settings.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Platform Settings</span>
           </a>
-          <a class="nav-item" href="#audit" data-tab="audit">
+          <a class="nav-item" href="audit.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Audit Trail</span>
             <span class="nav-badge volt" id="sidebar-audit-count">12</span>
           </a>
@@ -116,7 +113,7 @@
         <section class="panel-card" aria-labelledby="heading-users">
           <div class="panel-header">
             <h2 class="panel-title" id="heading-users">User Accounts</h2>
-            <a class="panel-link" href="#users" id="link-manage-all-users">Manage all →</a>
+            <a class="panel-link" href="users.html" id="link-manage-all-users">Manage all →</a>
           </div>
           <div class="table-responsive">
             <table class="data-table" id="users-table">
@@ -168,7 +165,7 @@
         <section class="panel-card" aria-labelledby="heading-audit">
           <div class="panel-header">
             <h2 class="panel-title" id="heading-audit">Audit Trail</h2>
-            <a class="panel-link" href="#audit" id="link-view-all-audit">View all →</a>
+            <a class="panel-link" href="audit.html" id="link-view-all-audit">View all →</a>
           </div>
           <div class="table-responsive">
             <table class="data-table" id="audit-table">
@@ -211,6 +208,52 @@
           </div>
         </section>
       </div>
+
+      <!-- Administration Workspace (Figma: 15:2) -->
+      <section class="workspace-section" aria-label="Administration workspace">
+        <h2 class="workspace-heading">Administration workspace</h2>
+        <div class="workspace-grid-4">
+          <!-- Card 1: User Accounts -->
+          <article class="workspace-card">
+            <div class="workspace-card-top">
+              <span class="workspace-card-tag">User Accounts</span>
+              <p class="workspace-card-metric" id="workspace-metric-users">1,284 customers</p>
+              <p class="workspace-card-desc">Manage staff and customer access.</p>
+            </div>
+            <a href="users.html" class="workspace-card-btn">Open User Accounts &rarr;</a>
+          </article>
+
+          <!-- Card 2: Roles & Permissions -->
+          <article class="workspace-card">
+            <div class="workspace-card-top">
+              <span class="workspace-card-tag">Roles & Permissions</span>
+              <p class="workspace-card-metric">3 system roles</p>
+              <p class="workspace-card-desc">Review assignments and capabilities.</p>
+            </div>
+            <a href="roles.html" class="workspace-card-btn">Open Roles & Permissions &rarr;</a>
+          </article>
+
+          <!-- Card 3: Platform Settings -->
+          <article class="workspace-card">
+            <div class="workspace-card-top">
+              <span class="workspace-card-tag">Platform Settings</span>
+              <p class="workspace-card-metric">Staff 2FA required</p>
+              <p class="workspace-card-desc">Manage platform preferences.</p>
+            </div>
+            <a href="settings.html" class="workspace-card-btn">Open Platform Settings &rarr;</a>
+          </article>
+
+          <!-- Card 4: Audit Trail -->
+          <article class="workspace-card">
+            <div class="workspace-card-top">
+              <span class="workspace-card-tag">Audit Trail</span>
+              <p class="workspace-card-metric" id="workspace-metric-audit">12 events today</p>
+              <p class="workspace-card-desc">Review account and platform changes.</p>
+            </div>
+            <a href="audit.html" class="workspace-card-btn">Open Audit Trail &rarr;</a>
+          </article>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -247,6 +290,63 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" id="btn-cancel-add-user">Cancel</button>
           <button type="submit" class="btn btn-primary" id="btn-submit-add-user">Create Account</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Shipping Zones Dialog -->
+  <div class="modal-overlay" id="modal-shipping-zones" role="dialog" aria-modal="true" aria-labelledby="modal-shipping-zones-title" hidden>
+    <div class="modal-card" style="max-width: 560px;">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="modal-shipping-zones-title">Regional Shipping Rates</h3>
+          <span class="td-mono td-muted" style="font-size: 11px;">Standard courier fees applied at checkout</span>
+        </div>
+        <button type="button" class="modal-close-btn" id="btn-close-shipping-zones" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="form-shipping-zones">
+        <div class="modal-body">
+          <div class="shipping-zones-card" id="shipping-zones-container">
+            <!-- Dynamically populated or seeded -->
+            <div class="shipping-zone-row" data-zone-id="1">
+              <div class="shipping-zone-info">
+                <h4>NCR (Metro Manila)</h4>
+                <p>Same-day & next-day express delivery</p>
+              </div>
+              <div class="shipping-fee-input-group">
+                <span>₱</span>
+                <input type="number" class="shipping-fee-input" id="fee-zone-1" name="zone_1" value="85" min="0" step="1" required>
+              </div>
+            </div>
+            <div class="shipping-zone-row" data-zone-id="2">
+              <div class="shipping-zone-info">
+                <h4>North & South Luzon</h4>
+                <p>Provincial Luzon 2–3 business days</p>
+              </div>
+              <div class="shipping-fee-input-group">
+                <span>₱</span>
+                <input type="number" class="shipping-fee-input" id="fee-zone-2" name="zone_2" value="120" min="0" step="1" required>
+              </div>
+            </div>
+            <div class="shipping-zone-row" data-zone-id="3">
+              <div class="shipping-zone-info">
+                <h4>Visayas & Mindanao (VisMin)</h4>
+                <p>Island provincial 4–6 business days</p>
+              </div>
+              <div class="shipping-fee-input-group">
+                <span>₱</span>
+                <input type="number" class="shipping-fee-input" id="fee-zone-3" name="zone_3" value="150" min="0" step="1" required>
+              </div>
+            </div>
+          </div>
+          <p class="td-muted" style="font-size: 11px; margin-top: 4px;">
+            Rate updates trigger an immediate entry in the platform audit log.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-shipping-zones">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-shipping-zones">Save Rates</button>
         </div>
       </form>
     </div>

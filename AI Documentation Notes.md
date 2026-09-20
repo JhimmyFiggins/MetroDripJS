@@ -397,4 +397,294 @@ Screen HTML → `theme.js` (sync, sets `data-theme`) → `theme.css` tokens → 
   - Left: Interactive brand logo navigating to `Home`.
   - Right: Notification bell with unread red badge (`#C2282D`) and shopping bag with dynamic cart badge indicator.
 
+---
+
+# Module / File: web/merchant/analytics.html & web/merchant/analytics.js & metrodrip_backend/catalog/merchant_views.py (MerchantAnalyticsAPIView)
+
+## Purpose
+Deliver the Merchant Analytics dashboard console view, presenting sales velocity, conversion KPIs, dual-line SVG net sales time-series, best-seller volume rankings, detailed product sales reports with category filtering, trending product deltas, user interaction funnels, and CSV report exports, adhering to Figma node 511:2 (Light) and 514:14 (Dark).
+
+## Public Interfaces
+### Endpoint: GET /api/merchant/analytics/?category={all|tops|bottoms|accessories}
+- Purpose: Retrieve executive KPIs, 7-day sales time-series, best-sellers, filtered product sales report, trending items, and user interaction funnel metrics.
+- Inputs: `category` query param (`string`, defaults to `'all'`).
+- Outputs: JSON response object containing `period`, `comparison_period`, `currency`, `timezone`, `kpis`, `sales_over_time`, `best_sellers`, `product_sales_report`, `totals`, `trending_products`, `user_interactions`.
+- Errors: Returns 200 with fallback data; logs exceptions.
+- Dependencies: Django REST Framework APIView (`metrodrip_backend/catalog/merchant_views.py`).
+- Behavior: Filters catalog sales data by category if specified, calculates sum totals, returns structured JSON payload.
+- Side Effects: None (read-only query).
+- Security & Privacy Notes: Demonstration / internal console view; excludes sensitive customer PII.
+- Observability Notes: Django request logging and console server output.
+- Verification Status: Executed via curl / Invoke-WebRequest (HTTP 200) and verified via browser subagent on 2026-09-20.
+
+### Script: web/merchant/analytics.js (IIFE)
+- Purpose: Client-side controller for rendering charts, tooltips, best sellers, table filtering, and CSV download.
+- Inputs: User interaction with category selector (`#select-category`), date range (`#select-date-range`), comparison (`#select-comparison`), hover on `.chart-point`, and click on `#btn-export-report`.
+- Outputs: DOM updates across KPI cards, SVG chart paths/tooltips, data table tbody and tfoot, and browser file download for CSV export.
+- Side Effects: Triggers CSV file download in browser and toast notifications.
+- Accessibility / UX Notes: High contrast text (4.5:1+), accessible SVG axis labels, interactive hover tooltips, role-safe table structure with `scope="col"`, theme sync via `theme.js`.
+- Verification Status: Executed in Chrome via browser subagent on 2026-09-20. Verified Light/Dark mode, SVG tooltip hover, category filtering to 'Tops', totals recalculation, CSV export with toast notification.
+
+---
+
+# Module / File: web/merchant/catalog.html & web/merchant/merchant.js & metrodrip_backend/catalog/merchant_views.py (Customer Reviews View & Reply)
+
+## Purpose
+Deliver the Customer Reviews section in the Merchant Console (Catalog view), removing the approve/reject moderation capability and introducing a View & Reply workflow matching Figma Node 58:2 (Light) and Node 58:467 (Dark). Merchants can inspect customer review details and submit public merchant responses.
+
+## Public Interfaces
+### Endpoint: GET /api/merchant/reviews/
+- Purpose: Retrieve customer reviews for the merchant console.
+- Outputs: Array of review objects containing `id`, `customer_name`, `product_name`, `body`, `rating`, `rating_stars`, `merchant_reply`, `replied_at`, `created_at`, `status`.
+- Errors: Returns 200 with seed fallback if database is unseeded.
+
+### Endpoint: GET /api/merchant/reviews/<int:pk>/
+- Purpose: Retrieve full review details for the View modal.
+- Outputs: JSON review object with full body, star rating, and merchant reply if present.
+- Errors: 404 if review does not exist.
+
+### Endpoint: POST /api/merchant/reviews/<int:pk>/reply/
+- Purpose: Submit or update a public merchant response to a customer review.
+- Inputs: `{"reply": "..."}` (string, non-empty).
+- Outputs: HTTP 200 JSON with updated review record, `merchant_reply`, `replied_at`, and success message.
+- Errors: 400 Bad Request if reply text is empty; 404 if review not found.
+
+### Scripts & Modals: web/merchant/merchant.js & catalog.html
+- Purpose: Drive `#modal-view-review` and `#modal-reply-review`.
+- Actions:
+  - "View" button (`.btn-outline-pill.btn-view-review`): Opens View modal displaying customer, rating, product, full review quote, and merchant response.
+  - "Reply" button (`.btn-volt-pill.btn-reply-review`): Opens Reply modal with context banner and textarea.
+  - Form submission sends reply via POST, updates review state in cache and UI button to "Edit reply", closes modal, and shows confirmation toast.
+  - Keyboard accessibility: `Escape` key and backdrop click close open modals. Focus returns appropriately.
+- Verification Status: Executed via Django automated test suite (8/8 tests pass) and browser subagent verification on 2026-09-20.
+
+---
+
+# Module / File: metrodrip_backend/catalog/merchant_views.py & web/merchant/catalog.html (Merchant Product Detail & Categories)
+
+## Purpose
+Enable store merchants to inspect and edit existing catalog products (name, base price, inventory stock, category, SKU, active status) and manage product categories dynamically through dedicated modals and REST APIs.
+
+## Public Interfaces
+### Endpoint: GET /api/merchant/products/<int:pk>/
+- Purpose: Retrieve single product attributes, variant count, and consolidated stock across warehouse entries.
+- Outputs: `id`, `name`, `sku`, `category`, `price`, `stock`, `is_active`, `status`, `description`.
+- Errors: 404 if product not found.
+
+### Endpoint: PATCH /api/merchant/products/<int:pk>/
+- Purpose: Modify product details including base price, category, name, active status, and inventory stock.
+- Inputs: JSON payload with any combination of `name`, `price`, `stock`, `category`, `sku`, `is_active`, `description`.
+- Outputs: Updated product object.
+- Side Effects: When `stock` is modified, updates/creates `InventoryStockEntry` and records an `InventoryStockMovement` with `reason='manual_adjustment'`.
+- Verification Status: Executed via unit tests (`identity.tests_consoles`) and end-to-end browser subagent verification on 2026-09-20.
+
+### Endpoint: GET & POST /api/merchant/categories/
+- Purpose: List active catalog categories with item counts and create new categories.
+- Inputs for POST: `{"name": "...", "description": "..."}`.
+- Outputs: Category list or created category object (`id`, `name`, `slug`, `product_count`, `is_active`).
+- Verification Status: Executed via unit tests and browser subagent verification on 2026-09-20.
+
+---
+
+# Module / File: metrodrip_backend/catalog/merchant_views.py & web/merchant/index.html (Merchant Orders & Fulfillment)
+
+## Purpose
+Provide the merchant console with comprehensive order inspection and status lifecycle progression (`paid` → `packed` → `shipped`), including delivery address, line item breakdown, and CSV report exports.
+
+## Public Interfaces
+### Endpoint: GET /api/merchant/orders/<int:pk>/
+- Purpose: Retrieve detailed order breakdown including line items, shipping address, and payment method.
+- Outputs: `id`, `order_no`, `status`, `raw_status`, `subtotal`, `shipping`, `total`, `payment_method`, `created_at`, `shipping_address`, `lines`.
+- Errors: Returns 200 with demo order data if order ID matches seeded sample dataset.
+
+### Endpoint: PATCH /api/merchant/orders/<int:pk>/status/
+- Purpose: Progress order fulfillment status (`paid` → `packed` → `shipped`).
+- Inputs: `{"status": "packed"|"shipped"}`.
+- Outputs: `id`, `order_no`, `status`, `raw_status`, `message`.
+- Side Effects: Updates `OrdersOrder.status` and `OrdersOrder.updated_at` in the database.
+- Verification Status: Executed via Django test runner and browser subagent verification on 2026-09-20.
+
+### Endpoint: GET /api/merchant/orders/export/
+- Purpose: Download timestamped CSV export of recent orders with status and payment breakdown.
+- Verification Status: Executed via DRF test case on 2026-09-20.
+
+---
+
+# Module / File: metrodrip_backend/identity/admin_views.py & web/admin/index.html (Admin Shipping Zones & Roles)
+
+## Purpose
+Provide the Administrator Console with full regional courier rate management (NCR, Luzon, VisMin) backed by `ShippingShippingZone` and immutable administrative audit logs, and provide staff roles directories.
+
+## Public Interfaces
+### Endpoint: GET /api/admin/shipping-zones/
+- Purpose: List active shipping zones and delivery rates (seeds defaults if table is empty).
+- Outputs: Array of zone records (`id`, `name`, `fee`, `formatted_fee`, `is_active`).
+
+### Endpoint: PATCH /api/admin/shipping-zones/<int:pk>/
+- Purpose: Update regional courier rate and/or active status.
+- Inputs: `{"fee": 95, "is_active": true}`.
+- Side Effects: Automatically creates an `AuditLog` entry tracking the actor, old rate, and new rate.
+- Verification Status: Executed via automated Django test suite and browser subagent on 2026-09-20.
+
+### Endpoint: GET /api/admin/roles/
+- Purpose: Return platform role hierarchy and permission capabilities summary.
+- Outputs: Array of role definitions (`admin`, `merchant`, `customer`) with permission scopes and active account counts.
+- Verification Status: Executed via test suite on 2026-09-20.
+
+---
+
+# Module / File: web/dev_server.py & web/merchant/index.html & web/merchant/catalog.html (Merchant Analytics Navigation & Dev Server)
+
+## Purpose
+Prevent browser disk caching collisions and guarantee reliable navigation to `analytics.html` from the Merchant Console Dashboard (`index.html`) and Catalog (`catalog.html`).
+
+## Problem and Root Cause
+When accessing `http://localhost:3000/merchant/index.html` and clicking "Analytics", browsers previously served a corrupt 1x1 image placeholder titled `analytics.html (1×1)` from disk cache because the standard `python -m http.server` sends no `Cache-Control` headers and allows stale browser caching of previous resource types.
+
+## Resolution
+1. **Custom Dev Server (`web/dev_server.py`)**: Subclasses `SimpleHTTPRequestHandler` to inject explicit `Cache-Control: no-store, no-cache, must-revalidate, max-age=0`, `Pragma: no-cache`, `Expires: 0`, and explicit UTF-8 MIME types (`text/html; charset=utf-8`, `application/javascript; charset=utf-8`).
+2. **Cache-Busted Navigation Links**: Updated `<a class="nav-item" href="analytics.html?v=1.1">` across `web/merchant/index.html`, `web/merchant/catalog.html`, and `web/merchant/analytics.html` to ensure any browser cache is bypassed immediately on click.
+3. **Local Dev & File Protocol Support**: Enhanced `web/merchant/analytics.js` to support `file:` protocol and seamless fallback.
+
+## Verification Status
+- Executed end-to-end automated navigation test via `browser_subagent` on 2026-09-20.
+- Verified clicking "Analytics" on Merchant Dashboard smoothly loads `http://localhost:3000/merchant/analytics.html?v=1.1`.
+- Verified 4 KPI stat cards, SVG sales trendline, Best Sellers volume bars, Product Sales report table, category filters (`Tops`, `All`), CSV export toast, and bidirectional sidebar navigation between Catalog and Analytics.
+
+---
+
+# Module / Suite: web/admin/ (User Accounts, Roles, Platform Settings, Audit Trail)
+
+## Purpose
+Provide the Administrator Console with dedicated, standalone management pages for complete oversight of user accounts, granular RBAC permission matrix, platform configuration preferences, and immutable audit logs.
+
+## Public Interfaces
+### View / Page: web/admin/users.html & users.js
+- Purpose: Manage customer and staff accounts directory.
+- Features: Real-time search query filter, role pill selector, user detail inspector card (Save role, Reset password, Suspend/Activate), and Add User modal.
+- Verification Status: Executed via browser subagent on 2026-09-20; confirmed search for "Bea S." and role updating.
+
+### View / Page: web/admin/roles.html & roles.js
+- Purpose: Inspect capability matrix across roles (`admin`, `merchant`, `customer`) and define new custom roles.
+- Features: 8-capability permission matrix table, role inspector with permission badges, and interactive custom role builder.
+- Verification Status: Executed via browser subagent on 2026-09-20; confirmed matrix rendering and role selection.
+
+### View / Page: web/admin/settings.html & settings.js
+- Purpose: Configure store identity, security & access controls, and checkout shipping thresholds.
+- Features: Interactive checkboxes (2FA requirement, email receipts), threshold inputs, and instant toast confirmation.
+- Verification Status: Executed via browser subagent on 2026-09-20; verified preference toggle and toast alert.
+
+### View / Page: web/admin/audit.html & audit.js
+- Purpose: Comprehensive timeline of administrative security actions with deep JSON diff inspection.
+- Features: Live filter by search/actor/module, inspect event details with formatted before/after diffs, and export CSV button.
+- Verification Status: Executed via browser subagent on 2026-09-20; verified event row selection and diff viewer.
+
+---
+
+# Module / Suite: web/merchant/ (Inventory, Orders, Shipments, Shipping Zones, Reviews, Content & Banners)
+
+## Purpose
+Deliver the complete seller/store operations workflow across six dedicated standalone pages matching Figma canvas `SmJIlTZ9ZVRxQ5eKucmrd0` (node `550-143` and related frames).
+
+## Public Interfaces
+### View / Page: web/merchant/inventory.html & inventory.js (Figma 550:26)
+- Purpose: SKU inventory management, stock level alerts, and stock adjustments.
+- Features: Low-stock warning table, interactive stock calculator (delta addition/subtraction), and live movements activity log.
+
+### View / Page: web/merchant/orders.html & orders.js (Figma 550:65)
+- Purpose: Order fulfillment processing and itemized inspection.
+- Features: Fulfillment status tabs, itemized line items list, customer delivery address display, and "Mark as packed" action.
+
+### View / Page: web/merchant/shipments.html & shipments.js (Figma 550:104)
+- Purpose: Logistics queue, parcel booking, and courier tracking timeline.
+- Features: Shipments queue with carrier badges (NinjaVan, J&T, Lalamove), parcel booking card, tracking timeline checkpoints, and address exception resolution.
+
+### View / Page: web/merchant/shipping-zones.html & shipping-zones.js (Figma 550:221)
+- Purpose: Delivery zone configuration and real-time shipping eligibility calculation.
+- Features: Courier rate editor (NCR ₱85, Luzon ₱120, VisMin ₱150) and interactive address eligibility calculator.
+
+### View / Page: web/merchant/reviews.html & reviews.js (Figma 550:143 & 515:27 & 515:212)
+- Purpose: Customer feedback moderation and merchant replies.
+- Features: 3 stat cards ("NEEDS A REPLY: 2", "AVERAGE RATING: 4.7 / 5", "REPLIED: 84"), customer review modal (`515:212`), and inline reply composer with live character counter (`106 / 1,000`) decrementing the "Needs a reply" count upon posting.
+
+### View / Page: web/merchant/content.html & content.js (Figma 550:182 & 554:793)
+- Purpose: Storefront hero banners and campaign scheduling.
+- Features: Storefront placements table, banner editor form (Headline, Supporting text, Button label, Destination URL, Schedule), and live real-time Desktop preview card styled with MetroDrip typography (`Anton`, Volt `#d3ee42`).
+
+---
+
+# Module / File: metrodrip_backend/identity/admin_views.py & admin_urls.py (Phase 2 Backend Endpoints)
+
+## Purpose
+Expose RESTful APIs supporting Admin Console features: platform settings, custom roles, password reset, and audit trail export.
+
+## Public Interfaces
+### Endpoint: GET & PATCH /api/admin/settings/
+- Purpose: Read and persist platform-wide configuration settings.
+- Inputs (PATCH): JSON dictionary with updated settings keys (`free_shipping_threshold`, `standard_shipping_rate`, etc.).
+- Outputs: Updated settings payload and success message.
+- Side Effects: Records an immutable `AuditLog` entry.
+- Verification Status: Executed via `ConsolesAPITestCase.test_admin_settings_get_and_patch`.
+
+### Endpoint: POST /api/admin/roles/
+- Purpose: Define and register a custom administrative or operational role.
+- Inputs: `{"role": "dispatcher", "title": "Warehouse Dispatcher", "permissions": ["manage_inventory"]}`.
+- Outputs: 201 Created with role definition.
+- Verification Status: Executed via `ConsolesAPITestCase.test_admin_roles_create_custom`.
+
+### Endpoint: POST /api/admin/users/<int:pk>/reset-password/
+- Purpose: Dispatch a password reset token/link for an account.
+- Outputs: Reset token and expiration metadata.
+- Verification Status: Executed via `ConsolesAPITestCase.test_admin_user_reset_password`.
+
+### Endpoint: GET /api/admin/audit-logs/export/
+- Purpose: Stream CSV export of security audit trail.
+- Verification Status: Executed via `ConsolesAPITestCase.test_admin_audit_logs_filter_and_export`.
+
+---
+
+# Module / File: metrodrip_backend/catalog/merchant_views.py & merchant_urls.py (Phase 2 Backend Endpoints)
+
+## Purpose
+Expose RESTful APIs supporting Merchant Console operations: shipment booking, regional rate eligibility, and storefront banner management.
+
+## Public Interfaces
+### Endpoint: GET & POST /api/merchant/shipments/
+- Purpose: List shipments and book new courier parcels for customer orders.
+- Inputs (POST): `{"order_ref": 318, "carrier": "NinjaVan Express"}`.
+- Outputs: 201 Created with generated waybill (`NV-PH-XXXXXXX`) and tracking number.
+- Side Effects: Updates order status to `shipped` and creates a `ShippingShipment` record.
+- Verification Status: Executed via `ConsolesAPITestCase.test_merchant_shipments_get_and_post`.
+
+### Endpoint: POST /api/merchant/shipping-zones/eligibility/
+- Purpose: Determine courier serviceability and calculate final shipping fee with free-shipping qualification logic.
+- Inputs: `{"address": "Makati City, Metro Manila", "subtotal": 2999}`.
+- Outputs: `{"eligible": true, "zone": "NCR", "base_fee": 85, "final_fee": 0, "free_shipping_applied": true}`.
+- Verification Status: Executed via `ConsolesAPITestCase.test_merchant_shipping_eligibility`.
+
+### Endpoint: GET & POST & PATCH /api/merchant/banners/ & /banners/<int:pk>/
+- Purpose: Manage storefront promotional placements (`Homepage hero`, `Announcement bar`, etc.).
+- Backed by: `content.models.CmsHomepageBanner`.
+- Verification Status: Executed via `ConsolesAPITestCase.test_merchant_banners_get_and_patch`.
+
+---
+
+# Quality Assurance (QA) Execution & Defect Verification Report
+
+## Scope
+Comprehensive functional and interaction Quality Assurance testing across all components of the **Merchant Console** and **Admin Console**, covering backend API boundary and negative scenarios, complete UI element clickability/interaction, and link/static asset integrity.
+
+## Test Results Summary
+- **Backend API & Logic Tests**: 29 / 29 tests passed (`Ran 29 tests in 0.189s — OK`).
+- **Static Link & Asset Audit**: 213 of 213 references verified across 17 HTML files (0 disk missing, 0 HTTP failures).
+- **UI & Interaction Coverage**: 100% of tested user journeys passed with zero broken buttons or fatal errors.
+
+## Defect Log
+
+| Defect ID | Component | Severity | Symptom | Root Cause | Remediation | Verification Status |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `DEF-01` | `web/index.html` | Minor | 404 error when requesting `/_expo/static/js/web/index-8ea306153b74a113cc54dbf4fa5e1c7c.js`. | Legacy static bundle script left in `web/index.html`. | Converted `web/index.html` into a portal directory connecting Merchant Console, Admin Console, and Staff Logins. | **VERIFIED RESOLVED** via `scratch/audit_links.py` (213/213 refs OK). |
+| `DEF-02` | `package.json` | Minor | `npm run dev` threw `npm error Missing script: "dev"`. | Missing `"dev"` script alias in `package.json`. | Configured `"dev": "python web/dev_server.py 3000"` in `package.json`. | **VERIFIED RESOLVED** via local execution. |
+
+
 
