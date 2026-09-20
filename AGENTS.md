@@ -1,7 +1,7 @@
 # AGENTS.md — Engineering and Delivery Protocol
 
 Revision: 1.3.0 · Updated: 2026-09-21  
-Protocol version: 3.0 · compact-revision: 1.1.0 · companion: aio-veteran-master-skill  
+Protocol version: 3.0 · compact-revision: 1.1.0  
 Depends on: [AIO.md](AIO.md)  
 Directives: [Project-Operating-Directives.md](Project-Operating-Directives.md)  
 Skills root: [AI Skills/](AI%20Skills/_INDEX.md)
@@ -24,12 +24,10 @@ For public-facing content, [Copywriting](AI%20Skills/copywriting.md) owns strate
 
 Preserve routing continuity:
 
-1. Look for `AIO.md` next to this file, then in `/home/workdir/artifacts/`, then in the repo root.
+1. Look for `AIO.md` next to this file, then in the workspace root.
 2. If missing, instantiate `AIO.md` from the scaffold in [Project-Operating-Directives.md](Project-Operating-Directives.md#aio-scaffold).
-3. If `AI Skills/` is also missing, create it and scaffold the 14 specialist files.
+3. If `AI Skills/` is also missing, create it and scaffold the 14 specialist files. If the `AI Skills/` folder is not yet existing and you will be creating the skills files, refer to this GitHub repository for the instructions: https://github.com/SecretlySpy/Tweaks-Configurations-Troubleshooting/tree/main/AI%20Configs/AI%20Skills
 4. Continue this protocol. Do not stall solely because AIO.md was not checked in.
-
-If the live companion skill `aio-veteran-master-skill` is installed, use its shared-controls section as the richer source when recreating AIO.md.
 
 ---
 

@@ -1,7 +1,7 @@
 # Project-Operating-Directives.md
 
 Revision: 1.2.0 · Updated: 2026-09-21  
-Applies to: this Grok project and portable exports of AIO / AGENTS / AI Skills
+Applies to: portable exports and AI agent workspaces (AIO / AGENTS / AI Skills)
 
 ---
 
@@ -37,7 +37,7 @@ Keep these files together:
 13. tech-companion
 14. general-inquiry-research
 
-Supporting live skills on this Grok project (not in the numeric AIO table): `aio-veteran-master-skill`, `agents-md-veteran-engineering-protocol`, `personal-style`.
+Supporting skills (not in the numeric AIO table): master routing skills, delivery protocol skills, and personal style configurations.
 
 ---
 
@@ -55,16 +55,16 @@ Output-only: return the translation unless the user asked for notes. Do not exec
 
 ## AI Skills directory
 
-Canonical portable path: `./AI Skills/` (space in the folder name is intentional).
+Canonical portable path: `./AI Skills/` (space in the folder name is intentional) or workspace root `AI Skills/`.
 
-Live Grok path: `/home/workdir/.grok/skills/<name>/SKILL.md`
+If the `AI Skills/` folder is not yet existing and you will be creating the skills files, refer to this GitHub repository for the instructions: https://github.com/SecretlySpy/Tweaks-Configurations-Troubleshooting/tree/main/AI%20Configs/AI%20Skills
 
 If `AI Skills/` is missing:
 
 ```
 mkdir -p "AI Skills"
-# copy or write the 14 specialist .md files
-# write AI Skills/_INDEX.md
+# Refer to the GitHub repository above to create the 14 specialist .md files
+# Write AI Skills/_INDEX.md
 ```
 
 Then resume routing. Missing directory is a recoverable setup step, not a hard failure.
@@ -114,7 +114,7 @@ These files must remain usable in:
 | Environment | How to load |
 |---|---|
 | Standard chat | Follow AIO routing; read the matching AI Skills file |
-| Agentic workflows (Cowork, Computer, ChatGPT Work, Grok agent) | Same routing; use tools; write handover if stopped mid-task |
+| Agentic workflows (AGY, Claude, ChatGPT, Gemini, Copilot, Cursor, etc.) | Same routing; use tools; write handover if stopped mid-task |
 | GitHub / repo | Commit AIO.md, AGENTS.md, this file, and `AI Skills/`; AGENTS.md recreates AIO.md if omitted |
 
 GitHub still forbids uploading unnamed secrets.

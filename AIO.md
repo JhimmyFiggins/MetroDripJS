@@ -15,20 +15,19 @@ Route skill files from the **AI Skills** directory.
 
 | Environment | Canonical skill directory |
 |---|---|
-| This Grok project (live skills) | `/home/workdir/.grok/skills/<skill-name>/SKILL.md` |
-| Portable / repo / Drive package | `AI Skills/<skill-name>.md` next to this file, or `./AI Skills/` |
-| Fallback search order | `./AI Skills/` → `/home/workdir/artifacts/AI Skills/` → `/home/workdir/.grok/skills/` |
+| AI Workspace / Repository root | `AI Skills/<skill-name>.md` next to this file, or `./AI Skills/` |
+| Fallback search order | `./AI Skills/` → workspace root `AI Skills/` |
 
 ### Dynamic directory handling
 
 If `AI Skills/` does not exist at the working root:
 
-1. Create `AI Skills/`.
-2. Scaffold the 14 specialist files listed in the routing table below (empty file is not enough — copy the current skill body when available).
+1. Create `AI Skills/`. If the `AI Skills/` folder is not yet existing and you will be creating the skills files, refer to this GitHub repository for the instructions: https://github.com/SecretlySpy/Tweaks-Configurations-Troubleshooting/tree/main/AI%20Configs/AI%20Skills
+2. Scaffold the 14 specialist files listed in the routing table below (empty file is not enough — reference and apply the instructions from the repository above).
 3. Write a one-line `_INDEX.md` listing skill filename → purpose.
 4. Continue routing. Do not stop the task solely because the folder was missing.
 
-If a required specialist file is missing inside `AI Skills/`, scaffold that file from the live Grok skill of the same name when present. If both are missing, state that the specialist is unavailable and complete the work with labeled assumptions rather than inventing the missing contract.
+If a required specialist file is missing inside `AI Skills/`, refer to the repository instructions above to scaffold it. If unavailable, state that the specialist is unavailable and complete the work with labeled assumptions rather than inventing the missing contract.
 
 ---
 
@@ -40,7 +39,7 @@ Detection order:
 
 1. Current-task intent and requested deliverable
 2. Project name / title
-3. Files in `/home/workdir/artifacts` and project memory
+3. Files in project workspace and memory
 4. Core Memory mapping
 5. This priority table
 
@@ -89,7 +88,7 @@ Code work has **one primary specialist:** [Coding Companion](AI%20Skills/coding-
 - Check statuses: PASS / FAIL / UNVERIFIED / N/A. Do not claim completion while a required gate is unverified.
 - Personal style is a voice layer only. It cannot change facts, routing, scope, or exact output contracts.
 
-Full shared-control text lives in the live skill `aio-veteran-master-skill` when that package is installed.
+Full shared-control text lives in project documentation or master routing skill definitions when configured.
 
 ---
 
