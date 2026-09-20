@@ -444,6 +444,97 @@ class ConsolesAPITestCase(TestCase):
         patch_res = self.client.patch('/api/merchant/banners/999999/', {'title': 'Ghost'}, format='json')
         self.assertEqual(patch_res.status_code, 404)
 
+    def test_admin_and_merchant_logout(self):
+        # Admin logout
+        res_admin = self.client.post('/api/admin/logout/', {
+            'actor': 'Admin Test User',
+            'role': 'admin',
+            'user_id': self.admin_user.id,
+        }, format='json')
+        self.assertEqual(res_admin.status_code, 200)
+        self.assertTrue(res_admin.data['success'])
+
+        # Verify audit entry
+        latest_audit = AuditLog.objects.order_by('-created_at').first()
+        self.assertEqual(latest_audit.actor, 'Admin Test User')
+        self.assertIn('Signed out', latest_audit.action)
+
+        # Merchant logout
+        res_merch = self.client.post('/api/merchant/logout/', {
+            'actor': 'Merchant Test User',
+            'role': 'merchant',
+        }, format='json')
+        self.assertEqual(res_merch.status_code, 200)
+        self.assertTrue(res_merch.data['success'])
+
+    def test_get_switchable_users(self):
+        res = self.client.get('/api/admin/switch-user/')
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.data['success'])
+        self.assertGreaterEqual(len(res.data['users']), 2)
+
+        # Filter by role
+        res_admin_only = self.client.get('/api/admin/switch-user/?role=admin')
+        self.assertEqual(res_admin_only.status_code, 200)
+        for u in res_admin_only.data['users']:
+            self.assertEqual(u['role'], 'admin')
+
+    def test_switch_user_success(self):
+        # Create a merchant user
+        now = timezone.now()
+        merchant_user = AccountsCustomer.objects.create(
+            email='switch_merchant@metrodrip.ph',
+            name='Switchable Merchant',
+            role='merchant',
+            is_active=True,
+            is_staff=True,
+            is_superuser=False,
+            addresses=[],
+            date_joined=now,
+        )
+
+        # Switch by user_id
+        res = self.client.post('/api/admin/switch-user/', {
+            'user_id': merchant_user.id,
+            'current_actor': 'Test Admin',
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.data['success'])
+        self.assertEqual(res.data['user']['email'], 'switch_merchant@metrodrip.ph')
+        self.assertEqual(res.data['redirect_url'], '/merchant/index.html')
+
+        # Switch by email back to admin
+        res2 = self.client.post('/api/merchant/switch-user/', {
+            'email': self.admin_user.email,
+            'current_actor': 'Switchable Merchant',
+        }, format='json')
+        self.assertEqual(res2.status_code, 200)
+        self.assertEqual(res2.data['user']['email'], self.admin_user.email)
+        self.assertEqual(res2.data['redirect_url'], '/admin/index.html')
+
+    def test_switch_user_invalid_or_suspended(self):
+        # Suspended user
+        now = timezone.now()
+        suspended_user = AccountsCustomer.objects.create(
+            email='suspended_test@metrodrip.ph',
+            name='Suspended Account',
+            role='customer',
+            is_active=False,
+            is_staff=False,
+            is_superuser=False,
+            addresses=[],
+            date_joined=now,
+        )
+        res = self.client.post('/api/admin/switch-user/', {'user_id': suspended_user.id}, format='json')
+        self.assertEqual(res.status_code, 404)
+        self.assertFalse(res.data['success'])
+
+        # Non-existent user
+        res_none = self.client.post('/api/admin/switch-user/', {'user_id': 999999}, format='json')
+        self.assertEqual(res_none.status_code, 404)
+        self.assertFalse(res_none.data['success'])
+
+
 
 
 

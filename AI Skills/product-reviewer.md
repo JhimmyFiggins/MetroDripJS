@@ -32,7 +32,7 @@ These rules are required and supersede older tone defaults:
 
 ---
 
-## The two-phase protocol (Operational contract — preserved)
+## The two-phase protocol (Grok operational contract — preserved)
 
 ### Phase 1 — Identify, then halt
 

@@ -1,10 +1,9 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.renderers import JSONRenderer
-from .models import AccountsWishlistItem
+from .models import AccountsWishlistItem, AccountsCustomer, AuditLog
 from catalog.models import CatalogProduct
 from django.utils import timezone
-from .models import AccountsCustomer
 from rest_framework.authtoken.models import Token
 from .authentication import CustomerAuthentication
 
@@ -201,3 +200,104 @@ class SignupAPIView(APIView):
             'name': customer.name,
             'email': customer.email,
         }, status=201)
+
+
+class LogoutAPIView(APIView):
+    renderer_classes = [JSONRenderer]
+
+    def post(self, request):
+        actor_name = request.data.get('actor') or (request.user.name if hasattr(request.user, 'name') and request.user.name else 'Console User')
+        actor_role = request.data.get('role') or (request.user.role if hasattr(request.user, 'role') and request.user.role else 'staff')
+
+        try:
+            AuditLog.objects.create(
+                actor=actor_name,
+                actor_role=actor_role,
+                action='Signed out of console session',
+                target_model='AccountsCustomer',
+                target_id=str(request.data.get('user_id', '')),
+            )
+        except Exception:
+            pass
+
+        return Response({
+            'success': True,
+            'message': 'Successfully signed out.',
+        }, status=200)
+
+
+class SwitchUserAPIView(APIView):
+    renderer_classes = [JSONRenderer]
+
+    def get(self, request):
+        role_filter = request.GET.get('role')
+        qs = AccountsCustomer.objects.filter(is_active=True)
+        if role_filter:
+            qs = qs.filter(role=role_filter)
+
+        users = qs.order_by('-is_staff', 'role', 'id')[:30]
+        data = [
+            {
+                'id': u.id,
+                'name': u.name,
+                'email': u.email,
+                'role': u.role,
+                'is_staff': u.is_staff,
+                'is_active': u.is_active,
+                'date_joined': u.date_joined.isoformat() if u.date_joined else None,
+            }
+            for u in users
+        ]
+        return Response({
+            'success': True,
+            'users': data,
+            'count': len(data),
+        }, status=200)
+
+    def post(self, request):
+        user_id = request.data.get('user_id')
+        email = request.data.get('email', '').strip()
+        current_actor = request.data.get('current_actor', 'Console User')
+
+        target = None
+        if user_id:
+            target = AccountsCustomer.objects.filter(id=user_id, is_active=True).first()
+        elif email:
+            target = AccountsCustomer.objects.filter(email=email, is_active=True).first()
+
+        if not target:
+            return Response({
+                'success': False,
+                'error': 'Active user account not found or is suspended.',
+            }, status=404)
+
+        try:
+            AuditLog.objects.create(
+                actor=current_actor,
+                actor_role='system',
+                action=f'Switched active account to {target.name} ({target.role})',
+                target_model='AccountsCustomer',
+                target_id=str(target.id),
+            )
+        except Exception:
+            pass
+
+        if target.role == 'admin':
+            redirect_url = '/admin/index.html'
+        elif target.role == 'merchant':
+            redirect_url = '/merchant/index.html'
+        else:
+            redirect_url = '/'
+
+        return Response({
+            'success': True,
+            'message': f'Switched account to {target.name}',
+            'user': {
+                'id': target.id,
+                'name': target.name,
+                'email': target.email,
+                'role': target.role,
+                'is_staff': target.is_staff,
+            },
+            'redirect_url': redirect_url,
+        }, status=200)

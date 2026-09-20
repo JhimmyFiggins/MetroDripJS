@@ -686,5 +686,71 @@ Comprehensive functional and interaction Quality Assurance testing across all co
 | `DEF-01` | `web/index.html` | Minor | 404 error when requesting `/_expo/static/js/web/index-8ea306153b74a113cc54dbf4fa5e1c7c.js`. | Legacy static bundle script left in `web/index.html`. | Converted `web/index.html` into a portal directory connecting Merchant Console, Admin Console, and Staff Logins. | **VERIFIED RESOLVED** via `scratch/audit_links.py` (213/213 refs OK). |
 | `DEF-02` | `package.json` | Minor | `npm run dev` threw `npm error Missing script: "dev"`. | Missing `"dev"` script alias in `package.json`. | Configured `"dev": "python web/dev_server.py 3000"` in `package.json`. | **VERIFIED RESOLVED** via local execution. |
 
+---
+
+# Module / File: mobile/Registration/screens/InitialScreen.js (Figma M01 · Splash & Onboarding)
+
+## Purpose
+Render the initial splash and onboarding entry screen for the MetroDrip Mobile App, mirroring Figma frame `M01 · Splash & Onboarding` (node `63:3`).
+
+## Public Interfaces
+### Function / Component: InitialScreen({ navigation })
+- **Purpose**: Present branding, streetwear identity badge, barcode graphic, value proposition, and user entry actions.
+- **Inputs**: `navigation` object from React Navigation stack.
+- **Outputs**: JSX tree rendering status bar, central hero container, and bottom action buttons.
+- **Errors**: Safe navigation fallback if navigation prop is undefined.
+- **Dependencies**: `react-native`, `expo-status-bar`, `react-native-safe-area-context`, `src/theme/font`.
+- **Behavior**:
+  - Sets light status bar style over `#141414` background.
+  - Displays `"Metro"` (`#FFFFFF`, `Anton_400Regular`, 44px) and `"Drip"` (`#D3EE42`, `Anton_400Regular`, 44px).
+  - Displays `"METRO MANILA STREETWEAR"` (`IBMPlexMono_600SemiBold`, 11px, letter-spacing 2.0).
+  - Renders exact 44-stripe streetwear barcode (`334x34` bounds, 108px barcode width, `#FFFFFF` & `#63635C`).
+  - Displays value proposition: `"Shop the drop from your phone.\nTrack every order to your door."` (`Inter_400Regular`, 15px, line-height 24px, `#A8A8A0`).
+  - Provides three bottom actions:
+    - `"Create account"` (Primary CTA, 54px pill, background `#D3EE42`, text `#141414`, navigates to `Signup`).
+    - `"Sign in"` (Secondary CTA, 54px pill, 1px border `#63635C`, text `#FFFFFF`, navigates to `Login`).
+    - `"Continue as guest"` (Tertiary text link, `Inter_500Medium`, 14px, `#A8A8A0`, navigates to `Home` with `guest: true`).
+- **Side Effects**: Navigation state transitions.
+- **Security & Privacy Notes**: No credentials or personal data collected at this onboarding screen.
+- **Performance / DSA Notes**: Precomputed 44-element static barcode array rendered with constant time.
+- **Accessibility / UX Notes**:
+  - `accessibilityRole="button"` and explicit `accessibilityLabel` on all interactive targets.
+  - Barcode frame marked with `accessible={false}` to prevent screen reader clutter.
+  - Safe-area aware bottom inset (`Math.max(insets.bottom, 44)`).
+---
+
+# Module / Component: web/js/user-session.js & web/css/console.css (Account Controls & Sign-Out Modal)
+
+## Purpose
+Provide a collapsible account switcher in the Admin and Merchant Console sidebars with vertically stacked actions ("Switch Account" and "Sign Out"), and a theme-aware sign-out confirmation modal.
+
+## Public Interfaces
+### Component: `.user-profile` Collapsible Switcher
+- **Purpose**: Consolidate active identity presentation and account switching/sign-out actions in the sidebar footer.
+- **Inputs**: Click on `.user-profile-trigger`, keyboard `Enter` / `Space`, or outside click.
+- **Outputs**: Toggles `.is-expanded` class and `aria-expanded` state; reveals vertically stacked actions.
+- **Interactive States**:
+  - Chevron smoothly rotates 180°.
+  - Border and subtle shadow transitions on hover and expansion.
+  - "Switch Account": Monospace font with `⇄` icon, volt/dark mode hover state.
+  - "Sign Out": Monospace font with `↪` icon, crimson/danger hover state.
+
+### Component: `#sign-out-modal-overlay` Confirmation Modal
+- **Purpose**: Intercept sign-out actions to prevent accidental session loss and notify of audit trail logging.
+- **Inputs**: Triggered from `.user-menu-item.btn-signout`.
+- **Outputs**: Alertdialog with theme-aware typography and interactive actions.
+- **Behavior**:
+  - Modal title: `"SIGN OUT"` in display font (`var(--font-display)` / `Anton`).
+  - Lead message: `"Are you sure you want to sign out of [User] on the [Console]?"`
+  - Subtext: `"Your active session will be ended and logged in the platform audit trail."`
+  - `Cancel` button: Reversible dismiss action with surface background and contrast hover.
+  - `Confirm Sign Out` button: Reversible POST request to backend `/logout/` endpoint, localStorage clearance, and redirection to console login page.
+- **Security & Privacy Notes**: Audits user logout event on backend, purges client session tokens and active user records from `localStorage`.
+- **Accessibility / UX Notes**: Full focus trap with `Escape` key dismiss, `role="alertdialog"`, and `aria-labelledby`.
+- **Verification Status**:
+  - Executed via Chrome DevTools in browser subagent across Merchant and Admin consoles in both Light and Dark themes. All button hover, active, and dismiss transitions verified cleanly.
+
+
+
 
 

@@ -4,54 +4,65 @@ import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../../Checkout/src/theme';
 
+// Exact 44-stripe barcode pattern extracted from Figma frame 63:15 (334x34)
+const BARCODE_STRIPES = [
+    { w: 4, c: '#FFFFFF' }, { w: 2, c: '#63635C' }, { w: 2, c: '#63635C' }, { w: 2, c: '#FFFFFF' }, { w: 2, c: '#63635C' },
+    { w: 4, c: '#63635C' }, { w: 2, c: '#FFFFFF' }, { w: 2, c: '#63635C' }, { w: 2, c: '#63635C' }, { w: 2, c: '#FFFFFF' },
+    { w: 4, c: '#63635C' }, { w: 2, c: '#63635C' }, { w: 2, c: '#FFFFFF' }, { w: 2, c: '#63635C' }, { w: 2, c: '#63635C' },
+    { w: 4, c: '#FFFFFF' }, { w: 2, c: '#63635C' }, { w: 2, c: '#63635C' }, { w: 2, c: '#FFFFFF' }, { w: 2, c: '#63635C' },
+    { w: 4, c: '#63635C' }, { w: 2, c: '#FFFFFF' }, { w: 2, c: '#63635C' }, { w: 2, c: '#63635C' }, { w: 2, c: '#FFFFFF' },
+    { w: 4, c: '#63635C' }, { w: 2, c: '#63635C' }, { w: 2, c: '#FFFFFF' }, { w: 2, c: '#63635C' }, { w: 2, c: '#63635C' },
+    { w: 4, c: '#FFFFFF' }, { w: 2, c: '#63635C' }, { w: 2, c: '#63635C' }, { w: 2, c: '#FFFFFF' }, { w: 2, c: '#63635C' },
+    { w: 4, c: '#63635C' }, { w: 2, c: '#FFFFFF' }, { w: 2, c: '#63635C' }, { w: 2, c: '#63635C' }, { w: 2, c: '#FFFFFF' },
+    { w: 4, c: '#63635C' }, { w: 2, c: '#63635C' }, { w: 2, c: '#FFFFFF' }, { w: 2, c: '#63635C' },
+];
+
 export default function InitialScreen({ navigation }) {
     const insets = useSafeAreaInsets();
 
     return (
-        <View style={[styles.container, { paddingTop: Math.max(insets.top, 24), paddingBottom: Math.max(insets.bottom, 28) }]}>
-            <StatusBar style="light" />
+        <View style={[styles.container, { paddingTop: Math.max(insets.top, 20), paddingBottom: Math.max(insets.bottom, 44) }]}>
+            <StatusBar style="light" backgroundColor="#141414" translucent />
 
             {/* Central Branding & Tagline (Figma frame 63:10) */}
             <View style={styles.contentContainer}>
+                {/* Logo Frame (Figma frame 63:11, 175x66) */}
                 <View style={styles.logoRow}>
                     <Text style={styles.logoMetro}>Metro</Text>
                     <Text style={styles.logoDrip}>Drip</Text>
                 </View>
 
+                {/* Subtitle Badge (Figma text 63:14) */}
                 <Text style={styles.subTextUpper}>METRO MANILA STREETWEAR</Text>
 
-                {/* Decorative Streetwear Barcode (Figma node 63:15) */}
-                <View style={styles.barcodeRow} accessible={false}>
-                    <View style={styles.bThick} />
-                    <View style={styles.bThin} />
-                    <View style={styles.bMed} />
-                    <View style={styles.bThin} />
-                    <View style={styles.bThick} />
-                    <View style={styles.bMed} />
-                    <View style={styles.bThin} />
-                    <View style={styles.bThick} />
-                    <View style={styles.bThin} />
-                    <View style={styles.bMed} />
-                    <View style={styles.bThin} />
-                    <View style={styles.bThick} />
-                    <View style={styles.bMed} />
-                    <View style={styles.bThin} />
-                    <View style={styles.bThick} />
-                    <View style={styles.bThin} />
-                    <View style={styles.bMed} />
-                    <View style={styles.bThick} />
+                {/* Streetwear Barcode (Figma frame 63:15, 334x34) */}
+                <View style={styles.barcodeFrame} accessible={false}>
+                    <View style={styles.barcodeRow}>
+                        {BARCODE_STRIPES.map((stripe, index) => (
+                            <View
+                                key={`stripe-${index}`}
+                                style={{
+                                    width: stripe.w,
+                                    height: 34,
+                                    backgroundColor: stripe.c,
+                                }}
+                            />
+                        ))}
+                    </View>
                 </View>
 
-                <Text style={styles.subText}>Shop the drop from your phone.</Text>
-                <Text style={styles.subText}>Track every order to your door.</Text>
+                {/* Value Proposition (Figma text 63:60) */}
+                <Text style={styles.subText}>
+                    {'Shop the drop from your phone.\nTrack every order to your door.'}
+                </Text>
             </View>
 
             {/* Bottom Actions (Figma frame 63:61) */}
             <View style={styles.buttonContainer}>
-                {/* 1. Create account (Primary CTA, node 63:62) */}
+                {/* 1. Create account (Primary CTA, Figma frame 63:62, 342x54) */}
                 <TouchableOpacity 
                     style={styles.createAccountBtn}
-                    onPress={() => navigation.navigate('Signup')}
+                    onPress={() => navigation?.navigate ? navigation.navigate('Signup') : null}
                     activeOpacity={0.85}
                     accessibilityRole="button"
                     accessibilityLabel="Create account"
@@ -59,10 +70,10 @@ export default function InitialScreen({ navigation }) {
                     <Text style={styles.createAccountBtnText}>Create account</Text>
                 </TouchableOpacity>
 
-                {/* 2. Sign in (Secondary outlined, node 63:64) */}
+                {/* 2. Sign in (Secondary outlined, Figma frame 63:64, 342x54) */}
                 <TouchableOpacity 
                     style={styles.signInBtn}
-                    onPress={() => navigation.navigate('Login')}
+                    onPress={() => navigation?.navigate ? navigation.navigate('Login') : null}
                     activeOpacity={0.85}
                     accessibilityRole="button"
                     accessibilityLabel="Sign in"
@@ -70,10 +81,10 @@ export default function InitialScreen({ navigation }) {
                     <Text style={styles.signInBtnText}>Sign in</Text>
                 </TouchableOpacity>
 
-                {/* 3. Continue as guest (Figma node 63:66) */}
+                {/* 3. Continue as guest (Figma text 63:66) */}
                 <TouchableOpacity 
                     style={styles.guestBtn}
-                    onPress={() => navigation.navigate('Home', { guest: true })}
+                    onPress={() => navigation?.navigate ? navigation.navigate('Home', { guest: true }) : null}
                     activeOpacity={0.7}
                     accessibilityRole="button"
                     accessibilityLabel="Continue as guest"
@@ -96,7 +107,7 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingTop: 40,
+        paddingHorizontal: 4,
     },
     logoRow: {
         flexDirection: 'row',
@@ -105,69 +116,65 @@ const styles = StyleSheet.create({
     },
     logoMetro: {
         fontFamily: fonts.anton || 'Anton_400Regular',
-        fontSize: 48,
+        fontSize: 44,
+        lineHeight: 52,
         color: '#FFFFFF',
-        letterSpacing: 0.5,
+        letterSpacing: 0,
         ...Platform.select({
             web: { fontFamily: 'Anton_400Regular, Anton, Impact, sans-serif' },
         }),
     },
     logoDrip: {
         fontFamily: fonts.anton || 'Anton_400Regular',
-        fontSize: 48,
+        fontSize: 44,
+        lineHeight: 52,
         color: '#D3EE42',
-        letterSpacing: 0.5,
+        letterSpacing: 0,
         ...Platform.select({
             web: { fontFamily: 'Anton_400Regular, Anton, Impact, sans-serif' },
         }),
     },
     subTextUpper: {
-        fontFamily: fonts.monoSemiBold || fonts.monoRegular,
+        fontFamily: fonts.monoSemiBold || 'IBMPlexMono_600SemiBold',
         color: '#D3EE42',
         textAlign: 'center',
         fontSize: 11,
-        letterSpacing: 2,
-        marginTop: 8,
-        marginBottom: 20,
+        lineHeight: 14.3,
+        letterSpacing: 2.0,
+        marginTop: 18,
+        ...Platform.select({
+            web: { fontFamily: 'IBMPlexMono_600SemiBold, monospace' },
+        }),
+    },
+    barcodeFrame: {
+        width: '100%',
+        maxWidth: 334,
+        height: 34,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 18,
     },
     barcodeRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        height: 28,
-        gap: 3,
-        marginBottom: 22,
-        opacity: 0.7,
-    },
-    bThick: {
-        width: 4,
-        height: 28,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 1,
-    },
-    bMed: {
-        width: 2.5,
-        height: 28,
-        backgroundColor: '#63635C',
-        borderRadius: 1,
-    },
-    bThin: {
-        width: 1.5,
-        height: 28,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 1,
+        height: 34,
     },
     subText: {
-        fontFamily: fonts.interRegular,
+        fontFamily: fonts.interRegular || 'Inter_400Regular',
         color: '#A8A8A0',
         textAlign: 'center',
         fontSize: 15,
-        lineHeight: 23,
+        lineHeight: 24,
+        marginTop: 18,
+        ...Platform.select({
+            web: { fontFamily: 'Inter_400Regular, Inter, sans-serif' },
+        }),
     },
     buttonContainer: {
         width: '100%',
+        maxWidth: 342,
+        alignSelf: 'center',
         gap: 12,
-        paddingBottom: 16,
     },
     createAccountBtn: {
         height: 54,
@@ -180,7 +187,11 @@ const styles = StyleSheet.create({
         color: '#141414',
         textAlign: 'center',
         fontSize: 16,
-        fontFamily: fonts.interBold,
+        fontFamily: fonts.interBold || 'Inter_700Bold',
+        fontWeight: '700',
+        ...Platform.select({
+            web: { fontFamily: 'Inter_700Bold, Inter, sans-serif' },
+        }),
     },
     signInBtn: {
         height: 54,
@@ -195,10 +206,14 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         textAlign: 'center',
         fontSize: 16,
-        fontFamily: fonts.interBold,
+        fontFamily: fonts.interBold || 'Inter_700Bold',
+        fontWeight: '700',
+        ...Platform.select({
+            web: { fontFamily: 'Inter_700Bold, Inter, sans-serif' },
+        }),
     },
     guestBtn: {
-        paddingVertical: 12,
+        paddingVertical: 10,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -206,7 +221,11 @@ const styles = StyleSheet.create({
         color: '#A8A8A0',
         textAlign: 'center',
         fontSize: 14,
-        fontFamily: fonts.interMedium,
+        lineHeight: 17,
+        fontFamily: fonts.interMedium || 'Inter_500Medium',
         fontWeight: '500',
+        ...Platform.select({
+            web: { fontFamily: 'Inter_500Medium, Inter, sans-serif' },
+        }),
     },
 });
