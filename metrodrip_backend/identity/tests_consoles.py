@@ -141,10 +141,27 @@ class ConsolesAPITestCase(TestCase):
         # Verify InventoryStockMovement record
         self.assertTrue(InventoryStockMovement.objects.filter(sku=self.variant.sku, delta=25).exists())
 
-    def test_merchant_review_moderation(self):
+    def test_merchant_review_detail(self):
+        res = self.client.get(f'/api/merchant/reviews/{self.review.id}/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['customer_name'], self.review.customer_name)
+        self.assertEqual(res.data['product_name'], self.review.product_name)
+
+    def test_merchant_review_reply(self):
+        reply_msg = 'Thank you Bea! We designed the oversize fit specifically for streetwear layering.'
+        res = self.client.post(f'/api/merchant/reviews/{self.review.id}/reply/', {
+            'reply': reply_msg,
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.review.refresh_from_db()
+        self.assertEqual(self.review.merchant_reply, reply_msg)
+        self.assertIsNotNone(self.review.replied_at)
+
+    def test_merchant_review_moderation_deprecated(self):
         res = self.client.post(f'/api/merchant/reviews/{self.review.id}/moderate/', {
             'status': 'approved',
         }, format='json')
         self.assertEqual(res.status_code, 200)
         self.review.refresh_from_db()
         self.assertEqual(self.review.status, 'approved')
+

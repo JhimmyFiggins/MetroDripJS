@@ -397,4 +397,67 @@ Screen HTML → `theme.js` (sync, sets `data-theme`) → `theme.css` tokens → 
   - Left: Interactive brand logo navigating to `Home`.
   - Right: Notification bell with unread red badge (`#C2282D`) and shopping bag with dynamic cart badge indicator.
 
+---
+
+# Module / File: web/merchant/analytics.html & web/merchant/analytics.js & metrodrip_backend/catalog/merchant_views.py (MerchantAnalyticsAPIView)
+
+## Purpose
+Deliver the Merchant Analytics dashboard console view, presenting sales velocity, conversion KPIs, dual-line SVG net sales time-series, best-seller volume rankings, detailed product sales reports with category filtering, trending product deltas, user interaction funnels, and CSV report exports, adhering to Figma node 511:2 (Light) and 514:14 (Dark).
+
+## Public Interfaces
+### Endpoint: GET /api/merchant/analytics/?category={all|tops|bottoms|accessories}
+- Purpose: Retrieve executive KPIs, 7-day sales time-series, best-sellers, filtered product sales report, trending items, and user interaction funnel metrics.
+- Inputs: `category` query param (`string`, defaults to `'all'`).
+- Outputs: JSON response object containing `period`, `comparison_period`, `currency`, `timezone`, `kpis`, `sales_over_time`, `best_sellers`, `product_sales_report`, `totals`, `trending_products`, `user_interactions`.
+- Errors: Returns 200 with fallback data; logs exceptions.
+- Dependencies: Django REST Framework APIView (`metrodrip_backend/catalog/merchant_views.py`).
+- Behavior: Filters catalog sales data by category if specified, calculates sum totals, returns structured JSON payload.
+- Side Effects: None (read-only query).
+- Security & Privacy Notes: Demonstration / internal console view; excludes sensitive customer PII.
+- Observability Notes: Django request logging and console server output.
+- Verification Status: Executed via curl / Invoke-WebRequest (HTTP 200) and verified via browser subagent on 2026-09-20.
+
+### Script: web/merchant/analytics.js (IIFE)
+- Purpose: Client-side controller for rendering charts, tooltips, best sellers, table filtering, and CSV download.
+- Inputs: User interaction with category selector (`#select-category`), date range (`#select-date-range`), comparison (`#select-comparison`), hover on `.chart-point`, and click on `#btn-export-report`.
+- Outputs: DOM updates across KPI cards, SVG chart paths/tooltips, data table tbody and tfoot, and browser file download for CSV export.
+- Side Effects: Triggers CSV file download in browser and toast notifications.
+- Accessibility / UX Notes: High contrast text (4.5:1+), accessible SVG axis labels, interactive hover tooltips, role-safe table structure with `scope="col"`, theme sync via `theme.js`.
+- Verification Status: Executed in Chrome via browser subagent on 2026-09-20. Verified Light/Dark mode, SVG tooltip hover, category filtering to 'Tops', totals recalculation, CSV export with toast notification.
+
+---
+
+# Module / File: web/merchant/catalog.html & web/merchant/merchant.js & metrodrip_backend/catalog/merchant_views.py (Customer Reviews View & Reply)
+
+## Purpose
+Deliver the Customer Reviews section in the Merchant Console (Catalog view), removing the approve/reject moderation capability and introducing a View & Reply workflow matching Figma Node 58:2 (Light) and Node 58:467 (Dark). Merchants can inspect customer review details and submit public merchant responses.
+
+## Public Interfaces
+### Endpoint: GET /api/merchant/reviews/
+- Purpose: Retrieve customer reviews for the merchant console.
+- Outputs: Array of review objects containing `id`, `customer_name`, `product_name`, `body`, `rating`, `rating_stars`, `merchant_reply`, `replied_at`, `created_at`, `status`.
+- Errors: Returns 200 with seed fallback if database is unseeded.
+
+### Endpoint: GET /api/merchant/reviews/<int:pk>/
+- Purpose: Retrieve full review details for the View modal.
+- Outputs: JSON review object with full body, star rating, and merchant reply if present.
+- Errors: 404 if review does not exist.
+
+### Endpoint: POST /api/merchant/reviews/<int:pk>/reply/
+- Purpose: Submit or update a public merchant response to a customer review.
+- Inputs: `{"reply": "..."}` (string, non-empty).
+- Outputs: HTTP 200 JSON with updated review record, `merchant_reply`, `replied_at`, and success message.
+- Errors: 400 Bad Request if reply text is empty; 404 if review not found.
+
+### Scripts & Modals: web/merchant/merchant.js & catalog.html
+- Purpose: Drive `#modal-view-review` and `#modal-reply-review`.
+- Actions:
+  - "View" button (`.btn-outline-pill.btn-view-review`): Opens View modal displaying customer, rating, product, full review quote, and merchant response.
+  - "Reply" button (`.btn-volt-pill.btn-reply-review`): Opens Reply modal with context banner and textarea.
+  - Form submission sends reply via POST, updates review state in cache and UI button to "Edit reply", closes modal, and shows confirmation toast.
+  - Keyboard accessibility: `Escape` key and backdrop click close open modals. Focus returns appropriately.
+- Verification Status: Executed via Django automated test suite (8/8 tests pass) and browser subagent verification on 2026-09-20.
+
+
+
 

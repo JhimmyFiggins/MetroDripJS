@@ -415,6 +415,61 @@ button, input, select, textarea {
   background-color: var(--color-success-bg);
 }
 
+/* Pill Buttons (Figma 58:2 Customer Reviews View / Reply) */
+.btn-outline-pill {
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--color-ink);
+  color: var(--color-ink);
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-outline-pill:hover {
+  background-color: var(--color-surface);
+}
+
+:root[data-theme='dark'] .btn-outline-pill {
+  border-color: rgba(255, 255, 255, 0.35);
+  color: var(--color-ink);
+}
+
+:root[data-theme='dark'] .btn-outline-pill:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.btn-volt-pill {
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #c2de30;
+  background-color: var(--color-volt);
+  color: #141414;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-volt-pill:hover {
+  filter: brightness(1.06);
+}
+
+:root[data-theme='dark'] .btn-volt-pill {
+  border: none;
+}
+
 /* Stat Cards 4-Column Grid */
 .stat-cards-grid {
   display: grid;
@@ -857,6 +912,129 @@ button, input, select, textarea {
   background-color: var(--color-surface);
 }
 
+/* Customer Review Modal Details */
+.review-detail-card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.review-customer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.review-customer-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.review-avatar-badge {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background-color: var(--color-volt);
+  color: #141414;
+  font-family: var(--font-display);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.review-customer-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.review-date-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-muted);
+}
+
+.review-stars {
+  font-size: 14px;
+  color: var(--color-ink);
+  letter-spacing: 2px;
+}
+
+:root[data-theme='dark'] .review-stars {
+  color: #facc15;
+}
+
+.review-product-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.review-body-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-ink);
+  padding: 10px 14px;
+  background-color: var(--color-paper);
+  border-left: 3px solid var(--color-volt);
+  border-radius: 4px;
+  font-style: italic;
+}
+
+.review-reply-card {
+  background-color: var(--color-paper);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-volt);
+  border-radius: 4px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.review-reply-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.review-reply-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: #5c6b12;
+  text-transform: uppercase;
+}
+
+:root[data-theme='dark'] .review-reply-title {
+  color: var(--color-volt);
+}
+
+.review-reply-body {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-ink);
+}
+
+.review-context-banner {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--color-ink);
+}
+
 /* Toast Notifications */
 .toast-container {
   position: fixed;
@@ -895,4 +1073,389 @@ button, input, select, textarea {
 @keyframes toastIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================================================
+   Analytics Console Specific Components
+   Source: Figma frames 511:2 (Light) and 514:14 (Dark)
+   ========================================================================== */
+
+.analytics-filter-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.analytics-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.filter-select {
+  background-color: var(--color-paper);
+  border: 1px solid var(--color-border);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 7px 12px;
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: 36px;
+}
+
+.filter-select:hover {
+  border-color: var(--color-border-hover);
+}
+
+.filter-select:focus {
+  border-color: var(--color-ink);
+  box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-ink);
+}
+
+:root[data-theme='dark'] .filter-select:focus {
+  border-color: var(--color-volt);
+  box-shadow: 0 0 0 2px var(--color-paper), 0 0 0 4px var(--color-volt);
+}
+
+.analytics-meta-note {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Growth badges */
+.growth-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.growth-indicator.up {
+  color: var(--color-accent-text);
+}
+
+:root[data-theme='light'] .growth-indicator.up {
+  color: #5c6b12;
+}
+
+:root[data-theme='dark'] .growth-indicator.up {
+  color: var(--color-volt);
+}
+
+.growth-indicator.down {
+  color: var(--color-danger);
+}
+
+/* Analytics Chart Area */
+.chart-card-content {
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.chart-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.chart-legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-muted);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-line-solid {
+  width: 20px;
+  height: 2.5px;
+  background-color: #5c6b12;
+  display: inline-block;
+  border-radius: 1px;
+}
+
+:root[data-theme='dark'] .legend-line-solid {
+  background-color: var(--color-volt);
+}
+
+.legend-line-dashed {
+  width: 20px;
+  height: 0;
+  border-top: 2px dashed var(--color-subtle);
+  display: inline-block;
+}
+
+.svg-chart-container {
+  width: 100%;
+  height: 190px;
+  position: relative;
+  overflow: visible;
+}
+
+.svg-chart {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.chart-gridline {
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+.chart-axis-text {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--color-muted);
+}
+
+.chart-path-current {
+  fill: none;
+  stroke: #5c6b12;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+:root[data-theme='dark'] .chart-path-current {
+  stroke: var(--color-volt);
+}
+
+.chart-path-prev {
+  fill: none;
+  stroke: var(--color-subtle);
+  stroke-width: 1.8;
+  stroke-dasharray: 4 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chart-point {
+  fill: #5c6b12;
+  stroke: var(--color-paper);
+  stroke-width: 2;
+  cursor: pointer;
+  transition: r 0.15s ease;
+}
+
+:root[data-theme='dark'] .chart-point {
+  fill: var(--color-volt);
+  stroke: #121212;
+}
+
+.chart-point:hover {
+  r: 5;
+}
+
+.chart-tooltip {
+  position: absolute;
+  background-color: var(--color-ink);
+  color: var(--color-paper);
+  padding: 5px 9px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -100%) translateY(-8px);
+  transition: opacity 0.15s ease;
+  white-space: nowrap;
+  z-index: 20;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.chart-tooltip.is-visible {
+  opacity: 1;
+}
+
+:root[data-theme='dark'] .chart-tooltip {
+  background-color: #222;
+  color: var(--color-volt);
+  border: 1px solid var(--color-card-border);
+}
+
+.chart-footer-summary {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-accent-text);
+  margin-top: 4px;
+}
+
+:root[data-theme='light'] .chart-footer-summary {
+  color: #5c6b12;
+}
+
+:root[data-theme='dark'] .chart-footer-summary {
+  color: var(--color-volt);
+}
+
+/* Horizontal Volume Bars (Best Sellers) */
+.best-seller-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 20px;
+}
+
+.best-seller-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.best-seller-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.best-seller-price {
+  font-family: var(--font-mono);
+}
+
+.meter-track {
+  width: 100%;
+  height: 7px;
+  background-color: var(--color-surface);
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+
+.meter-fill {
+  height: 100%;
+  background-color: #5c6b12;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+:root[data-theme='dark'] .meter-fill {
+  background-color: var(--color-volt);
+}
+
+.meter-track.user-funnel {
+  height: 9px;
+}
+
+.panel-footer-note {
+  padding: 12px 20px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-muted);
+  border-top: 1px solid var(--color-border);
+}
+
+/* Trending Products List */
+.trending-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 20px;
+}
+
+.trending-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.trending-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.trending-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.trending-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.trending-sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-muted);
+}
+
+/* User Interactions Card */
+.interaction-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+}
+
+.interaction-row {
+  display: grid;
+  grid-template-columns: 130px 1fr 100px;
+  align-items: center;
+  gap: 14px;
+  font-size: 12px;
+}
+
+.interaction-action {
+  font-weight: 500;
+  color: var(--color-ink);
+  white-space: nowrap;
+}
+
+.interaction-stat {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Table overrides for Product sales report */
+.sales-report-table th,
+.sales-report-table td {
+  padding: 10px 14px;
+}
+
+.sales-report-table .text-right {
+  text-align: right;
+}
+
+.sales-report-total-row td {
+  border-top: 2px solid var(--color-border);
+  font-weight: 700;
 }

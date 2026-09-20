@@ -247,27 +247,104 @@ class MerchantStockMovementsAPIView(APIView):
 
 class MerchantReviewsAPIView(APIView):
     def get(self, request):
-        reviews = ReviewsReview.objects.filter(status='pending').order_by('-created_at')[:20]
+        reviews = ReviewsReview.objects.all().order_by('-created_at')[:20]
         data = [
             {
                 'id': r.id,
                 'customer': r.customer_name,
-                'product_review': f"{r.product_name} — “{r.body}”",
+                'customer_name': r.customer_name,
+                'product_name': r.product_name,
+                'body': r.body,
+                'product_review': f"{r.product_name} — “{r.body[:40] + '…' if len(r.body) > 40 else r.body}”",
                 'rating_stars': '★' * r.rating + '☆' * (5 - r.rating),
                 'rating': r.rating,
                 'status': r.status,
+                'merchant_reply': r.merchant_reply,
+                'replied_at': r.replied_at.strftime('%Y-%m-%d %H:%M') if r.replied_at else None,
+                'created_at': r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else None,
             }
             for r in reviews
         ]
         if not data:
             data = [
-                {'id': 1, 'customer': 'Bea S.', 'product_review': 'Drip Zip-Up Hoodie — “Super lapad ng fit…”', 'rating_stars': '★★★★★', 'rating': 5, 'status': 'pending'},
-                {'id': 2, 'customer': 'Marco L.', 'product_review': 'Metro Snapback — “Color is slightly off.”', 'rating_stars': '★★★☆☆', 'rating': 3, 'status': 'pending'},
+                {
+                    'id': 1,
+                    'customer': 'Bea S.',
+                    'customer_name': 'Bea S.',
+                    'product_name': 'Drip Zip-Up Hoodie',
+                    'body': 'Super lapad ng fit, ang angas ng tela! Perfect for streetwear layering.',
+                    'product_review': 'Drip Zip-Up Hoodie — “Super lapad ng fit…”',
+                    'rating_stars': '★★★★★',
+                    'rating': 5,
+                    'status': 'published',
+                    'merchant_reply': '',
+                    'replied_at': None,
+                    'created_at': '2026-09-19 14:30',
+                },
+                {
+                    'id': 2,
+                    'customer': 'Marco L.',
+                    'customer_name': 'Marco L.',
+                    'product_name': 'Metro Snapback',
+                    'body': 'Color is slightly off from photo. The cap is good quality though.',
+                    'product_review': 'Metro Snapback — “Color is slightly off.”',
+                    'rating_stars': '★★★☆☆',
+                    'rating': 3,
+                    'status': 'published',
+                    'merchant_reply': '',
+                    'replied_at': None,
+                    'created_at': '2026-09-19 12:15',
+                },
             ]
         return Response(data)
 
 
+class MerchantReviewDetailAPIView(APIView):
+    def get(self, request, pk):
+        try:
+            review = ReviewsReview.objects.get(pk=pk)
+            return Response({
+                'id': review.id,
+                'customer_name': review.customer_name,
+                'product_name': review.product_name,
+                'body': review.body,
+                'rating': review.rating,
+                'rating_stars': '★' * review.rating + '☆' * (5 - review.rating),
+                'merchant_reply': review.merchant_reply,
+                'replied_at': review.replied_at.strftime('%Y-%m-%d %H:%M') if review.replied_at else None,
+                'created_at': review.created_at.strftime('%Y-%m-%d %H:%M') if review.created_at else None,
+                'status': review.status,
+            })
+        except ReviewsReview.DoesNotExist:
+            return Response({'error': 'Review not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class MerchantReviewReplyAPIView(APIView):
+    def post(self, request, pk):
+        reply_text = request.data.get('reply', '').strip()
+        if not reply_text:
+            return Response({'error': 'Reply text cannot be empty.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            review = ReviewsReview.objects.get(pk=pk)
+            review.merchant_reply = reply_text
+            review.replied_at = timezone.now()
+            review.save()
+
+            return Response({
+                'id': review.id,
+                'customer_name': review.customer_name,
+                'product_name': review.product_name,
+                'merchant_reply': review.merchant_reply,
+                'replied_at': review.replied_at.strftime('%Y-%m-%d %H:%M'),
+                'message': f'Reply successfully submitted for review #{pk}.',
+            })
+        except ReviewsReview.DoesNotExist:
+            return Response({'error': 'Review not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+
 class MerchantReviewModerateAPIView(APIView):
+    """Deprecated: Retained for backwards compatibility."""
     def post(self, request, pk):
         new_status = request.data.get('status', 'approved')
         try:
@@ -280,5 +357,96 @@ class MerchantReviewModerateAPIView(APIView):
         return Response({
             'id': pk,
             'status': new_status,
-            'message': f"Review #{pk} has been {new_status}.",
+            'message': f"Review #{pk} status updated to {new_status}.",
         })
+
+
+class MerchantAnalyticsAPIView(APIView):
+    def get(self, request):
+        category_filter = request.query_params.get('category', 'all').lower()
+
+        raw_products = [
+            {'name': 'Drip Zip-Up Hoodie', 'category': 'tops', 'net_units': 80, 'net_sales': 96000, 'formatted_sales': '₱96,000', 'views': 2400, 'added_to_cart': 300, 'growth': '+33.3%', 'growth_direction': 'up'},
+            {'name': 'Metro Core Boxy Tee', 'category': 'tops', 'net_units': 120, 'net_sales': 74000, 'formatted_sales': '₱74,000', 'views': 3800, 'added_to_cart': 420, 'growth': '+20.0%', 'growth_direction': 'up'},
+            {'name': 'Metro Straight-Cut Jeans', 'category': 'bottoms', 'net_units': 45, 'net_sales': 45000, 'formatted_sales': '₱45,000', 'views': 1600, 'added_to_cart': 160, 'growth': '-10.0%', 'growth_direction': 'down'},
+            {'name': 'Metro Snapback', 'category': 'accessories', 'net_units': 50, 'net_sales': 24600, 'formatted_sales': '₱24,600', 'views': 1800, 'added_to_cart': 210, 'growth': '+100.0%', 'growth_direction': 'up'},
+            {'name': 'Drip Crew Socks 3-Pack', 'category': 'accessories', 'net_units': 25, 'net_sales': 9000, 'formatted_sales': '₱9,000', 'views': 800, 'added_to_cart': 110, 'growth': '-44.4%', 'growth_direction': 'down'},
+        ]
+
+        if category_filter and category_filter != 'all':
+            filtered_products = [p for p in raw_products if p['category'] == category_filter]
+        else:
+            filtered_products = raw_products
+
+        total_units = sum(p['net_units'] for p in filtered_products)
+        total_sales = sum(p['net_sales'] for p in filtered_products)
+        total_views = sum(p['views'] for p in filtered_products)
+        total_cart = sum(p['added_to_cart'] for p in filtered_products)
+
+        data = {
+            'period': 'Sep 13–19, 2026',
+            'comparison_period': 'previous 7 days',
+            'currency': 'PHP',
+            'timezone': 'Asia/Manila',
+            'kpis': {
+                'net_sales': {
+                    'value': total_sales,
+                    'formatted': f"₱{total_sales:,}",
+                    'growth': '+18.0%',
+                    'growth_direction': 'up',
+                    'prior_formatted': '₱210,678',
+                },
+                'orders': {
+                    'value': 200,
+                    'growth': '+11.1%',
+                    'growth_direction': 'up',
+                },
+                'net_units_sold': {
+                    'value': total_units,
+                    'growth': '+14.3%',
+                    'growth_direction': 'up',
+                },
+                'purchase_session_rate': {
+                    'value': '2.50%',
+                    'growth': '+0.25 pp',
+                    'growth_direction': 'up',
+                },
+            },
+            'sales_over_time': {
+                'labels': ['13 Sep', '14 Sep', '15 Sep', '16 Sep', '17 Sep', '18 Sep', '19 Sep'],
+                'current_period': [26000, 29000, 28000, 36000, 33000, 41000, 48000],
+                'previous_period': [23000, 25000, 27000, 29000, 31000, 33000, 35000],
+                'summary': '₱248,600 net sales  ·  ↑ 18.0% vs ₱210,678',
+            },
+            'best_sellers': [
+                {'name': 'Drip Zip-Up Hoodie', 'net_sales': 96000, 'formatted_sales': '₱96,000', 'bar_percentage': 100},
+                {'name': 'Metro Core Boxy Tee', 'net_sales': 74000, 'formatted_sales': '₱74,000', 'bar_percentage': 77.1},
+                {'name': 'Metro Straight-Cut Jeans', 'net_sales': 45000, 'formatted_sales': '₱45,000', 'bar_percentage': 46.9},
+            ],
+            'product_sales_report': filtered_products,
+            'totals': {
+                'name': 'TOTAL',
+                'net_units': total_units,
+                'net_sales': total_sales,
+                'formatted_sales': f"₱{total_sales:,}",
+                'views': total_views,
+                'added_to_cart': total_cart,
+                'growth': '+14.3%',
+                'growth_direction': 'up',
+            },
+            'trending_products': [
+                {'name': 'Metro Snapback', 'prior_units': 25, 'current_units': 50, 'growth': '+100.0%', 'growth_direction': 'up'},
+                {'name': 'Drip Zip-Up Hoodie', 'prior_units': 60, 'current_units': 80, 'growth': '+33.3%', 'growth_direction': 'up'},
+                {'name': 'Metro Core Boxy Tee', 'prior_units': 100, 'current_units': 120, 'growth': '+20.0%', 'growth_direction': 'up'},
+            ],
+            'user_interactions': {
+                'total_sessions': 8000,
+                'funnel': [
+                    {'action': 'Product viewed', 'count': 6000, 'percentage': 75.0, 'bar_width': 75},
+                    {'action': 'Added to cart', 'count': 800, 'percentage': 10.0, 'bar_width': 10},
+                    {'action': 'Checkout started', 'count': 400, 'percentage': 5.0, 'bar_width': 5},
+                    {'action': 'Purchased', 'count': 200, 'percentage': 2.5, 'bar_width': 2.5},
+                ],
+            },
+        }
+        return Response(data)

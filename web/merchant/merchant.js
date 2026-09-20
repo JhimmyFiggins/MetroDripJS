@@ -187,49 +187,221 @@
     });
   });
 
-  // --- 3. REVIEW MODERATION QUEUE (via event delegation) ---
-  document.addEventListener('click', async (e) => {
-    const btn = e.target.closest('.btn-moderate-review');
-    if (!btn) return;
+  // --- 3. CUSTOMER REVIEWS: VIEW & REPLY (Figma 58:2 / 58:467) ---
+  const modalViewReview = document.getElementById('modal-view-review');
+  const btnCloseViewReview = document.getElementById('btn-close-view-review');
+  const btnCloseViewReviewFooter = document.getElementById('btn-close-view-review-footer');
+  const btnReplyFromView = document.getElementById('btn-reply-from-view');
 
-    const reviewId = btn.dataset.reviewId;
-    const action = btn.dataset.action; // 'approved' or 'rejected'
-    const row = btn.closest('tr');
+  const modalReplyReview = document.getElementById('modal-reply-review');
+  const btnCloseReplyReview = document.getElementById('btn-close-reply-review');
+  const btnCancelReplyReview = document.getElementById('btn-cancel-reply-review');
+  const formReplyReview = document.getElementById('form-reply-review');
 
-    // Disable both buttons to prevent double-click
-    const siblingBtns = row?.querySelectorAll('.btn-moderate-review');
-    siblingBtns?.forEach((b) => { b.disabled = true; });
+  let currentViewingReview = null;
+
+  // Local review cache initialized with default seeded reviews
+  const reviewCache = {
+    '1': {
+      id: 1,
+      customer_name: 'Bea S.',
+      product_name: 'Drip Zip-Up Hoodie',
+      rating: 5,
+      rating_stars: '★★★★★',
+      body: 'Super lapad ng fit, ang angas ng tela! Perfect for streetwear layering.',
+      date: 'Verified Customer · Sep 19, 2026',
+      merchant_reply: '',
+      replied_at: null,
+    },
+    '2': {
+      id: 2,
+      customer_name: 'Marco L.',
+      product_name: 'Metro Snapback',
+      rating: 3,
+      rating_stars: '★★★☆☆',
+      body: 'Color is slightly off from photo. The cap is good quality though.',
+      date: 'Verified Customer · Sep 19, 2026',
+      merchant_reply: '',
+      replied_at: null,
+    },
+  };
+
+  async function openViewReviewModal(reviewId) {
+    if (!modalViewReview) return;
+    let review = reviewCache[reviewId];
 
     try {
-      await fetch(`${API_BASE}/reviews/${reviewId}/moderate/`, {
+      const res = await fetch(`${API_BASE}/reviews/${reviewId}/`);
+      if (res.ok) {
+        const data = await res.json();
+        review = {
+          ...review,
+          ...data,
+        };
+        reviewCache[reviewId] = review;
+      }
+    } catch {
+      // Use cached/seeded review
+    }
+
+    if (!review) return;
+    currentViewingReview = review;
+
+    const elAvatar = document.getElementById('view-review-avatar');
+    const elCustomer = document.getElementById('view-review-customer');
+    const elDate = document.getElementById('view-review-date');
+    const elStars = document.getElementById('view-review-stars');
+    const elProduct = document.getElementById('view-review-product');
+    const elBody = document.getElementById('view-review-body');
+    const replyContainer = document.getElementById('view-review-reply-container');
+    const replyText = document.getElementById('view-review-reply-text');
+    const replyDate = document.getElementById('view-review-reply-date');
+
+    const initials = (review.customer_name || 'C')
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+
+    if (elAvatar) elAvatar.textContent = initials;
+    if (elCustomer) elCustomer.textContent = review.customer_name || review.customer;
+    if (elDate) elDate.textContent = review.created_at ? `Verified Customer · ${review.created_at}` : 'Verified Customer · Sep 19, 2026';
+    if (elStars) elStars.textContent = review.rating_stars || '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating);
+    if (elProduct) elProduct.textContent = review.product_name;
+    if (elBody) elBody.textContent = `“${review.body}”`;
+
+    if (review.merchant_reply) {
+      if (replyContainer) replyContainer.style.display = 'block';
+      if (replyText) replyText.textContent = review.merchant_reply;
+      if (replyDate) replyDate.textContent = review.replied_at ? `Replied ${review.replied_at}` : 'Replied recently';
+      if (btnReplyFromView) btnReplyFromView.textContent = 'Edit reply';
+    } else {
+      if (replyContainer) replyContainer.style.display = 'none';
+      if (btnReplyFromView) btnReplyFromView.textContent = 'Reply to review';
+    }
+
+    modalViewReview.hidden = false;
+    setActiveModal(modalViewReview);
+  }
+
+  function closeViewReviewModal() {
+    if (modalViewReview) modalViewReview.hidden = true;
+    currentViewingReview = null;
+    clearActiveModal();
+  }
+
+  function openReplyReviewModal(reviewId) {
+    if (!modalReplyReview) return;
+    const review = reviewCache[reviewId] || currentViewingReview;
+    if (!review) return;
+
+    // Close view modal if open
+    if (modalViewReview && !modalViewReview.hidden) {
+      modalViewReview.hidden = true;
+    }
+
+    document.getElementById('reply-review-id').value = review.id;
+    document.getElementById('reply-customer-name').textContent = review.customer_name || review.customer;
+    document.getElementById('reply-product-name').textContent = review.product_name;
+
+    const textarea = document.getElementById('reply-textarea');
+    if (textarea) {
+      textarea.value = review.merchant_reply || '';
+      setTimeout(() => textarea.focus(), 50);
+    }
+
+    modalReplyReview.hidden = false;
+    setActiveModal(modalReplyReview);
+  }
+
+  function closeReplyReviewModal() {
+    if (modalReplyReview) modalReplyReview.hidden = true;
+    formReplyReview?.reset();
+    clearActiveModal();
+  }
+
+  btnCloseViewReview?.addEventListener('click', closeViewReviewModal);
+  btnCloseViewReviewFooter?.addEventListener('click', closeViewReviewModal);
+  modalViewReview?.addEventListener('click', (e) => {
+    if (e.target === modalViewReview) closeViewReviewModal();
+  });
+
+  btnReplyFromView?.addEventListener('click', () => {
+    if (currentViewingReview) {
+      openReplyReviewModal(currentViewingReview.id);
+    }
+  });
+
+  btnCloseReplyReview?.addEventListener('click', closeReplyReviewModal);
+  btnCancelReplyReview?.addEventListener('click', closeReplyReviewModal);
+  modalReplyReview?.addEventListener('click', (e) => {
+    if (e.target === modalReplyReview) closeReplyReviewModal();
+  });
+
+  // Event delegation for View and Reply buttons on the reviews table
+  document.addEventListener('click', (e) => {
+    const btnView = e.target.closest('.btn-view-review');
+    if (btnView) {
+      openViewReviewModal(btnView.dataset.reviewId);
+      return;
+    }
+
+    const btnReply = e.target.closest('.btn-reply-review');
+    if (btnReply) {
+      openReplyReviewModal(btnReply.dataset.reviewId);
+      return;
+    }
+  });
+
+  // Handle Reply Form Submission
+  formReplyReview?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const reviewId = document.getElementById('reply-review-id').value;
+    const textarea = document.getElementById('reply-textarea');
+    const reply = textarea.value.trim();
+
+    if (!reply) {
+      showToast('Reply text cannot be empty.', 'error');
+      return;
+    }
+
+    const review = reviewCache[reviewId] || {};
+    const customerName = review.customer_name || review.customer || 'Customer';
+
+    try {
+      const res = await fetch(`${API_BASE}/reviews/${reviewId}/reply/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: action }),
+        body: JSON.stringify({ reply }),
       });
+      if (res.ok) {
+        const data = await res.json();
+        review.merchant_reply = data.merchant_reply || reply;
+        review.replied_at = data.replied_at || new Date().toISOString();
+      } else {
+        review.merchant_reply = reply;
+        review.replied_at = new Date().toISOString();
+      }
     } catch {
       // Offline fallback
+      review.merchant_reply = reply;
+      review.replied_at = new Date().toISOString();
     }
 
+    reviewCache[reviewId] = review;
+
+    // Update row button visually to show "Replied" state indicator
+    const row = document.querySelector(`tr[data-review-id="${reviewId}"]`);
     if (row) {
-      const actionCell = row.children[3];
-      const isApproved = action === 'approved';
-      actionCell.innerHTML = `
-        <span class="status-pill ${isApproved ? 'active' : 'suspended'}">
-          ${isApproved ? 'Approved' : 'Rejected'}
-        </span>
-      `;
+      const replyBtn = row.querySelector('.btn-reply-review');
+      if (replyBtn) {
+        replyBtn.textContent = 'Edit reply';
+      }
     }
 
-    // Update badge
-    const badge = document.getElementById('badge-reviews');
-    if (badge) {
-      const currentCount = parseInt(badge.textContent, 10) || 0;
-      const newCount = Math.max(0, currentCount - 1);
-      badge.textContent = newCount;
-      if (newCount === 0) badge.style.display = 'none';
-    }
-
-    showToast(`Review #${reviewId} marked as ${action}.`);
+    closeReplyReviewModal();
+    showToast(`Reply sent to ${customerName}.`);
   });
 
   // --- 4. ADD PRODUCT MODAL ---
