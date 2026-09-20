@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>MetroDrip · Roles & Permissions</title>
+  <link rel="icon" type="image/png" href="../assets/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="../Registration/theme.css">
+  <link rel="stylesheet" href="../css/console.css">
+  <script src="../Registration/theme.js"></script>
+</head>
+<body>
+  <!-- Figma: Admin Console / Roles & Permissions / Light 550:289 & Dark 554:1111 -->
+  <div class="console-layout">
+    <!-- Left Navigation Sidebar -->
+    <aside class="console-sidebar" aria-label="Administrator Navigation">
+      <div class="sidebar-top">
+        <div class="brand-section">
+          <p class="brand-logo">METRO<span>DRIP</span></p>
+          <p class="console-role-tag">ADMINISTRATOR CONSOLE</p>
+        </div>
+
+        <nav class="nav-group" aria-label="Console views">
+          <a class="nav-item" href="index.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Dashboard</span>
+          </a>
+          <a class="nav-item" href="users.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> User Accounts</span>
+          </a>
+          <a class="nav-item is-active" href="roles.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Roles & Permissions</span>
+          </a>
+          <a class="nav-item" href="settings.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Platform Settings</span>
+          </a>
+          <a class="nav-item" href="audit.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Audit Trail</span>
+            <span class="nav-badge volt" id="sidebar-audit-count">12</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-avatar" aria-hidden="true">AD</div>
+          <div class="user-meta">
+            <p class="user-name">Admin User</p>
+            <p class="user-role-badge">ADMINISTRATOR · 2FA ON</p>
+          </div>
+        </div>
+
+        <div class="theme-switch-container" role="group" aria-label="Color theme selector">
+          <button type="button" class="theme-toggle-btn is-active" data-theme-option="light" aria-pressed="true">
+            <span aria-hidden="true">☼</span> Light
+          </button>
+          <button type="button" class="theme-toggle-btn" data-theme-option="dark" aria-pressed="false">
+            <span aria-hidden="true">☾</span> Dark
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace Content -->
+    <main class="console-main">
+      <!-- Breadcrumb Bar -->
+      <div class="breadcrumb-bar">
+        <span>ADMIN CONSOLE</span>
+        <span>/</span>
+        <span>ROLES & PERMISSIONS</span>
+        <span class="sample-data">SAMPLE DATA</span>
+      </div>
+
+      <!-- Header -->
+      <header class="console-header">
+        <div class="header-meta">
+          <h1 class="page-title">Roles & Permissions</h1>
+          <p class="page-subhead">Define what each account can view and manage.</p>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="btn btn-primary" id="btn-create-role-top">
+            Create role
+          </button>
+        </div>
+      </header>
+
+      <!-- 3 Stat Metric Cards -->
+      <section class="stat-cards-grid" style="grid-template-columns: repeat(3, 1fr);" aria-label="Role metrics">
+        <article class="stat-card">
+          <p class="stat-label">SYSTEM ROLES</p>
+          <p class="stat-value">3</p>
+          <p class="stat-subtext">Administrator · Merchant · Customer</p>
+        </article>
+        <article class="stat-card">
+          <p class="stat-label">STAFF ASSIGNED</p>
+          <p class="stat-value" id="metric-staff-assigned">7</p>
+          <p class="stat-subtext">2 admins · 5 merchants</p>
+        </article>
+        <article class="stat-card">
+          <p class="stat-label">CUSTOM ROLES</p>
+          <p class="stat-value" id="metric-custom-roles">0</p>
+          <p class="stat-subtext">Create a limited-access role</p>
+        </article>
+      </section>
+
+      <!-- Permission Matrix Table Panel -->
+      <section class="panel-card" aria-labelledby="heading-matrix">
+        <div class="panel-header">
+          <h2 class="panel-title" id="heading-matrix">Permission matrix</h2>
+        </div>
+        <div class="table-responsive">
+          <table class="data-table permission-matrix-table" id="matrix-table">
+            <thead>
+              <tr>
+                <th scope="col">CAPABILITY</th>
+                <th scope="col">ADMINISTRATOR</th>
+                <th scope="col">MERCHANT</th>
+                <th scope="col">CUSTOMER</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-strong">Manage user accounts</td>
+                <td><span class="td-mono">Manage</span></td>
+                <td><span class="td-muted">&mdash;</span></td>
+                <td><span class="td-mono td-muted">Own profile</span></td>
+              </tr>
+              <tr>
+                <td class="td-strong">Assign roles & permissions</td>
+                <td><span class="td-mono">Manage</span></td>
+                <td><span class="td-muted">&mdash;</span></td>
+                <td><span class="td-muted">&mdash;</span></td>
+              </tr>
+              <tr>
+                <td class="td-strong">Platform settings</td>
+                <td><span class="td-mono">Manage</span></td>
+                <td><span class="td-muted">&mdash;</span></td>
+                <td><span class="td-muted">&mdash;</span></td>
+              </tr>
+              <tr>
+                <td class="td-strong">Audit trail</td>
+                <td><span class="td-mono">View / export</span></td>
+                <td><span class="td-muted">&mdash;</span></td>
+                <td><span class="td-muted">&mdash;</span></td>
+              </tr>
+              <tr>
+                <td class="td-strong">Catalog, inventory & content</td>
+                <td><span class="td-muted">&mdash;</span></td>
+                <td><span class="td-mono">Manage</span></td>
+                <td><span class="td-mono td-muted">Browse</span></td>
+              </tr>
+              <tr>
+                <td class="td-strong">Orders & shipments</td>
+                <td><span class="td-muted">&mdash;</span></td>
+                <td><span class="td-mono">Manage</span></td>
+                <td><span class="td-mono td-muted">Own orders</span></td>
+              </tr>
+              <tr>
+                <td class="td-strong">Shipping zones & rates</td>
+                <td><span class="td-muted">&mdash;</span></td>
+                <td><span class="td-mono">Manage</span></td>
+                <td><span class="td-mono td-muted">View at checkout</span></td>
+              </tr>
+              <tr>
+                <td class="td-strong">Customer reviews</td>
+                <td><span class="td-muted">&mdash;</span></td>
+                <td><span class="td-mono">View / reply</span></td>
+                <td><span class="td-mono td-muted">Create own review</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 2-Column Inspector: Role Details + Create Custom Role -->
+      <div class="panel-grid-2col" style="margin-top: 24px;">
+        <!-- Left: Merchant Role Summary Card -->
+        <section class="panel-card" aria-labelledby="heading-merchant-role">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title" id="heading-merchant-role">Merchant role</h2>
+              <p class="td-mono td-muted" style="font-size: 11px; margin-top: 2px;">System role · 5 staff accounts assigned</p>
+            </div>
+          </div>
+          <div style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+            <p style="font-size: 13px; color: var(--color-ink); line-height: 1.5;">
+              Catalog, inventory, orders, shipments, shipping zones, content and analytics.
+            </p>
+            <p style="font-size: 13px; font-weight: 700; color: var(--color-ink);">
+              Customer reviews: View and reply only.
+            </p>
+            <p class="td-muted" style="font-size: 12px; line-height: 1.4;">
+              User administration and platform settings are restricted to administrators.
+            </p>
+            <div style="margin-top: 8px;">
+              <a href="users.html" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 6px;">
+                View assigned users
+              </a>
+            </div>
+          </div>
+        </section>
+
+        <!-- Right: Create a custom role Form Card -->
+        <section class="panel-card" id="card-create-custom-role" aria-labelledby="heading-create-custom-role">
+          <div class="panel-header">
+            <h2 class="panel-title" id="heading-create-custom-role">Create a custom role</h2>
+          </div>
+          <form id="form-custom-role" style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+            <div>
+              <label class="form-label" for="custom-role-name">Role name</label>
+              <input type="text" class="form-input" id="custom-role-name" value="Fulfillment staff" placeholder="e.g. Fulfillment staff" required>
+            </div>
+            <div>
+              <label class="form-label" for="custom-role-base">Based on</label>
+              <select class="toolbar-select" id="custom-role-base" style="width: 100%;">
+                <option value="merchant" selected>Merchant</option>
+                <option value="administrator">Administrator</option>
+              </select>
+            </div>
+
+            <!-- Permission Toggles -->
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 6px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 13px;">View orders</span>
+                <select class="matrix-toggle-select allow" data-perm="view_orders">
+                  <option value="allow" selected>Allow ▾</option>
+                  <option value="deny">Deny ▾</option>
+                </select>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 13px;">Manage shipments</span>
+                <select class="matrix-toggle-select allow" data-perm="manage_shipments">
+                  <option value="allow" selected>Allow ▾</option>
+                  <option value="deny">Deny ▾</option>
+                </select>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 13px;">View inventory</span>
+                <select class="matrix-toggle-select allow" data-perm="view_inventory">
+                  <option value="allow" selected>Allow ▾</option>
+                  <option value="deny">Deny ▾</option>
+                </select>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 13px;">Adjust stock</span>
+                <select class="matrix-toggle-select deny" data-perm="adjust_stock">
+                  <option value="allow">Allow ▾</option>
+                  <option value="deny" selected>Deny ▾</option>
+                </select>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 13px;">Edit shipping zones</span>
+                <select class="matrix-toggle-select deny" data-perm="edit_shipping_zones">
+                  <option value="allow">Allow ▾</option>
+                  <option value="deny" selected>Deny ▾</option>
+                </select>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 13px;">Publish content</span>
+                <select class="matrix-toggle-select deny" data-perm="publish_content">
+                  <option value="allow">Allow ▾</option>
+                  <option value="deny" selected>Deny ▾</option>
+                </select>
+              </div>
+            </div>
+
+            <p class="td-muted" style="font-size: 11px;">Unselected permissions are denied by default.</p>
+
+            <div style="display: flex; gap: 10px; margin-top: 6px;">
+              <button type="submit" class="btn btn-primary" id="btn-submit-custom-role">Create role</button>
+              <button type="button" class="btn btn-secondary" id="btn-cancel-custom-role">Cancel</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <script src="roles.js"></script>
+</body>
+</html>

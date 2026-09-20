@@ -13,6 +13,12 @@ from .merchant_views import (
     MerchantOrdersAPIView,
     MerchantOrdersExportAPIView,
     MerchantAnalyticsAPIView,
+    MerchantShipmentsAPIView,
+    MerchantShipmentDetailAPIView,
+    MerchantShippingZonesAPIView,
+    MerchantShippingEligibilityAPIView,
+    MerchantBannersAPIView,
+    MerchantBannerDetailAPIView,
 )
 
 urlpatterns = [
@@ -30,6 +36,14 @@ urlpatterns = [
     path('orders/export/', MerchantOrdersExportAPIView.as_view(), name='merchant-orders-export'),
     path('orders/<int:pk>/', MerchantOrdersAPIView.as_view(), name='merchant-order-detail'),
     path('orders/<int:pk>/status/', MerchantOrdersAPIView.as_view(), name='merchant-order-status'),
+    path('shipments/', MerchantShipmentsAPIView.as_view(), name='merchant-shipments'),
+    path('shipments/<int:pk>/', MerchantShipmentDetailAPIView.as_view(), name='merchant-shipment-detail'),
+    path('shipping-zones/', MerchantShippingZonesAPIView.as_view(), name='merchant-shipping-zones'),
+    path('shipping-zones/<int:pk>/', MerchantShippingZonesAPIView.as_view(), name='merchant-shipping-zones-detail'),
+    path('shipping-zones/eligibility/', MerchantShippingEligibilityAPIView.as_view(), name='merchant-shipping-eligibility'),
+    path('banners/', MerchantBannersAPIView.as_view(), name='merchant-banners'),
+    path('banners/<int:pk>/', MerchantBannerDetailAPIView.as_view(), name='merchant-banner-detail'),
     path('analytics/', MerchantAnalyticsAPIView.as_view(), name='merchant-analytics'),
 ]
+
 

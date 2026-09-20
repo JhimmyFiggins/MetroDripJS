@@ -31,22 +31,25 @@
           <a class="nav-item" href="catalog.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Products & Categories</span>
           </a>
-          <a class="nav-item" href="#inventory" data-nav="inventory">
+          <a class="nav-item" href="inventory.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Inventory</span>
             <span class="nav-badge volt" id="badge-inventory">6</span>
           </a>
-          <a class="nav-item" href="#orders" data-nav="orders">
+          <a class="nav-item" href="orders.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Orders</span>
             <span class="nav-badge" id="badge-orders">5</span>
           </a>
-          <a class="nav-item" href="#shipments" data-nav="shipments">
+          <a class="nav-item" href="shipments.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Shipments</span>
           </a>
-          <a class="nav-item" href="catalog.html#reviews">
-            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Reviews</span>
-            <span class="nav-badge" id="badge-reviews">2</span>
+          <a class="nav-item" href="shipping-zones.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Shipping Zones</span>
           </a>
-          <a class="nav-item" href="#content" data-nav="content">
+          <a class="nav-item" href="reviews.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Reviews</span>
+            <span class="nav-badge volt" id="badge-reviews">2</span>
+          </a>
+          <a class="nav-item" href="content.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Content & Banners</span>
           </a>
           <a class="nav-item" href="analytics.html?v=1.1">
@@ -127,7 +130,7 @@
               <span class="panel-title-dot danger" aria-hidden="true"></span>
               Low-stock alerts
             </h2>
-            <a class="panel-link" href="catalog.html">Inventory →</a>
+            <a class="panel-link" href="inventory.html">Inventory →</a>
           </div>
           <div class="table-responsive">
             <table class="data-table" id="low-stock-table">
@@ -192,10 +195,10 @@
         </section>
 
         <!-- Right: Recent orders -->
-        <section class="panel-card" aria-labelledby="heading-orders">
+        <section class="panel-card" aria-labelledby="heading-recent-orders">
           <div class="panel-header">
-            <h2 class="panel-title" id="heading-orders">Recent orders</h2>
-            <a class="panel-link" href="#all-orders">All orders →</a>
+            <h2 class="panel-title" id="heading-recent-orders">Recent orders</h2>
+            <a class="panel-link" href="orders.html">All orders →</a>
           </div>
           <div class="table-responsive">
             <table class="data-table" id="orders-table">
@@ -250,6 +253,72 @@
           </div>
         </section>
       </div>
+
+      <!-- Manage your store Workspace Section (Figma: 57:2) -->
+      <section class="workspace-section" aria-label="Store management workspace">
+        <h2 class="workspace-heading">Manage your store</h2>
+        <div class="workspace-grid-6">
+          <!-- Card 1: Inventory -->
+          <article class="workspace-card">
+            <div class="workspace-card-top">
+              <span class="workspace-card-tag">Inventory</span>
+              <p class="workspace-card-metric" id="workspace-metric-inventory">6 low-stock SKUs</p>
+              <p class="workspace-card-desc">Review stock levels and adjust quantities.</p>
+            </div>
+            <a href="inventory.html" class="workspace-card-btn">Open Inventory &rarr;</a>
+          </article>
+
+          <!-- Card 2: Orders -->
+          <article class="workspace-card">
+            <div class="workspace-card-top">
+              <span class="workspace-card-tag">Orders</span>
+              <p class="workspace-card-metric" id="workspace-metric-orders">14 orders today</p>
+              <p class="workspace-card-desc">Track payment and fulfillment.</p>
+            </div>
+            <a href="orders.html" class="workspace-card-btn">Open Orders &rarr;</a>
+          </article>
+
+          <!-- Card 3: Shipments -->
+          <article class="workspace-card">
+            <div class="workspace-card-top">
+              <span class="workspace-card-tag">Shipments</span>
+              <p class="workspace-card-metric" id="workspace-metric-shipments">5 ready to book</p>
+              <p class="workspace-card-desc">Book parcels and resolve exceptions.</p>
+            </div>
+            <a href="shipments.html" class="workspace-card-btn">Open Shipments &rarr;</a>
+          </article>
+
+          <!-- Card 4: Shipping Zones -->
+          <article class="workspace-card">
+            <div class="workspace-card-top">
+              <span class="workspace-card-tag">Shipping Zones</span>
+              <p class="workspace-card-metric" id="workspace-metric-zones">4 active zones</p>
+              <p class="workspace-card-desc">Set coverage, rates and delivery times.</p>
+            </div>
+            <a href="shipping-zones.html" class="workspace-card-btn">Open Shipping Zones &rarr;</a>
+          </article>
+
+          <!-- Card 5: Reviews -->
+          <article class="workspace-card">
+            <div class="workspace-card-top">
+              <span class="workspace-card-tag">Reviews</span>
+              <p class="workspace-card-metric" id="workspace-metric-reviews">2 need a reply</p>
+              <p class="workspace-card-desc">Read feedback and respond publicly.</p>
+            </div>
+            <a href="reviews.html" class="workspace-card-btn">Open Reviews &rarr;</a>
+          </article>
+
+          <!-- Card 6: Content & Banners -->
+          <article class="workspace-card">
+            <div class="workspace-card-top">
+              <span class="workspace-card-tag">Content & Banners</span>
+              <p class="workspace-card-metric" id="workspace-metric-content">2 live · 1 scheduled</p>
+              <p class="workspace-card-desc">Manage storefront placements.</p>
+            </div>
+            <a href="content.html" class="workspace-card-btn">Open Content & Banners &rarr;</a>
+          </article>
+        </div>
+      </section>
     </main>
   </div>
 

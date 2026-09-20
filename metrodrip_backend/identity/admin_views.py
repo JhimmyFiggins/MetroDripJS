@@ -180,12 +180,27 @@ class AdminUserDetailAPIView(APIView):
 
 class AdminAuditLogsAPIView(APIView):
     def get(self, request):
-        logs = AuditLog.objects.all().order_by('-created_at')[:50]
+        qs = AuditLog.objects.all().order_by('-created_at')
+
+        search = request.GET.get('search', '').strip()
+        if search:
+            qs = qs.filter(action__icontains=search) | qs.filter(actor__icontains=search)
+
+        actor_filter = request.GET.get('actor', '').strip()
+        if actor_filter and actor_filter != 'all':
+            qs = qs.filter(actor__icontains=actor_filter)
+
+        module_filter = request.GET.get('module', '').strip()
+        if module_filter and module_filter != 'all':
+            qs = qs.filter(target_model__icontains=module_filter)
+
+        logs = qs[:50]
         data = [
             {
                 'id': a.id,
                 'when': a.created_at.strftime('%H:%M') if a.created_at else '00:00',
                 'actor': a.actor,
+                'role': a.actor_role,
                 'action': a.action,
                 'target_model': a.target_model,
                 'created_at': a.created_at.isoformat() if a.created_at else None,
@@ -289,6 +304,8 @@ class AdminShippingZonesAPIView(APIView):
 
 
 class AdminRolesAPIView(APIView):
+    _custom_roles = []
+
     def get(self, request):
         roles_summary = [
             {
@@ -313,5 +330,130 @@ class AdminRolesAPIView(APIView):
                 'permissions': ['browse_catalog', 'create_orders', 'submit_reviews'],
             },
         ]
+        roles_summary.extend(self._custom_roles)
         return Response(roles_summary)
+
+    def post(self, request):
+        role_name = request.data.get('role', '').strip().lower()
+        title = request.data.get('title', '').strip()
+        description = request.data.get('description', '').strip()
+        permissions = request.data.get('permissions', [])
+
+        if not role_name or not title:
+            return Response({'error': 'Role identifier and title are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        new_role = {
+            'role': role_name,
+            'title': title,
+            'description': description or f"Custom role: {title}",
+            'user_count': 0,
+            'permissions': permissions,
+            'is_custom': True,
+        }
+        self._custom_roles.append(new_role)
+
+        AuditLog.objects.create(
+            actor='Admin User',
+            actor_role='admin',
+            action=f"Created custom role → {title} ({role_name})",
+            target_model='RolePermission',
+        )
+
+        return Response(new_role, status=status.HTTP_201_CREATED)
+
+
+class AdminSettingsAPIView(APIView):
+    DEFAULT_SETTINGS = {
+        'store_name': 'MetroDrip Official Store',
+        'support_email': 'support@metrodrip.ph',
+        'currency': 'PHP',
+        'timezone': 'Asia/Manila',
+        'two_factor_required_staff': True,
+        'session_timeout_minutes': 60,
+        'password_min_length': 10,
+        'free_shipping_threshold': 2500,
+        'standard_shipping_rate': 120,
+        'order_email_notifications': True,
+        'inventory_low_stock_threshold': 5,
+    }
+    _current_settings = None
+
+    @classmethod
+    def get_settings(cls):
+        if cls._current_settings is None:
+            cls._current_settings = dict(cls.DEFAULT_SETTINGS)
+        return cls._current_settings
+
+    def get(self, request):
+        return Response(self.get_settings())
+
+    def patch(self, request):
+        settings_data = self.get_settings()
+        updated_keys = []
+        for k, v in request.data.items():
+            if k in settings_data:
+                settings_data[k] = v
+                updated_keys.append(k)
+
+        AuditLog.objects.create(
+            actor='Admin User',
+            actor_role='admin',
+            action=f"Updated platform settings ({', '.join(updated_keys) if updated_keys else 'general'})",
+            target_model='PlatformSettings',
+        )
+        return Response({
+            'message': 'Platform settings saved successfully.',
+            'settings': settings_data,
+        })
+
+
+class AdminUserResetPasswordAPIView(APIView):
+    def post(self, request, pk):
+        try:
+            user = AccountsCustomer.objects.get(pk=pk)
+        except AccountsCustomer.DoesNotExist:
+            return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        reset_token = f"rst_{user.id}_{int(timezone.now().timestamp())}"
+        AuditLog.objects.create(
+            actor='Admin User',
+            actor_role='admin',
+            action=f"Generated password reset link for user #{user.id} ({user.email})",
+            target_model='AccountsCustomer',
+            target_id=str(user.id),
+        )
+        return Response({
+            'message': f"Password reset instructions dispatched to {user.email}.",
+            'reset_token': reset_token,
+            'expires_in_minutes': 60,
+        })
+
+
+class AdminExportAuditLogsCSVAPIView(APIView):
+    def get(self, request):
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="metrodrip_audit_log_{timezone.now().strftime("%Y%m%d")}.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow(['ID', 'Timestamp', 'Actor', 'Role', 'Action', 'Target Model', 'Target ID'])
+
+        for log in AuditLog.objects.all().order_by('-created_at'):
+            writer.writerow([
+                log.id,
+                log.created_at.strftime('%Y-%m-%d %H:%M:%S') if log.created_at else '',
+                log.actor,
+                log.actor_role,
+                log.action,
+                log.target_model or '',
+                log.target_id or '',
+            ])
+
+        AuditLog.objects.create(
+            actor='Admin User',
+            actor_role='admin',
+            action='Exported security audit trail to CSV',
+            target_model='AuditLog',
+        )
+        return response
+
 

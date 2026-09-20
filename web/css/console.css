@@ -1657,3 +1657,588 @@ button, input, select, textarea {
   text-align: right;
 }
 
+/* ==========================================================================
+   Dashboard Workspace Cards (Admin & Merchant)
+   Figma: 15:2 "Administration workspace" & 57:2 "Manage your store"
+   ========================================================================== */
+.workspace-section {
+  margin-top: 32px;
+}
+
+.workspace-heading {
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: 0.02em;
+  color: var(--color-ink);
+  margin-bottom: 16px;
+}
+
+.workspace-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.workspace-grid-6 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 1200px) {
+  .workspace-grid-6 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .workspace-grid-4,
+  .workspace-grid-6 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.workspace-card {
+  background-color: var(--color-paper);
+  border: 1px solid var(--color-card-border);
+  border-radius: 8px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.workspace-card:hover {
+  border-color: var(--color-border-hover);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+:root[data-theme='dark'] .workspace-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.workspace-card-top {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.workspace-card-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted);
+}
+
+.workspace-card-metric {
+  font-family: var(--font-display);
+  font-size: 24px;
+  color: var(--color-ink);
+  line-height: 1.1;
+}
+
+.workspace-card-desc {
+  font-size: 12px;
+  color: var(--color-muted);
+  line-height: 1.4;
+}
+
+.workspace-card-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: 1px solid var(--color-ink);
+  border-radius: 6px;
+  background-color: transparent;
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  width: fit-content;
+  transition: all 0.15s ease;
+}
+
+.workspace-card-btn:hover {
+  background-color: var(--color-ink);
+  color: var(--color-paper);
+}
+
+:root[data-theme='dark'] .workspace-card-btn {
+  border-color: var(--color-border);
+  color: var(--color-ink);
+}
+
+:root[data-theme='dark'] .workspace-card-btn:hover {
+  background-color: var(--color-volt);
+  border-color: var(--color-volt);
+  color: #141414;
+}
+
+/* ==========================================================================
+   Page Breadcrumbs & Header Metas
+   ========================================================================== */
+.breadcrumb-bar {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.breadcrumb-bar span.sample-data {
+  margin-left: auto;
+  color: var(--color-subtle);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+/* ==========================================================================
+   Filters & Search Toolbar
+   ========================================================================== */
+.console-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.search-input-wrap {
+  flex: 1;
+  min-width: 240px;
+  position: relative;
+}
+
+.search-input-wrap input {
+  width: 100%;
+  padding: 10px 14px 10px 36px;
+  background-color: var(--color-paper);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--color-ink);
+}
+
+.search-input-wrap input:focus {
+  outline: none;
+  border-color: var(--color-ink);
+}
+
+:root[data-theme='dark'] .search-input-wrap input:focus {
+  border-color: var(--color-volt);
+}
+
+.search-input-wrap .search-glyph {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-muted);
+  pointer-events: none;
+  font-size: 14px;
+}
+
+.toolbar-select {
+  padding: 10px 14px;
+  background-color: var(--color-paper);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.toolbar-select:focus {
+  outline: none;
+  border-color: var(--color-ink);
+}
+
+:root[data-theme='dark'] .toolbar-select:focus {
+  border-color: var(--color-volt);
+}
+
+.toolbar-pill-btn {
+  padding: 10px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-pill-btn.is-active {
+  border-color: var(--color-ink);
+  background-color: var(--color-ink);
+  color: var(--color-paper);
+}
+
+:root[data-theme='dark'] .toolbar-pill-btn.is-active {
+  border-color: var(--color-volt);
+  background-color: var(--color-volt);
+  color: #141414;
+}
+
+/* ==========================================================================
+   Pagination Footer
+   ========================================================================== */
+.pagination-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-top: 1px solid var(--color-border);
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.pagination-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.pagination-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  border-color: var(--color-ink);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   Permission Matrix Table (Admin Roles)
+   ========================================================================== */
+.permission-matrix-table td {
+  padding: 12px 16px;
+}
+
+.matrix-status-cell {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.matrix-toggle-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.matrix-toggle-select {
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+}
+
+.matrix-toggle-select.allow {
+  background-color: var(--color-volt);
+  color: #141414;
+  border-color: var(--color-volt);
+}
+
+.matrix-toggle-select.deny {
+  background-color: var(--color-paper);
+  color: var(--color-muted);
+}
+
+/* ==========================================================================
+   Shipment Timeline (Merchant Shipments)
+   ========================================================================== */
+.tracking-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+  padding-left: 20px;
+  margin: 16px 0;
+}
+
+.tracking-timeline::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background-color: var(--color-border);
+}
+
+.timeline-step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.timeline-dot {
+  position: absolute;
+  left: -20px;
+  top: 4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: var(--color-ink);
+  border: 3px solid var(--color-paper);
+}
+
+:root[data-theme='dark'] .timeline-dot {
+  background-color: var(--color-volt);
+}
+
+.timeline-step.completed .timeline-dot {
+  background-color: var(--color-muted);
+}
+
+.timeline-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.timeline-time {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.exception-callout-box {
+  background-color: var(--color-danger-bg);
+  border: 1px solid var(--color-danger);
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.exception-callout-box h5 {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-danger);
+}
+
+.exception-callout-box p {
+  font-size: 11px;
+  color: var(--color-ink);
+}
+
+/* ==========================================================================
+   Reviews List & Reply Composer (Merchant Reviews)
+   ========================================================================== */
+.reviews-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.review-item-card {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 18px;
+  background-color: var(--color-paper);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.review-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.review-author-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.review-author-name {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--color-ink);
+}
+
+.review-product-tag {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.review-star-rating {
+  font-size: 13px;
+  color: var(--color-ink);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+:root[data-theme='dark'] .review-star-rating {
+  color: var(--color-volt);
+}
+
+.review-quote-text {
+  font-size: 14px;
+  color: var(--color-ink);
+  line-height: 1.5;
+}
+
+.review-meta-text {
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.review-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.review-existing-reply {
+  background-color: var(--color-surface);
+  border-left: 3px solid var(--color-volt);
+  padding: 10px 14px;
+  border-radius: 0 6px 6px 0;
+  margin-top: 6px;
+}
+
+.review-existing-reply h6 {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.review-existing-reply p {
+  font-size: 12px;
+  color: var(--color-ink);
+}
+
+/* ==========================================================================
+   Content & Banners Desktop Preview
+   ========================================================================== */
+.banner-preview-box {
+  background-color: #000000;
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 220px;
+  position: relative;
+  overflow: hidden;
+}
+
+.banner-preview-brand {
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: #a0a0a0;
+  margin-bottom: 8px;
+}
+
+.banner-preview-headline {
+  font-family: var(--font-display);
+  font-size: 32px;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  text-transform: uppercase;
+  color: #ffffff;
+  margin-bottom: 8px;
+}
+
+.banner-preview-sub {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #d3ee42;
+  margin-bottom: 18px;
+}
+
+.banner-preview-cta {
+  display: inline-block;
+  background-color: #d3ee42;
+  color: #141414;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 10px 22px;
+  border-radius: 999px;
+  text-decoration: none;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   Address Shipping Calculator (Merchant Shipping Zones)
+   ========================================================================== */
+.eligibility-result-pill {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.eligibility-result-pill.eligible {
+  border-color: var(--color-success);
+  background-color: var(--color-success-bg);
+}
+
+.eligibility-result-pill.ineligible {
+  border-color: var(--color-danger);
+  background-color: var(--color-danger-bg);
+}
+
+.eligibility-result-pill h5 {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 2px;
+  color: var(--color-ink);
+}
+
+.eligibility-result-pill p {
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+

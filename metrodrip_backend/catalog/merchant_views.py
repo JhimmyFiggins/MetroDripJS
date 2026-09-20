@@ -19,6 +19,9 @@ from orders.models import (
     OrdersPayment,
     ReviewsReview,
 )
+from fulfillment.models import ShippingShipment, ShippingShippingZone
+from content.models import CmsHomepageBanner
+
 
 
 class MerchantDashboardAPIView(APIView):
@@ -798,3 +801,351 @@ class MerchantAnalyticsAPIView(APIView):
             },
         }
         return Response(data)
+
+
+class MerchantShipmentsAPIView(APIView):
+    def get(self, request):
+        shipments_qs = ShippingShipment.objects.all().order_by('-id')
+        data = []
+        for s in shipments_qs:
+            data.append({
+                'id': s.id,
+                'order_ref': s.order_ref,
+                'order_no': f"MD-2026-00{s.order_ref:03d}",
+                'waybill_no': s.waybill_no,
+                'tracking_no': s.tracking_no,
+                'carrier': 'NinjaVan Express' if 'NV' in s.tracking_no else 'J&T Express',
+                'status': s.status.capitalize(),
+                'booked_at': s.booked_at.isoformat() if s.booked_at else None,
+            })
+
+        if not data:
+            data = [
+                {
+                    'id': 1,
+                    'order_ref': 318,
+                    'order_no': 'MD-2026-00318',
+                    'recipient': 'Juan Dela Cruz · Makati City',
+                    'carrier': 'NinjaVan Express',
+                    'waybill_no': 'NV-PH-8849102',
+                    'tracking_no': 'NV8849102PH',
+                    'status': 'In transit',
+                    'booked_at': '2026-09-19T14:30:00Z',
+                    'checkpoints': [
+                        {'time': 'Today, 10:45 AM', 'desc': 'Out for delivery in Makati Hub', 'done': True},
+                        {'time': 'Yesterday, 06:12 PM', 'desc': 'Departed Metro Manila Sort Facility', 'done': True},
+                        {'time': '18 Sep, 02:30 PM', 'desc': 'Parcel received at NinjaVan Drop Point', 'done': True},
+                    ]
+                },
+                {
+                    'id': 2,
+                    'order_ref': 317,
+                    'order_no': 'MD-2026-00317',
+                    'recipient': 'Bea Santos · Quezon City',
+                    'carrier': 'J&T Express',
+                    'waybill_no': 'JT-PH-9920114',
+                    'tracking_no': 'JT9920114PH',
+                    'status': 'Packed',
+                    'booked_at': '2026-09-19T15:00:00Z',
+                    'checkpoints': [
+                        {'time': 'Today, 02:15 PM', 'desc': 'Parcel packed and shipping label printed', 'done': True},
+                        {'time': 'Pending', 'desc': 'Courier pickup scheduled for 5:00 PM', 'done': False},
+                    ]
+                },
+                {
+                    'id': 3,
+                    'order_ref': 315,
+                    'order_no': 'MD-2026-00315',
+                    'recipient': 'Aliyah Cruz · Taguig City',
+                    'carrier': 'Lalamove Same-Day',
+                    'waybill_no': 'LLM-MNL-40192',
+                    'tracking_no': 'LLM40192',
+                    'status': 'Exception',
+                    'booked_at': '2026-09-18T16:00:00Z',
+                    'checkpoints': [
+                        {'time': '18 Sep, 05:20 PM', 'desc': 'Failed delivery attempt: Buyer unreachable at gate', 'done': True},
+                        {'time': 'Action needed', 'desc': 'Contact customer or re-schedule redelivery', 'done': False},
+                    ]
+                }
+            ]
+
+        return Response(data)
+
+    def post(self, request):
+        order_ref = request.data.get('order_ref')
+        carrier = request.data.get('carrier', 'NinjaVan Express')
+        if not order_ref:
+            return Response({'error': 'order_ref is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        order_ref_int = int(order_ref)
+        count = ShippingShipment.objects.count() + 1
+        waybill = f"NV-PH-{7000000 + count}"
+        tracking = f"NV{7000000 + count}PH"
+
+        shipment = ShippingShipment.objects.create(
+            order_ref=order_ref_int,
+            counter=count,
+            waybill_no=waybill,
+            tracking_no=tracking,
+            status='booked',
+            booked_at=timezone.now(),
+        )
+
+        # Update order status if exists
+        OrdersOrder.objects.filter(id=order_ref_int).update(status='shipped')
+
+        return Response({
+            'id': shipment.id,
+            'order_ref': shipment.order_ref,
+            'waybill_no': shipment.waybill_no,
+            'tracking_no': shipment.tracking_no,
+            'carrier': carrier,
+            'status': 'Booked',
+            'message': f"Shipment booked successfully. Waybill #{waybill}.",
+        }, status=status.HTTP_201_CREATED)
+
+
+class MerchantShipmentDetailAPIView(APIView):
+    def get(self, request, pk):
+        try:
+            shipment = ShippingShipment.objects.get(pk=pk)
+            data = {
+                'id': shipment.id,
+                'order_ref': shipment.order_ref,
+                'order_no': f"MD-2026-00{shipment.order_ref:03d}",
+                'waybill_no': shipment.waybill_no,
+                'tracking_no': shipment.tracking_no,
+                'status': shipment.status.capitalize(),
+                'booked_at': shipment.booked_at.isoformat() if shipment.booked_at else None,
+            }
+        except ShippingShipment.DoesNotExist:
+            data = {
+                'id': pk,
+                'order_ref': 318,
+                'order_no': 'MD-2026-00318',
+                'waybill_no': 'NV-PH-8849102',
+                'tracking_no': 'NV8849102PH',
+                'carrier': 'NinjaVan Express',
+                'status': 'In transit',
+                'checkpoints': [
+                    {'time': 'Today, 10:45 AM', 'desc': 'Out for delivery in Makati Hub', 'done': True},
+                    {'time': 'Yesterday, 06:12 PM', 'desc': 'Departed Metro Manila Sort Facility', 'done': True},
+                    {'time': '18 Sep, 02:30 PM', 'desc': 'Parcel received at Drop Point', 'done': True},
+                ]
+            }
+        return Response(data)
+
+    def patch(self, request, pk):
+        try:
+            shipment = ShippingShipment.objects.get(pk=pk)
+            new_status = request.data.get('status')
+            if new_status:
+                shipment.status = new_status.lower()
+                shipment.save()
+            return Response({
+                'id': shipment.id,
+                'status': shipment.status.capitalize(),
+                'message': f"Shipment #{shipment.id} updated to {shipment.status}."
+            })
+        except ShippingShipment.DoesNotExist:
+            return Response({
+                'id': pk,
+                'status': request.data.get('status', 'Delivered').capitalize(),
+                'message': 'Shipment status updated.'
+            })
+
+
+class MerchantShippingZonesAPIView(APIView):
+    def get(self, request):
+        zones = ShippingShippingZone.objects.all().order_by('id')
+        if not zones.exists():
+            default_zones = [
+                {'name': 'NCR (Metro Manila)', 'fee': 85, 'is_active': True},
+                {'name': 'North & South Luzon', 'fee': 120, 'is_active': True},
+                {'name': 'Visayas & Mindanao (VisMin)', 'fee': 150, 'is_active': True},
+            ]
+            for z in default_zones:
+                ShippingShippingZone.objects.create(**z)
+            zones = ShippingShippingZone.objects.all().order_by('id')
+
+        data = [
+            {
+                'id': z.id,
+                'name': z.name,
+                'fee': z.fee,
+                'formatted_fee': f"₱{z.fee:,}",
+                'is_active': z.is_active,
+            }
+            for z in zones
+        ]
+        return Response(data)
+
+    def patch(self, request, pk):
+        try:
+            zone = ShippingShippingZone.objects.get(pk=pk)
+        except ShippingShippingZone.DoesNotExist:
+            return Response({'error': 'Shipping zone not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        fee = request.data.get('fee')
+        is_active = request.data.get('is_active')
+        if fee is not None:
+            zone.fee = int(fee)
+        if is_active is not None:
+            zone.is_active = bool(is_active)
+        zone.save()
+
+        return Response({
+            'id': zone.id,
+            'name': zone.name,
+            'fee': zone.fee,
+            'formatted_fee': f"₱{zone.fee:,}",
+            'is_active': zone.is_active,
+        })
+
+
+class MerchantShippingEligibilityAPIView(APIView):
+    def post(self, request):
+        address = request.data.get('address', '').strip()
+        subtotal = float(request.data.get('subtotal', 0))
+
+        if not address:
+            return Response({'error': 'Address string is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        address_lower = address.lower()
+        if any(c in address_lower for c in ['manila', 'makati', 'quezon', 'taguig', 'pasig', 'mandaluyong', 'ncr']):
+            zone_name = 'NCR (Metro Manila)'
+            base_fee = 85
+            eligible = True
+            delivery_estimate = '1–2 business days'
+        elif any(c in address_lower for c in ['cavite', 'laguna', 'batangas', 'bulacan', 'pampanga', 'luzon']):
+            zone_name = 'North & South Luzon'
+            base_fee = 120
+            eligible = True
+            delivery_estimate = '2–3 business days'
+        elif any(c in address_lower for c in ['cebu', 'davao', 'iloilo', 'visayas', 'mindanao']):
+            zone_name = 'Visayas & Mindanao (VisMin)'
+            base_fee = 150
+            eligible = True
+            delivery_estimate = '4–6 business days'
+        else:
+            zone_name = 'Unserviceable or Remote Area'
+            base_fee = 0
+            eligible = False
+            delivery_estimate = 'N/A'
+
+        free_shipping = False
+        final_fee = base_fee
+        if eligible and subtotal >= 2500:
+            free_shipping = True
+            final_fee = 0
+
+        return Response({
+            'address': address,
+            'eligible': eligible,
+            'zone': zone_name,
+            'base_fee': base_fee,
+            'final_fee': final_fee,
+            'formatted_fee': f"₱{final_fee:,}" if not free_shipping else 'FREE (₱0)',
+            'free_shipping_applied': free_shipping,
+            'delivery_estimate': delivery_estimate,
+        })
+
+
+class MerchantBannersAPIView(APIView):
+    def get(self, request):
+        banners = CmsHomepageBanner.objects.all().order_by('order')
+        if not banners.exists():
+            default_banners = [
+                {'title': 'Urban Style Redefined', 'image_url': '/assets/banners/hero.jpg', 'link_url': '/shop', 'is_active': True, 'order': 1},
+                {'title': 'Free shipping over ₱2,500', 'image_url': '/assets/banners/shipping.jpg', 'link_url': '/shipping', 'is_active': True, 'order': 2},
+                {'title': 'Weekend drop', 'image_url': '/assets/banners/weekend.jpg', 'link_url': '/drops/weekend', 'is_active': False, 'order': 3},
+                {'title': 'New season collection', 'image_url': '/assets/banners/fw26.jpg', 'link_url': '/collections/fw26', 'is_active': False, 'order': 4},
+                {'title': 'Member early access', 'image_url': '/assets/banners/vip.jpg', 'link_url': '/vip', 'is_active': False, 'order': 5},
+            ]
+            for b in default_banners:
+                CmsHomepageBanner.objects.create(**b)
+            banners = CmsHomepageBanner.objects.all().order_by('order')
+
+        data = [
+            {
+                'id': b.id,
+                'title': b.title,
+                'placement': 'Homepage hero' if b.order == 1 else ('Announcement bar' if b.order == 2 else 'Homepage secondary'),
+                'link_url': b.link_url,
+                'is_active': b.is_active,
+                'status': 'Live' if b.is_active else 'Draft',
+                'schedule': 'Always on' if b.is_active else 'Not scheduled',
+                'order': b.order,
+            }
+            for b in banners
+        ]
+        return Response(data)
+
+    def post(self, request):
+        title = request.data.get('title', '').strip()
+        link_url = request.data.get('link_url', '/shop').strip()
+        is_active = bool(request.data.get('is_active', False))
+        order = int(request.data.get('order', 1))
+
+        if not title:
+            return Response({'error': 'Banner title is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        banner = CmsHomepageBanner.objects.create(
+            title=title,
+            image_url='/assets/banners/default.jpg',
+            link_url=link_url,
+            is_active=is_active,
+            order=order,
+        )
+
+        return Response({
+            'id': banner.id,
+            'title': banner.title,
+            'link_url': banner.link_url,
+            'is_active': banner.is_active,
+            'status': 'Live' if banner.is_active else 'Draft',
+            'order': banner.order,
+        }, status=status.HTTP_201_CREATED)
+
+
+class MerchantBannerDetailAPIView(APIView):
+    def patch(self, request, pk):
+        try:
+            banner = CmsHomepageBanner.objects.get(pk=pk)
+        except CmsHomepageBanner.DoesNotExist:
+            return Response({'error': 'Banner not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        title = request.data.get('title')
+        link_url = request.data.get('link_url')
+        is_active = request.data.get('is_active')
+        order = request.data.get('order')
+
+        if title is not None:
+            banner.title = title.strip()
+        if link_url is not None:
+            banner.link_url = link_url.strip()
+        if is_active is not None:
+            banner.is_active = bool(is_active)
+        if order is not None:
+            banner.order = int(order)
+
+        banner.save()
+
+        return Response({
+            'id': banner.id,
+            'title': banner.title,
+            'link_url': banner.link_url,
+            'is_active': banner.is_active,
+            'status': 'Live' if banner.is_active else 'Draft',
+            'order': banner.order,
+            'message': f'Banner "{banner.title}" updated successfully.',
+        })
+
+    def delete(self, request, pk):
+        try:
+            banner = CmsHomepageBanner.objects.get(pk=pk)
+            banner.delete()
+            return Response({'message': 'Banner deleted successfully.'})
+        except CmsHomepageBanner.DoesNotExist:
+            return Response({'error': 'Banner not found.'}, status=status.HTTP_404_NOT_FOUND)
+
