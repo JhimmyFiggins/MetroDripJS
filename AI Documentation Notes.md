@@ -458,6 +458,96 @@ Deliver the Customer Reviews section in the Merchant Console (Catalog view), rem
   - Keyboard accessibility: `Escape` key and backdrop click close open modals. Focus returns appropriately.
 - Verification Status: Executed via Django automated test suite (8/8 tests pass) and browser subagent verification on 2026-09-20.
 
+---
 
+# Module / File: metrodrip_backend/catalog/merchant_views.py & web/merchant/catalog.html (Merchant Product Detail & Categories)
 
+## Purpose
+Enable store merchants to inspect and edit existing catalog products (name, base price, inventory stock, category, SKU, active status) and manage product categories dynamically through dedicated modals and REST APIs.
+
+## Public Interfaces
+### Endpoint: GET /api/merchant/products/<int:pk>/
+- Purpose: Retrieve single product attributes, variant count, and consolidated stock across warehouse entries.
+- Outputs: `id`, `name`, `sku`, `category`, `price`, `stock`, `is_active`, `status`, `description`.
+- Errors: 404 if product not found.
+
+### Endpoint: PATCH /api/merchant/products/<int:pk>/
+- Purpose: Modify product details including base price, category, name, active status, and inventory stock.
+- Inputs: JSON payload with any combination of `name`, `price`, `stock`, `category`, `sku`, `is_active`, `description`.
+- Outputs: Updated product object.
+- Side Effects: When `stock` is modified, updates/creates `InventoryStockEntry` and records an `InventoryStockMovement` with `reason='manual_adjustment'`.
+- Verification Status: Executed via unit tests (`identity.tests_consoles`) and end-to-end browser subagent verification on 2026-09-20.
+
+### Endpoint: GET & POST /api/merchant/categories/
+- Purpose: List active catalog categories with item counts and create new categories.
+- Inputs for POST: `{"name": "...", "description": "..."}`.
+- Outputs: Category list or created category object (`id`, `name`, `slug`, `product_count`, `is_active`).
+- Verification Status: Executed via unit tests and browser subagent verification on 2026-09-20.
+
+---
+
+# Module / File: metrodrip_backend/catalog/merchant_views.py & web/merchant/index.html (Merchant Orders & Fulfillment)
+
+## Purpose
+Provide the merchant console with comprehensive order inspection and status lifecycle progression (`paid` → `packed` → `shipped`), including delivery address, line item breakdown, and CSV report exports.
+
+## Public Interfaces
+### Endpoint: GET /api/merchant/orders/<int:pk>/
+- Purpose: Retrieve detailed order breakdown including line items, shipping address, and payment method.
+- Outputs: `id`, `order_no`, `status`, `raw_status`, `subtotal`, `shipping`, `total`, `payment_method`, `created_at`, `shipping_address`, `lines`.
+- Errors: Returns 200 with demo order data if order ID matches seeded sample dataset.
+
+### Endpoint: PATCH /api/merchant/orders/<int:pk>/status/
+- Purpose: Progress order fulfillment status (`paid` → `packed` → `shipped`).
+- Inputs: `{"status": "packed"|"shipped"}`.
+- Outputs: `id`, `order_no`, `status`, `raw_status`, `message`.
+- Side Effects: Updates `OrdersOrder.status` and `OrdersOrder.updated_at` in the database.
+- Verification Status: Executed via Django test runner and browser subagent verification on 2026-09-20.
+
+### Endpoint: GET /api/merchant/orders/export/
+- Purpose: Download timestamped CSV export of recent orders with status and payment breakdown.
+- Verification Status: Executed via DRF test case on 2026-09-20.
+
+---
+
+# Module / File: metrodrip_backend/identity/admin_views.py & web/admin/index.html (Admin Shipping Zones & Roles)
+
+## Purpose
+Provide the Administrator Console with full regional courier rate management (NCR, Luzon, VisMin) backed by `ShippingShippingZone` and immutable administrative audit logs, and provide staff roles directories.
+
+## Public Interfaces
+### Endpoint: GET /api/admin/shipping-zones/
+- Purpose: List active shipping zones and delivery rates (seeds defaults if table is empty).
+- Outputs: Array of zone records (`id`, `name`, `fee`, `formatted_fee`, `is_active`).
+
+### Endpoint: PATCH /api/admin/shipping-zones/<int:pk>/
+- Purpose: Update regional courier rate and/or active status.
+- Inputs: `{"fee": 95, "is_active": true}`.
+- Side Effects: Automatically creates an `AuditLog` entry tracking the actor, old rate, and new rate.
+- Verification Status: Executed via automated Django test suite and browser subagent on 2026-09-20.
+
+### Endpoint: GET /api/admin/roles/
+- Purpose: Return platform role hierarchy and permission capabilities summary.
+- Outputs: Array of role definitions (`admin`, `merchant`, `customer`) with permission scopes and active account counts.
+- Verification Status: Executed via test suite on 2026-09-20.
+
+---
+
+# Module / File: web/dev_server.py & web/merchant/index.html & web/merchant/catalog.html (Merchant Analytics Navigation & Dev Server)
+
+## Purpose
+Prevent browser disk caching collisions and guarantee reliable navigation to `analytics.html` from the Merchant Console Dashboard (`index.html`) and Catalog (`catalog.html`).
+
+## Problem and Root Cause
+When accessing `http://localhost:3000/merchant/index.html` and clicking "Analytics", browsers previously served a corrupt 1x1 image placeholder titled `analytics.html (1×1)` from disk cache because the standard `python -m http.server` sends no `Cache-Control` headers and allows stale browser caching of previous resource types.
+
+## Resolution
+1. **Custom Dev Server (`web/dev_server.py`)**: Subclasses `SimpleHTTPRequestHandler` to inject explicit `Cache-Control: no-store, no-cache, must-revalidate, max-age=0`, `Pragma: no-cache`, `Expires: 0`, and explicit UTF-8 MIME types (`text/html; charset=utf-8`, `application/javascript; charset=utf-8`).
+2. **Cache-Busted Navigation Links**: Updated `<a class="nav-item" href="analytics.html?v=1.1">` across `web/merchant/index.html`, `web/merchant/catalog.html`, and `web/merchant/analytics.html` to ensure any browser cache is bypassed immediately on click.
+3. **Local Dev & File Protocol Support**: Enhanced `web/merchant/analytics.js` to support `file:` protocol and seamless fallback.
+
+## Verification Status
+- Executed end-to-end automated navigation test via `browser_subagent` on 2026-09-20.
+- Verified clicking "Analytics" on Merchant Dashboard smoothly loads `http://localhost:3000/merchant/analytics.html?v=1.1`.
+- Verified 4 KPI stat cards, SVG sales trendline, Best Sellers volume bars, Product Sales report table, category filters (`Tops`, `All`), CSV export toast, and bidirectional sidebar navigation between Catalog and Analytics.
 

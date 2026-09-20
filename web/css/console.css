@@ -1459,3 +1459,201 @@ button, input, select, textarea {
   border-top: 2px solid var(--color-border);
   font-weight: 700;
 }
+
+/* Clickable table rows */
+.data-table tr.clickable-row {
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.data-table tr.clickable-row:hover td {
+  background-color: rgba(200, 255, 0, 0.08);
+}
+
+:root[data-theme='dark'] .data-table tr.clickable-row:hover td {
+  background-color: rgba(200, 255, 0, 0.12);
+}
+
+/* Category Management in Modal */
+.category-list-card {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background-color: var(--color-surface);
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.category-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 12px;
+}
+
+.category-item-row:last-child {
+  border-bottom: none;
+}
+
+.category-item-name {
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.category-count-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background-color: var(--color-paper);
+  border: 1px solid var(--color-border);
+  color: var(--color-muted);
+}
+
+/* Order Detail Modal */
+.order-summary-box {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 14px;
+}
+
+.order-address-card {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-ink);
+}
+
+.order-meta-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.order-items-card {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.order-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.order-items-table th {
+  background-color: var(--color-surface);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.order-items-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.order-items-table tr:last-child td {
+  border-bottom: none;
+}
+
+.order-pricing-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  font-size: 12px;
+}
+
+.pricing-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pricing-row.total {
+  border-top: 1px solid var(--color-border);
+  padding-top: 6px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+/* Shipping Zones Manager */
+.shipping-zones-card {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background-color: var(--color-surface);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.shipping-zone-row {
+  display: grid;
+  grid-template-columns: 1fr 140px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+  gap: 12px;
+}
+
+.shipping-zone-row:last-child {
+  border-bottom: none;
+}
+
+.shipping-zone-info h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin-bottom: 2px;
+}
+
+.shipping-zone-info p {
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.shipping-fee-input-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.shipping-fee-input-group span {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--color-ink);
+}
+
+.shipping-fee-input {
+  width: 90px;
+  padding: 6px 8px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  text-align: right;
+}
+

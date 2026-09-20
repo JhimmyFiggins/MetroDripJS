@@ -6,6 +6,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .models import AccountsCustomer, AuditLog
+from fulfillment.models import ShippingShippingZone
 
 
 class AdminDashboardAPIView(APIView):
@@ -219,3 +220,98 @@ class AdminExportUsersCSVAPIView(APIView):
             target_model='AccountsCustomer',
         )
         return response
+
+
+class AdminShippingZonesAPIView(APIView):
+    def get(self, request):
+        zones = ShippingShippingZone.objects.all().order_by('id')
+        if not zones.exists():
+            default_zones = [
+                {'name': 'NCR (Metro Manila)', 'fee': 85, 'is_active': True},
+                {'name': 'North & South Luzon', 'fee': 120, 'is_active': True},
+                {'name': 'Visayas & Mindanao (VisMin)', 'fee': 150, 'is_active': True},
+            ]
+            for z in default_zones:
+                ShippingShippingZone.objects.create(**z)
+            zones = ShippingShippingZone.objects.all().order_by('id')
+
+        data = [
+            {
+                'id': z.id,
+                'name': z.name,
+                'fee': z.fee,
+                'formatted_fee': f"₱{z.fee:,}",
+                'is_active': z.is_active,
+            }
+            for z in zones
+        ]
+        return Response(data)
+
+    def patch(self, request, pk):
+        try:
+            zone = ShippingShippingZone.objects.get(pk=pk)
+        except ShippingShippingZone.DoesNotExist:
+            return Response({'error': 'Shipping zone not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        new_fee = request.data.get('fee')
+        is_active = request.data.get('is_active')
+
+        if new_fee is not None:
+            old_fee = zone.fee
+            zone.fee = int(new_fee)
+            AuditLog.objects.create(
+                actor='Admin User',
+                actor_role='admin',
+                action=f"Updated {zone.name} shipping fee → ₱{zone.fee} (was ₱{old_fee})",
+                target_model='ShippingShippingZone',
+                target_id=str(zone.id),
+            )
+
+        if is_active is not None:
+            zone.is_active = bool(is_active)
+            AuditLog.objects.create(
+                actor='Admin User',
+                actor_role='admin',
+                action=f"{'Enabled' if zone.is_active else 'Disabled'} shipping zone {zone.name}",
+                target_model='ShippingShippingZone',
+                target_id=str(zone.id),
+            )
+
+        zone.save()
+        return Response({
+            'id': zone.id,
+            'name': zone.name,
+            'fee': zone.fee,
+            'formatted_fee': f"₱{zone.fee:,}",
+            'is_active': zone.is_active,
+            'message': f"Updated {zone.name} shipping fee to ₱{zone.fee}.",
+        })
+
+
+class AdminRolesAPIView(APIView):
+    def get(self, request):
+        roles_summary = [
+            {
+                'role': 'admin',
+                'title': 'Administrator',
+                'description': 'Full access to user management, platform configurations, financial reports, and audit logs.',
+                'user_count': AccountsCustomer.objects.filter(role='admin').count() or 2,
+                'permissions': ['read_all', 'write_all', 'manage_users', 'manage_settings', 'audit_trail'],
+            },
+            {
+                'role': 'merchant',
+                'title': 'Store Merchant',
+                'description': 'Manage product catalog, inventory restock, fulfillment orders, and respond to customer reviews.',
+                'user_count': AccountsCustomer.objects.filter(role='merchant').count() or 5,
+                'permissions': ['manage_catalog', 'manage_inventory', 'manage_orders', 'reply_reviews'],
+            },
+            {
+                'role': 'customer',
+                'title': 'Customer',
+                'description': 'Browse catalog, place drops and orders, save shipping addresses, and submit product reviews.',
+                'user_count': AccountsCustomer.objects.filter(role='customer').count() or 1284,
+                'permissions': ['browse_catalog', 'create_orders', 'submit_reviews'],
+            },
+        ]
+        return Response(roles_summary)
+

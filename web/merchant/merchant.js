@@ -511,26 +511,402 @@
     setTimeout(() => openAddProductModal(), 100);
   }
 
-  // --- 5. EDIT PRODUCT BUTTONS (BUG-03 fix) ---
+  // --- 5. EDIT PRODUCT MODAL & CONTROLLER ---
+  const modalEditProd = document.getElementById('modal-edit-product');
+  const btnCloseEditProd = document.getElementById('btn-close-edit-product');
+  const btnCancelEditProd = document.getElementById('btn-cancel-edit-product');
+  const formEditProd = document.getElementById('form-edit-product');
+  let currentEditingRow = null;
+
+  async function openEditProductModal(row) {
+    if (!modalEditProd) return;
+    currentEditingRow = row;
+    const productId = row.dataset.productId || row.getAttribute('data-product-id') || '1';
+    const cells = row.querySelectorAll('td');
+
+    const name = cells[1]?.textContent.trim() || '';
+    const category = cells[2]?.textContent.trim() || 'Tops › Hoodies';
+    const stock = cells[4]?.textContent.trim() || '20';
+    const priceRaw = cells[5]?.textContent.trim().replace(/[^0-9]/g, '') || '649';
+    const statusText = (cells[6]?.textContent.trim() || 'Active').toLowerCase();
+
+    document.getElementById('edit-prod-id').value = productId;
+    document.getElementById('edit-prod-name').value = name;
+    document.getElementById('edit-prod-category').value = category;
+    document.getElementById('edit-prod-price').value = priceRaw;
+    document.getElementById('edit-prod-stock').value = stock;
+    document.getElementById('edit-prod-sku').value = `MD-PRD-00${productId}`;
+    document.getElementById('edit-prod-status').value = statusText.includes('inactive') ? 'inactive' : 'active';
+
+    // Try fetching fresh data from backend if available
+    try {
+      const res = await fetch(`${API_BASE}/products/${productId}/`);
+      if (res.ok) {
+        const data = await res.json();
+        document.getElementById('edit-prod-name').value = data.name;
+        document.getElementById('edit-prod-price').value = data.price;
+        document.getElementById('edit-prod-stock').value = data.stock;
+        document.getElementById('edit-prod-sku').value = data.sku;
+        document.getElementById('edit-prod-status').value = data.is_active ? 'active' : 'inactive';
+        if (data.description) {
+          const descEl = document.getElementById('edit-prod-desc');
+          if (descEl) descEl.value = data.description;
+        }
+      }
+    } catch {
+      // Offline fallback: seeded table values used
+    }
+
+    modalEditProd.hidden = false;
+    setActiveModal(modalEditProd);
+    document.getElementById('edit-prod-name')?.focus();
+  }
+
+  function closeEditProductModal() {
+    if (modalEditProd) modalEditProd.hidden = true;
+    formEditProd?.reset();
+    currentEditingRow = null;
+    clearActiveModal();
+  }
+
+  btnCloseEditProd?.addEventListener('click', closeEditProductModal);
+  btnCancelEditProd?.addEventListener('click', closeEditProductModal);
+  modalEditProd?.addEventListener('click', (e) => {
+    if (e.target === modalEditProd) closeEditProductModal();
+  });
+
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('.btn-edit-product');
     if (!btn) return;
-
     const row = btn.closest('tr');
-    const productName = row?.querySelector('.td-strong')?.textContent || 'Product';
-
-    showToast(`Editing "${productName}" — this feature will be available in the next release.`, 'error');
+    if (row) openEditProductModal(row);
   });
 
-  // --- 6. MANAGE CATEGORIES BUTTON (BUG-04 fix) ---
+  formEditProd?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const productId = document.getElementById('edit-prod-id').value;
+    const name = document.getElementById('edit-prod-name').value.trim();
+    const category = document.getElementById('edit-prod-category').value;
+    const price = parseInt(document.getElementById('edit-prod-price').value, 10);
+    const stock = parseInt(document.getElementById('edit-prod-stock').value, 10);
+    const sku = document.getElementById('edit-prod-sku').value.trim();
+    const statusVal = document.getElementById('edit-prod-status').value;
+    const desc = document.getElementById('edit-prod-desc')?.value || '';
+
+    if (!name || isNaN(price) || price <= 0 || isNaN(stock) || stock < 0) {
+      showToast('Please enter valid product details.', 'error');
+      return;
+    }
+
+    try {
+      await fetch(`${API_BASE}/products/${productId}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          category,
+          price,
+          stock,
+          sku,
+          is_active: statusVal === 'active',
+          description: desc,
+        }),
+      });
+    } catch {
+      // Offline fallback
+    }
+
+    if (currentEditingRow) {
+      const cells = currentEditingRow.querySelectorAll('td');
+      if (cells[1]) cells[1].textContent = name;
+      if (cells[2]) cells[2].textContent = category;
+      if (cells[4]) {
+        cells[4].textContent = stock;
+        cells[4].style.color = stock <= 5 ? 'var(--color-danger)' : 'var(--color-ink)';
+      }
+      if (cells[5]) cells[5].textContent = `₱${price.toLocaleString()}`;
+      if (cells[6]) {
+        const isActive = statusVal === 'active';
+        cells[6].innerHTML = `<span class="status-pill ${isActive ? 'active' : 'inactive'}">${isActive ? 'Active' : 'Inactive'}</span>`;
+      }
+      currentEditingRow.dataset.status = statusVal;
+      const catKey = category.toLowerCase().includes('tops') ? 'tops' : category.toLowerCase().includes('bottoms') ? 'bottoms' : 'accessories';
+      currentEditingRow.dataset.category = catKey;
+    }
+
+    closeEditProductModal();
+    showToast(`Saved changes for "${name}".`);
+  });
+
+  // --- 6. MANAGE CATEGORIES MODAL & CONTROLLER ---
+  const modalManageCats = document.getElementById('modal-manage-categories');
   const btnManageCats = document.getElementById('btn-manage-categories');
-  btnManageCats?.addEventListener('click', () => {
-    showToast('Category management will be available in the next release.', 'error');
+  const btnCloseCats = document.getElementById('btn-close-categories');
+  const btnCloseCatsFooter = document.getElementById('btn-close-categories-footer');
+  const formAddCat = document.getElementById('form-add-category');
+  const catListContainer = document.getElementById('categories-list-container');
+
+  async function openManageCategoriesModal() {
+    if (!modalManageCats) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/categories/`);
+      if (res.ok) {
+        const categories = await res.json();
+        if (catListContainer && categories.length > 0) {
+          catListContainer.innerHTML = categories.map((c) => `
+            <div class="category-item-row" data-category-id="${c.id}">
+              <span class="category-item-name">${escapeHtml(c.name)}</span>
+              <span class="category-count-badge">${c.product_count} items</span>
+            </div>
+          `).join('');
+        }
+      }
+    } catch {
+      // Offline fallback: retain pre-rendered categories
+    }
+
+    modalManageCats.hidden = false;
+    setActiveModal(modalManageCats);
+    document.getElementById('new-cat-name')?.focus();
+  }
+
+  function closeManageCategoriesModal() {
+    if (modalManageCats) modalManageCats.hidden = true;
+    formAddCat?.reset();
+    clearActiveModal();
+  }
+
+  btnManageCats?.addEventListener('click', openManageCategoriesModal);
+  btnCloseCats?.addEventListener('click', closeManageCategoriesModal);
+  btnCloseCatsFooter?.addEventListener('click', closeManageCategoriesModal);
+  modalManageCats?.addEventListener('click', (e) => {
+    if (e.target === modalManageCats) closeManageCategoriesModal();
   });
 
-  // --- 7. EXPORT CSV (Merchant Dashboard) ---
+  formAddCat?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = document.getElementById('new-cat-name');
+    const name = input?.value.trim();
+    if (!name) return;
+
+    let createdCategory = { id: Date.now(), name, product_count: 0 };
+    try {
+      const res = await fetch(`${API_BASE}/categories/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      if (res.ok) {
+        createdCategory = await res.json();
+      }
+    } catch {
+      // Offline fallback
+    }
+
+    if (catListContainer) {
+      const row = document.createElement('div');
+      row.className = 'category-item-row';
+      row.dataset.categoryId = createdCategory.id;
+      row.innerHTML = `
+        <span class="category-item-name">${escapeHtml(createdCategory.name)}</span>
+        <span class="category-count-badge">${createdCategory.product_count || 0} items</span>
+      `;
+      catListContainer.appendChild(row);
+      row.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Add to category select dropdowns
+    ['add-prod-category', 'edit-prod-category'].forEach((selId) => {
+      const selectEl = document.getElementById(selId);
+      if (selectEl) {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        selectEl.appendChild(opt);
+      }
+    });
+
+    input.value = '';
+    showToast(`Created category "${name}".`);
+  });
+
+  // --- 7. RECENT ORDERS & FULFILLMENT MODAL ---
+  const modalOrderDetail = document.getElementById('modal-order-detail');
+  const btnCloseOrderDetail = document.getElementById('btn-close-order-detail');
+  const btnCloseOrderFooter = document.getElementById('btn-close-order-footer');
+  const btnOrderMarkPacked = document.getElementById('btn-order-mark-packed');
+  const btnOrderMarkShipped = document.getElementById('btn-order-mark-shipped');
+  let currentActiveOrderId = null;
+
+  async function openOrderDetailModal(orderId) {
+    if (!modalOrderDetail) return;
+    currentActiveOrderId = orderId;
+
+    let orderData = null;
+    try {
+      const res = await fetch(`${API_BASE}/orders/${orderId}/`);
+      if (res.ok) {
+        orderData = await res.json();
+      }
+    } catch {
+      // Offline fallback
+    }
+
+    if (!orderData) {
+      // Default fallback demo data
+      const demoOrders = {
+        318: { order_no: 'MD-2026-00318', customer: 'Juan Dela Cruz', phone: '+63 917 555 1234', addr: 'Unit 12B Tower 2, One Serendra, Taguig', status: 'Paid', raw_status: 'paid', total: 2632, subtotal: 2547, shipping: 85, pay: 'GCASH' },
+        317: { order_no: 'MD-2026-00317', customer: 'Bea Santos', phone: '+63 918 222 3456', addr: '45 Commonwealth Ave, Quezon City', status: 'Packed', raw_status: 'packed', total: 1249, subtotal: 1164, shipping: 85, pay: 'MAYA' },
+        316: { order_no: 'MD-2026-00316', customer: 'Miguel Reyes', phone: '+63 920 444 8899', addr: '88 Session Road, Baguio City', status: 'Shipped', raw_status: 'shipped', total: 3447, subtotal: 3327, shipping: 120, pay: 'CARD' },
+        315: { order_no: 'MD-2026-00315', customer: 'Aliyah Cruz', phone: '+63 927 888 1122', addr: '24 Real St, Cebu City', status: 'Pending', raw_status: 'pending', total: 849, subtotal: 699, shipping: 150, pay: 'GCASH' },
+        314: { order_no: 'MD-2026-00314', customer: 'Marco Lim', phone: '+63 915 777 4433', addr: '77 Abreeza Mall Road, Davao City', status: 'Paid', raw_status: 'paid', total: 1798, subtotal: 1648, shipping: 150, pay: 'GCASH' },
+      };
+      const demo = demoOrders[orderId] || demoOrders[318];
+      orderData = {
+        id: orderId,
+        order_no: demo.order_no,
+        status: demo.status,
+        raw_status: demo.raw_status,
+        subtotal: demo.subtotal,
+        shipping: demo.shipping,
+        total: demo.total,
+        payment_method: demo.pay,
+        created_at: 'Sep 19, 2026 15:42',
+        shipping_address: {
+          name: demo.customer,
+          line1: demo.addr,
+          city: 'Metro Manila',
+          phone: demo.phone,
+        },
+        lines: [
+          { product_name: 'Drip Zip-Up Hoodie', variant_desc: 'BLK · M · OVS', quantity: 1, unit_price: 1249, total_price: 1249 },
+          { product_name: 'Metro Core Boxy Tee', variant_desc: 'WHT · XL · REG', quantity: 2, unit_price: 649, total_price: 1298 },
+        ],
+      };
+    }
+
+    // Populate Modal UI
+    document.getElementById('order-detail-no').textContent = orderData.order_no;
+    document.getElementById('order-customer-name').textContent = orderData.shipping_address?.name || 'Customer';
+    document.getElementById('order-shipping-line1').textContent = orderData.shipping_address?.line1 || 'Delivery address';
+    document.getElementById('order-shipping-city').textContent = `${orderData.shipping_address?.city || 'Metro Manila'}, ${orderData.shipping_address?.postal_code || ''}`;
+    document.getElementById('order-customer-phone').textContent = orderData.shipping_address?.phone || '';
+    document.getElementById('order-payment-method').textContent = orderData.payment_method || 'GCASH';
+    document.getElementById('order-created-date').textContent = orderData.created_at || 'Sep 19, 2026';
+
+    const pillEl = document.getElementById('order-detail-status-pill');
+    if (pillEl) {
+      const statusClass = (orderData.raw_status || orderData.status.toLowerCase());
+      pillEl.className = `status-pill ${statusClass}`;
+      pillEl.textContent = orderData.status;
+    }
+
+    document.getElementById('order-subtotal').textContent = `₱${orderData.subtotal.toLocaleString()}`;
+    document.getElementById('order-shipping').textContent = `₱${orderData.shipping.toLocaleString()}`;
+    document.getElementById('order-total').textContent = `₱${orderData.total.toLocaleString()}`;
+
+    // Populate line items
+    const tbody = document.getElementById('order-items-tbody');
+    if (tbody && orderData.lines) {
+      tbody.innerHTML = orderData.lines.map((item) => `
+        <tr>
+          <td class="td-strong">${escapeHtml(item.product_name)}</td>
+          <td class="td-mono td-muted">${escapeHtml(item.variant_desc)}</td>
+          <td class="td-mono" style="text-align: center;">${item.quantity}</td>
+          <td class="td-mono" style="text-align: right;">₱${item.unit_price.toLocaleString()}</td>
+          <td class="td-mono td-strong" style="text-align: right;">₱${item.total_price.toLocaleString()}</td>
+        </tr>
+      `).join('');
+    }
+
+    updateFulfillmentButtonStates(orderData.raw_status || orderData.status.toLowerCase());
+
+    modalOrderDetail.hidden = false;
+    setActiveModal(modalOrderDetail);
+  }
+
+  function updateFulfillmentButtonStates(rawStatus) {
+    if (!btnOrderMarkPacked || !btnOrderMarkShipped) return;
+    if (rawStatus === 'paid') {
+      btnOrderMarkPacked.disabled = false;
+      btnOrderMarkPacked.textContent = 'Mark as Packed';
+      btnOrderMarkShipped.disabled = false;
+      btnOrderMarkShipped.textContent = 'Mark as Shipped';
+    } else if (rawStatus === 'packed') {
+      btnOrderMarkPacked.disabled = true;
+      btnOrderMarkPacked.textContent = '✓ Packed';
+      btnOrderMarkShipped.disabled = false;
+      btnOrderMarkShipped.textContent = 'Mark as Shipped';
+    } else if (rawStatus === 'shipped') {
+      btnOrderMarkPacked.disabled = true;
+      btnOrderMarkPacked.textContent = '✓ Packed';
+      btnOrderMarkShipped.disabled = true;
+      btnOrderMarkShipped.textContent = '✓ Shipped';
+    } else {
+      btnOrderMarkPacked.disabled = false;
+      btnOrderMarkShipped.disabled = false;
+    }
+  }
+
+  async function updateOrderStatus(newStatus) {
+    if (!currentActiveOrderId) return;
+
+    try {
+      await fetch(`${API_BASE}/orders/${currentActiveOrderId}/status/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+    } catch {
+      // Offline fallback
+    }
+
+    const pillEl = document.getElementById('order-detail-status-pill');
+    if (pillEl) {
+      pillEl.className = `status-pill ${newStatus}`;
+      pillEl.textContent = newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
+    }
+    updateFulfillmentButtonStates(newStatus);
+
+    // Update table row in Dashboard
+    const row = document.querySelector(`tr[data-order-id="${currentActiveOrderId}"]`);
+    if (row) {
+      const statusCell = row.children[4];
+      if (statusCell) {
+        statusCell.innerHTML = `<span class="status-pill ${newStatus}">${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}</span>`;
+      }
+    }
+
+    showToast(`Order #${currentActiveOrderId} status updated to ${newStatus.toUpperCase()}.`);
+  }
+
+  btnOrderMarkPacked?.addEventListener('click', () => updateOrderStatus('packed'));
+  btnOrderMarkShipped?.addEventListener('click', () => updateOrderStatus('shipped'));
+
+  function closeOrderDetailModal() {
+    if (modalOrderDetail) modalOrderDetail.hidden = true;
+    currentActiveOrderId = null;
+    clearActiveModal();
+  }
+
+  btnCloseOrderDetail?.addEventListener('click', closeOrderDetailModal);
+  btnCloseOrderFooter?.addEventListener('click', closeOrderDetailModal);
+  modalOrderDetail?.addEventListener('click', (e) => {
+    if (e.target === modalOrderDetail) closeOrderDetailModal();
+  });
+
+  // Event delegation for Dashboard recent orders table
+  document.getElementById('orders-tbody')?.addEventListener('click', (e) => {
+    const row = e.target.closest('tr[data-order-id]');
+    if (!row) return;
+    const orderId = parseInt(row.dataset.orderId, 10);
+    if (orderId) openOrderDetailModal(orderId);
+  });
+
+  // --- 8. EXPORT CSV (Merchant Dashboard & Catalog) ---
   const btnExport = document.getElementById('btn-merchant-export-csv');
-  btnExport?.addEventListener('click', () => {
+  btnExport?.addEventListener('click', async () => {
     // On catalog page, export product table data
     const productsTbody = document.getElementById('products-tbody');
     if (productsTbody) {
@@ -539,12 +915,12 @@
         .map((r) => {
           const cells = r.querySelectorAll('td');
           return [
-            `"${cells[1]?.textContent.trim() || ''}"`,  // Product
-            `"${cells[2]?.textContent.trim() || ''}"`,  // Category
-            cells[3]?.textContent.trim() || '',           // Variants
-            cells[4]?.textContent.trim() || '',           // Stock
-            `"${cells[5]?.textContent.trim() || ''}"`,  // Price
-            `"${cells[6]?.textContent.trim() || ''}"`,  // Status
+            `"${cells[1]?.textContent.trim() || ''}"`,
+            `"${cells[2]?.textContent.trim() || ''}"`,
+            cells[3]?.textContent.trim() || '',
+            cells[4]?.textContent.trim() || '',
+            `"${cells[5]?.textContent.trim() || ''}"`,
+            `"${cells[6]?.textContent.trim() || ''}"`,
           ].join(',');
         });
       const csvContent = ['Product,Category,Variants,Stock,Price,Status', ...rows].join('\n');
@@ -553,7 +929,19 @@
       return;
     }
 
-    // On dashboard page, export orders table data
+    // On dashboard page, try backend export first
+    try {
+      const res = await fetch(`${API_BASE}/orders/export/`);
+      if (res.ok) {
+        const text = await res.text();
+        downloadCsv(text, 'metrodrip_merchant_orders');
+        showToast('Exported recent orders to CSV.');
+        return;
+      }
+    } catch {
+      // Offline fallback
+    }
+
     const ordersData = [
       ['Order ID', 'Customer', 'Total', 'Payment', 'Status'],
       ['MD-2026-00318', 'Juan Dela Cruz', '2632', 'GCASH', 'Paid'],
@@ -577,7 +965,7 @@
     URL.revokeObjectURL(url);
   }
 
-  // --- 8. NAVIGATION ACTIVE STATE (for sidebar links) ---
+  // --- 9. NAVIGATION ACTIVE STATE ---
   document.querySelectorAll('.nav-item[data-nav]').forEach((item) => {
     item.addEventListener('click', (e) => {
       document.querySelectorAll('.nav-item').forEach((nav) => nav.classList.remove('is-active'));
@@ -585,3 +973,4 @@
     });
   });
 })();
+

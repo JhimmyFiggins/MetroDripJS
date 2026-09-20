@@ -10,6 +10,7 @@ from catalog.models import (
     InventoryStockMovement,
 )
 from orders.models import OrdersOrder, ReviewsReview
+from fulfillment.models import ShippingShippingZone
 from django.utils import timezone
 
 
@@ -164,4 +165,90 @@ class ConsolesAPITestCase(TestCase):
         self.assertEqual(res.status_code, 200)
         self.review.refresh_from_db()
         self.assertEqual(self.review.status, 'approved')
+
+    def test_merchant_product_detail_and_patch(self):
+        # 1. GET product detail
+        res = self.client.get(f'/api/merchant/products/{self.product.id}/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['name'], self.product.name)
+        self.assertEqual(res.data['price'], int(self.product.base_price))
+        self.assertEqual(res.data['stock'], self.stock.quantity)
+
+        # 2. PATCH product detail (price, stock, name)
+        res = self.client.patch(f'/api/merchant/products/{self.product.id}/', {
+            'name': 'Drip Heavyweight Zip-Up Hoodie',
+            'price': 1499,
+            'stock': 40,
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['price'], 1499)
+        self.assertEqual(res.data['stock'], 40)
+
+        # Verify DB updates
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.name, 'Drip Heavyweight Zip-Up Hoodie')
+        self.assertEqual(int(self.product.base_price), 1499)
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, 40)
+
+    def test_merchant_categories_list_and_create(self):
+        # GET categories
+        res = self.client.get('/api/merchant/categories/')
+        self.assertEqual(res.status_code, 200)
+        self.assertGreaterEqual(len(res.data), 1)
+
+        # POST new category
+        res = self.client.post('/api/merchant/categories/', {
+            'name': 'Outerwear › Windbreakers',
+            'description': 'Streetwear windbreakers',
+        }, format='json')
+        self.assertEqual(res.status_code, 201)
+        self.assertTrue(CatalogCategory.objects.filter(name='Outerwear › Windbreakers').exists())
+
+    def test_merchant_orders_detail_and_status_update(self):
+        # GET order detail
+        res = self.client.get('/api/merchant/orders/318/')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('order_no', res.data)
+        self.assertIn('shipping_address', res.data)
+        self.assertIn('lines', res.data)
+
+        # PATCH order status
+        res = self.client.patch('/api/merchant/orders/318/status/', {
+            'status': 'packed',
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['status'], 'Packed')
+
+    def test_merchant_orders_export_csv(self):
+        res = self.client.get('/api/merchant/orders/export/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res['Content-Type'], 'text/csv')
+        self.assertIn('Order ID', res.content.decode('utf-8'))
+
+    def test_admin_shipping_zones_get_and_patch(self):
+        # GET shipping zones
+        res = self.client.get('/api/admin/shipping-zones/')
+        self.assertEqual(res.status_code, 200)
+        self.assertGreaterEqual(len(res.data), 1)
+
+        zone_id = res.data[0]['id']
+        # PATCH shipping zone fee
+        res = self.client.patch(f'/api/admin/shipping-zones/{zone_id}/', {
+            'fee': 95,
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['fee'], 95)
+
+        # Verify audit log was recorded
+        self.assertTrue(AuditLog.objects.filter(action__contains='shipping fee').exists())
+
+    def test_admin_roles_api(self):
+        res = self.client.get('/api/admin/roles/')
+        self.assertEqual(res.status_code, 200)
+        roles = [r['role'] for r in res.data]
+        self.assertIn('admin', roles)
+        self.assertIn('merchant', roles)
+        self.assertIn('customer', roles)
+
 

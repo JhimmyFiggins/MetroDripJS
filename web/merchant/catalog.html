@@ -49,7 +49,7 @@
           <a class="nav-item" href="index.html#content">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Content & Banners</span>
           </a>
-          <a class="nav-item" href="analytics.html">
+          <a class="nav-item" href="analytics.html?v=1.1">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Analytics</span>
           </a>
         </nav>
@@ -403,6 +403,116 @@
           <button type="submit" class="btn btn-primary" id="btn-submit-reply-review">Send Reply</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal: Edit Product Dialog -->
+  <div class="modal-overlay" id="modal-edit-product" role="dialog" aria-modal="true" aria-labelledby="modal-edit-product-title" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-edit-product-title">Edit Product</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-edit-product" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="form-edit-product">
+        <input type="hidden" id="edit-prod-id" name="id" value="">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="edit-prod-name">Product Name</label>
+            <input class="form-input" id="edit-prod-name" name="name" type="text" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-prod-category">Category</label>
+            <select class="form-select" id="edit-prod-category" name="category" required>
+              <option value="Tops › Hoodies">Tops › Hoodies</option>
+              <option value="Tops › T-Shirts">Tops › T-Shirts</option>
+              <option value="Bottoms › Denim">Bottoms › Denim</option>
+              <option value="Accessories › Caps">Accessories › Caps</option>
+              <option value="Accessories › Socks">Accessories › Socks</option>
+            </select>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label" for="edit-prod-price">Base Price (PHP)</label>
+              <input class="form-input" id="edit-prod-price" name="price" type="number" min="1" step="1" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="edit-prod-stock">Stock on Hand</label>
+              <input class="form-input" id="edit-prod-stock" name="stock" type="number" min="0" required>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label" for="edit-prod-sku">SKU Code</label>
+              <input class="form-input" id="edit-prod-sku" name="sku" type="text" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="edit-prod-status">Listing Status</label>
+              <select class="form-select" id="edit-prod-status" name="status" required>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-prod-desc">Description</label>
+            <textarea class="form-textarea" id="edit-prod-desc" name="description" rows="2" placeholder="Fabric, fit details and care instructions..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-edit-product">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-edit-product">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Manage Categories Dialog -->
+  <div class="modal-overlay" id="modal-manage-categories" role="dialog" aria-modal="true" aria-labelledby="modal-manage-categories-title" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-manage-categories-title">Manage Categories</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-categories" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Active Catalog Categories</label>
+          <div class="category-list-card" id="categories-list-container">
+            <!-- Dynamic Category List -->
+            <div class="category-item-row">
+              <span class="category-item-name">Tops › Hoodies</span>
+              <span class="category-count-badge">24 items</span>
+            </div>
+            <div class="category-item-row">
+              <span class="category-item-name">Tops › T-Shirts</span>
+              <span class="category-count-badge">42 items</span>
+            </div>
+            <div class="category-item-row">
+              <span class="category-item-name">Bottoms › Denim</span>
+              <span class="category-count-badge">18 items</span>
+            </div>
+            <div class="category-item-row">
+              <span class="category-item-name">Accessories › Caps</span>
+              <span class="category-count-badge">16 items</span>
+            </div>
+            <div class="category-item-row">
+              <span class="category-item-name">Accessories › Socks</span>
+              <span class="category-count-badge">12 items</span>
+            </div>
+          </div>
+        </div>
+        <form id="form-add-category" style="display: flex; flex-direction: column; gap: 10px; margin-top: 6px;">
+          <div class="form-group">
+            <label class="form-label" for="new-cat-name">Add New Category</label>
+            <div style="display: flex; gap: 8px;">
+              <input class="form-input" id="new-cat-name" name="name" type="text" placeholder="e.g. Outerwear › Jackets" style="flex: 1;" required>
+              <button type="submit" class="btn btn-primary" id="btn-submit-category">+ Add</button>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn-close-categories-footer">Done</button>
+      </div>
     </div>
   </div>
 

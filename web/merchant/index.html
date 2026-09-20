@@ -49,7 +49,7 @@
           <a class="nav-item" href="#content" data-nav="content">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Content & Banners</span>
           </a>
-          <a class="nav-item" href="analytics.html">
+          <a class="nav-item" href="analytics.html?v=1.1">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Analytics</span>
           </a>
         </nav>
@@ -210,35 +210,35 @@
               </thead>
               <tbody id="orders-tbody">
                 <!-- Seeded matching Figma frame 57:2 -->
-                <tr>
+                <tr class="clickable-row" data-order-id="318">
                   <td class="td-mono td-strong">MD-2026-00318</td>
                   <td>Juan Dela Cruz</td>
                   <td class="td-mono td-strong">₱2,632</td>
                   <td class="td-mono td-muted">GCASH</td>
                   <td><span class="status-pill paid">Paid</span></td>
                 </tr>
-                <tr>
+                <tr class="clickable-row" data-order-id="317">
                   <td class="td-mono td-strong">MD-2026-00317</td>
                   <td>Bea Santos</td>
                   <td class="td-mono td-strong">₱1,249</td>
                   <td class="td-mono td-muted">MAYA</td>
                   <td><span class="status-pill packed">Packed</span></td>
                 </tr>
-                <tr>
+                <tr class="clickable-row" data-order-id="316">
                   <td class="td-mono td-strong">MD-2026-00316</td>
                   <td>Miguel Reyes</td>
                   <td class="td-mono td-strong">₱3,447</td>
                   <td class="td-mono td-muted">CARD</td>
                   <td><span class="status-pill shipped">Shipped</span></td>
                 </tr>
-                <tr>
+                <tr class="clickable-row" data-order-id="315">
                   <td class="td-mono td-strong">MD-2026-00315</td>
                   <td>Aliyah Cruz</td>
                   <td class="td-mono td-strong">₱849</td>
                   <td class="td-mono td-muted">GCASH</td>
                   <td><span class="status-pill pending">Pending</span></td>
                 </tr>
-                <tr>
+                <tr class="clickable-row" data-order-id="314">
                   <td class="td-mono td-strong">MD-2026-00314</td>
                   <td>Marco Lim</td>
                   <td class="td-mono td-strong">₱1,798</td>
@@ -289,6 +289,98 @@
           <button type="submit" class="btn btn-primary" id="btn-submit-restock">Commit Stock</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal: Order Detail & Fulfillment Dialog -->
+  <div class="modal-overlay" id="modal-order-detail" role="dialog" aria-modal="true" aria-labelledby="modal-order-detail-title" hidden>
+    <div class="modal-card" style="max-width: 620px;">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="modal-order-detail-title">Order Details</h3>
+          <span class="td-mono td-muted" id="order-detail-no" style="font-size: 11px;">MD-2026-00318</span>
+        </div>
+        <button type="button" class="modal-close-btn" id="btn-close-order-detail" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- Customer & Order Meta -->
+        <div class="order-summary-box">
+          <div class="order-address-card">
+            <span class="form-label" style="display: block; margin-bottom: 4px;">Delivery Address</span>
+            <strong id="order-customer-name" style="display: block;">Juan Dela Cruz</strong>
+            <span id="order-shipping-line1" style="color: var(--color-muted); display: block;">Unit 12B Tower 2, One Serendra</span>
+            <span id="order-shipping-city" style="color: var(--color-muted); display: block;">Taguig, Metro Manila 1634</span>
+            <span id="order-customer-phone" class="td-mono" style="font-size: 11px; display: block; margin-top: 4px;">+63 917 555 1234</span>
+          </div>
+          <div class="order-meta-card">
+            <span class="form-label">Payment & Fulfillment</span>
+            <div>
+              <span class="td-muted">Payment:</span> <strong id="order-payment-method" class="td-mono">GCASH</strong>
+            </div>
+            <div>
+              <span class="td-muted">Placed:</span> <span id="order-created-date" class="td-mono">Sep 19, 2026 15:42</span>
+            </div>
+            <div style="margin-top: 6px;">
+              <span class="td-muted">Current Status:</span>
+              <span id="order-detail-status-pill" class="status-pill paid" style="margin-left: 6px;">Paid</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ordered Items Table -->
+        <div class="order-items-card">
+          <table class="order-items-table">
+            <thead>
+              <tr>
+                <th scope="col">ITEM</th>
+                <th scope="col">VARIANT</th>
+                <th scope="col" style="text-align: center;">QTY</th>
+                <th scope="col" style="text-align: right;">PRICE</th>
+                <th scope="col" style="text-align: right;">TOTAL</th>
+              </tr>
+            </thead>
+            <tbody id="order-items-tbody">
+              <tr>
+                <td class="td-strong">Drip Zip-Up Hoodie</td>
+                <td class="td-mono td-muted">BLK · M · OVS</td>
+                <td class="td-mono" style="text-align: center;">1</td>
+                <td class="td-mono" style="text-align: right;">₱1,249</td>
+                <td class="td-mono td-strong" style="text-align: right;">₱1,249</td>
+              </tr>
+              <tr>
+                <td class="td-strong">Metro Core Boxy Tee</td>
+                <td class="td-mono td-muted">WHT · XL · REG</td>
+                <td class="td-mono" style="text-align: center;">2</td>
+                <td class="td-mono" style="text-align: right;">₱649</td>
+                <td class="td-mono td-strong" style="text-align: right;">₱1,298</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pricing Summary -->
+        <div class="order-pricing-summary">
+          <div class="pricing-row">
+            <span class="td-muted">Subtotal</span>
+            <span class="td-mono" id="order-subtotal">₱2,547</span>
+          </div>
+          <div class="pricing-row">
+            <span class="td-muted">Shipping Fee (Standard NCR)</span>
+            <span class="td-mono" id="order-shipping">₱85</span>
+          </div>
+          <div class="pricing-row total">
+            <span>Order Total</span>
+            <span class="td-mono" id="order-total" style="color: var(--color-ink);">₱2,632</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content: space-between;">
+        <button type="button" class="btn btn-secondary" id="btn-close-order-footer">Close</button>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn btn-secondary" id="btn-order-mark-packed">Mark as Packed</button>
+          <button type="button" class="btn btn-primary" id="btn-order-mark-shipped">Mark as Shipped</button>
+        </div>
+      </div>
     </div>
   </div>
 

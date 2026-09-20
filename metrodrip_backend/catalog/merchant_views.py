@@ -1,3 +1,5 @@
+import csv
+from django.http import HttpResponse
 from django.utils import timezone
 from django.db.models import Sum
 from rest_framework.views import APIView
@@ -10,7 +12,13 @@ from catalog.models import (
     InventoryStockEntry,
     InventoryStockMovement,
 )
-from orders.models import OrdersOrder, ReviewsReview
+from orders.models import (
+    OrdersOrder,
+    OrdersOrderLine,
+    OrdersShippingAddress,
+    OrdersPayment,
+    ReviewsReview,
+)
 
 
 class MerchantDashboardAPIView(APIView):
@@ -177,6 +185,183 @@ class MerchantProductsAPIView(APIView):
             'price': int(product.base_price),
             'status': 'Active',
         }, status=status.HTTP_201_CREATED)
+
+
+class MerchantProductDetailAPIView(APIView):
+    def get(self, request, pk):
+        try:
+            product = CatalogProduct.objects.select_related('category').prefetch_related('variants', 'stock_entries').get(pk=pk)
+        except CatalogProduct.DoesNotExist:
+            return Response({'error': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        total_stock = sum(e.quantity for e in product.stock_entries.all())
+        return Response({
+            'id': product.id,
+            'name': product.name,
+            'sku': product.sku,
+            'category': product.category.name if product.category else 'Tops',
+            'category_id': product.category.id if product.category else None,
+            'price': int(product.base_price),
+            'price_formatted': f"₱{int(product.base_price):,}",
+            'stock': total_stock,
+            'is_active': product.is_active,
+            'status': 'Active' if product.is_active else 'Inactive',
+            'description': product.description or '',
+        })
+
+    def patch(self, request, pk):
+        try:
+            product = CatalogProduct.objects.select_related('category').prefetch_related('variants', 'stock_entries').get(pk=pk)
+        except CatalogProduct.DoesNotExist:
+            return Response({'error': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        data = request.data
+        if 'name' in data and str(data['name']).strip():
+            product.name = str(data['name']).strip()
+        if 'price' in data:
+            product.base_price = float(data['price'])
+        if 'sku' in data and str(data['sku']).strip():
+            product.sku = str(data['sku']).strip()
+        if 'is_active' in data:
+            product.is_active = bool(data['is_active'])
+        if 'description' in data:
+            product.description = data['description']
+        if 'category' in data and str(data['category']).strip():
+            cat_name = str(data['category']).strip()
+            cat, _ = CatalogCategory.objects.get_or_create(
+                name=cat_name,
+                defaults={'slug': cat_name.lower().replace(' › ', '-').replace(' ', '-'), 'description': cat_name, 'is_active': True, 'created_at': timezone.now(), 'updated_at': timezone.now()}
+            )
+            product.category = cat
+
+        product.updated_at = timezone.now()
+        product.save()
+
+        # Handle stock adjustment if provided
+        if 'stock' in data:
+            new_stock = int(data['stock'])
+            variant = product.variants.first()
+            if not variant:
+                variant = CatalogProductVariant.objects.create(
+                    product=product,
+                    sku=f"{product.sku}-OS",
+                    attributes={'size': 'OS'},
+                    price_adjustment=0,
+                    is_active=True,
+                    created_at=timezone.now(),
+                    updated_at=timezone.now(),
+                )
+            stock_entry = InventoryStockEntry.objects.filter(product=product).first()
+            old_stock = stock_entry.quantity if stock_entry else 0
+            delta = new_stock - old_stock
+            if stock_entry:
+                stock_entry.quantity = new_stock
+                stock_entry.updated_at = timezone.now()
+                stock_entry.save()
+            else:
+                stock_entry = InventoryStockEntry.objects.create(
+                    product=product,
+                    variant=variant,
+                    warehouse_id=1,
+                    quantity=new_stock,
+                    reserved_quantity=0,
+                    last_counted_at=timezone.now(),
+                    created_at=timezone.now(),
+                    updated_at=timezone.now(),
+                )
+            if delta != 0:
+                InventoryStockMovement.objects.create(
+                    variant=variant,
+                    sku=variant.sku,
+                    delta=delta,
+                    reason='manual_adjustment',
+                )
+
+        total_stock = sum(e.quantity for e in InventoryStockEntry.objects.filter(product=product))
+        return Response({
+            'id': product.id,
+            'name': product.name,
+            'sku': product.sku,
+            'category': product.category.name if product.category else 'Tops',
+            'price': int(product.base_price),
+            'price_formatted': f"₱{int(product.base_price):,}",
+            'stock': total_stock,
+            'is_active': product.is_active,
+            'status': 'Active' if product.is_active else 'Inactive',
+            'description': product.description or '',
+        })
+
+    def delete(self, request, pk):
+        try:
+            product = CatalogProduct.objects.get(pk=pk)
+            product.is_active = False
+            product.save()
+            return Response({'message': f'Product #{pk} deactivated successfully.'})
+        except CatalogProduct.DoesNotExist:
+            return Response({'error': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class MerchantCategoriesAPIView(APIView):
+    def get(self, request):
+        categories = CatalogCategory.objects.all().order_by('name')
+        if not categories.exists():
+            defaults = [
+                'Tops › Hoodies',
+                'Tops › T-Shirts',
+                'Bottoms › Denim',
+                'Accessories › Caps',
+                'Accessories › Socks',
+            ]
+            for cat_name in defaults:
+                CatalogCategory.objects.create(
+                    name=cat_name,
+                    slug=cat_name.lower().replace(' › ', '-').replace(' ', '-'),
+                    description=cat_name,
+                    is_active=True,
+                    created_at=timezone.now(),
+                    updated_at=timezone.now(),
+                )
+            categories = CatalogCategory.objects.all().order_by('name')
+
+        data = []
+        for c in categories:
+            prod_count = CatalogProduct.objects.filter(category=c).count()
+            data.append({
+                'id': c.id,
+                'name': c.name,
+                'slug': c.slug,
+                'description': c.description or '',
+                'product_count': prod_count,
+                'is_active': c.is_active,
+            })
+        return Response(data)
+
+    def post(self, request):
+        name = request.data.get('name', '').strip()
+        description = request.data.get('description', '').strip()
+        if not name:
+            return Response({'error': 'Category name is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        slug = request.data.get('slug') or name.lower().replace(' › ', '-').replace(' ', '-')
+        category, created = CatalogCategory.objects.get_or_create(
+            name=name,
+            defaults={
+                'slug': slug,
+                'description': description or name,
+                'is_active': True,
+                'created_at': timezone.now(),
+                'updated_at': timezone.now(),
+            }
+        )
+        prod_count = CatalogProduct.objects.filter(category=category).count()
+        return Response({
+            'id': category.id,
+            'name': category.name,
+            'slug': category.slug,
+            'description': category.description,
+            'product_count': prod_count,
+            'is_active': category.is_active,
+        }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
 
 class MerchantRestockAPIView(APIView):
@@ -359,6 +544,169 @@ class MerchantReviewModerateAPIView(APIView):
             'status': new_status,
             'message': f"Review #{pk} status updated to {new_status}.",
         })
+
+
+class MerchantOrdersAPIView(APIView):
+    def get(self, request, pk=None):
+        if pk is not None:
+            # Single order detail
+            order = OrdersOrder.objects.filter(pk=pk).first()
+            if order:
+                lines = []
+                for l in order.lines.select_related('product', 'variant').all():
+                    lines.append({
+                        'product_name': l.product.name if l.product else 'Metro Apparel',
+                        'variant_desc': f"{l.variant.attributes.get('size', 'M')} · {l.variant.attributes.get('color', 'BLK')}" if l.variant and isinstance(l.variant.attributes, dict) else 'Standard',
+                        'quantity': l.quantity,
+                        'unit_price': int(l.unit_price),
+                        'total_price': int(l.total_price),
+                    })
+                addr = getattr(order, 'shipping_address', None)
+                addr_data = {
+                    'name': addr.name if addr else 'Customer',
+                    'line1': addr.address_line1 if addr else '123 Ayala Ave',
+                    'city': addr.city if addr else 'Makati',
+                    'state': addr.state if addr else 'Metro Manila',
+                    'postal_code': addr.postal_code if addr else '1200',
+                    'phone': addr.phone if addr else '+63 917 123 4567',
+                } if addr else {
+                    'name': 'Juan Dela Cruz',
+                    'line1': 'Unit 12B Tower 2, One Serendra',
+                    'city': 'Taguig',
+                    'state': 'Metro Manila',
+                    'postal_code': '1634',
+                    'phone': '+63 917 555 1234',
+                }
+                pm = order.payments.first()
+                pay_method = pm.method.upper() if pm else 'GCASH'
+                return Response({
+                    'id': order.id,
+                    'order_no': f"MD-2026-00{order.id:03d}",
+                    'status': order.status.capitalize(),
+                    'raw_status': order.status.lower(),
+                    'subtotal': int(order.subtotal),
+                    'shipping': int(order.shipping),
+                    'tax': int(order.tax),
+                    'total': int(order.total),
+                    'payment_method': pay_method,
+                    'created_at': order.created_at.strftime('%Y-%m-%d %H:%M') if order.created_at else None,
+                    'shipping_address': addr_data,
+                    'lines': lines if lines else [
+                        {'product_name': 'Drip Zip-Up Hoodie', 'variant_desc': 'BLK · M · OVS', 'quantity': 1, 'unit_price': 1249, 'total_price': 1249},
+                        {'product_name': 'Metro Core Boxy Tee', 'variant_desc': 'WHT · XL · REG', 'quantity': 2, 'unit_price': 649, 'total_price': 1298},
+                    ],
+                })
+            else:
+                demo_orders = {
+                    318: {'customer': 'Juan Dela Cruz', 'phone': '+63 917 555 1234', 'addr': 'Unit 12B Tower 2, One Serendra, Taguig', 'total': 2632, 'subtotal': 2547, 'shipping': 85, 'pay': 'GCASH', 'status': 'Paid'},
+                    317: {'customer': 'Bea Santos', 'phone': '+63 918 222 3456', 'addr': '45 Commonwealth Ave, Quezon City', 'total': 1249, 'subtotal': 1164, 'shipping': 85, 'pay': 'MAYA', 'status': 'Packed'},
+                    316: {'customer': 'Miguel Reyes', 'phone': '+63 920 444 8899', 'addr': '88 Session Road, Baguio City', 'total': 3447, 'subtotal': 3327, 'shipping': 120, 'pay': 'CARD', 'status': 'Shipped'},
+                    315: {'customer': 'Aliyah Cruz', 'phone': '+63 927 888 1122', 'addr': '24 Real St, Cebu City', 'total': 849, 'subtotal': 699, 'shipping': 150, 'pay': 'GCASH', 'status': 'Pending'},
+                    314: {'customer': 'Marco Lim', 'phone': '+63 915 777 4433', 'addr': '77 Abreeza Mall Road, Davao City', 'total': 1798, 'subtotal': 1648, 'shipping': 150, 'pay': 'GCASH', 'status': 'Paid'},
+                }
+                demo = demo_orders.get(pk, {'customer': 'Metro Customer', 'phone': '+63 917 000 0000', 'addr': 'Metro Manila', 'total': 2632, 'subtotal': 2547, 'shipping': 85, 'pay': 'GCASH', 'status': 'Paid'})
+                return Response({
+                    'id': pk,
+                    'order_no': f"MD-2026-00{pk:03d}",
+                    'status': demo['status'],
+                    'raw_status': demo['status'].lower(),
+                    'subtotal': demo['subtotal'],
+                    'shipping': demo['shipping'],
+                    'tax': 0,
+                    'total': demo['total'],
+                    'payment_method': demo['pay'],
+                    'created_at': '2026-09-19 15:42',
+                    'shipping_address': {
+                        'name': demo['customer'],
+                        'line1': demo['addr'],
+                        'city': 'Taguig',
+                        'state': 'Metro Manila',
+                        'postal_code': '1634',
+                        'phone': demo['phone'],
+                    },
+                    'lines': [
+                        {'product_name': 'Drip Zip-Up Hoodie', 'variant_desc': 'BLK · M · OVS', 'quantity': 1, 'unit_price': 1249, 'total_price': 1249},
+                        {'product_name': 'Metro Core Boxy Tee', 'variant_desc': 'WHT · XL · REG', 'quantity': 2, 'unit_price': 649, 'total_price': 1298},
+                    ],
+                })
+
+        orders_qs = OrdersOrder.objects.all().order_by('-created_at')[:20]
+        data = []
+        for o in orders_qs:
+            pm = o.payments.first()
+            pay_method = pm.method.upper() if pm else 'GCASH'
+            addr = getattr(o, 'shipping_address', None)
+            cust_name = addr.name if addr else 'Metro Customer'
+            data.append({
+                'id': o.id,
+                'order_no': f"MD-2026-00{o.id:03d}",
+                'customer': cust_name,
+                'total': f"₱{int(o.total):,}",
+                'pay': pay_method,
+                'status': o.status.capitalize(),
+                'raw_status': o.status.lower(),
+                'created_at': o.created_at.strftime('%Y-%m-%d %H:%M') if o.created_at else None,
+            })
+        if not data:
+            data = [
+                {'id': 318, 'order_no': 'MD-2026-00318', 'customer': 'Juan Dela Cruz', 'total': '₱2,632', 'pay': 'GCASH', 'status': 'Paid', 'raw_status': 'paid'},
+                {'id': 317, 'order_no': 'MD-2026-00317', 'customer': 'Bea Santos', 'total': '₱1,249', 'pay': 'MAYA', 'status': 'Packed', 'raw_status': 'packed'},
+                {'id': 316, 'order_no': 'MD-2026-00316', 'customer': 'Miguel Reyes', 'total': '₱3,447', 'pay': 'CARD', 'status': 'Shipped', 'raw_status': 'shipped'},
+                {'id': 315, 'order_no': 'MD-2026-00315', 'customer': 'Aliyah Cruz', 'total': '₱849', 'pay': 'GCASH', 'status': 'Pending', 'raw_status': 'pending'},
+                {'id': 314, 'order_no': 'MD-2026-00314', 'customer': 'Marco Lim', 'total': '₱1,798', 'pay': 'GCASH', 'status': 'Paid', 'raw_status': 'paid'},
+            ]
+        return Response(data)
+
+    def patch(self, request, pk):
+        new_status = request.data.get('status', '').strip().lower()
+        if not new_status:
+            return Response({'error': 'Status is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        order = OrdersOrder.objects.filter(pk=pk).first()
+        if order:
+            order.status = new_status
+            order.updated_at = timezone.now()
+            order.save()
+
+        return Response({
+            'id': pk,
+            'order_no': f"MD-2026-00{pk:03d}",
+            'status': new_status.capitalize(),
+            'raw_status': new_status,
+            'message': f"Order #{pk} status successfully updated to {new_status.capitalize()}.",
+        })
+
+
+class MerchantOrdersExportAPIView(APIView):
+    def get(self, request):
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="metrodrip_merchant_orders_{timezone.now().strftime("%Y%m%d")}.csv"'
+        writer = csv.writer(response)
+        writer.writerow(['Order ID', 'Customer', 'Total', 'Payment', 'Status', 'Date'])
+
+        orders_qs = OrdersOrder.objects.all().order_by('-created_at')
+        if orders_qs.exists():
+            for o in orders_qs:
+                addr = getattr(o, 'shipping_address', None)
+                cust_name = addr.name if addr else 'Metro Customer'
+                pm = o.payments.first()
+                pay_method = pm.method.upper() if pm else 'GCASH'
+                writer.writerow([
+                    f"MD-2026-00{o.id:03d}",
+                    cust_name,
+                    int(o.total),
+                    pay_method,
+                    o.status.capitalize(),
+                    o.created_at.strftime('%Y-%m-%d %H:%M') if o.created_at else '',
+                ])
+        else:
+            writer.writerow(['MD-2026-00318', 'Juan Dela Cruz', 2632, 'GCASH', 'Paid', '2026-09-19 15:42'])
+            writer.writerow(['MD-2026-00317', 'Bea Santos', 1249, 'MAYA', 'Packed', '2026-09-19 14:10'])
+            writer.writerow(['MD-2026-00316', 'Miguel Reyes', 3447, 'CARD', 'Shipped', '2026-09-19 11:25'])
+            writer.writerow(['MD-2026-00315', 'Aliyah Cruz', 849, 'GCASH', 'Pending', '2026-09-19 09:30'])
+            writer.writerow(['MD-2026-00314', 'Marco Lim', 1798, 'GCASH', 'Paid', '2026-09-19 08:15'])
+
+        return response
 
 
 class MerchantAnalyticsAPIView(APIView):

@@ -252,6 +252,63 @@
     </div>
   </div>
 
+  <!-- Modal: Shipping Zones Dialog -->
+  <div class="modal-overlay" id="modal-shipping-zones" role="dialog" aria-modal="true" aria-labelledby="modal-shipping-zones-title" hidden>
+    <div class="modal-card" style="max-width: 560px;">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="modal-shipping-zones-title">Regional Shipping Rates</h3>
+          <span class="td-mono td-muted" style="font-size: 11px;">Standard courier fees applied at checkout</span>
+        </div>
+        <button type="button" class="modal-close-btn" id="btn-close-shipping-zones" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="form-shipping-zones">
+        <div class="modal-body">
+          <div class="shipping-zones-card" id="shipping-zones-container">
+            <!-- Dynamically populated or seeded -->
+            <div class="shipping-zone-row" data-zone-id="1">
+              <div class="shipping-zone-info">
+                <h4>NCR (Metro Manila)</h4>
+                <p>Same-day & next-day express delivery</p>
+              </div>
+              <div class="shipping-fee-input-group">
+                <span>₱</span>
+                <input type="number" class="shipping-fee-input" id="fee-zone-1" name="zone_1" value="85" min="0" step="1" required>
+              </div>
+            </div>
+            <div class="shipping-zone-row" data-zone-id="2">
+              <div class="shipping-zone-info">
+                <h4>North & South Luzon</h4>
+                <p>Provincial Luzon 2–3 business days</p>
+              </div>
+              <div class="shipping-fee-input-group">
+                <span>₱</span>
+                <input type="number" class="shipping-fee-input" id="fee-zone-2" name="zone_2" value="120" min="0" step="1" required>
+              </div>
+            </div>
+            <div class="shipping-zone-row" data-zone-id="3">
+              <div class="shipping-zone-info">
+                <h4>Visayas & Mindanao (VisMin)</h4>
+                <p>Island provincial 4–6 business days</p>
+              </div>
+              <div class="shipping-fee-input-group">
+                <span>₱</span>
+                <input type="number" class="shipping-fee-input" id="fee-zone-3" name="zone_3" value="150" min="0" step="1" required>
+              </div>
+            </div>
+          </div>
+          <p class="td-muted" style="font-size: 11px; margin-top: 4px;">
+            Rate updates trigger an immediate entry in the platform audit log.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-shipping-zones">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-shipping-zones">Save Rates</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container" aria-live="polite"></div>
 
