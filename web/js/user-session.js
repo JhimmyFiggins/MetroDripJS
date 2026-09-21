@@ -94,8 +94,13 @@
     const initials = getInitials(user.name);
     const roleBadge = (user.role || (isAdmin ? 'admin' : 'merchant')).toUpperCase() + ' · 2FA ON';
 
-    // Preserve expanded state if re-rendered
-    const isExpanded = profileContainer.classList.contains('is-expanded');
+    // Preserve expanded state or expand when on Account Settings
+    const isSettingsActive = window.location.pathname.includes('account-settings') || window.location.pathname.includes('/account/settings');
+    const isExpanded = profileContainer.classList.contains('is-expanded') || isSettingsActive;
+    if (isExpanded) {
+      profileContainer.classList.add('is-expanded');
+    }
+    const settingsUrl = isAdmin ? '/admin/account/settings' : '/merchant/account/settings';
 
     profileContainer.innerHTML = `
       <button type="button" class="user-profile-trigger" id="btn-user-profile-toggle" aria-expanded="${isExpanded ? 'true' : 'false'}" aria-controls="user-account-menu" aria-haspopup="true" title="Account controls for ${escapeHtml(user.name)}">
@@ -111,6 +116,10 @@
         </div>
       </button>
       <div class="user-account-menu" id="user-account-menu" role="menu" aria-label="Account actions">
+        <a href="${settingsUrl}" class="user-menu-item btn-settings ${isSettingsActive ? 'is-active' : ''}" id="btn-user-settings" role="menuitem" title="Account Settings & Profile Management">
+          <span class="menu-action-icon" aria-hidden="true">⚙</span>
+          <span>Account Settings</span>
+        </a>
         <button type="button" class="user-menu-item btn-switch" id="btn-user-switch" role="menuitem" title="Switch to another account">
           <span class="menu-action-icon" aria-hidden="true">⇄</span>
           <span>Switch Account</span>
@@ -447,6 +456,9 @@
   // Expose API for external scripts if needed
   window.MetroDripSession = {
     getActiveUser,
+    saveActiveUser,
+    renderUserProfile,
+    showToast,
     openSwitchUserModal,
     openSignOutModal,
     performSignOut,

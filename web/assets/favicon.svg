@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Anton&amp;display=swap');
+      .brand-monogram {
+        font-family: 'Anton', Impact, 'Arial Black', sans-serif;
+        font-size: 326px;
+        font-weight: 400;
+        fill: #0A0A0A;
+        letter-spacing: -6px;
+        text-anchor: middle;
+        dominant-baseline: central;
+      }
+    </style>
+    <linearGradient id="voltBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#DBF542"/>
+      <stop offset="100%" stop-color="#C7E632"/>
+    </linearGradient>
+  </defs>
+  <!-- Brand Volt Squircle Base -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#voltBg)"/>
+  <rect x="2" y="2" width="508" height="508" rx="110" fill="none" stroke="#000000" stroke-width="4" stroke-opacity="0.08"/>
+  <!-- MetroDrip Bold Anton Monogram -->
+  <text x="256" y="268" class="brand-monogram">MD</text>
+</svg>
