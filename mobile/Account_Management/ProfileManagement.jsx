@@ -48,6 +48,7 @@ export default function ProfileManagement() {
         method: 'PUT',
         headers: {
         'Content-Type': 'application/json',
+        'X-Customer-ID': '1',
         },
         body: JSON.stringify({
         name: name,

@@ -25,6 +25,7 @@
   --color-warning: #b45309;
   --color-warning-bg: rgba(180, 83, 9, 0.08);
   --color-info-bg: rgba(20, 20, 20, 0.04);
+  --color-card: #ffffff;
   --color-card-border: #dcdcd6;
   --color-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 
@@ -38,6 +39,7 @@
 :root[data-theme='dark'] {
   --color-surface: #121212;
   --color-paper: #1a1a1a;
+  --color-card: #0f0f0f;
   --color-ink: #f2f2ef;
   --color-muted: #9e9e94;
   --color-subtle: #6e6e66;
@@ -189,6 +191,10 @@ button, input, select, textarea {
 .nav-glyph {
   font-family: var(--font-mono);
   font-size: 11px;
+  color: #595952;
+}
+
+:root[data-theme='dark'] .nav-glyph {
   color: var(--color-subtle);
 }
 
@@ -197,7 +203,7 @@ button, input, select, textarea {
 }
 
 :root[data-theme='light'] .nav-item.is-active .nav-glyph {
-  color: #8b9918;
+  color: #5c6b12;
 }
 
 .nav-badge {
@@ -273,14 +279,15 @@ button, input, select, textarea {
   width: 32px;
   height: 32px;
   border-radius: 4px;
-  background-color: var(--color-ink);
-  color: var(--color-paper);
+  background-color: var(--color-volt);
+  color: #141414;
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: var(--font-display);
   font-size: 13px;
   letter-spacing: 0.04em;
+  font-weight: 700;
   flex-shrink: 0;
 }
 
@@ -354,7 +361,7 @@ button, input, select, textarea {
 }
 
 .user-profile.is-expanded .user-account-menu {
-  max-height: 120px;
+  max-height: 180px;
   opacity: 1;
   margin-top: 8px;
   padding-top: 8px;
@@ -380,6 +387,64 @@ button, input, select, textarea {
   transition: all 0.15s ease;
   text-align: left;
   outline: none;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+/* Account Settings destination button */
+.user-menu-item.btn-settings {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  min-height: 44px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background-color: var(--color-paper);
+  border: 1px solid var(--color-border);
+  color: var(--color-ink);
+}
+
+.user-menu-item.btn-settings:hover {
+  background-color: var(--color-surface);
+  border-color: var(--color-ink);
+  color: var(--color-ink);
+}
+
+.user-menu-item.btn-settings.is-active {
+  background-color: var(--color-volt);
+  border-color: #c4df33;
+  color: #141414;
+  font-weight: 600;
+}
+
+.user-menu-item.btn-settings.is-active:hover {
+  background-color: #c4df33;
+  border-color: #b5d025;
+  color: #141414;
+}
+
+:root[data-theme='dark'] .user-menu-item.btn-settings {
+  background-color: #181818;
+  border-color: #2a2a2a;
+  color: #F2F2EF;
+}
+
+:root[data-theme='dark'] .user-menu-item.btn-settings:hover {
+  background-color: #232323;
+  border-color: #383838;
+  color: #F2F2EF;
+}
+
+:root[data-theme='dark'] .user-menu-item.btn-settings.is-active {
+  background-color: #232323;
+  border-color: #D6F438;
+  color: #D6F438;
+}
+
+:root[data-theme='dark'] .user-menu-item.btn-settings.is-active:hover {
+  background-color: #2a2a2a;
+  border-color: #D6F438;
+  color: #D6F438;
 }
 
 .user-menu-item .menu-action-icon {

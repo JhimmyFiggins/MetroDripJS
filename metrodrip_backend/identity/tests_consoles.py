@@ -534,6 +534,75 @@ class ConsolesAPITestCase(TestCase):
         self.assertEqual(res_none.status_code, 404)
         self.assertFalse(res_none.data['success'])
 
+    def test_user_me_profile_and_security(self):
+        # 1. GET /users/me/
+        get_res = self.client.get('/users/me/', HTTP_X_CUSTOMER_ID=str(self.admin_user.id))
+        self.assertEqual(get_res.status_code, 200)
+        self.assertEqual(get_res.data['email'], self.admin_user.email)
+        self.assertEqual(get_res.data['role'], 'admin')
+        self.assertIn('preferences', get_res.data)
+        self.assertIn('sessions', get_res.data)
+
+        # 2. PUT /users/me/ update attributes
+        put_res = self.client.put('/users/me/', {
+            'name': 'Updated Admin Name',
+            'phone': '+639170001122',
+            'avatar': 'data:image/png;base64,sampleavatar',
+            'preferences': {'table_density': 'compact', 'theme': 'dark'},
+        }, HTTP_X_CUSTOMER_ID=str(self.admin_user.id), format='json')
+        self.assertEqual(put_res.status_code, 200)
+        self.assertEqual(put_res.data['name'], 'Updated Admin Name')
+        self.assertEqual(put_res.data['phone'], '+639170001122')
+        self.assertEqual(put_res.data['avatar'], 'data:image/png;base64,sampleavatar')
+
+        # 3. POST /users/me/password/ with NIST SP 800-63B validation
+        # Too short (< 8 chars)
+        short_res = self.client.post('/users/me/password/', {
+            'current_password': '',
+            'new_password': 'short',
+            'confirm_password': 'short',
+        }, HTTP_X_CUSTOMER_ID=str(self.admin_user.id), format='json')
+        self.assertEqual(short_res.status_code, 400)
+        self.assertIn('NIST SP 800-63B requirement', short_res.data['error'])
+
+        # Easily guessable (contains 'password' or 'metrodrip')
+        guessable_res = self.client.post('/users/me/password/', {
+            'current_password': '',
+            'new_password': 'metrodrippassword123',
+            'confirm_password': 'metrodrippassword123',
+        }, HTTP_X_CUSTOMER_ID=str(self.admin_user.id), format='json')
+        self.assertEqual(guessable_res.status_code, 400)
+        self.assertIn('easily guessable', guessable_res.data['error'])
+
+        # Valid rotation
+        valid_res = self.client.post('/users/me/password/', {
+            'current_password': '',
+            'new_password': 'CorrectHorseBatteryStaple99!',
+            'confirm_password': 'CorrectHorseBatteryStaple99!',
+        }, HTTP_X_CUSTOMER_ID=str(self.admin_user.id), format='json')
+        self.assertEqual(valid_res.status_code, 200)
+        self.assertTrue(valid_res.data['success'])
+
+        # 4. POST /users/me/mfa/ toggle
+        mfa_enable = self.client.post('/users/me/mfa/', {
+            'code': '849201',
+        }, HTTP_X_CUSTOMER_ID=str(self.admin_user.id), format='json')
+        self.assertEqual(mfa_enable.status_code, 200)
+        self.assertTrue(mfa_enable.data['mfa_enabled'])
+
+        mfa_disable = self.client.post('/users/me/mfa/', {
+            'enabled': False,
+        }, HTTP_X_CUSTOMER_ID=str(self.admin_user.id), format='json')
+        self.assertEqual(mfa_disable.status_code, 200)
+        self.assertFalse(mfa_disable.data['mfa_enabled'])
+
+        # 5. POST /users/me/sessions/revoke/
+        revoke_res = self.client.post('/users/me/sessions/revoke/', {
+            'revoke_all': True,
+        }, HTTP_X_CUSTOMER_ID=str(self.admin_user.id), format='json')
+        self.assertEqual(revoke_res.status_code, 200)
+        self.assertEqual(len(revoke_res.data['sessions']), 1)  # Only current session kept
+
 
 
 

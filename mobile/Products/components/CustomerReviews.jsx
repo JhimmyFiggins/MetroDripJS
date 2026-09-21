@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -24,17 +24,59 @@ export default function CustomerReviews({ productId }) {
   const stats = getReviewStats(reviews);
   const displayedReviews = showAll ? reviews : reviews.slice(0, 2);
 
-  const handleSubmitReview = () => {
+  useEffect(() => {
+    if (!productId) return;
+    fetch(`http://10.0.2.2:8000/products/${productId}/reviews/`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.reviews && data.reviews.length > 0) {
+          setReviews(data.reviews);
+        }
+      })
+      .catch(() => {
+        // Graceful fallback to seeded reviews
+      });
+  }, [productId]);
+
+  const handleSubmitReview = async () => {
     if (!newComment.trim()) {
       setErrorMsg('Please enter your review comments.');
       return;
     }
-    const updated = addReviewForProduct(productId, {
+
+    const reviewPayload = {
       author: newAuthor.trim() || 'Verified Buyer',
       rating: newRating,
       comment: newComment.trim(),
-    });
-    setReviews([...updated]);
+    };
+
+    try {
+      const response = await fetch(`http://10.0.2.2:8000/products/${productId}/reviews/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Customer-ID': '1',
+        },
+        body: JSON.stringify(reviewPayload),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.review) {
+          setReviews((current) => [data.review, ...current]);
+        } else {
+          const updated = addReviewForProduct(productId, reviewPayload);
+          setReviews([...updated]);
+        }
+      } else {
+        const updated = addReviewForProduct(productId, reviewPayload);
+        setReviews([...updated]);
+      }
+    } catch {
+      const updated = addReviewForProduct(productId, reviewPayload);
+      setReviews([...updated]);
+    }
+
     setNewAuthor('');
     setNewComment('');
     setNewRating(5);

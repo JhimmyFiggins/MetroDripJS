@@ -1,0 +1,564 @@
+/* ==========================================================================
+   MetroDrip Console — Account Management UI Design
+   Strictly aligned with Figma specifications:
+   - Merchant Console / Account Management / Light (598:2491) & Dark (599:2513)
+   - Admin Console / Account Management / Light (602:2593) & Dark (602:2775)
+   - Modals: Password, 2FA, Recovery, Sessions, Sign out session, Saved
+   ========================================================================== */
+
+/* Page Container & Layout */
+.account-mgmt-container {
+  max-width: 1048px;
+  margin: 0 auto;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Page Header */
+.account-mgmt-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.account-mgmt-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.account-mgmt-title {
+  font-family: var(--font-sans);
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--color-ink);
+  letter-spacing: -0.02em;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.account-mgmt-subhead {
+  font-size: 14px;
+  color: var(--color-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.btn-view-dashboard {
+  min-height: 44px;
+  padding: 10px 18px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-view-dashboard:hover {
+  background-color: var(--color-surface);
+  border-color: var(--color-ink);
+}
+
+:root[data-theme='dark'] .btn-view-dashboard:hover {
+  border-color: var(--color-volt);
+  color: var(--color-volt);
+}
+
+/* Identity Banner Card */
+.account-identity-card {
+  background-color: var(--color-card, #ffffff);
+  border: 1px solid var(--color-border, #e4e4e1);
+  border-radius: 8px;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+:root[data-theme='dark'] .account-identity-card {
+  background-color: #0f0f0f;
+  border-color: #242423;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.identity-avatar-box {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  background-color: #f4f4f2;
+  color: #141414;
+  font-family: var(--font-display, sans-serif);
+  font-size: 26px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  background-size: cover;
+  background-position: center;
+}
+
+:root[data-theme='dark'] .identity-avatar-box {
+  background-color: #1a1a1a;
+  color: #f2f2ef;
+}
+
+.identity-info-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.identity-display-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-ink);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.identity-account-tag {
+  font-size: 13px;
+  color: var(--color-muted);
+  margin: 0;
+}
+
+.identity-status-line {
+  font-size: 13px;
+  font-weight: 600;
+  color: #5c6b12;
+  margin: 2px 0 0 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+:root[data-theme='dark'] .identity-status-line {
+  color: #d3ee42;
+}
+
+/* 2-Column Responsive Grid */
+.account-grid-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: stretch;
+}
+
+@media (max-width: 900px) {
+  .account-grid-2col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Modular Panels / Cards */
+.mgmt-card {
+  background-color: var(--color-card, #ffffff);
+  border: 1px solid var(--color-border, #e4e4e1);
+  border-radius: 8px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+:root[data-theme='dark'] .mgmt-card {
+  background-color: #0f0f0f;
+  border-color: #242423;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.mgmt-card-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-ink);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.mgmt-card-subhead {
+  font-size: 13px;
+  color: var(--color-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Forms & Fields */
+.mgmt-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mgmt-field-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.mgmt-field-input {
+  min-height: 48px;
+  padding: 12px 16px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  background-color: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e4e4e1);
+  border-radius: 8px;
+  color: var(--color-ink);
+  transition: all 0.15s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+:root[data-theme='dark'] .mgmt-field-input {
+  background-color: #0f0f0f;
+  border-color: #242423;
+}
+
+.mgmt-field-input:focus {
+  outline: none;
+  border-color: var(--color-volt);
+  box-shadow: 0 0 0 2px rgba(211, 238, 66, 0.25);
+}
+
+.mgmt-field-helper {
+  font-size: 12px;
+  color: var(--color-muted);
+  margin-top: 2px;
+}
+
+/* Card Button Groups */
+.mgmt-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+/* Primary Volt Button (Figma Action / Save changes & Update) */
+.btn-volt-primary {
+  min-height: 44px;
+  padding: 12px 20px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 700;
+  background-color: #d3ee42;
+  color: #141414;
+  border: 1px solid #d3ee42;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.btn-volt-primary:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 2px 8px rgba(211, 238, 66, 0.35);
+}
+
+.btn-volt-primary:focus-visible {
+  outline: 2px solid #d3ee42;
+  outline-offset: 2px;
+}
+
+/* Secondary Action Button (Figma Action / Cancel, Change password, etc.) */
+.btn-mgmt-secondary {
+  min-height: 44px;
+  padding: 12px 18px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  background-color: var(--color-paper, #ffffff);
+  color: var(--color-ink);
+  border: 1px solid var(--color-border, #e4e4e1);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+:root[data-theme='dark'] .btn-mgmt-secondary {
+  background-color: #0f0f0f;
+  border-color: #242423;
+}
+
+.btn-mgmt-secondary:hover {
+  background-color: var(--color-surface);
+  border-color: var(--color-ink);
+}
+
+:root[data-theme='dark'] .btn-mgmt-secondary:hover {
+  border-color: #d3ee42;
+  color: #d3ee42;
+}
+
+.btn-mgmt-secondary:focus-visible {
+  outline: 2px solid var(--color-volt);
+  outline-offset: 2px;
+}
+
+/* Security Item Block */
+.security-item-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.security-item-block:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.security-item-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+.security-item-subhead {
+  font-size: 13px;
+  color: var(--color-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.security-status-badge {
+  font-size: 13px;
+  font-weight: 700;
+  color: #5c6b12;
+  margin: 2px 0;
+}
+
+:root[data-theme='dark'] .security-status-badge {
+  color: #d3ee42;
+}
+
+/* Active Sessions Table */
+.sessions-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.sessions-mgmt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.sessions-mgmt-table th {
+  background-color: #f4f4f2;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-muted);
+  letter-spacing: 0.05em;
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+
+:root[data-theme='dark'] .sessions-mgmt-table th {
+  background-color: #1a1a1a;
+}
+
+.sessions-mgmt-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-ink);
+  vertical-align: middle;
+}
+
+.sessions-mgmt-table tr:last-child td {
+  border-bottom: none;
+}
+
+.current-session-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #5c6b12;
+}
+
+:root[data-theme='dark'] .current-session-tag {
+  color: #d3ee42;
+}
+
+/* Notification Preferences Rows */
+.pref-row-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.pref-row-item:last-of-type {
+  border-bottom: none;
+}
+
+.pref-row-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pref-row-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.pref-row-desc {
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+/* Interactive Pill Toggle Button (✓ On / Off) */
+.toggle-pill-btn {
+  min-height: 40px;
+  padding: 8px 18px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+}
+
+.toggle-pill-btn.is-active,
+.toggle-pill-btn[data-state='on'] {
+  background-color: #d3ee42;
+  color: #141414;
+  border-color: #d3ee42;
+}
+
+.toggle-pill-btn:not(.is-active):hover,
+.toggle-pill-btn[data-state='off']:hover {
+  background-color: var(--color-surface);
+  border-color: var(--color-ink);
+}
+
+.toggle-pill-btn:focus-visible {
+  outline: 2px solid #d3ee42;
+  outline-offset: 2px;
+}
+
+/* ==========================================================================
+   MODAL DIALOGS (Strictly matching Figma Frames: 599:2640 to 599:2918)
+   ========================================================================== */
+.figma-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: modalFadeIn 0.2s ease;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.figma-modal-card {
+  width: 100%;
+  max-width: 480px;
+  background-color: #ffffff;
+  border: 1px solid #e4e4e1;
+  border-radius: 8px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+  box-sizing: border-box;
+}
+
+:root[data-theme='dark'] .figma-modal-card {
+  background-color: #0f0f0f;
+  border-color: #242423;
+  color: #f2f2ef;
+}
+
+.figma-modal-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-ink);
+  margin: 0;
+  line-height: 1.3;
+}
+
+.figma-modal-desc {
+  font-size: 13px;
+  color: var(--color-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.figma-modal-status {
+  font-size: 13px;
+  font-weight: 700;
+  color: #5c6b12;
+  margin: 0;
+}
+
+:root[data-theme='dark'] .figma-modal-status {
+  color: #d3ee42;
+}
+
+.figma-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  margin-top: 8px;
+}
