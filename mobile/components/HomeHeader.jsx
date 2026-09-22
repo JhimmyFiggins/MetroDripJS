@@ -1,14 +1,16 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { StyleSheet, TouchableOpacity, Text, View, Platform, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts, colors } from '../Checkout/src/theme';
 import { useCart } from '../context/CartContext';
+import * as notificationService from '../../src/services/notificationService';
 
 export default function HomeHeader() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const [unreadCount, setUnreadCount] = useState(0);
   let cartCount = 0;
   try {
     const cartContext = useCart();
@@ -16,6 +18,23 @@ export default function HomeHeader() {
   } catch (e) {
     // fallback if context not provided
   }
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      notificationService
+        .getUnreadCount()
+        .then((count) => {
+          if (active) setUnreadCount(count || 0);
+        })
+        .catch(() => {
+          if (active) setUnreadCount(0);
+        });
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
 
   return (
     <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
@@ -35,12 +54,13 @@ export default function HomeHeader() {
       <View style={styles.actionsRow}>
         <TouchableOpacity 
           style={styles.iconButton}
+          onPress={() => navigation.navigate('Notifications')}
           activeOpacity={0.7}
           accessibilityRole="button"
           accessibilityLabel="Notifications"
         >
           <Ionicons name="notifications-outline" size={22} color={colors.ink} />
-          <View style={styles.notificationDot} />
+          {unreadCount > 0 && <View style={styles.notificationDot} />}
         </TouchableOpacity>
         
         <TouchableOpacity 

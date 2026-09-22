@@ -1,23 +1,26 @@
-const API_URL = 'https://metrodripjs.onrender.com';
+import { apiFetch } from './apiClient';
+
+// Query params supported by GET /products/ (see metrodrip_backend/catalog/views.py).
+const FILTER_KEYS = ['search', 'category', 'size', 'color', 'fit', 'sort'];
+
+function buildQueryString(params = {}) {
+  const parts = [];
+  for (const key of FILTER_KEYS) {
+    const value = params[key];
+    if (value === undefined || value === null || value === '') continue;
+    parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
+  }
+  return parts.length > 0 ? `?${parts.join('&')}` : '';
+}
 
 export const productService = {
-  getAllProducts: async () => {
-    const response = await fetch(`${API_URL}/products/`);
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch products.');
-    }
-
-    return await response.json();
+  // params (all optional): { search, category, size, color, fit, sort }
+  // sort: 'newest' | 'price_asc' | 'price_desc'
+  getAllProducts: async (params = {}) => {
+    return apiFetch(`/products/${buildQueryString(params)}`);
   },
 
   getProductById: async (productId) => {
-    const response = await fetch(`${API_URL}/products/${productId}/`);
-
-    if (!response.ok) {
-      throw new Error(`Product with ID ${productId} not found.`);
-    }
-
-    return await response.json();
+    return apiFetch(`/products/${productId}/`);
   },
 };

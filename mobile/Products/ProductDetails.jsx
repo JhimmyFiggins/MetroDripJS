@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator, Image } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator, Image, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { fonts } from '../../src/theme/font';
 import { productService } from '../../src/services/productService';
+import { apiFetch } from '../../src/services/apiClient';
+import { getWishlist, addToWishlist, removeFromWishlist } from '../../src/services/wishlistService';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 
 import { useNavigation } from '@react-navigation/native';
 import CustomerReviews from './components/CustomerReviews';
@@ -19,10 +22,12 @@ export default function ProductDetails({
     const onBack = propOnBack ?? (() => navigation.goBack());
 
     const { addToCart } = useCart();
+    const { user, isGuest } = useAuth();
 
 
     const [product, setProduct] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [isSaved, setIsSaved] = useState(false);
 
     const [variants, setVariants] = useState([]);
     const [selectedColor, setSelectedColor] = useState(null);
@@ -44,8 +49,7 @@ export default function ProductDetails({
     console.log('PRODUCT ID:', productId);
     //Variants
     useEffect(() => {
-        fetch(`https://metrodripjs.onrender.com/products/${productId}/variants/`)
-            .then(response => response.json())
+        apiFetch(`/products/${productId}/variants/`, { auth: false })
             .then(data => setVariants(data))
             .catch(error => console.error('Failed to load variants:', error));
     }, [productId]);
@@ -84,10 +88,7 @@ export default function ProductDetails({
             return;
         }
 
-        fetch(
-            `https://metrodripjs.onrender.com/variants/${selectedVariant.id}/stock/`
-        )
-            .then(response => response.json())
+        apiFetch(`/variants/${selectedVariant.id}/stock/`, { auth: false })
             .then(data => {
                 setStock(data[0] || null);
             })
@@ -96,6 +97,48 @@ export default function ProductDetails({
                 setStock(null);
         });
     }, [selectedVariant]);
+
+    // Reflect whether this product is already in the user's wishlist
+    useEffect(() => {
+        if (!productId || isGuest || !user) {
+            setIsSaved(false);
+            return;
+        }
+        getWishlist()
+            .then(items => {
+                const saved = Array.isArray(items) && items.some(
+                    item => String(item.product_ref) === String(productId)
+                );
+                setIsSaved(saved);
+            })
+            .catch(error => {
+                console.error('Failed to check wishlist state:', error);
+            });
+    }, [productId, user, isGuest]);
+
+    const handleToggleWishlist = () => {
+        if (isGuest || !user) {
+            Alert.alert(
+                'Sign in required',
+                'Sign in to save items to your wish list.',
+                [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Sign in', onPress: () => navigation.navigate('Login') },
+                ]
+            );
+            return;
+        }
+
+        const request = isSaved
+            ? removeFromWishlist(productId)
+            : addToWishlist(productId);
+
+        request
+            .then(() => setIsSaved(!isSaved))
+            .catch(error => {
+                console.error('Failed to update wishlist:', error);
+            });
+    };
 
     if (loading) {
         return (
@@ -212,20 +255,13 @@ export default function ProductDetails({
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>{product.name}</Text>
                 <TouchableOpacity
-                    onPress={() => {
-                        fetch('http://10.0.2.2:8000/wishlist/', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-Customer-ID': '1',
-                            },
-                            body: JSON.stringify({
-                                product_ref: productId,
-                            }),
-})
-                    }}
+                    onPress={handleToggleWishlist}
+                    accessibilityRole="button"
+                    accessibilityLabel={isSaved ? 'Remove from wishlist' : 'Add to wishlist'}
                     >
-                    <Text style={styles.heartIcon}>♡</Text>
+                    <Text style={[styles.heartIcon, isSaved && styles.heartIconSaved]}>
+                        {isSaved ? '♥' : '♡'}
+                    </Text>
                 </TouchableOpacity>
                 
             </View>
@@ -437,6 +473,9 @@ const styles = StyleSheet.create({
         fontFamily: fonts.interBold,
         fontSize: 20,
         color: '#000',
+    },
+    heartIconSaved: {
+        color: '#C2282D',
     },
     /* Image Section */
     imageContainer: {
