@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>MetroDrip · Shipments & Tracking</title>
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="../Registration/theme.css">
+  <link rel="stylesheet" href="../css/console.css">
+  <script src="../Registration/theme.js"></script>
+</head>
+<body>
+  <!-- Figma: Merchant Console / Shipments / Light 550:104 & Dark 554:542 -->
+  <div class="console-layout">
+    <!-- Left Navigation Sidebar -->
+    <aside class="console-sidebar" aria-label="Merchant Navigation">
+      <div class="sidebar-top">
+        <div class="brand-section">
+          <p class="brand-logo">METRO<span>DRIP</span></p>
+          <p class="console-role-tag">MERCHANT / SELLER CONSOLE</p>
+        </div>
+
+        <nav class="nav-group" aria-label="Merchant console views">
+          <a class="nav-item" href="index.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Dashboard</span>
+          </a>
+          <a class="nav-item" href="catalog.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Products & Categories</span>
+          </a>
+          <a class="nav-item" href="inventory.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Inventory</span>
+            <span class="nav-badge volt" id="badge-inventory">6</span>
+          </a>
+          <a class="nav-item" href="orders.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Orders</span>
+            <span class="nav-badge" id="badge-orders">5</span>
+          </a>
+          <a class="nav-item is-active" href="shipments.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Shipments</span>
+          </a>
+          <a class="nav-item" href="shipping-zones.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Shipping Zones</span>
+          </a>
+          <a class="nav-item" href="reviews.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Reviews</span>
+            <span class="nav-badge volt" id="badge-reviews">2</span>
+          </a>
+          <a class="nav-item" href="content.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Content & Banners</span>
+          </a>
+          <a class="nav-item" href="analytics.html?v=1.1">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Analytics</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-avatar" aria-hidden="true">MD</div>
+          <div class="user-meta">
+            <p class="user-name">Store Merchant</p>
+            <p class="user-role-badge">MERCHANT · 2FA ON</p>
+          </div>
+        </div>
+
+        <div class="theme-switch-container" role="group" aria-label="Color theme selector">
+          <button type="button" class="theme-toggle-btn is-active" data-theme-option="light" aria-pressed="true">
+            <span aria-hidden="true">☼</span> Light
+          </button>
+          <button type="button" class="theme-toggle-btn" data-theme-option="dark" aria-pressed="false">
+            <span aria-hidden="true">☾</span> Dark
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace Content -->
+    <main class="console-main">
+      <!-- Breadcrumb Bar -->
+      <div class="breadcrumb-bar">
+        <span>MERCHANT CONSOLE</span>
+        <span>/</span>
+        <span>SHIPMENTS</span>
+        <span class="sample-data">SAMPLE DATA</span>
+      </div>
+
+      <!-- Header -->
+      <header class="console-header">
+        <div class="header-meta">
+          <h1 class="page-title">Shipments</h1>
+          <p class="page-subhead">Book parcels, monitor delivery and resolve exceptions.</p>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="btn btn-primary" id="btn-open-booking">
+            Create shipment
+          </button>
+        </div>
+      </header>
+
+      <!-- 3 Stat Metric Cards -->
+      <section class="stat-cards-grid" style="grid-template-columns: repeat(3, 1fr);" aria-label="Shipment metrics">
+        <article class="stat-card">
+          <p class="stat-label">READY TO BOOK</p>
+          <p class="stat-value" id="metric-ready-book">5</p>
+          <p class="stat-subtext">Paid orders awaiting pickup</p>
+        </article>
+        <article class="stat-card">
+          <p class="stat-label">IN TRANSIT</p>
+          <p class="stat-value" id="metric-in-transit">8</p>
+          <p class="stat-subtext">Across active shipments</p>
+        </article>
+        <article class="stat-card" style="border: 1px dashed var(--color-danger);">
+          <p class="stat-label">EXCEPTIONS</p>
+          <p class="stat-value" style="color: var(--color-danger);" id="metric-exceptions">1</p>
+          <p class="stat-subtext">Address needs attention</p>
+        </article>
+      </section>
+
+      <!-- Search & Filters Toolbar -->
+      <div class="console-toolbar" aria-label="Shipment search and filters">
+        <div class="search-input-wrap">
+          <span class="search-glyph" aria-hidden="true">🔍</span>
+          <input type="text" id="search-shipments-input" placeholder="Tracking number or order ID" aria-label="Search shipments">
+        </div>
+        <select class="toolbar-select" id="filter-carrier-select" aria-label="Filter by carrier">
+          <option value="all">Carrier: All</option>
+          <option value="jt">J&T Express</option>
+          <option value="lalamove">Lalamove</option>
+        </select>
+        <select class="toolbar-select" id="filter-status-select" aria-label="Filter by shipment status">
+          <option value="all">Status: All</option>
+          <option value="ready">Ready to book</option>
+          <option value="transit">In transit</option>
+          <option value="delivery">Out for delivery</option>
+          <option value="exception">Exception</option>
+        </select>
+      </div>
+
+      <!-- Shipment Queue Table Panel -->
+      <section class="panel-card" aria-labelledby="heading-shipment-queue">
+        <div class="panel-header">
+          <h2 class="panel-title" id="heading-shipment-queue">Shipment queue</h2>
+        </div>
+        <div class="table-responsive">
+          <table class="data-table" id="shipments-table">
+            <thead>
+              <tr>
+                <th scope="col">ORDER / TRACKING</th>
+                <th scope="col">CARRIER</th>
+                <th scope="col">DESTINATION</th>
+                <th scope="col">STATUS</th>
+                <th scope="col">LAST UPDATE</th>
+              </tr>
+            </thead>
+            <tbody id="shipments-tbody">
+              <!-- Seeded matching Figma frame 550:104 -->
+            </tbody>
+          </table>
+        </div>
+        <div style="padding: 12px 18px; font-size: 11px; color: var(--color-muted); border-top: 1px solid var(--color-border);">
+          Carrier booking and tracking shown with sample data.
+        </div>
+      </section>
+
+      <!-- 2-Column Inspector: Book Order + Tracking Details -->
+      <div class="panel-grid-2col" style="margin-top: 24px;">
+        <!-- Left: Book Order Form Card -->
+        <section class="panel-card" id="card-book-shipment" aria-labelledby="heading-book-order">
+          <div class="panel-header">
+            <h2 class="panel-title" id="heading-book-order">Book order MD-2026-00317</h2>
+          </div>
+          <form id="form-book-shipment" style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label class="form-label" for="book-carrier">Carrier</label>
+                <select class="toolbar-select" id="book-carrier" style="width: 100%;">
+                  <option value="jt" selected>J&T Express ▾</option>
+                  <option value="lalamove">Lalamove ▾</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label" for="book-weight">Weight</label>
+                <input type="text" class="form-input" id="book-weight" value="0.80 kg" required>
+              </div>
+            </div>
+
+            <div>
+              <label class="form-label" for="book-size">Parcel size · L &times; W &times; H</label>
+              <input type="text" class="form-input" id="book-size" value="30 &times; 25 &times; 10 cm" required>
+            </div>
+
+            <div>
+              <label class="form-label" for="book-pickup">Pickup location</label>
+              <select class="toolbar-select" id="book-pickup" style="width: 100%;">
+                <option value="warehouse" selected>MetroDrip warehouse ▾</option>
+                <option value="store">QC Flagship Store ▾</option>
+              </select>
+            </div>
+
+            <p class="td-muted" style="font-size: 11px;">Estimated fee &#8369;85 · Sample carrier quote</p>
+
+            <div style="display: flex; gap: 10px; margin-top: 4px;">
+              <button type="submit" class="btn btn-primary" id="btn-book-shipment-submit">Book shipment</button>
+              <button type="button" class="btn btn-secondary" id="btn-print-slip">Print packing slip</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- Right: Tracking Details & Exception Card -->
+        <section class="panel-card" aria-labelledby="heading-tracking">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title" id="heading-tracking">Tracking · DEMO-00316</h2>
+              <p class="td-muted" style="font-size: 11px; margin-top: 2px;">J&T Express · Estimated arrival tomorrow</p>
+            </div>
+          </div>
+          <div style="padding: 16px;">
+            <!-- Timeline -->
+            <div class="tracking-timeline">
+              <div class="timeline-step">
+                <span class="timeline-dot" aria-hidden="true"></span>
+                <p class="timeline-title">In transit &mdash; Makati sorting hub</p>
+                <p class="timeline-time">Today, 09:12</p>
+              </div>
+              <div class="timeline-step completed">
+                <span class="timeline-dot" aria-hidden="true"></span>
+                <p class="timeline-title">Parcel picked up</p>
+                <p class="timeline-time">Yesterday, 16:40</p>
+              </div>
+              <div class="timeline-step completed">
+                <span class="timeline-dot" aria-hidden="true"></span>
+                <p class="timeline-title">Shipment booked</p>
+                <p class="timeline-time">Yesterday, 10:02</p>
+              </div>
+            </div>
+
+            <div style="margin-top: 14px;">
+              <button type="button" class="btn btn-secondary" id="btn-view-tracking-ext">View tracking</button>
+            </div>
+
+            <!-- Exception Callout Box matching Figma -->
+            <div class="exception-callout-box">
+              <h5>MD-2026-00310 · Address needs attention</h5>
+              <p>Confirm the delivery address before requesting another attempt.</p>
+              <div>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-resolve-exception" style="background-color: var(--color-paper);">
+                  Resolve exception
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <script src="shipments.js"></script>
+  <script src="../js/user-session.js"></script>
+</body>
+</html>

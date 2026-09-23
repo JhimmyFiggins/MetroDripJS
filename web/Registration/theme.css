@@ -1,0 +1,46 @@
+/* Design tokens for the staff login screens.
+   Source: Figma "MetroDrip Web UI" frames 461:2 / 464:2 (light) and 464:104 / 464:206 (dark).
+   Token names follow the Figma variable collection (color/paper, color/ink, ...). */
+:root {
+  --color-surface: #f4f4f2;
+  --color-paper: #ffffff;
+  --color-ink: #141414;
+  --color-muted: #63635c;
+  --color-border: #e4e4df;
+  --color-volt: #d3ee42;
+  --color-volt-hover: #c4df33;
+  --color-on-volt: #141414;
+  --color-accent-text: #5c6b12;
+  --color-danger: #b42318;
+  --color-input-border: #96948b;
+  --color-card-border: #b9b7ae;
+  --color-card-shadow: #deddd6;
+
+  /* The brand panel stays dark in both modes, so its colors are not theme tokens. */
+  --brand-bg: #141414;
+  --brand-ink: #f2f2ef;
+  --brand-copy: #c4c4bf;
+  --brand-switch-border: #55564f;
+  --brand-switch-idle: #bbbbbb;
+  --brand-bar: #eeeeee;
+  --brand-deco: rgba(211, 238, 66, 0.14);
+
+  --font-display: 'Anton', Impact, 'Arial Narrow', sans-serif;
+  --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+  --font-body: 'Inter', Arial, Helvetica, sans-serif;
+
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --color-surface: #1a1a1a;
+  --color-paper: #0f0f0f;
+  --color-ink: #f2f2ef;
+  --color-muted: #a3a39a;
+  --color-border: #2e2e2c;
+  --color-accent-text: #d3ee42;
+  --color-danger: #ff6b6b;
+  --color-card-shadow: #10110f;
+
+  color-scheme: dark;
+}

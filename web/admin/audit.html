@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>MetroDrip · Audit Trail</title>
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="../Registration/theme.css">
+  <link rel="stylesheet" href="../css/console.css">
+  <script src="../Registration/theme.js"></script>
+</head>
+<body>
+  <!-- Figma: Admin Console / Audit Trail / Light 550:347 & Dark 554:1337 -->
+  <div class="console-layout">
+    <!-- Left Navigation Sidebar -->
+    <aside class="console-sidebar" aria-label="Administrator Navigation">
+      <div class="sidebar-top">
+        <div class="brand-section">
+          <p class="brand-logo">METRO<span>DRIP</span></p>
+          <p class="console-role-tag">ADMINISTRATOR CONSOLE</p>
+        </div>
+
+        <nav class="nav-group" aria-label="Console views">
+          <a class="nav-item" href="index.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Dashboard</span>
+          </a>
+          <a class="nav-item" href="users.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> User Accounts</span>
+          </a>
+          <a class="nav-item" href="roles.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Roles & Permissions</span>
+          </a>
+          <a class="nav-item" href="settings.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Platform Settings</span>
+          </a>
+          <a class="nav-item is-active" href="audit.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Audit Trail</span>
+            <span class="nav-badge volt" id="sidebar-audit-count">12</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-avatar" aria-hidden="true">AD</div>
+          <div class="user-meta">
+            <p class="user-name">Admin User</p>
+            <p class="user-role-badge">ADMINISTRATOR · 2FA ON</p>
+          </div>
+        </div>
+
+        <div class="theme-switch-container" role="group" aria-label="Color theme selector">
+          <button type="button" class="theme-toggle-btn is-active" data-theme-option="light" aria-pressed="true">
+            <span aria-hidden="true">☼</span> Light
+          </button>
+          <button type="button" class="theme-toggle-btn" data-theme-option="dark" aria-pressed="false">
+            <span aria-hidden="true">☾</span> Dark
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace Content -->
+    <main class="console-main">
+      <!-- Breadcrumb Bar -->
+      <div class="breadcrumb-bar">
+        <span>ADMIN CONSOLE</span>
+        <span>/</span>
+        <span>AUDIT TRAIL</span>
+        <span class="sample-data">SAMPLE DATA</span>
+      </div>
+
+      <!-- Header -->
+      <header class="console-header">
+        <div class="header-meta">
+          <h1 class="page-title">Audit Trail</h1>
+          <p class="page-subhead">Review a chronological record of platform activity.</p>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="btn btn-secondary" id="btn-export-audit-csv">
+            Export CSV
+          </button>
+        </div>
+      </header>
+
+      <!-- 3 Stat Metric Cards -->
+      <section class="stat-cards-grid" style="grid-template-columns: repeat(3, 1fr);" aria-label="Audit metrics">
+        <article class="stat-card">
+          <p class="stat-label">EVENTS TODAY</p>
+          <p class="stat-value" id="metric-audit-today">12</p>
+          <p class="stat-subtext">Across all platform modules</p>
+        </article>
+        <article class="stat-card">
+          <p class="stat-label">ACCESS CHANGES</p>
+          <p class="stat-value" id="metric-access-changes">3</p>
+          <p class="stat-subtext">Role and account updates</p>
+        </article>
+        <article class="stat-card" style="border: 1px dashed var(--color-danger);">
+          <p class="stat-label">FAILED ACTIONS</p>
+          <p class="stat-value" style="color: var(--color-danger);" id="metric-failed-actions">1</p>
+          <p class="stat-subtext">Permission check denied</p>
+        </article>
+      </section>
+
+      <!-- Search & Filters Toolbar -->
+      <div class="console-toolbar" aria-label="Audit activity search and filters">
+        <div class="search-input-wrap">
+          <span class="search-glyph" aria-hidden="true">🔍</span>
+          <input type="text" id="search-audit-input" placeholder="Actor, event or entity" aria-label="Search audit events">
+        </div>
+        <select class="toolbar-select" id="filter-date-select" aria-label="Filter by date">
+          <option value="today">Date: Today</option>
+          <option value="yesterday">Date: Yesterday</option>
+          <option value="7days">Date: Last 7 days</option>
+        </select>
+        <select class="toolbar-select" id="filter-module-select" aria-label="Filter by module">
+          <option value="all">Module: All</option>
+          <option value="shipping">Shipping Zones</option>
+          <option value="users">User Accounts</option>
+          <option value="reviews">Reviews</option>
+          <option value="settings">Platform Settings</option>
+          <option value="system">System</option>
+        </select>
+        <select class="toolbar-select" id="filter-result-select" aria-label="Filter by result">
+          <option value="all">Result: All</option>
+          <option value="success">Success</option>
+          <option value="denied">Denied</option>
+        </select>
+      </div>
+
+      <!-- Activity Log Table Panel -->
+      <section class="panel-card" aria-labelledby="heading-activity-log">
+        <div class="panel-header">
+          <h2 class="panel-title" id="heading-activity-log">Activity log</h2>
+        </div>
+        <div class="table-responsive">
+          <table class="data-table" id="audit-activity-table">
+            <thead>
+              <tr>
+                <th scope="col">TIME (PHT)</th>
+                <th scope="col">ACTOR</th>
+                <th scope="col">EVENT / ENTITY</th>
+                <th scope="col">RESULT</th>
+              </tr>
+            </thead>
+            <tbody id="audit-activity-tbody">
+              <!-- Seeded matching Figma frame 550:347 -->
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination-footer">
+          <span id="audit-pagination-info">Showing 6 of 12 events today · Logs are read-only.</span>
+          <div class="pagination-btns">
+            <button type="button" class="pagination-btn" disabled>Previous</button>
+            <button type="button" class="pagination-btn">Next &rarr;</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2-Column Inspector: Event Details + Recorded Changes -->
+      <div class="panel-grid-2col" style="margin-top: 24px;">
+        <!-- Left: Selected Event Details -->
+        <section class="panel-card" id="card-event-detail" aria-labelledby="heading-event-detail">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title" id="detail-event-title">Shipping zone updated</h2>
+              <p class="td-mono td-muted" style="font-size: 11px; margin-top: 2px;" id="detail-event-sub">Event EVT-2026-0920-009 · Success</p>
+            </div>
+          </div>
+          <div style="padding: 16px; display: flex; flex-direction: column; gap: 10px; font-size: 13px;">
+            <p><strong>Actor:</strong> <span id="detail-event-actor">Store Merchant</span></p>
+            <p><strong>Module:</strong> <span id="detail-event-module">Merchant / Shipping Zones</span></p>
+            <p><strong>Entity:</strong> <span id="detail-event-entity">Metro Manila · NCR</span></p>
+            <p><strong>Timestamp:</strong> <span class="td-mono td-muted" id="detail-event-time">20 Sep 2026, 09:12:09 PHT</span></p>
+            <p class="td-muted" style="font-size: 12px; margin-top: 4px;">
+              <strong>Source:</strong> <span id="detail-event-source">Merchant Console · Authenticated staff session</span>
+            </p>
+          </div>
+        </section>
+
+        <!-- Right: Recorded Changes Diff -->
+        <section class="panel-card" aria-labelledby="heading-recorded-changes">
+          <div class="panel-header">
+            <h2 class="panel-title" id="heading-recorded-changes">Recorded changes</h2>
+          </div>
+          <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+            <p class="td-mono td-muted" style="font-size: 11px; text-transform: uppercase;">STANDARD SHIPPING FEE</p>
+            <div style="display: flex; align-items: center; gap: 12px; font-family: var(--font-display); font-size: 24px; color: var(--color-ink);" id="detail-diff-box">
+              <span>&#8369;90</span>
+              <span style="color: var(--color-volt);">&rarr;</span>
+              <span>&#8369;85</span>
+            </div>
+            <p class="td-muted" style="font-size: 12px;" id="detail-diff-sub">All other zone settings unchanged.</p>
+            <p class="td-muted" style="font-size: 11px; border-top: 1px solid var(--color-border); padding-top: 10px;">
+              Audit records cannot be edited or deleted from this console.
+            </p>
+            <div>
+              <button type="button" class="btn btn-secondary" id="btn-copy-event-id">Copy event ID</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <script src="audit.js"></script>
+  <script src="../js/user-session.js"></script>
+</body>
+</html>

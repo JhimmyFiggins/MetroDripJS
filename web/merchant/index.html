@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="../Registration/theme.css">
+  <link rel="stylesheet" href="../css/console.css">
+  <script src="../Registration/theme.js"></script>
+</head>
+<body>
+  <!-- Figma: 12 · Merchant Console — Dashboard (Desktop) 57:2 / D12 dark 58:315 -->
+  <div class="console-layout">
+    <!-- Left Navigation Sidebar -->
+    <aside class="console-sidebar" aria-label="Merchant Navigation">
+      <div class="sidebar-top">
+        <div class="brand-section">
+          <p class="brand-logo">METRO<span>DRIP</span></p>
+          <p class="console-role-tag">MERCHANT / SELLER CONSOLE</p>
+        </div>
+
+        <nav class="nav-group" aria-label="Merchant console views">
+          <a class="nav-item is-active" href="index.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Dashboard</span>
+          </a>
+          <a class="nav-item" href="catalog.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Products & Categories</span>
+          </a>
+          <a class="nav-item" href="inventory.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Inventory</span>
+            <span class="nav-badge volt" id="badge-inventory">6</span>
+          </a>
+          <a class="nav-item" href="orders.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Orders</span>
+            <span class="nav-badge" id="badge-orders">5</span>
+          </a>
+          <a class="nav-item" href="shipments.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Shipments</span>
+          </a>
+          <a class="nav-item" href="shipping-zones.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Shipping Zones</span>
+          </a>
+          <a class="nav-item" href="reviews.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Reviews</span>
+            <span class="nav-badge volt" id="badge-reviews">2</span>
+          </a>
+          <a class="nav-item" href="content.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Content & Banners</span>
+          </a>
+          <a class="nav-item" href="analytics.html?v=1.1">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Analytics</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-avatar" aria-hidden="true">MD</div>
+          <div class="user-meta">
+            <p class="user-name">Store Merchant</p>
+            <p class="user-role-badge">MERCHANT · 2FA ON</p>
+          </div>
+        </div>
+
+        <!-- Theme Switcher synced via theme.js -->
+        <div class="theme-switch-container" role="group" aria-label="Color theme selector">
+          <button type="button" class="theme-toggle-btn is-active" data-theme-option="light" aria-pressed="true">
+            <span aria-hidden="true">☼</span> Light
+          </button>
+          <button type="button" class="theme-toggle-btn" data-theme-option="dark" aria-pressed="false">
+            <span aria-hidden="true">☾</span> Dark
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace Content -->
+    <main class="console-main">
+      <!-- Top Action Bar -->
+      <header class="console-header">
+        <div class="header-meta">
+          <h1 class="page-title">Dashboard</h1>
+          <p class="page-subhead">/merchant/ · CATALOG · STOCK · ORDERS · CONTENT · REVIEWS</p>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="btn btn-secondary" id="btn-merchant-export-csv">
+            <span aria-hidden="true">↓</span> Export CSV
+          </button>
+          <button type="button" class="btn btn-primary" id="btn-merchant-add-product">
+            <span aria-hidden="true">+</span> Add product
+          </button>
+        </div>
+      </header>
+
+      <!-- 4 Stat Metric Cards -->
+      <section class="stat-cards-grid" aria-label="Operational sales and inventory metrics">
+        <article class="stat-card">
+          <p class="stat-label">TODAY'S SALES</p>
+          <p class="stat-value" id="metric-today-sales">₱18,540</p>
+          <p class="stat-subtext trend-up">▲ 12% vs last Sat</p>
+        </article>
+        <article class="stat-card">
+          <p class="stat-label">ORDERS TODAY</p>
+          <p class="stat-value" id="metric-orders-today">14</p>
+          <p class="stat-subtext">11 paid · 3 pending</p>
+        </article>
+        <article class="stat-card">
+          <p class="stat-label">LOW-STOCK SKUS</p>
+          <p class="stat-value" id="metric-low-stock">6</p>
+          <p class="stat-subtext alert-danger">Below reorder threshold</p>
+        </article>
+        <article class="stat-card">
+          <p class="stat-label">TO SHIP</p>
+          <p class="stat-value" id="metric-to-ship">5</p>
+          <p class="stat-subtext">Book with J&T today</p>
+        </article>
+      </section>
+
+      <!-- Split Table Panels: Low-stock Alerts + Recent Orders -->
+      <div class="panel-grid-2col">
+        <!-- Left: Low-stock alerts -->
+        <section class="panel-card" aria-labelledby="heading-low-stock">
+          <div class="panel-header">
+            <h2 class="panel-title" id="heading-low-stock">
+              <span class="panel-title-dot danger" aria-hidden="true"></span>
+              Low-stock alerts
+            </h2>
+            <a class="panel-link" href="inventory.html">Inventory →</a>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="low-stock-table">
+              <thead>
+                <tr>
+                  <th scope="col">PRODUCT</th>
+                  <th scope="col">VARIANT</th>
+                  <th scope="col">ON HAND</th>
+                  <th scope="col">MIN</th>
+                  <th scope="col">ACTION</th>
+                </tr>
+              </thead>
+              <tbody id="low-stock-tbody">
+                <!-- Seeded matching Figma frame 57:2 -->
+                <tr data-sku="MD-HD-002-BLK-M-OVS">
+                  <td class="td-strong">Drip Zip-Up Hoodie</td>
+                  <td class="td-mono td-muted">BLK · M · OVS</td>
+                  <td class="td-mono" style="color: var(--color-danger); font-weight: 600;">3</td>
+                  <td class="td-mono td-muted">10</td>
+                  <td>
+                    <button type="button" class="btn btn-secondary btn-sm btn-open-restock" data-product="Drip Zip-Up Hoodie" data-variant="BLK · M · OVS" data-sku="MD-HD-002-BLK-M-OVS">
+                      Restock
+                    </button>
+                  </td>
+                </tr>
+                <tr data-sku="MD-CP-001-BLK-OS">
+                  <td class="td-strong">Metro Snapback</td>
+                  <td class="td-mono td-muted">BLK · ONE SIZE</td>
+                  <td class="td-mono" style="color: var(--color-danger); font-weight: 600;">3</td>
+                  <td class="td-mono td-muted">8</td>
+                  <td>
+                    <button type="button" class="btn btn-secondary btn-sm btn-open-restock" data-product="Metro Snapback" data-variant="BLK · ONE SIZE" data-sku="MD-CP-001-BLK-OS">
+                      Restock
+                    </button>
+                  </td>
+                </tr>
+                <tr data-sku="MD-PO-001-ASH-L-REG">
+                  <td class="td-strong">Skyline Pullover</td>
+                  <td class="td-mono td-muted">ASH · L · REG</td>
+                  <td class="td-mono" style="color: var(--color-danger); font-weight: 600;">2</td>
+                  <td class="td-mono td-muted">10</td>
+                  <td>
+                    <button type="button" class="btn btn-secondary btn-sm btn-open-restock" data-product="Skyline Pullover" data-variant="ASH · L · REG" data-sku="MD-PO-001-ASH-L-REG">
+                      Restock
+                    </button>
+                  </td>
+                </tr>
+                <tr data-sku="MD-TS-001-WHT-XL-REG">
+                  <td class="td-strong">Metro Core Boxy Tee</td>
+                  <td class="td-mono td-muted">WHT · XL · REG</td>
+                  <td class="td-mono" style="color: var(--color-danger); font-weight: 600;">4</td>
+                  <td class="td-mono td-muted">12</td>
+                  <td>
+                    <button type="button" class="btn btn-secondary btn-sm btn-open-restock" data-product="Metro Core Boxy Tee" data-variant="WHT · XL · REG" data-sku="MD-TS-001-WHT-XL-REG">
+                      Restock
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Right: Recent orders -->
+        <section class="panel-card" aria-labelledby="heading-recent-orders">
+          <div class="panel-header">
+            <h2 class="panel-title" id="heading-recent-orders">Recent orders</h2>
+            <a class="panel-link" href="orders.html">All orders →</a>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="orders-table">
+              <thead>
+                <tr>
+                  <th scope="col">ORDER</th>
+                  <th scope="col">CUSTOMER</th>
+                  <th scope="col">TOTAL</th>
+                  <th scope="col">PAY</th>
+                  <th scope="col">STATUS</th>
+                </tr>
+              </thead>
+              <tbody id="orders-tbody">
+                <!-- Seeded matching Figma frame 57:2 -->
+                <tr class="clickable-row" data-order-id="318">
+                  <td class="td-mono td-strong">MD-2026-00318</td>
+                  <td>Juan Dela Cruz</td>
+                  <td class="td-mono td-strong">₱2,632</td>
+                  <td class="td-mono td-muted">GCASH</td>
+                  <td><span class="status-pill paid">Paid</span></td>
+                </tr>
+                <tr class="clickable-row" data-order-id="317">
+                  <td class="td-mono td-strong">MD-2026-00317</td>
+                  <td>Bea Santos</td>
+                  <td class="td-mono td-strong">₱1,249</td>
+                  <td class="td-mono td-muted">MAYA</td>
+                  <td><span class="status-pill packed">Packed</span></td>
+                </tr>
+                <tr class="clickable-row" data-order-id="316">
+                  <td class="td-mono td-strong">MD-2026-00316</td>
+                  <td>Miguel Reyes</td>
+                  <td class="td-mono td-strong">₱3,447</td>
+                  <td class="td-mono td-muted">CARD</td>
+                  <td><span class="status-pill shipped">Shipped</span></td>
+                </tr>
+                <tr class="clickable-row" data-order-id="315">
+                  <td class="td-mono td-strong">MD-2026-00315</td>
+                  <td>Aliyah Cruz</td>
+                  <td class="td-mono td-strong">₱849</td>
+                  <td class="td-mono td-muted">GCASH</td>
+                  <td><span class="status-pill pending">Pending</span></td>
+                </tr>
+                <tr class="clickable-row" data-order-id="314">
+                  <td class="td-mono td-strong">MD-2026-00314</td>
+                  <td>Marco Lim</td>
+                  <td class="td-mono td-strong">₱1,798</td>
+                  <td class="td-mono td-muted">GCASH</td>
+                  <td><span class="status-pill paid">Paid</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <!-- Manage your store Workspace Section (Figma: 57:2) -->
+      <section class="workspace-section" aria-label="Store management workspace">
+        <h2 class="workspace-heading">Manage your store</h2>
+        <div class="workspace-grid-6">
+          <!-- Card 1: Inventory -->
+          <article class="workspace-card">
+            <div class="workspace-card-top">
+              <span class="workspace-card-tag">Inventory</span>
+              <p class="workspace-card-metric" id="workspace-metric-inventory">6 low-stock SKUs</p>
+              <p class="workspace-card-desc">Review stock levels and adjust quantities.</p>
+            </div>
+            <a href="inventory.html" class="workspace-card-btn">Open Inventory &rarr;</a>
+          </article>
+
+          <!-- Card 2: Orders -->
+          <article class="workspace-card">
+            <div class="workspace-card-top">
+              <span class="workspace-card-tag">Orders</span>
+              <p class="workspace-card-metric" id="workspace-metric-orders">14 orders today</p>
+              <p class="workspace-card-desc">Track payment and fulfillment.</p>
+            </div>
+            <a href="orders.html" class="workspace-card-btn">Open Orders &rarr;</a>
+          </article>
+
+          <!-- Card 3: Shipments -->
+          <article class="workspace-card">
+            <div class="workspace-card-top">
+              <span class="workspace-card-tag">Shipments</span>
+              <p class="workspace-card-metric" id="workspace-metric-shipments">5 ready to book</p>
+              <p class="workspace-card-desc">Book parcels and resolve exceptions.</p>
+            </div>
+            <a href="shipments.html" class="workspace-card-btn">Open Shipments &rarr;</a>
+          </article>
+
+          <!-- Card 4: Shipping Zones -->
+          <article class="workspace-card">
+            <div class="workspace-card-top">
+              <span class="workspace-card-tag">Shipping Zones</span>
+              <p class="workspace-card-metric" id="workspace-metric-zones">4 active zones</p>
+              <p class="workspace-card-desc">Set coverage, rates and delivery times.</p>
+            </div>
+            <a href="shipping-zones.html" class="workspace-card-btn">Open Shipping Zones &rarr;</a>
+          </article>
+
+          <!-- Card 5: Reviews -->
+          <article class="workspace-card">
+            <div class="workspace-card-top">
+              <span class="workspace-card-tag">Reviews</span>
+              <p class="workspace-card-metric" id="workspace-metric-reviews">2 need a reply</p>
+              <p class="workspace-card-desc">Read feedback and respond publicly.</p>
+            </div>
+            <a href="reviews.html" class="workspace-card-btn">Open Reviews &rarr;</a>
+          </article>
+
+          <!-- Card 6: Content & Banners -->
+          <article class="workspace-card">
+            <div class="workspace-card-top">
+              <span class="workspace-card-tag">Content & Banners</span>
+              <p class="workspace-card-metric" id="workspace-metric-content">2 live · 1 scheduled</p>
+              <p class="workspace-card-desc">Manage storefront placements.</p>
+            </div>
+            <a href="content.html" class="workspace-card-btn">Open Content & Banners &rarr;</a>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modal: Quick Restock Dialog -->
+  <div class="modal-overlay" id="modal-restock" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-restock-title">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-restock-title">Restock Inventory</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-restock" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="form-restock">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="restock-product-name">Product</label>
+            <input class="form-input" id="restock-product-name" type="text" readonly disabled>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="restock-variant-code">Variant / SKU</label>
+            <input class="form-input" id="restock-variant-code" type="text" readonly disabled>
+            <input type="hidden" id="restock-sku-hidden" name="sku">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="restock-quantity">Quantity to Add</label>
+            <input class="form-input" id="restock-quantity" name="quantity" type="number" min="1" max="1000" value="25" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="restock-reason">Reason</label>
+            <select class="form-select" id="restock-reason" name="reason">
+              <option value="restock" selected>Supplier Restock</option>
+              <option value="return">Customer Return</option>
+              <option value="adjustment">Physical Inventory Count Correction</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-restock">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-restock">Commit Stock</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Order Detail & Fulfillment Dialog -->
+  <div class="modal-overlay" id="modal-order-detail" role="dialog" aria-modal="true" aria-labelledby="modal-order-detail-title" hidden>
+    <div class="modal-card" style="max-width: 620px;">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="modal-order-detail-title">Order Details</h3>
+          <span class="td-mono td-muted" id="order-detail-no" style="font-size: 11px;">MD-2026-00318</span>
+        </div>
+        <button type="button" class="modal-close-btn" id="btn-close-order-detail" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- Customer & Order Meta -->
+        <div class="order-summary-box">
+          <div class="order-address-card">
+            <span class="form-label" style="display: block; margin-bottom: 4px;">Delivery Address</span>
+            <strong id="order-customer-name" style="display: block;">Juan Dela Cruz</strong>
+            <span id="order-shipping-line1" style="color: var(--color-muted); display: block;">Unit 12B Tower 2, One Serendra</span>
+            <span id="order-shipping-city" style="color: var(--color-muted); display: block;">Taguig, Metro Manila 1634</span>
+            <span id="order-customer-phone" class="td-mono" style="font-size: 11px; display: block; margin-top: 4px;">+63 917 555 1234</span>
+          </div>
+          <div class="order-meta-card">
+            <span class="form-label">Payment & Fulfillment</span>
+            <div>
+              <span class="td-muted">Payment:</span> <strong id="order-payment-method" class="td-mono">GCASH</strong>
+            </div>
+            <div>
+              <span class="td-muted">Placed:</span> <span id="order-created-date" class="td-mono">Sep 19, 2026 15:42</span>
+            </div>
+            <div style="margin-top: 6px;">
+              <span class="td-muted">Current Status:</span>
+              <span id="order-detail-status-pill" class="status-pill paid" style="margin-left: 6px;">Paid</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ordered Items Table -->
+        <div class="order-items-card">
+          <table class="order-items-table">
+            <thead>
+              <tr>
+                <th scope="col">ITEM</th>
+                <th scope="col">VARIANT</th>
+                <th scope="col" style="text-align: center;">QTY</th>
+                <th scope="col" style="text-align: right;">PRICE</th>
+                <th scope="col" style="text-align: right;">TOTAL</th>
+              </tr>
+            </thead>
+            <tbody id="order-items-tbody">
+              <tr>
+                <td class="td-strong">Drip Zip-Up Hoodie</td>
+                <td class="td-mono td-muted">BLK · M · OVS</td>
+                <td class="td-mono" style="text-align: center;">1</td>
+                <td class="td-mono" style="text-align: right;">₱1,249</td>
+                <td class="td-mono td-strong" style="text-align: right;">₱1,249</td>
+              </tr>
+              <tr>
+                <td class="td-strong">Metro Core Boxy Tee</td>
+                <td class="td-mono td-muted">WHT · XL · REG</td>
+                <td class="td-mono" style="text-align: center;">2</td>
+                <td class="td-mono" style="text-align: right;">₱649</td>
+                <td class="td-mono td-strong" style="text-align: right;">₱1,298</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pricing Summary -->
+        <div class="order-pricing-summary">
+          <div class="pricing-row">
+            <span class="td-muted">Subtotal</span>
+            <span class="td-mono" id="order-subtotal">₱2,547</span>
+          </div>
+          <div class="pricing-row">
+            <span class="td-muted">Shipping Fee (Standard NCR)</span>
+            <span class="td-mono" id="order-shipping">₱85</span>
+          </div>
+          <div class="pricing-row total">
+            <span>Order Total</span>
+            <span class="td-mono" id="order-total" style="color: var(--color-ink);">₱2,632</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content: space-between;">
+        <button type="button" class="btn btn-secondary" id="btn-close-order-footer">Close</button>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn btn-secondary" id="btn-order-mark-packed">Mark as Packed</button>
+          <button type="button" class="btn btn-primary" id="btn-order-mark-shipped">Mark as Shipped</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <script src="merchant.js"></script>
+  <script src="../js/user-session.js"></script>
+</body>
+</html>

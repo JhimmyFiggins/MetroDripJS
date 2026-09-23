@@ -39,3 +39,12 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Scratch & temporary inspection files
+console_*.txt
+erd_*.txt
+consoles_raw.json
+fetch_figma.js
+inspect_*.js
+analyze_*.js
+test_api.js

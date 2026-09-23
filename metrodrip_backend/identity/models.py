@@ -18,6 +18,14 @@ class AccountsCustomer(models.Model):
     class Meta:
         db_table = 'accounts_customer'
 
+    @property
+    def is_authenticated(self):
+        return True
+
+    @property
+    def is_anonymous(self):
+        return False
+
 
 class AccountsWishlistItem(models.Model):
     id = models.BigAutoField(primary_key=True)
@@ -58,3 +66,17 @@ class CoreServiceEvent(models.Model):
         indexes = [
             models.Index(fields=['completed_at']),
         ]
+
+
+class AuditLog(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    actor = models.CharField(max_length=150)
+    actor_role = models.CharField(max_length=50, default='admin')
+    action = models.CharField(max_length=255)
+    target_model = models.CharField(max_length=100, blank=True, null=True)
+    target_id = models.CharField(max_length=100, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'identity_auditlog'
+        ordering = ['-created_at']

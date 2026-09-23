@@ -5,14 +5,15 @@ def assign_variant_colors(apps, schema_editor):
     CatalogColor = apps.get_model("catalog", "CatalogColor")
     CatalogProductVariant = apps.get_model("catalog", "CatalogProductVariant")
 
-    black = CatalogColor.objects.get(
+    black = CatalogColor.objects.filter(
         name="Black",
         hex_code="#000000"
-    )
+    ).first()
 
-    CatalogProductVariant.objects.filter(
-        attributes__color="Black"
-    ).update(color=black)
+    if black:
+        CatalogProductVariant.objects.filter(
+            attributes__color="Black"
+        ).update(color=black)
 
 
 class Migration(migrations.Migration):

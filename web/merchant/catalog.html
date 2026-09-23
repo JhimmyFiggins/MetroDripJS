@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>MetroDrip · Catalog & Moderation</title>
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="../Registration/theme.css">
+  <link rel="stylesheet" href="../css/console.css">
+  <script src="../Registration/theme.js"></script>
+</head>
+<body>
+  <!-- Figma: 13 · Merchant Console — Catalog & Moderation (Desktop) 58:2 / D13 dark 58:467 -->
+  <div class="console-layout">
+    <!-- Left Navigation Sidebar -->
+    <aside class="console-sidebar" aria-label="Merchant Navigation">
+      <div class="sidebar-top">
+        <div class="brand-section">
+          <p class="brand-logo">METRO<span>DRIP</span></p>
+          <p class="console-role-tag">MERCHANT / SELLER CONSOLE</p>
+        </div>
+
+        <nav class="nav-group" aria-label="Merchant console views">
+          <a class="nav-item" href="index.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Dashboard</span>
+          </a>
+          <a class="nav-item is-active" href="catalog.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Products & Categories</span>
+          </a>
+          <a class="nav-item" href="inventory.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Inventory</span>
+            <span class="nav-badge volt" id="badge-inventory">6</span>
+          </a>
+          <a class="nav-item" href="orders.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Orders</span>
+            <span class="nav-badge" id="badge-orders">5</span>
+          </a>
+          <a class="nav-item" href="shipments.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Shipments</span>
+          </a>
+          <a class="nav-item" href="shipping-zones.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Shipping Zones</span>
+          </a>
+          <a class="nav-item" href="reviews.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Reviews</span>
+            <span class="nav-badge volt" id="badge-reviews">2</span>
+          </a>
+          <a class="nav-item" href="content.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Content & Banners</span>
+          </a>
+          <a class="nav-item" href="analytics.html?v=1.1">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Analytics</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-avatar" aria-hidden="true">MD</div>
+          <div class="user-meta">
+            <p class="user-name">Store Merchant</p>
+            <p class="user-role-badge">MERCHANT · 2FA ON</p>
+          </div>
+        </div>
+
+        <!-- Theme Switcher synced via theme.js -->
+        <div class="theme-switch-container" role="group" aria-label="Color theme selector">
+          <button type="button" class="theme-toggle-btn is-active" data-theme-option="light" aria-pressed="true">
+            <span aria-hidden="true">☼</span> Light
+          </button>
+          <button type="button" class="theme-toggle-btn" data-theme-option="dark" aria-pressed="false">
+            <span aria-hidden="true">☾</span> Dark
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace Content -->
+    <main class="console-main">
+      <!-- Top Action Bar -->
+      <header class="console-header">
+        <div class="header-meta">
+          <h1 class="page-title">Products & Categories</h1>
+          <p class="page-subhead" id="catalog-summary-subhead">112 ACTIVE PRODUCTS · 3 MAIN CATEGORIES · 9 SUBCATEGORIES</p>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="btn btn-secondary" id="btn-manage-categories">
+            Manage categories
+          </button>
+          <button type="button" class="btn btn-primary" id="btn-open-add-product">
+            <span aria-hidden="true">+</span> Add product
+          </button>
+        </div>
+      </header>
+
+      <!-- Filter and Search Toolbar -->
+      <div class="catalog-toolbar" aria-label="Catalog filtering and search controls">
+        <div class="search-field">
+          <span class="search-icon" aria-hidden="true">🔍</span>
+          <input class="search-input" id="input-catalog-search" type="search" placeholder="Search products, SKU…" aria-label="Search products and SKU">
+        </div>
+        <div class="category-tabs" role="tablist" aria-label="Category filters">
+          <button type="button" class="category-tab-btn is-active" role="tab" aria-selected="true" data-category="all">All</button>
+          <button type="button" class="category-tab-btn" role="tab" aria-selected="false" data-category="tops">Tops</button>
+          <button type="button" class="category-tab-btn" role="tab" aria-selected="false" data-category="bottoms">Bottoms</button>
+          <button type="button" class="category-tab-btn" role="tab" aria-selected="false" data-category="accessories">Accessories</button>
+          <button type="button" class="category-tab-btn" role="tab" aria-selected="false" data-category="inactive">Inactive</button>
+        </div>
+      </div>
+
+      <!-- Main Products Table Card -->
+      <section class="panel-card full-width" style="margin-bottom: 24px;" aria-labelledby="heading-products-list">
+        <div class="panel-header">
+          <h2 class="panel-title" id="heading-products-list">Products</h2>
+          <a class="panel-link" href="#bulk">Bulk actions →</a>
+        </div>
+        <div class="table-responsive">
+          <table class="data-table" id="products-table">
+            <thead>
+              <tr>
+                <th scope="col" style="width: 44px;"></th>
+                <th scope="col">PRODUCT</th>
+                <th scope="col">CATEGORY</th>
+                <th scope="col">VARIANTS</th>
+                <th scope="col">STOCK</th>
+                <th scope="col">PRICE</th>
+                <th scope="col">STATUS</th>
+                <th scope="col">ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody id="products-tbody">
+              <!-- Seeded matching Figma frame 58:2 -->
+              <tr data-product-id="1" data-category="tops" data-status="active">
+                <td><div class="product-thumb-letter" aria-hidden="true">H</div></td>
+                <td class="td-strong">Drip Zip-Up Hoodie</td>
+                <td class="td-mono td-muted">Tops › Hoodies</td>
+                <td class="td-mono">18</td>
+                <td class="td-mono td-strong" style="color: var(--color-danger);">3</td>
+                <td class="td-mono td-strong">₱1,249</td>
+                <td><span class="status-pill active">Active</span></td>
+                <td><button type="button" class="btn btn-secondary btn-sm btn-edit-product" data-product-id="1">Edit</button></td>
+              </tr>
+              <tr data-product-id="2" data-category="tops" data-status="active">
+                <td><div class="product-thumb-letter" aria-hidden="true">T</div></td>
+                <td class="td-strong">Metro Core Boxy Tee</td>
+                <td class="td-mono td-muted">Tops › T-Shirts</td>
+                <td class="td-mono">24</td>
+                <td class="td-mono td-strong">46</td>
+                <td class="td-mono td-strong">₱649</td>
+                <td><span class="status-pill active">Active</span></td>
+                <td><button type="button" class="btn btn-secondary btn-sm btn-edit-product" data-product-id="2">Edit</button></td>
+              </tr>
+              <tr data-product-id="3" data-category="bottoms" data-status="active">
+                <td><div class="product-thumb-letter" aria-hidden="true">D</div></td>
+                <td class="td-strong">Metro Straight-Cut Jeans</td>
+                <td class="td-mono td-muted">Bottoms › Denim</td>
+                <td class="td-mono">20</td>
+                <td class="td-mono td-strong">31</td>
+                <td class="td-mono td-strong">₱1,099</td>
+                <td><span class="status-pill active">Active</span></td>
+                <td><button type="button" class="btn btn-secondary btn-sm btn-edit-product" data-product-id="3">Edit</button></td>
+              </tr>
+              <tr data-product-id="4" data-category="accessories" data-status="active">
+                <td><div class="product-thumb-letter" aria-hidden="true">C</div></td>
+                <td class="td-strong">Metro Snapback</td>
+                <td class="td-mono td-muted">Accessories › Caps</td>
+                <td class="td-mono">3</td>
+                <td class="td-mono td-strong" style="color: var(--color-danger);">3</td>
+                <td class="td-mono td-strong">₱499</td>
+                <td><span class="status-pill active">Active</span></td>
+                <td><button type="button" class="btn btn-secondary btn-sm btn-edit-product" data-product-id="4">Edit</button></td>
+              </tr>
+              <tr data-product-id="5" data-category="accessories" data-status="inactive">
+                <td><div class="product-thumb-letter" aria-hidden="true">S</div></td>
+                <td class="td-strong">Drip Crew Socks 3-Pack</td>
+                <td class="td-mono td-muted">Accessories › Socks</td>
+                <td class="td-mono">2</td>
+                <td class="td-mono td-strong" style="color: var(--color-danger);">0</td>
+                <td class="td-mono td-strong">₱349</td>
+                <td><span class="status-pill inactive">Inactive</span></td>
+                <td><button type="button" class="btn btn-secondary btn-sm btn-edit-product" data-product-id="5">Edit</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Lower Split Section: Review Moderation Queue + Stock Adjustment Ledger -->
+      <div class="panel-grid-2col">
+        <!-- Left Sub-Card: Customer reviews (Figma 58:2 / 58:467) -->
+        <section class="panel-card" id="reviews" aria-labelledby="heading-customer-reviews">
+          <div class="panel-header">
+            <h2 class="panel-title" id="heading-customer-reviews">Customer reviews</h2>
+            <a class="panel-link" href="#all-reviews">All reviews →</a>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="reviews-table">
+              <thead>
+                <tr>
+                  <th scope="col">CUSTOMER</th>
+                  <th scope="col">PRODUCT / REVIEW</th>
+                  <th scope="col">RATING</th>
+                  <th scope="col" style="text-align: right;">ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody id="reviews-tbody">
+                <!-- Seeded matching Figma frame 58:2 / 58:467 -->
+                <tr data-review-id="1" data-customer="Bea S." data-product="Drip Zip-Up Hoodie" data-rating="5" data-body="Super lapad ng fit, ang angas ng tela! Perfect for streetwear layering.">
+                  <td class="td-strong">Bea S.</td>
+                  <td class="td-muted">Drip Zip-Up Hoodie — “Super lapad ng fit…”</td>
+                  <td class="review-stars">★★★★★</td>
+                  <td style="text-align: right;">
+                    <div style="display: inline-flex; gap: 8px; justify-content: flex-end;">
+                      <button type="button" class="btn-outline-pill btn-view-review" data-review-id="1">View</button>
+                      <button type="button" class="btn-volt-pill btn-reply-review" data-review-id="1">Reply</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr data-review-id="2" data-customer="Marco L." data-product="Metro Snapback" data-rating="3" data-body="Color is slightly off from photo. The cap is good quality though.">
+                  <td class="td-strong">Marco L.</td>
+                  <td class="td-muted">Metro Snapback — “Color is slightly off.”</td>
+                  <td class="review-stars">★★★☆☆</td>
+                  <td style="text-align: right;">
+                    <div style="display: inline-flex; gap: 8px; justify-content: flex-end;">
+                      <button type="button" class="btn-outline-pill btn-view-review" data-review-id="2">View</button>
+                      <button type="button" class="btn-volt-pill btn-reply-review" data-review-id="2">Reply</button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Right Sub-Card: Stock adjustment ledger -->
+        <section class="panel-card" aria-labelledby="heading-stock-adjustment">
+          <div class="panel-header">
+            <h2 class="panel-title" id="heading-stock-adjustment">Stock adjustment</h2>
+            <a class="panel-link" href="#ledger">Movement ledger →</a>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="movements-table">
+              <thead>
+                <tr>
+                  <th scope="col">SKU</th>
+                  <th scope="col">DELTA</th>
+                  <th scope="col">REASON</th>
+                  <th scope="col">WHEN</th>
+                </tr>
+              </thead>
+              <tbody id="movements-tbody">
+                <!-- Seeded matching Figma frame 58:2 -->
+                <tr>
+                  <td class="td-mono td-muted">MD-HD-002-BLK-M-OVS</td>
+                  <td class="td-mono td-strong" style="color: var(--color-success);">+25</td>
+                  <td class="td-mono td-muted">restock</td>
+                  <td class="td-mono td-muted">09:20</td>
+                </tr>
+                <tr>
+                  <td class="td-mono td-muted">MD-TS-001-WHT-L-REG</td>
+                  <td class="td-mono td-strong" style="color: var(--color-danger);">−2</td>
+                  <td class="td-mono td-muted">sale</td>
+                  <td class="td-mono td-muted">09:04</td>
+                </tr>
+                <tr>
+                  <td class="td-mono td-muted">MD-CP-001-BLK-OS</td>
+                  <td class="td-mono td-strong" style="color: var(--color-danger);">−1</td>
+                  <td class="td-mono td-muted">sale</td>
+                  <td class="td-mono td-muted">08:47</td>
+                </tr>
+                <tr>
+                  <td class="td-mono td-muted">MD-DN-001-IND-32-STR</td>
+                  <td class="td-mono td-strong" style="color: var(--color-success);">+1</td>
+                  <td class="td-mono td-muted">return</td>
+                  <td class="td-mono td-muted">08:15</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal: Add Product Dialog -->
+  <div class="modal-overlay" id="modal-add-product" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-add-product-title">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-add-product-title">+ Add New Product</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-product-modal" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="form-add-product">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="add-prod-name">Product Name</label>
+            <input class="form-input" id="add-prod-name" name="name" type="text" placeholder="e.g. Metro Heavyweight Fleece" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="add-prod-category">Category</label>
+            <select class="form-select" id="add-prod-category" name="category" required>
+              <option value="Tops › Hoodies">Tops › Hoodies</option>
+              <option value="Tops › T-Shirts">Tops › T-Shirts</option>
+              <option value="Bottoms › Denim">Bottoms › Denim</option>
+              <option value="Accessories › Caps">Accessories › Caps</option>
+              <option value="Accessories › Socks">Accessories › Socks</option>
+            </select>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label" for="add-prod-price">Base Price (PHP)</label>
+              <input class="form-input" id="add-prod-price" name="price" type="number" min="1" step="1" placeholder="1249" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="add-prod-stock">Initial Stock</label>
+              <input class="form-input" id="add-prod-stock" name="stock" type="number" min="0" value="20" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="add-prod-sku">Primary SKU</label>
+            <input class="form-input" id="add-prod-sku" name="sku" type="text" placeholder="MD-FL-001-BLK-M" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="add-prod-desc">Description</label>
+            <textarea class="form-textarea" id="add-prod-desc" name="description" rows="2" placeholder="Fabric, fit details and care instructions..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-product-modal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-product">Publish Product</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: View Customer Review (Figma 58:2 / 58:467) -->
+  <div class="modal-overlay" id="modal-view-review" role="dialog" aria-modal="true" aria-labelledby="modal-view-review-title" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-view-review-title">Customer Review</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-view-review" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="review-detail-card">
+          <div class="review-customer-header">
+            <div class="review-customer-info">
+              <div class="review-avatar-badge" id="view-review-avatar">BS</div>
+              <div>
+                <p class="review-customer-name" id="view-review-customer">Bea S.</p>
+                <p class="review-date-badge" id="view-review-date">Verified Customer · Sep 19, 2026</p>
+              </div>
+            </div>
+            <div class="review-stars" id="view-review-stars">★★★★★</div>
+          </div>
+          <div class="review-product-tag">
+            <span class="nav-glyph" aria-hidden="true">◇</span>
+            <span id="view-review-product">Drip Zip-Up Hoodie</span>
+          </div>
+          <blockquote class="review-body-text" id="view-review-body">
+            “Super lapad ng fit, ang angas ng tela! Perfect for streetwear layering.”
+          </blockquote>
+          <div id="view-review-reply-container" style="display: none;">
+            <div class="review-reply-card">
+              <div class="review-reply-header">
+                <span class="review-reply-title">Merchant Response</span>
+                <span class="review-date-badge" id="view-review-reply-date"></span>
+              </div>
+              <p class="review-reply-body" id="view-review-reply-text"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn-close-view-review-footer">Close</button>
+        <button type="button" class="btn btn-primary" id="btn-reply-from-view">Reply to review</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Reply to Customer Review (Figma 58:2 / 58:467) -->
+  <div class="modal-overlay" id="modal-reply-review" role="dialog" aria-modal="true" aria-labelledby="modal-reply-review-title" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-reply-review-title">Reply to Review</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-reply-review" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="form-reply-review">
+        <input type="hidden" id="reply-review-id" name="review_id" value="">
+        <div class="modal-body">
+          <div class="review-context-banner">
+            <p>Replying to <strong id="reply-customer-name">Bea S.</strong> regarding <strong id="reply-product-name">Drip Zip-Up Hoodie</strong></p>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="reply-textarea">Your Public Merchant Response</label>
+            <textarea class="form-textarea" id="reply-textarea" name="reply" rows="4" placeholder="Thank the customer or address their feedback professionally..." required></textarea>
+            <span class="form-label" style="text-transform: none; font-size: 10px; color: var(--color-muted); margin-top: 4px;">
+              This reply will be publicly visible to customers on the storefront product detail page.
+            </span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-reply-review">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-reply-review">Send Reply</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Edit Product Dialog -->
+  <div class="modal-overlay" id="modal-edit-product" role="dialog" aria-modal="true" aria-labelledby="modal-edit-product-title" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-edit-product-title">Edit Product</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-edit-product" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="form-edit-product">
+        <input type="hidden" id="edit-prod-id" name="id" value="">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="edit-prod-name">Product Name</label>
+            <input class="form-input" id="edit-prod-name" name="name" type="text" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-prod-category">Category</label>
+            <select class="form-select" id="edit-prod-category" name="category" required>
+              <option value="Tops › Hoodies">Tops › Hoodies</option>
+              <option value="Tops › T-Shirts">Tops › T-Shirts</option>
+              <option value="Bottoms › Denim">Bottoms › Denim</option>
+              <option value="Accessories › Caps">Accessories › Caps</option>
+              <option value="Accessories › Socks">Accessories › Socks</option>
+            </select>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label" for="edit-prod-price">Base Price (PHP)</label>
+              <input class="form-input" id="edit-prod-price" name="price" type="number" min="1" step="1" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="edit-prod-stock">Stock on Hand</label>
+              <input class="form-input" id="edit-prod-stock" name="stock" type="number" min="0" required>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label class="form-label" for="edit-prod-sku">SKU Code</label>
+              <input class="form-input" id="edit-prod-sku" name="sku" type="text" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="edit-prod-status">Listing Status</label>
+              <select class="form-select" id="edit-prod-status" name="status" required>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-prod-desc">Description</label>
+            <textarea class="form-textarea" id="edit-prod-desc" name="description" rows="2" placeholder="Fabric, fit details and care instructions..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-edit-product">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-edit-product">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Manage Categories Dialog -->
+  <div class="modal-overlay" id="modal-manage-categories" role="dialog" aria-modal="true" aria-labelledby="modal-manage-categories-title" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-manage-categories-title">Manage Categories</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-categories" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Active Catalog Categories</label>
+          <div class="category-list-card" id="categories-list-container">
+            <!-- Dynamic Category List -->
+            <div class="category-item-row">
+              <span class="category-item-name">Tops › Hoodies</span>
+              <span class="category-count-badge">24 items</span>
+            </div>
+            <div class="category-item-row">
+              <span class="category-item-name">Tops › T-Shirts</span>
+              <span class="category-count-badge">42 items</span>
+            </div>
+            <div class="category-item-row">
+              <span class="category-item-name">Bottoms › Denim</span>
+              <span class="category-count-badge">18 items</span>
+            </div>
+            <div class="category-item-row">
+              <span class="category-item-name">Accessories › Caps</span>
+              <span class="category-count-badge">16 items</span>
+            </div>
+            <div class="category-item-row">
+              <span class="category-item-name">Accessories › Socks</span>
+              <span class="category-count-badge">12 items</span>
+            </div>
+          </div>
+        </div>
+        <form id="form-add-category" style="display: flex; flex-direction: column; gap: 10px; margin-top: 6px;">
+          <div class="form-group">
+            <label class="form-label" for="new-cat-name">Add New Category</label>
+            <div style="display: flex; gap: 8px;">
+              <input class="form-input" id="new-cat-name" name="name" type="text" placeholder="e.g. Outerwear › Jackets" style="flex: 1;" required>
+              <button type="submit" class="btn btn-primary" id="btn-submit-category">+ Add</button>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn-close-categories-footer">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <script src="merchant.js"></script>
+  <script src="../js/user-session.js"></script>
+</body>
+</html>

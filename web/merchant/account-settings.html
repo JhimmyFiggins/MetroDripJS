@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/Registration/theme.css">
+  <link rel="stylesheet" href="/css/console.css">
+  <link rel="stylesheet" href="/css/account-settings.css">
+  <script src="/Registration/theme.js"></script>
+</head>
+<body>
+  <!-- Figma: Merchant Console / Account Management / Light (598:2491) & Dark (599:2513) -->
+  <div class="console-layout">
+    <!-- Left Navigation Sidebar -->
+    <aside class="console-sidebar" aria-label="Merchant Navigation">
+      <div class="sidebar-top">
+        <div class="brand-section">
+          <p class="brand-logo">METRO<span>DRIP</span></p>
+          <p class="console-role-tag">MERCHANT / SELLER CONSOLE</p>
+        </div>
+
+        <nav class="nav-group" aria-label="Console views">
+          <a class="nav-item" href="index.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Dashboard</span>
+          </a>
+          <a class="nav-item" href="catalog.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Products &amp; Categories</span>
+          </a>
+          <a class="nav-item" href="inventory.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Inventory</span>
+            <span class="nav-badge volt">6</span>
+          </a>
+          <a class="nav-item" href="orders.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Orders</span>
+            <span class="nav-badge volt">5</span>
+          </a>
+          <a class="nav-item" href="shipments.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Shipments</span>
+          </a>
+          <a class="nav-item" href="shipping-zones.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Shipping Zones</span>
+          </a>
+          <a class="nav-item" href="reviews.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Reviews</span>
+            <span class="nav-badge volt">2</span>
+          </a>
+          <a class="nav-item" href="content.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Content &amp; Banners</span>
+          </a>
+          <a class="nav-item" href="analytics.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Analytics</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-avatar" aria-hidden="true">MD</div>
+          <div class="user-meta">
+            <p class="user-name">Store Merchant</p>
+            <p class="user-role-badge">MERCHANT · 2FA ON</p>
+          </div>
+        </div>
+
+        <div class="theme-switch-container" role="group" aria-label="Color theme selector">
+          <button type="button" class="theme-toggle-btn is-active" data-theme-option="light" aria-pressed="true">
+            <span aria-hidden="true">☼</span> Light
+          </button>
+          <button type="button" class="theme-toggle-btn" data-theme-option="dark" aria-pressed="false">
+            <span aria-hidden="true">☾</span> Dark
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace Content -->
+    <main class="console-main">
+      <div class="account-mgmt-container">
+        <!-- Account Header -->
+        <header class="account-mgmt-header">
+          <div class="account-mgmt-title-group">
+            <h1 class="account-mgmt-title">Account Management</h1>
+            <p class="account-mgmt-subhead">Manage your merchant profile, security and preferences.</p>
+          </div>
+          <a href="index.html" class="btn-view-dashboard" id="btn-view-dashboard">
+            View dashboard
+          </a>
+        </header>
+
+        <!-- Merchant Identity Banner Card -->
+        <section class="account-identity-card" aria-label="Merchant account identity">
+          <div class="identity-avatar-box" id="identity-avatar-display">MD</div>
+          <div class="identity-info-group">
+            <h2 class="identity-display-name" id="identity-display-name">Store Merchant</h2>
+            <p class="identity-account-tag">MetroDrip &nbsp;/&nbsp; Merchant account</p>
+            <p class="identity-status-line" id="identity-status-line">
+              <span aria-hidden="true">●</span> Active account &nbsp;&nbsp;&middot;&nbsp;&nbsp; Two-factor authentication enabled
+            </p>
+          </div>
+        </section>
+
+        <!-- 2-Column Grid: Profile Details & Security -->
+        <div class="account-grid-2col">
+          <!-- Left: Profile details -->
+          <section class="mgmt-card" aria-labelledby="heading-profile-details">
+            <div>
+              <h2 class="mgmt-card-title" id="heading-profile-details">Profile details</h2>
+              <p class="mgmt-card-subhead">Your account details are separate from your public store information.</p>
+            </div>
+
+            <form id="form-profile-details" novalidate>
+              <div class="mgmt-field-group">
+                <label class="mgmt-field-label" for="profile-display-name-input">Display name</label>
+                <input type="text" class="mgmt-field-input" id="profile-display-name-input" name="name" value="Store Merchant" required>
+              </div>
+
+              <div class="mgmt-field-group" style="margin-top: 12px;">
+                <label class="mgmt-field-label" for="profile-email-input">Email address</label>
+                <input type="email" class="mgmt-field-input" id="profile-email-input" name="email" value="merchant@example.com" required>
+                <span class="mgmt-field-helper">Verified email · Used for sign-in and account alerts</span>
+              </div>
+
+              <div class="mgmt-field-group" style="margin-top: 12px;">
+                <label class="mgmt-field-label" for="profile-phone-input">Phone number (optional)</label>
+                <input type="tel" class="mgmt-field-input" id="profile-phone-input" name="phone" placeholder="Add a phone number" value="+63 917 123 4567">
+              </div>
+
+              <div class="mgmt-actions-row">
+                <button type="submit" class="btn-volt-primary" id="btn-save-profile-changes">
+                  Save changes
+                </button>
+                <button type="button" class="btn-mgmt-secondary" id="btn-cancel-profile-changes">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <!-- Right: Security -->
+          <section class="mgmt-card" aria-labelledby="heading-security">
+            <div>
+              <h2 class="mgmt-card-title" id="heading-security">Security</h2>
+              <p class="mgmt-card-subhead">Keep access to your merchant account protected.</p>
+            </div>
+
+            <!-- Password Section -->
+            <div class="security-item-block">
+              <h3 class="security-item-title">Password</h3>
+              <p class="security-item-subhead">Use a unique password for your MetroDrip account.</p>
+              <div>
+                <button type="button" class="btn-mgmt-secondary" id="btn-open-password-modal">
+                  Change password
+                </button>
+              </div>
+            </div>
+
+            <!-- Two-Factor Authentication Section -->
+            <div class="security-item-block">
+              <h3 class="security-item-title">Two-factor authentication</h3>
+              <p class="security-status-badge" id="security-2fa-status-badge">Enabled · Authenticator app</p>
+              <p class="security-item-subhead">Enter a verification code when signing in on a new device.</p>
+              <div>
+                <button type="button" class="btn-mgmt-secondary" id="btn-open-2fa-modal">
+                  Manage 2FA
+                </button>
+              </div>
+            </div>
+
+            <!-- Recovery Codes Section -->
+            <div class="security-item-block">
+              <h3 class="security-item-title">Recovery codes</h3>
+              <p class="security-item-subhead">Keep a copy in a safe place in case you lose your device.</p>
+              <div>
+                <button type="button" class="btn-mgmt-secondary" id="btn-open-recovery-modal">
+                  View recovery options
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- Active Sessions Card -->
+        <section class="mgmt-card" aria-labelledby="heading-active-sessions">
+          <div class="sessions-header-row">
+            <div>
+              <h2 class="mgmt-card-title" id="heading-active-sessions">Active sessions</h2>
+              <p class="mgmt-card-subhead">Example sessions · Review where your account is signed in.</p>
+            </div>
+            <button type="button" class="btn-mgmt-secondary" id="btn-open-signout-all-modal">
+              Sign out other devices
+            </button>
+          </div>
+
+          <div style="overflow-x: auto;">
+            <table class="sessions-mgmt-table" aria-label="Active account sessions">
+              <thead>
+                <tr>
+                  <th scope="col">DEVICE</th>
+                  <th scope="col">LOCATION</th>
+                  <th scope="col">LAST ACTIVE</th>
+                  <th scope="col" style="text-align: right;">STATUS</th>
+                </tr>
+              </thead>
+              <tbody id="sessions-table-body">
+                <tr id="session-row-current">
+                  <td><strong>Chrome · Windows</strong></td>
+                  <td>Quezon City, PH</td>
+                  <td>Active now</td>
+                  <td style="text-align: right;">
+                    <span class="current-session-tag">Current session</span>
+                  </td>
+                </tr>
+                <tr id="session-row-safari">
+                  <td><strong>Safari · macOS</strong></td>
+                  <td>Manila, PH</td>
+                  <td>Yesterday, 8:42 PM</td>
+                  <td style="text-align: right;">
+                    <button type="button" class="btn-mgmt-secondary btn-signout-single-device" id="btn-signout-safari" style="min-height: 38px; padding: 8px 16px;">
+                      Sign out
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Notification Preferences Card -->
+        <section class="mgmt-card" aria-labelledby="heading-notification-preferences">
+          <div>
+            <h2 class="mgmt-card-title" id="heading-notification-preferences">Notification preferences</h2>
+            <p class="mgmt-card-subhead">Choose the merchant updates you receive by email.</p>
+          </div>
+
+          <div class="pref-list-group">
+            <div class="pref-row-item">
+              <div class="pref-row-info">
+                <span class="pref-row-title">Orders &amp; fulfillment</span>
+                <span class="pref-row-desc">New orders, payment updates and shipment exceptions</span>
+              </div>
+              <button type="button" class="toggle-pill-btn is-active" data-state="on" id="pref-btn-orders">
+                ✓  On
+              </button>
+            </div>
+
+            <div class="pref-row-item">
+              <div class="pref-row-info">
+                <span class="pref-row-title">Inventory alerts</span>
+                <span class="pref-row-desc">Low-stock and out-of-stock notifications</span>
+              </div>
+              <button type="button" class="toggle-pill-btn is-active" data-state="on" id="pref-btn-inventory">
+                ✓  On
+              </button>
+            </div>
+
+            <div class="pref-row-item">
+              <div class="pref-row-info">
+                <span class="pref-row-title">Customer reviews</span>
+                <span class="pref-row-desc">New reviews and reviews awaiting a reply</span>
+              </div>
+              <button type="button" class="toggle-pill-btn is-active" data-state="on" id="pref-btn-reviews">
+                ✓  On
+              </button>
+            </div>
+
+            <div class="pref-row-item">
+              <div class="pref-row-info">
+                <span class="pref-row-title">Weekly performance summary</span>
+                <span class="pref-row-desc">A weekly overview of sales and store activity</span>
+              </div>
+              <button type="button" class="toggle-pill-btn" data-state="off" id="pref-btn-summary">
+                Off
+              </button>
+            </div>
+          </div>
+
+          <p class="mgmt-field-helper" style="margin: 4px 0 0 0;">
+            Security alerts are always sent to your account email.
+          </p>
+
+          <div>
+            <button type="button" class="btn-volt-primary" id="btn-save-preferences">
+              Save preferences
+            </button>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- ==================== FIGMA MODAL DIALOGS ==================== -->
+
+  <!-- Modal 1: Change Password (599:2640 / 599:2660) -->
+  <div class="figma-modal-overlay" id="modal-change-password" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="title-change-password">
+    <div class="figma-modal-card">
+      <h2 class="figma-modal-title" id="title-change-password">Change password</h2>
+      <p class="figma-modal-desc">Choose a unique password with at least 12 characters.</p>
+
+      <div class="mgmt-field-group">
+        <label class="mgmt-field-label" for="input-current-pwd">Current password</label>
+        <input type="password" class="mgmt-field-input" id="input-current-pwd" placeholder="Enter current password">
+      </div>
+
+      <div class="mgmt-field-group">
+        <label class="mgmt-field-label" for="input-new-pwd">New password</label>
+        <input type="password" class="mgmt-field-input" id="input-new-pwd" placeholder="Enter new password">
+      </div>
+
+      <div class="mgmt-field-group">
+        <label class="mgmt-field-label" for="input-confirm-pwd">Confirm new password</label>
+        <input type="password" class="mgmt-field-input" id="input-confirm-pwd" placeholder="Re-enter new password">
+      </div>
+
+      <div class="figma-modal-actions">
+        <button type="button" class="btn-mgmt-secondary btn-modal-close" data-modal="modal-change-password">Cancel</button>
+        <button type="button" class="btn-volt-primary" id="btn-submit-update-password">Update password</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: 2FA Verification & Management (599:2669 / 599:2687) -->
+  <div class="figma-modal-overlay" id="modal-manage-2fa" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="title-manage-2fa">
+    <div class="figma-modal-card">
+      <h2 class="figma-modal-title" id="title-manage-2fa">Two-factor authentication</h2>
+      <p class="figma-modal-desc">Authenticator app is enabled for this merchant account.</p>
+      <p class="figma-modal-status">Status: Enabled</p>
+      <p class="figma-modal-desc">To replace your authenticator, verify your current password and a code from your existing app.</p>
+
+      <div class="mgmt-field-group">
+        <label class="mgmt-field-label" for="input-2fa-pwd">Current password</label>
+        <input type="password" class="mgmt-field-input" id="input-2fa-pwd" placeholder="Enter current password">
+      </div>
+
+      <div class="mgmt-field-group">
+        <label class="mgmt-field-label" for="input-2fa-code">Verification code</label>
+        <input type="text" class="mgmt-field-input" id="input-2fa-code" maxlength="6" inputmode="numeric" placeholder="6-digit code">
+      </div>
+
+      <div class="figma-modal-actions">
+        <button type="button" class="btn-mgmt-secondary btn-modal-close" data-modal="modal-manage-2fa">Cancel</button>
+        <button type="button" class="btn-volt-primary" id="btn-submit-verify-2fa">Verify identity</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 3: Recovery Options (599:2697 / 599:2709) -->
+  <div class="figma-modal-overlay" id="modal-recovery-options" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="title-recovery-options">
+    <div class="figma-modal-card">
+      <h2 class="figma-modal-title" id="title-recovery-options">Recovery options</h2>
+      <p class="figma-modal-desc">Verify your password before viewing or replacing recovery codes.</p>
+
+      <div class="mgmt-field-group" id="recovery-pwd-field">
+        <label class="mgmt-field-label" for="input-recovery-pwd">Current password</label>
+        <input type="password" class="mgmt-field-input" id="input-recovery-pwd" placeholder="Enter current password">
+      </div>
+
+      <div id="recovery-codes-display" style="display: none; background-color: var(--color-surface); padding: 14px; border-radius: 6px; font-family: var(--font-mono); font-size: 13px; line-height: 1.8;">
+        <div>DRIP-4821-9901</div>
+        <div>DRIP-7712-4019</div>
+        <div>DRIP-1029-8433</div>
+        <div>DRIP-9923-5610</div>
+      </div>
+
+      <div class="figma-modal-actions">
+        <button type="button" class="btn-mgmt-secondary btn-modal-close" data-modal="modal-recovery-options">Cancel</button>
+        <button type="button" class="btn-volt-primary" id="btn-submit-recovery">Verify &amp; continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 4: Sign Out Other Devices (599:2716 / 599:2724) -->
+  <div class="figma-modal-overlay" id="modal-signout-all" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="title-signout-all">
+    <div class="figma-modal-card">
+      <h2 class="figma-modal-title" id="title-signout-all">Sign out other devices?</h2>
+      <p class="figma-modal-desc">This ends the other sessions listed on your account. This browser stays signed in.</p>
+
+      <div class="figma-modal-actions">
+        <button type="button" class="btn-mgmt-secondary btn-modal-close" data-modal="modal-signout-all">Cancel</button>
+        <button type="button" class="btn-volt-primary" id="btn-confirm-signout-all">Sign out devices</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 5: Sign Out Single Session (599:2900 / 599:2918) -->
+  <div class="figma-modal-overlay" id="modal-signout-single" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="title-signout-single">
+    <div class="figma-modal-card">
+      <h2 class="figma-modal-title" id="title-signout-single">Sign out this device?</h2>
+      <p class="figma-modal-desc" id="desc-signout-single">End the Safari · macOS session in Manila. This browser stays signed in.</p>
+
+      <div class="figma-modal-actions">
+        <button type="button" class="btn-mgmt-secondary btn-modal-close" data-modal="modal-signout-single">Cancel</button>
+        <button type="button" class="btn-volt-primary" id="btn-confirm-signout-single">Sign out device</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 6: Changes Saved (599:2730 / 599:2736) -->
+  <div class="figma-modal-overlay" id="modal-changes-saved" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="title-changes-saved">
+    <div class="figma-modal-card">
+      <h2 class="figma-modal-title" id="title-changes-saved">Changes saved</h2>
+      <p class="figma-modal-desc">Your changes have been saved.</p>
+
+      <div class="figma-modal-actions">
+        <button type="button" class="btn-volt-primary btn-modal-close" data-modal="modal-changes-saved" id="btn-done-saved">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <script src="/js/user-session.js"></script>
+  <script src="/js/account-settings.js"></script>
+</body>
+</html>

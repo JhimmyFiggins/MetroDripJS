@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="../Registration/theme.css">
+  <link rel="stylesheet" href="../css/console.css">
+  <script src="../Registration/theme.js"></script>
+</head>
+<body>
+  <!-- Figma: 07 · Administrator Console (Desktop) 15:2 / D07 dark 58:194 -->
+  <div class="console-layout">
+    <!-- Left Navigation Sidebar -->
+    <aside class="console-sidebar" aria-label="Administrator Navigation">
+      <div class="sidebar-top">
+        <div class="brand-section">
+          <p class="brand-logo">METRO<span>DRIP</span></p>
+          <p class="console-role-tag">ADMINISTRATOR CONSOLE</p>
+        </div>
+
+        <nav class="nav-group" aria-label="Console views">
+          <a class="nav-item is-active" href="index.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Dashboard</span>
+          </a>
+          <a class="nav-item" href="users.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> User Accounts</span>
+          </a>
+          <a class="nav-item" href="roles.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Roles & Permissions</span>
+          </a>
+          <a class="nav-item" href="settings.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Platform Settings</span>
+          </a>
+          <a class="nav-item" href="audit.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Audit Trail</span>
+            <span class="nav-badge volt" id="sidebar-audit-count">12</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-avatar" aria-hidden="true">AD</div>
+          <div class="user-meta">
+            <p class="user-name">Admin User</p>
+            <p class="user-role-badge">ADMINISTRATOR · 2FA ON</p>
+          </div>
+        </div>
+
+        <!-- Theme Switcher synced via theme.js -->
+        <div class="theme-switch-container" role="group" aria-label="Color theme selector">
+          <button type="button" class="theme-toggle-btn is-active" data-theme-option="light" aria-pressed="true">
+            <span aria-hidden="true">☼</span> Light
+          </button>
+          <button type="button" class="theme-toggle-btn" data-theme-option="dark" aria-pressed="false">
+            <span aria-hidden="true">☾</span> Dark
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace Content -->
+    <main class="console-main">
+      <!-- Top Action Bar -->
+      <header class="console-header">
+        <div class="header-meta">
+          <h1 class="page-title">Administration</h1>
+          <p class="page-subhead">/admin/ · ACCOUNTS · ROLES · SETTINGS · AUDIT</p>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="btn btn-secondary" id="btn-export-csv">
+            <span aria-hidden="true">↓</span> Export CSV
+          </button>
+          <button type="button" class="btn btn-primary" id="btn-open-add-user">
+            <span aria-hidden="true">+</span> Add user
+          </button>
+        </div>
+      </header>
+
+      <!-- 4 Stat Metric Cards -->
+      <section class="stat-cards-grid" aria-label="Key administrative metrics">
+        <article class="stat-card">
+          <p class="stat-label">TOTAL CUSTOMERS</p>
+          <p class="stat-value" id="metric-total-customers">1,284</p>
+          <p class="stat-subtext trend-up">+38 this week</p>
+        </article>
+        <article class="stat-card">
+          <p class="stat-label">STAFF ACCOUNTS</p>
+          <p class="stat-value" id="metric-staff-accounts">7</p>
+          <p class="stat-subtext">5 merchant · 2 admin</p>
+        </article>
+        <article class="stat-card">
+          <p class="stat-label">SUSPENDED</p>
+          <p class="stat-value" id="metric-suspended-count">3</p>
+          <p class="stat-subtext alert-danger">Requires review</p>
+        </article>
+        <article class="stat-card">
+          <p class="stat-label">AUDIT EVENTS (24H)</p>
+          <p class="stat-value" id="metric-audit-events">12</p>
+          <p class="stat-subtext">All actions logged</p>
+        </article>
+      </section>
+
+      <!-- Split Table Panels: User Accounts + Audit Trail -->
+      <div class="panel-grid-2col">
+        <!-- Left: User Accounts -->
+        <section class="panel-card" aria-labelledby="heading-users">
+          <div class="panel-header">
+            <h2 class="panel-title" id="heading-users">User Accounts</h2>
+            <a class="panel-link" href="users.html" id="link-manage-all-users">Manage all →</a>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="users-table">
+              <thead>
+                <tr>
+                  <th scope="col">EMAIL</th>
+                  <th scope="col">NAME</th>
+                  <th scope="col">ROLE</th>
+                  <th scope="col">STATUS</th>
+                  <th scope="col">ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody id="users-tbody">
+                <!-- Seeded matching Figma frame 15:2 -->
+                <tr data-user-id="1">
+                  <td class="td-mono">juan@email.com</td>
+                  <td class="td-strong">Juan Dela Cruz</td>
+                  <td class="td-mono td-muted">customer</td>
+                  <td><span class="status-pill active">Active</span></td>
+                  <td><button class="btn btn-secondary btn-sm btn-toggle-status" data-user-id="1" data-action="suspend">Suspend</button></td>
+                </tr>
+                <tr data-user-id="2">
+                  <td class="td-mono">bea@email.com</td>
+                  <td class="td-strong">Bea Santos</td>
+                  <td class="td-mono td-muted">customer</td>
+                  <td><span class="status-pill active">Active</span></td>
+                  <td><button class="btn btn-secondary btn-sm btn-toggle-status" data-user-id="2" data-action="suspend">Suspend</button></td>
+                </tr>
+                <tr data-user-id="3">
+                  <td class="td-mono">merch@metrodrip.ph</td>
+                  <td class="td-strong">Store Merchant</td>
+                  <td class="td-mono td-muted">merchant</td>
+                  <td><span class="status-pill active">Active</span></td>
+                  <td><button class="btn btn-secondary btn-sm btn-toggle-status" data-user-id="3" data-action="suspend">Suspend</button></td>
+                </tr>
+                <tr data-user-id="4">
+                  <td class="td-mono">spam@x.com</td>
+                  <td class="td-strong">Flagged User</td>
+                  <td class="td-mono td-muted">customer</td>
+                  <td><span class="status-pill suspended">Suspended</span></td>
+                  <td><button class="btn btn-secondary btn-sm btn-toggle-status" data-user-id="4" data-action="activate">Activate</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Right: Audit Trail -->
+        <section class="panel-card" aria-labelledby="heading-audit">
+          <div class="panel-header">
+            <h2 class="panel-title" id="heading-audit">Audit Trail</h2>
+            <a class="panel-link" href="audit.html" id="link-view-all-audit">View all →</a>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="audit-table">
+              <thead>
+                <tr>
+                  <th scope="col">WHEN</th>
+                  <th scope="col">ACTOR</th>
+                  <th scope="col">ACTION</th>
+                </tr>
+              </thead>
+              <tbody id="audit-tbody">
+                <!-- Seeded matching Figma frame 15:2 -->
+                <tr>
+                  <td class="td-mono td-muted">09:41</td>
+                  <td class="td-strong">Admin User</td>
+                  <td>Suspended customer #1042</td>
+                </tr>
+                <tr>
+                  <td class="td-mono td-muted">09:12</td>
+                  <td class="td-strong">Admin User</td>
+                  <td>Updated NCR shipping fee → ₱85</td>
+                </tr>
+                <tr>
+                  <td class="td-mono td-muted">08:55</td>
+                  <td class="td-strong">Store Merchant</td>
+                  <td>Approved review #318</td>
+                </tr>
+                <tr>
+                  <td class="td-mono td-muted">08:30</td>
+                  <td class="td-strong">Admin User</td>
+                  <td>Granted merchant role → R. Carlos</td>
+                </tr>
+                <tr>
+                  <td class="td-mono td-muted">08:02</td>
+                  <td class="td-strong">System</td>
+                  <td>Nightly backup verified</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <!-- Administration Workspace (Figma: 15:2) -->
+      <section class="workspace-section" aria-label="Administration workspace">
+        <h2 class="workspace-heading">Administration workspace</h2>
+        <div class="workspace-grid-4">
+          <!-- Card 1: User Accounts -->
+          <article class="workspace-card">
+            <div class="workspace-card-top">
+              <span class="workspace-card-tag">User Accounts</span>
+              <p class="workspace-card-metric" id="workspace-metric-users">1,284 customers</p>
+              <p class="workspace-card-desc">Manage staff and customer access.</p>
+            </div>
+            <a href="users.html" class="workspace-card-btn">Open User Accounts &rarr;</a>
+          </article>
+
+          <!-- Card 2: Roles & Permissions -->
+          <article class="workspace-card">
+            <div class="workspace-card-top">
+              <span class="workspace-card-tag">Roles & Permissions</span>
+              <p class="workspace-card-metric">3 system roles</p>
+              <p class="workspace-card-desc">Review assignments and capabilities.</p>
+            </div>
+            <a href="roles.html" class="workspace-card-btn">Open Roles & Permissions &rarr;</a>
+          </article>
+
+          <!-- Card 3: Platform Settings -->
+          <article class="workspace-card">
+            <div class="workspace-card-top">
+              <span class="workspace-card-tag">Platform Settings</span>
+              <p class="workspace-card-metric">Staff 2FA required</p>
+              <p class="workspace-card-desc">Manage platform preferences.</p>
+            </div>
+            <a href="settings.html" class="workspace-card-btn">Open Platform Settings &rarr;</a>
+          </article>
+
+          <!-- Card 4: Audit Trail -->
+          <article class="workspace-card">
+            <div class="workspace-card-top">
+              <span class="workspace-card-tag">Audit Trail</span>
+              <p class="workspace-card-metric" id="workspace-metric-audit">12 events today</p>
+              <p class="workspace-card-desc">Review account and platform changes.</p>
+            </div>
+            <a href="audit.html" class="workspace-card-btn">Open Audit Trail &rarr;</a>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modal: Add User Dialog -->
+  <div class="modal-overlay" id="modal-add-user" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-add-user-title">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-add-user-title">+ Add Platform User</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-modal" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="form-add-user">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="add-user-name">Full Name</label>
+            <input class="form-input" id="add-user-name" name="name" type="text" placeholder="e.g. Rafael Carlos" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="add-user-email">Email Address</label>
+            <input class="form-input" id="add-user-email" name="email" type="email" placeholder="e.g. rcarlos@metrodrip.ph" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="add-user-role">Role</label>
+            <select class="form-select" id="add-user-role" name="role" required>
+              <option value="customer">Customer</option>
+              <option value="merchant">Merchant</option>
+              <option value="admin">Administrator</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="add-user-phone">Phone (Optional)</label>
+            <input class="form-input" id="add-user-phone" name="phone" type="text" placeholder="+63 917 123 4567">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-add-user">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-add-user">Create Account</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Shipping Zones Dialog -->
+  <div class="modal-overlay" id="modal-shipping-zones" role="dialog" aria-modal="true" aria-labelledby="modal-shipping-zones-title" hidden>
+    <div class="modal-card" style="max-width: 560px;">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="modal-shipping-zones-title">Regional Shipping Rates</h3>
+          <span class="td-mono td-muted" style="font-size: 11px;">Standard courier fees applied at checkout</span>
+        </div>
+        <button type="button" class="modal-close-btn" id="btn-close-shipping-zones" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="form-shipping-zones">
+        <div class="modal-body">
+          <div class="shipping-zones-card" id="shipping-zones-container">
+            <!-- Dynamically populated or seeded -->
+            <div class="shipping-zone-row" data-zone-id="1">
+              <div class="shipping-zone-info">
+                <h4>NCR (Metro Manila)</h4>
+                <p>Same-day & next-day express delivery</p>
+              </div>
+              <div class="shipping-fee-input-group">
+                <span>₱</span>
+                <input type="number" class="shipping-fee-input" id="fee-zone-1" name="zone_1" value="85" min="0" step="1" required>
+              </div>
+            </div>
+            <div class="shipping-zone-row" data-zone-id="2">
+              <div class="shipping-zone-info">
+                <h4>North & South Luzon</h4>
+                <p>Provincial Luzon 2–3 business days</p>
+              </div>
+              <div class="shipping-fee-input-group">
+                <span>₱</span>
+                <input type="number" class="shipping-fee-input" id="fee-zone-2" name="zone_2" value="120" min="0" step="1" required>
+              </div>
+            </div>
+            <div class="shipping-zone-row" data-zone-id="3">
+              <div class="shipping-zone-info">
+                <h4>Visayas & Mindanao (VisMin)</h4>
+                <p>Island provincial 4–6 business days</p>
+              </div>
+              <div class="shipping-fee-input-group">
+                <span>₱</span>
+                <input type="number" class="shipping-fee-input" id="fee-zone-3" name="zone_3" value="150" min="0" step="1" required>
+              </div>
+            </div>
+          </div>
+          <p class="td-muted" style="font-size: 11px; margin-top: 4px;">
+            Rate updates trigger an immediate entry in the platform audit log.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-shipping-zones">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-save-shipping-zones">Save Rates</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <script src="admin.js"></script>
+  <script src="../js/user-session.js"></script>
+</body>
+</html>

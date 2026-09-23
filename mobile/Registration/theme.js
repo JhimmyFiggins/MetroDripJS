@@ -11,11 +11,11 @@ const LIGHT = {
   textMuted: '#777777',
   label: '#333333',
   placeholder: '#999999',
-  accent: '#BFFF00',
+  accent: '#D3EE42',
   accentText: '#111111',
   error: '#E23F3F',
   footerBg: '#111111',
-  footerText: '#BFFF00',
+  footerText: '#D3EE42',
 };
 
 const DARK = {
@@ -27,11 +27,11 @@ const DARK = {
   textMuted: '#999999',
   label: '#CCCCCC',
   placeholder: '#777777',
-  accent: '#BFFF00',
+  accent: '#D3EE42',
   accentText: '#111111',
   error: '#FF6B6B',
   footerBg: '#000000',
-  footerText: '#BFFF00',
+  footerText: '#D3EE42',
 };
 
 const ThemeContext = createContext({

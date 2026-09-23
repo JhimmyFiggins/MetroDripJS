@@ -276,3 +276,24 @@ class InventoryStockEvent(models.Model):
         ]
 
 
+class InventoryStockMovement(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    variant = models.ForeignKey(
+        CatalogProductVariant,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        db_column='variant_id',
+        related_name='stock_movements'
+    )
+    sku = models.CharField(max_length=64, blank=True, null=True)
+    delta = models.IntegerField()
+    reason = models.CharField(max_length=20)  # restock, sale, return, adjustment
+    ref_order_ref = models.BigIntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'inventory_stockmovement'
+        ordering = ['-created_at']
+
+

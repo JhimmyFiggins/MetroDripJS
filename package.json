@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "dev": "python web/dev_server.py 3000",
+    "web:server": "python web/dev_server.py 3000",
     "start": "expo start",
     "android": "expo run:android",
     "android:run": "expo run:android",
@@ -10,6 +12,7 @@
     "web": "expo start --web"
   },
   "dependencies": {
+    "@expo-google-fonts/anton": "^0.4.2",
     "@expo-google-fonts/ibm-plex-mono": "^0.4.1",
     "@expo-google-fonts/inter": "^0.4.2",
     "@expo/vector-icons": "^15.0.3",

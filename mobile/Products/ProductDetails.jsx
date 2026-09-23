@@ -635,7 +635,7 @@ const styles = StyleSheet.create({
     },
     /* Add to Cart Button */
     addToCartButton: {
-        backgroundColor: 'rgb(186, 255, 0)',
+        backgroundColor: '#D3EE42',
         borderRadius: 25,
         paddingVertical: 16,
         alignItems: 'center',
@@ -645,6 +645,6 @@ const styles = StyleSheet.create({
     addToCartText: {
         fontFamily: fonts.interBold,
         fontSize: 16,
-        color: '#000',
+        color: '#141414',
     },
 });

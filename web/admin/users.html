@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>MetroDrip · User Accounts</title>
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="../Registration/theme.css">
+  <link rel="stylesheet" href="../css/console.css">
+  <script src="../Registration/theme.js"></script>
+</head>
+<body>
+  <!-- Figma: Admin Console / User Accounts / Light 550:260 & Dark 554:999 -->
+  <div class="console-layout">
+    <!-- Left Navigation Sidebar -->
+    <aside class="console-sidebar" aria-label="Administrator Navigation">
+      <div class="sidebar-top">
+        <div class="brand-section">
+          <p class="brand-logo">METRO<span>DRIP</span></p>
+          <p class="console-role-tag">ADMINISTRATOR CONSOLE</p>
+        </div>
+
+        <nav class="nav-group" aria-label="Console views">
+          <a class="nav-item" href="index.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Dashboard</span>
+          </a>
+          <a class="nav-item is-active" href="users.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> User Accounts</span>
+          </a>
+          <a class="nav-item" href="roles.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Roles & Permissions</span>
+          </a>
+          <a class="nav-item" href="settings.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Platform Settings</span>
+          </a>
+          <a class="nav-item" href="audit.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Audit Trail</span>
+            <span class="nav-badge volt" id="sidebar-audit-count">12</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-avatar" aria-hidden="true">AD</div>
+          <div class="user-meta">
+            <p class="user-name">Admin User</p>
+            <p class="user-role-badge">ADMINISTRATOR · 2FA ON</p>
+          </div>
+        </div>
+
+        <div class="theme-switch-container" role="group" aria-label="Color theme selector">
+          <button type="button" class="theme-toggle-btn is-active" data-theme-option="light" aria-pressed="true">
+            <span aria-hidden="true">☼</span> Light
+          </button>
+          <button type="button" class="theme-toggle-btn" data-theme-option="dark" aria-pressed="false">
+            <span aria-hidden="true">☾</span> Dark
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace Content -->
+    <main class="console-main">
+      <!-- Breadcrumb Bar -->
+      <div class="breadcrumb-bar">
+        <span>ADMIN CONSOLE</span>
+        <span>/</span>
+        <span>USER ACCOUNTS</span>
+        <span class="sample-data">SAMPLE DATA</span>
+      </div>
+
+      <!-- Header -->
+      <header class="console-header">
+        <div class="header-meta">
+          <h1 class="page-title">User Accounts</h1>
+          <p class="page-subhead">Manage customers, store staff and account access.</p>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="btn btn-primary" id="btn-open-add-user">
+            <span aria-hidden="true">+</span> Add user
+          </button>
+        </div>
+      </header>
+
+      <!-- 3 Stat Metric Cards -->
+      <section class="stat-cards-grid" style="grid-template-columns: repeat(3, 1fr);" aria-label="User account metrics">
+        <article class="stat-card">
+          <p class="stat-label">TOTAL CUSTOMERS</p>
+          <p class="stat-value" id="metric-total-customers">1,284</p>
+          <p class="stat-subtext trend-up">+38 this week</p>
+        </article>
+        <article class="stat-card">
+          <p class="stat-label">STAFF ACCOUNTS</p>
+          <p class="stat-value" id="metric-staff-accounts">7</p>
+          <p class="stat-subtext">5 merchants · 2 admins</p>
+        </article>
+        <article class="stat-card" style="border: 1px dashed var(--color-danger);">
+          <p class="stat-label">SUSPENDED</p>
+          <p class="stat-value" style="color: var(--color-danger);" id="metric-suspended">3</p>
+          <p class="stat-subtext">Sign-in access restricted</p>
+        </article>
+      </section>
+
+      <!-- Search & Filters Toolbar -->
+      <div class="console-toolbar" aria-label="User directory search and filters">
+        <div class="search-input-wrap">
+          <span class="search-glyph" aria-hidden="true">🔍</span>
+          <input type="text" id="search-users-input" placeholder="Name or email address" aria-label="Search users by name or email">
+        </div>
+        <select class="toolbar-select" id="filter-role-select" aria-label="Filter by role">
+          <option value="all">Role: All</option>
+          <option value="customer">Customer</option>
+          <option value="merchant">Merchant</option>
+          <option value="administrator">Administrator</option>
+        </select>
+        <select class="toolbar-select" id="filter-status-select" aria-label="Filter by status">
+          <option value="all">Status: All</option>
+          <option value="active">Active</option>
+          <option value="suspended">Suspended</option>
+        </select>
+      </div>
+
+      <!-- User Directory Table Panel -->
+      <section class="panel-card" aria-labelledby="heading-user-directory">
+        <div class="panel-header">
+          <h2 class="panel-title" id="heading-user-directory">User directory</h2>
+        </div>
+        <div class="table-responsive">
+          <table class="data-table" id="users-directory-table">
+            <thead>
+              <tr>
+                <th scope="col">NAME / EMAIL</th>
+                <th scope="col">ROLE</th>
+                <th scope="col">STATUS</th>
+                <th scope="col">2FA</th>
+                <th scope="col">LAST ACTIVE</th>
+              </tr>
+            </thead>
+            <tbody id="users-directory-tbody">
+              <!-- Seeded matching Figma frame 550:260 -->
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination-footer">
+          <span id="pagination-info">Showing 1–5 of 1,291 accounts</span>
+          <div class="pagination-btns">
+            <button type="button" class="pagination-btn" id="btn-prev-page" disabled>Previous</button>
+            <button type="button" class="pagination-btn" id="btn-next-page">Next &rarr;</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2-Column Inspector: Selected User Detail + Invite Staff -->
+      <div class="panel-grid-2col" style="margin-top: 24px;">
+        <!-- Left: Selected User Detail Card -->
+        <section class="panel-card" id="card-user-detail" aria-labelledby="heading-user-detail">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title" id="detail-user-name">Store Merchant</h2>
+              <p class="td-mono td-muted" style="font-size: 11px; margin-top: 2px;" id="detail-user-sub">merch@metrodrip.ph · Active</p>
+            </div>
+          </div>
+          <div style="padding: 16px; display: flex; flex-direction: column; gap: 16px;">
+            <div>
+              <label class="form-label" for="detail-user-role" style="margin-bottom: 6px;">Assigned role</label>
+              <select class="toolbar-select" id="detail-user-role" style="width: 100%;">
+                <option value="customer">Customer</option>
+                <option value="merchant" selected>Merchant</option>
+                <option value="administrator">Administrator</option>
+              </select>
+            </div>
+            <div>
+              <p class="td-muted" style="font-size: 12px;" id="detail-user-2fa">Two-factor authentication: <strong>Enabled</strong></p>
+              <p class="td-muted" style="font-size: 11px; margin-top: 4px;" id="detail-user-activity">Member since 12 Jan 2026 · Last active today, 08:55</p>
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px;">
+              <button type="button" class="btn btn-primary" id="btn-save-user-role">Save role</button>
+              <button type="button" class="btn btn-secondary" id="btn-reset-password">Reset password</button>
+              <button type="button" class="btn btn-secondary" id="btn-toggle-suspend" style="border-color: var(--color-danger); color: var(--color-danger);">Suspend account</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Right: Invite Staff Card -->
+        <section class="panel-card" aria-labelledby="heading-invite-staff">
+          <div class="panel-header">
+            <h2 class="panel-title" id="heading-invite-staff">Invite staff</h2>
+          </div>
+          <form id="form-invite-staff" style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+            <div>
+              <label class="form-label" for="invite-name">Full name</label>
+              <input type="text" class="form-input" id="invite-name" placeholder="Enter full name" required>
+            </div>
+            <div>
+              <label class="form-label" for="invite-email">Work email</label>
+              <input type="email" class="form-input" id="invite-email" placeholder="name@metrodrip.ph" required>
+            </div>
+            <div>
+              <label class="form-label" for="invite-role">Role</label>
+              <select class="toolbar-select" id="invite-role" style="width: 100%;" required>
+                <option value="merchant">Merchant</option>
+                <option value="administrator">Administrator</option>
+              </select>
+            </div>
+            <p class="td-muted" style="font-size: 11px;">An invitation lets the staff member set their own password.</p>
+            <div>
+              <button type="submit" class="btn btn-primary" id="btn-send-invite">Send invitation</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal: Add User Dialog -->
+  <div class="modal-overlay" id="modal-add-user" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-add-user-title">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-add-user-title">+ Add Platform User</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-modal" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="form-add-user">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="add-user-name">Full Name</label>
+            <input class="form-input" id="add-user-name" name="name" type="text" placeholder="e.g. Rafael Carlos" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="add-user-email">Email Address</label>
+            <input class="form-input" id="add-user-email" name="email" type="email" placeholder="e.g. rcarlos@metrodrip.ph" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="add-user-role">Role</label>
+            <select class="form-select" id="add-user-role" name="role" required>
+              <option value="customer">Customer</option>
+              <option value="merchant">Merchant</option>
+              <option value="administrator">Administrator</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="add-user-phone">Phone (Optional)</label>
+            <input class="form-input" id="add-user-phone" name="phone" type="text" placeholder="+63 917 123 4567">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-add-user">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-add-user">Create Account</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <script src="users.js"></script>
+  <script src="../js/user-session.js"></script>
+</body>
+</html>

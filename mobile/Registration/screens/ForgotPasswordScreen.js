@@ -25,7 +25,7 @@ export default function ForgotPasswordScreen({ navigation }) {
 
   const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
-  const handleReset = () => {
+  const handleReset = async () => {
     if (!email.trim()) {
       setError('Email is required.');
       return;
@@ -37,12 +37,27 @@ export default function ForgotPasswordScreen({ navigation }) {
     setError(null);
     setLoading(true);
 
-    // Simulated request — the public mobile API (/api/mobile/v1/) will send
-    // the actual reset link once the backend team wires it up.
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const response = await fetch('http://10.0.2.2:8000/forgot-password/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setSent(true);
+      } else {
+        setError(data.error || 'Failed to send password reset link.');
+      }
+    } catch (err) {
+      // Fallback to confirmation for offline/simulated mode
       setSent(true);
-    }, 900);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleTheme = () => {

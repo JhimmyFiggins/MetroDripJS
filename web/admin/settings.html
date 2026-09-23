@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>MetroDrip · Platform Settings</title>
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="../Registration/theme.css">
+  <link rel="stylesheet" href="../css/console.css">
+  <script src="../Registration/theme.js"></script>
+</head>
+<body>
+  <!-- Figma: Admin Console / Platform Settings / Light 550:318 & Dark 554:1236 -->
+  <div class="console-layout">
+    <!-- Left Navigation Sidebar -->
+    <aside class="console-sidebar" aria-label="Administrator Navigation">
+      <div class="sidebar-top">
+        <div class="brand-section">
+          <p class="brand-logo">METRO<span>DRIP</span></p>
+          <p class="console-role-tag">ADMINISTRATOR CONSOLE</p>
+        </div>
+
+        <nav class="nav-group" aria-label="Console views">
+          <a class="nav-item" href="index.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Dashboard</span>
+          </a>
+          <a class="nav-item" href="users.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> User Accounts</span>
+          </a>
+          <a class="nav-item" href="roles.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Roles & Permissions</span>
+          </a>
+          <a class="nav-item is-active" href="settings.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Platform Settings</span>
+          </a>
+          <a class="nav-item" href="audit.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Audit Trail</span>
+            <span class="nav-badge volt" id="sidebar-audit-count">12</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-avatar" aria-hidden="true">AD</div>
+          <div class="user-meta">
+            <p class="user-name">Admin User</p>
+            <p class="user-role-badge">ADMINISTRATOR · 2FA ON</p>
+          </div>
+        </div>
+
+        <div class="theme-switch-container" role="group" aria-label="Color theme selector">
+          <button type="button" class="theme-toggle-btn is-active" data-theme-option="light" aria-pressed="true">
+            <span aria-hidden="true">☼</span> Light
+          </button>
+          <button type="button" class="theme-toggle-btn" data-theme-option="dark" aria-pressed="false">
+            <span aria-hidden="true">☾</span> Dark
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace Content -->
+    <main class="console-main">
+      <!-- Breadcrumb Bar -->
+      <div class="breadcrumb-bar">
+        <span>ADMIN CONSOLE</span>
+        <span>/</span>
+        <span>PLATFORM SETTINGS</span>
+        <span class="sample-data">SAMPLE DATA</span>
+      </div>
+
+      <!-- Header -->
+      <header class="console-header">
+        <div class="header-meta">
+          <h1 class="page-title">Platform Settings</h1>
+          <p class="page-subhead">Configure shared platform preferences and safeguards.</p>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="btn btn-primary btn-save-settings">
+            Save changes
+          </button>
+        </div>
+      </header>
+
+      <form id="form-platform-settings">
+        <!-- Card 1: General Preferences -->
+        <section class="panel-card" aria-labelledby="heading-general-preferences">
+          <div class="panel-header">
+            <h2 class="panel-title" id="heading-general-preferences">General preferences</h2>
+          </div>
+          <div style="padding: 20px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px;">
+            <div>
+              <label class="form-label" for="setting-platform-name">Platform name</label>
+              <input type="text" class="form-input" id="setting-platform-name" value="MetroDrip" required>
+            </div>
+            <div>
+              <label class="form-label" for="setting-support-email">Support email</label>
+              <input type="email" class="form-input" id="setting-support-email" value="support@metrodrip.ph" required>
+            </div>
+            <div>
+              <label class="form-label" for="setting-currency">Currency</label>
+              <select class="toolbar-select" id="setting-currency" style="width: 100%;">
+                <option value="PHP" selected>PHP — Philippine Peso ▾</option>
+                <option value="USD">USD — US Dollar ▾</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label" for="setting-timezone">Time zone</label>
+              <select class="toolbar-select" id="setting-timezone" style="width: 100%;">
+                <option value="Asia/Manila" selected>Asia/Manila (UTC+08:00) ▾</option>
+                <option value="UTC">UTC (UTC+00:00) ▾</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label" for="setting-language">Default language</label>
+              <select class="toolbar-select" id="setting-language" style="width: 100%;">
+                <option value="en" selected>English ▾</option>
+                <option value="tl">Filipino ▾</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label" for="setting-date-format">Date format</label>
+              <select class="toolbar-select" id="setting-date-format" style="width: 100%;">
+                <option value="DD MMM YYYY" selected>DD MMM YYYY ▾</option>
+                <option value="YYYY-MM-DD">YYYY-MM-DD ▾</option>
+                <option value="MM/DD/YYYY">MM/DD/YYYY ▾</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2-Column Section: Access & Security + Checkout & Communications -->
+        <div class="panel-grid-2col" style="margin-top: 24px;">
+          <!-- Left: Access & Security Card -->
+          <section class="panel-card" aria-labelledby="heading-access-security">
+            <div class="panel-header">
+              <h2 class="panel-title" id="heading-access-security">Access & security</h2>
+            </div>
+            <div style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+              <div>
+                <label class="form-label" for="setting-2fa">Staff two-factor authentication</label>
+                <select class="toolbar-select" id="setting-2fa" style="width: 100%;">
+                  <option value="required" selected>Required ▾</option>
+                  <option value="optional">Optional ▾</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label" for="setting-session-timeout">Session timeout</label>
+                <select class="toolbar-select" id="setting-session-timeout" style="width: 100%;">
+                  <option value="15">15 minutes ▾</option>
+                  <option value="30" selected>30 minutes ▾</option>
+                  <option value="60">60 minutes ▾</option>
+                  <option value="120">2 hours ▾</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label" for="setting-registration">New customer registration</label>
+                <select class="toolbar-select" id="setting-registration" style="width: 100%;">
+                  <option value="enabled" selected>Enabled ▾</option>
+                  <option value="disabled">Disabled ▾</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label" for="setting-maintenance">Maintenance mode</label>
+                <select class="toolbar-select" id="setting-maintenance" style="width: 100%;">
+                  <option value="off" selected>Off ▾</option>
+                  <option value="on">On (Storefront paused) ▾</option>
+                </select>
+              </div>
+              <p class="td-muted" style="font-size: 11px;">Maintenance mode pauses storefront access for customers.</p>
+            </div>
+          </section>
+
+          <!-- Right: Checkout & Communications Card -->
+          <section class="panel-card" aria-labelledby="heading-checkout-comms">
+            <div class="panel-header">
+              <h2 class="panel-title" id="heading-checkout-comms">Checkout & communications</h2>
+            </div>
+            <div style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+              <div>
+                <label class="form-label" for="setting-payments">Payment methods</label>
+                <input type="text" class="form-input" id="setting-payments" value="GCash · Maya · Card" readonly style="background-color: var(--color-surface); cursor: default;">
+                <p class="td-muted" style="font-size: 11px; margin-top: 4px;">Payment provider: Test mode</p>
+              </div>
+              <div>
+                <label class="form-label" for="setting-order-emails">Order confirmation emails</label>
+                <select class="toolbar-select" id="setting-order-emails" style="width: 100%;">
+                  <option value="enabled" selected>Enabled ▾</option>
+                  <option value="disabled">Disabled ▾</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label" for="setting-sender-name">Default sender name</label>
+                <input type="text" class="form-input" id="setting-sender-name" value="MetroDrip" required>
+              </div>
+              <p class="td-muted" style="font-size: 11px; line-height: 1.4;">
+                Shipping coverage and rates are managed in <strong>Merchant Console &rarr; Shipping Zones</strong>.
+              </p>
+              <div style="display: flex; gap: 10px; margin-top: 8px;">
+                <button type="submit" class="btn btn-primary btn-save-settings">Save changes</button>
+                <button type="button" class="btn btn-secondary" id="btn-discard-settings">Discard changes</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </form>
+    </main>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <script src="settings.js"></script>
+  <script src="../js/user-session.js"></script>
+</body>
+</html>

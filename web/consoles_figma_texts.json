@@ -1,0 +1,3898 @@
+{
+  "15:2 - 07 · Administrator Console (Desktop)": [
+    {
+      "name": "Metro",
+      "text": "Metro"
+    },
+    {
+      "name": "Drip",
+      "text": "Drip"
+    },
+    {
+      "name": "ADMINISTRATOR CONSOLE",
+      "text": "ADMINISTRATOR CONSOLE"
+    },
+    {
+      "name": "◇ Dashboard",
+      "text": "◇  Dashboard"
+    },
+    {
+      "name": "◇ User Accounts",
+      "text": "◇  User Accounts"
+    },
+    {
+      "name": "◇ Roles & Permissions",
+      "text": "◇  Roles & Permissions"
+    },
+    {
+      "name": "◇ Platform Settings",
+      "text": "◇  Platform Settings"
+    },
+    {
+      "name": "◇ Audit Trail",
+      "text": "◇  Audit Trail"
+    },
+    {
+      "name": "12",
+      "text": "12"
+    },
+    {
+      "name": "AD",
+      "text": "AD"
+    },
+    {
+      "name": "Admin User",
+      "text": "Admin User"
+    },
+    {
+      "name": "ADMINISTRATOR · 2FA ON",
+      "text": "ADMINISTRATOR · 2FA ON"
+    },
+    {
+      "name": "Administration",
+      "text": "Administration"
+    },
+    {
+      "name": "/admin/ · ACCOUNTS · ROLES · SETTINGS · AUDIT",
+      "text": "/admin/ · ACCOUNTS · ROLES · SETTINGS · AUDIT"
+    },
+    {
+      "name": "↓ Export CSV",
+      "text": "↓ Export CSV"
+    },
+    {
+      "name": "+ Add user",
+      "text": "+ Add user"
+    },
+    {
+      "name": "TOTAL CUSTOMERS",
+      "text": "TOTAL CUSTOMERS"
+    },
+    {
+      "name": "1,284",
+      "text": "1,284"
+    },
+    {
+      "name": "+38 this week",
+      "text": "+38 this week"
+    },
+    {
+      "name": "STAFF ACCOUNTS",
+      "text": "STAFF ACCOUNTS"
+    },
+    {
+      "name": "7",
+      "text": "7"
+    },
+    {
+      "name": "5 merchant · 2 admin",
+      "text": "5 merchant · 2 admin"
+    },
+    {
+      "name": "SUSPENDED",
+      "text": "SUSPENDED"
+    },
+    {
+      "name": "3",
+      "text": "3"
+    },
+    {
+      "name": "Requires review",
+      "text": "Requires review"
+    },
+    {
+      "name": "AUDIT EVENTS (24H)",
+      "text": "AUDIT EVENTS (24H)"
+    },
+    {
+      "name": "12",
+      "text": "12"
+    },
+    {
+      "name": "All actions logged",
+      "text": "All actions logged"
+    },
+    {
+      "name": "User Accounts",
+      "text": "User Accounts"
+    },
+    {
+      "name": "Manage all →",
+      "text": "Manage all →"
+    },
+    {
+      "name": "EMAIL",
+      "text": "EMAIL"
+    },
+    {
+      "name": "NAME",
+      "text": "NAME"
+    },
+    {
+      "name": "ROLE",
+      "text": "ROLE"
+    },
+    {
+      "name": "STATUS",
+      "text": "STATUS"
+    },
+    {
+      "name": "juan@email.com",
+      "text": "juan@email.com"
+    },
+    {
+      "name": "Juan Dela Cruz",
+      "text": "Juan Dela Cruz"
+    },
+    {
+      "name": "customer",
+      "text": "customer"
+    },
+    {
+      "name": "Active",
+      "text": "Active"
+    },
+    {
+      "name": "bea@email.com",
+      "text": "bea@email.com"
+    },
+    {
+      "name": "Bea Santos",
+      "text": "Bea Santos"
+    },
+    {
+      "name": "customer",
+      "text": "customer"
+    },
+    {
+      "name": "Active",
+      "text": "Active"
+    },
+    {
+      "name": "merch@metrodrip.ph",
+      "text": "merch@metrodrip.ph"
+    },
+    {
+      "name": "Store Merchant",
+      "text": "Store Merchant"
+    },
+    {
+      "name": "merchant",
+      "text": "merchant"
+    },
+    {
+      "name": "Active",
+      "text": "Active"
+    },
+    {
+      "name": "spam@x.com",
+      "text": "spam@x.com"
+    },
+    {
+      "name": "Flagged User",
+      "text": "Flagged User"
+    },
+    {
+      "name": "customer",
+      "text": "customer"
+    },
+    {
+      "name": "Suspended",
+      "text": "Suspended"
+    },
+    {
+      "name": "Audit Trail",
+      "text": "Audit Trail"
+    },
+    {
+      "name": "View all →",
+      "text": "View all →"
+    },
+    {
+      "name": "WHEN",
+      "text": "WHEN"
+    },
+    {
+      "name": "ACTOR",
+      "text": "ACTOR"
+    },
+    {
+      "name": "ACTION",
+      "text": "ACTION"
+    },
+    {
+      "name": "09:41",
+      "text": "09:41"
+    },
+    {
+      "name": "Admin User",
+      "text": "Admin User"
+    },
+    {
+      "name": "Suspended customer #1042",
+      "text": "Suspended customer #1042"
+    },
+    {
+      "name": "09:12",
+      "text": "09:12"
+    },
+    {
+      "name": "Store Merchant",
+      "text": "Store Merchant"
+    },
+    {
+      "name": "Updated NCR shipping fee → ₱85",
+      "text": "Updated NCR shipping fee → ₱85"
+    },
+    {
+      "name": "08:55",
+      "text": "08:55"
+    },
+    {
+      "name": "Store Merchant",
+      "text": "Store Merchant"
+    },
+    {
+      "name": "Replied to review #318",
+      "text": "Replied to review #318"
+    },
+    {
+      "name": "08:30",
+      "text": "08:30"
+    },
+    {
+      "name": "Admin User",
+      "text": "Admin User"
+    },
+    {
+      "name": "Granted merchant role → R. Carlos",
+      "text": "Granted merchant role → R. Carlos"
+    },
+    {
+      "name": "08:02",
+      "text": "08:02"
+    },
+    {
+      "name": "System",
+      "text": "System"
+    },
+    {
+      "name": "Nightly backup verified",
+      "text": "Nightly backup verified"
+    },
+    {
+      "name": "Administration workspace",
+      "text": "Administration workspace"
+    },
+    {
+      "name": "User Accounts",
+      "text": "User Accounts"
+    },
+    {
+      "name": "1,284 customers",
+      "text": "1,284 customers"
+    },
+    {
+      "name": "Manage staff and customer access.",
+      "text": "Manage staff and customer access."
+    },
+    {
+      "name": "Button",
+      "text": "Open User Accounts →"
+    },
+    {
+      "name": "Roles & Permissions",
+      "text": "Roles & Permissions"
+    },
+    {
+      "name": "3 system roles",
+      "text": "3 system roles"
+    },
+    {
+      "name": "Review assignments and capabilities.",
+      "text": "Review assignments and capabilities."
+    },
+    {
+      "name": "Button",
+      "text": "Open Roles & Permissions →"
+    },
+    {
+      "name": "Platform Settings",
+      "text": "Platform Settings"
+    },
+    {
+      "name": "Staff 2FA required",
+      "text": "Staff 2FA required"
+    },
+    {
+      "name": "Manage platform preferences.",
+      "text": "Manage platform preferences."
+    },
+    {
+      "name": "Button",
+      "text": "Open Platform Settings →"
+    },
+    {
+      "name": "Audit Trail",
+      "text": "Audit Trail"
+    },
+    {
+      "name": "12 events today",
+      "text": "12 events today"
+    },
+    {
+      "name": "Review account and platform changes.",
+      "text": "Review account and platform changes."
+    },
+    {
+      "name": "Button",
+      "text": "Open Audit Trail →"
+    }
+  ],
+  "550:260 - Admin Console / User Accounts / Light": [
+    {
+      "name": "Metro",
+      "text": "Metro"
+    },
+    {
+      "name": "Drip",
+      "text": "Drip"
+    },
+    {
+      "name": "ADMINISTRATOR CONSOLE",
+      "text": "ADMINISTRATOR CONSOLE"
+    },
+    {
+      "name": "◇ Dashboard",
+      "text": "◇  Dashboard"
+    },
+    {
+      "name": "◇ User Accounts",
+      "text": "◇  User Accounts"
+    },
+    {
+      "name": "◇ Roles & Permissions",
+      "text": "◇  Roles & Permissions"
+    },
+    {
+      "name": "◇ Platform Settings",
+      "text": "◇  Platform Settings"
+    },
+    {
+      "name": "◇ Audit Trail",
+      "text": "◇  Audit Trail"
+    },
+    {
+      "name": "12",
+      "text": "12"
+    },
+    {
+      "name": "AD",
+      "text": "AD"
+    },
+    {
+      "name": "Admin User",
+      "text": "Admin User"
+    },
+    {
+      "name": "ADMINISTRATOR · 2FA ON",
+      "text": "ADMINISTRATOR · 2FA ON"
+    },
+    {
+      "name": "User Accounts",
+      "text": "User Accounts"
+    },
+    {
+      "name": "Manage customers, store staff and account access.",
+      "text": "Manage customers, store staff and account access."
+    },
+    {
+      "name": "Button",
+      "text": "Add user"
+    },
+    {
+      "name": "ADMIN CONSOLE  /  USER ACCOUNTS                                 ",
+      "text": "ADMIN CONSOLE  /  USER ACCOUNTS                                      SAMPLE DATA"
+    },
+    {
+      "name": "Net sales",
+      "text": "TOTAL CUSTOMERS"
+    },
+    {
+      "name": "₱248,600",
+      "text": "1,284"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "+38 this week"
+    },
+    {
+      "name": "Net sales",
+      "text": "STAFF ACCOUNTS"
+    },
+    {
+      "name": "₱248,600",
+      "text": "7"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "5 merchants · 2 admins"
+    },
+    {
+      "name": "Net sales",
+      "text": "SUSPENDED"
+    },
+    {
+      "name": "₱248,600",
+      "text": "3"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Sign-in access restricted"
+    },
+    {
+      "name": "Search users",
+      "text": "Search users"
+    },
+    {
+      "name": "Name or email address",
+      "text": "Name or email address"
+    },
+    {
+      "name": "Button",
+      "text": "Role: All ▾"
+    },
+    {
+      "name": "Button",
+      "text": "Status: All ▾"
+    },
+    {
+      "name": "User directory",
+      "text": "User directory"
+    },
+    {
+      "name": "NAME / EMAIL",
+      "text": "NAME / EMAIL"
+    },
+    {
+      "name": "ROLE",
+      "text": "ROLE"
+    },
+    {
+      "name": "STATUS",
+      "text": "STATUS"
+    },
+    {
+      "name": "2FA",
+      "text": "2FA"
+    },
+    {
+      "name": "LAST ACTIVE",
+      "text": "LAST ACTIVE"
+    },
+    {
+      "name": "Juan Dela Cruz · juan@example.com",
+      "text": "Juan Dela Cruz · juan@example.com"
+    },
+    {
+      "name": "Customer",
+      "text": "Customer"
+    },
+    {
+      "name": "Active",
+      "text": "Active"
+    },
+    {
+      "name": "Off",
+      "text": "Off"
+    },
+    {
+      "name": "Today, 09:41",
+      "text": "Today, 09:41"
+    },
+    {
+      "name": "Bea Santos · bea@example.com",
+      "text": "Bea Santos · bea@example.com"
+    },
+    {
+      "name": "Customer",
+      "text": "Customer"
+    },
+    {
+      "name": "Active",
+      "text": "Active"
+    },
+    {
+      "name": "Off",
+      "text": "Off"
+    },
+    {
+      "name": "Today, 09:12",
+      "text": "Today, 09:12"
+    },
+    {
+      "name": "Store Merchant · merch@metrodrip.ph",
+      "text": "Store Merchant · merch@metrodrip.ph"
+    },
+    {
+      "name": "Merchant",
+      "text": "Merchant"
+    },
+    {
+      "name": "Active",
+      "text": "Active"
+    },
+    {
+      "name": "On",
+      "text": "On"
+    },
+    {
+      "name": "Today, 08:55",
+      "text": "Today, 08:55"
+    },
+    {
+      "name": "Admin User · admin@metrodrip.ph",
+      "text": "Admin User · admin@metrodrip.ph"
+    },
+    {
+      "name": "Administrator",
+      "text": "Administrator"
+    },
+    {
+      "name": "Active",
+      "text": "Active"
+    },
+    {
+      "name": "On",
+      "text": "On"
+    },
+    {
+      "name": "Today, 09:42",
+      "text": "Today, 09:42"
+    },
+    {
+      "name": "Flagged User · spam@x.com",
+      "text": "Flagged User · spam@x.com"
+    },
+    {
+      "name": "Customer",
+      "text": "Customer"
+    },
+    {
+      "name": "Suspended",
+      "text": "Suspended"
+    },
+    {
+      "name": "Off",
+      "text": "Off"
+    },
+    {
+      "name": "18 Sep, 14:20",
+      "text": "18 Sep, 14:20"
+    },
+    {
+      "name": "Showing 1–5 of 1,291 accounts",
+      "text": "Showing 1–5 of 1,291 accounts"
+    },
+    {
+      "name": "Button",
+      "text": "Previous"
+    },
+    {
+      "name": "Button",
+      "text": "Next →"
+    },
+    {
+      "name": "Store Merchant",
+      "text": "Store Merchant"
+    },
+    {
+      "name": "merch@metrodrip.ph · Active",
+      "text": "merch@metrodrip.ph · Active"
+    },
+    {
+      "name": "Assigned role",
+      "text": "Assigned role"
+    },
+    {
+      "name": "Merchant ▾",
+      "text": "Merchant ▾"
+    },
+    {
+      "name": "Two-factor authentication: Enabled",
+      "text": "Two-factor authentication: Enabled"
+    },
+    {
+      "name": "Member since 12 Jan 2026 · Last active today, 08:55",
+      "text": "Member since 12 Jan 2026 · Last active today, 08:55"
+    },
+    {
+      "name": "Button",
+      "text": "Save role"
+    },
+    {
+      "name": "Button",
+      "text": "Reset password"
+    },
+    {
+      "name": "Button",
+      "text": "Suspend account"
+    },
+    {
+      "name": "Invite staff",
+      "text": "Invite staff"
+    },
+    {
+      "name": "Full name",
+      "text": "Full name"
+    },
+    {
+      "name": "Enter full name",
+      "text": "Enter full name"
+    },
+    {
+      "name": "Work email",
+      "text": "Work email"
+    },
+    {
+      "name": "name@metrodrip.ph",
+      "text": "name@metrodrip.ph"
+    },
+    {
+      "name": "Role",
+      "text": "Role"
+    },
+    {
+      "name": "Merchant ▾",
+      "text": "Merchant ▾"
+    },
+    {
+      "name": "An invitation lets the staff member set their own password.",
+      "text": "An invitation lets the staff member set their own password."
+    },
+    {
+      "name": "Button",
+      "text": "Send invitation"
+    }
+  ],
+  "550:289 - Admin Console / Roles & Permissions / Light": [
+    {
+      "name": "Metro",
+      "text": "Metro"
+    },
+    {
+      "name": "Drip",
+      "text": "Drip"
+    },
+    {
+      "name": "ADMINISTRATOR CONSOLE",
+      "text": "ADMINISTRATOR CONSOLE"
+    },
+    {
+      "name": "◇ Dashboard",
+      "text": "◇  Dashboard"
+    },
+    {
+      "name": "◇ User Accounts",
+      "text": "◇  User Accounts"
+    },
+    {
+      "name": "◇ Roles & Permissions",
+      "text": "◇  Roles & Permissions"
+    },
+    {
+      "name": "◇ Platform Settings",
+      "text": "◇  Platform Settings"
+    },
+    {
+      "name": "◇ Audit Trail",
+      "text": "◇  Audit Trail"
+    },
+    {
+      "name": "12",
+      "text": "12"
+    },
+    {
+      "name": "AD",
+      "text": "AD"
+    },
+    {
+      "name": "Admin User",
+      "text": "Admin User"
+    },
+    {
+      "name": "ADMINISTRATOR · 2FA ON",
+      "text": "ADMINISTRATOR · 2FA ON"
+    },
+    {
+      "name": "Roles & Permissions",
+      "text": "Roles & Permissions"
+    },
+    {
+      "name": "Define what each account can view and manage.",
+      "text": "Define what each account can view and manage."
+    },
+    {
+      "name": "Button",
+      "text": "Create role"
+    },
+    {
+      "name": "ADMIN CONSOLE  /  ROLES & PERMISSIONS                           ",
+      "text": "ADMIN CONSOLE  /  ROLES & PERMISSIONS                                      SAMPLE DATA"
+    },
+    {
+      "name": "Net sales",
+      "text": "SYSTEM ROLES"
+    },
+    {
+      "name": "₱248,600",
+      "text": "3"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Administrator · Merchant · Customer"
+    },
+    {
+      "name": "Net sales",
+      "text": "STAFF ASSIGNED"
+    },
+    {
+      "name": "₱248,600",
+      "text": "7"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "2 admins · 5 merchants"
+    },
+    {
+      "name": "Net sales",
+      "text": "CUSTOM ROLES"
+    },
+    {
+      "name": "₱248,600",
+      "text": "0"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Create a limited-access role"
+    },
+    {
+      "name": "Permission matrix",
+      "text": "Permission matrix"
+    },
+    {
+      "name": "CAPABILITY",
+      "text": "CAPABILITY"
+    },
+    {
+      "name": "ADMINISTRATOR",
+      "text": "ADMINISTRATOR"
+    },
+    {
+      "name": "MERCHANT",
+      "text": "MERCHANT"
+    },
+    {
+      "name": "CUSTOMER",
+      "text": "CUSTOMER"
+    },
+    {
+      "name": "Manage user accounts",
+      "text": "Manage user accounts"
+    },
+    {
+      "name": "Manage",
+      "text": "Manage"
+    },
+    {
+      "name": "—",
+      "text": "—"
+    },
+    {
+      "name": "Own profile",
+      "text": "Own profile"
+    },
+    {
+      "name": "Assign roles & permissions",
+      "text": "Assign roles & permissions"
+    },
+    {
+      "name": "Manage",
+      "text": "Manage"
+    },
+    {
+      "name": "—",
+      "text": "—"
+    },
+    {
+      "name": "—",
+      "text": "—"
+    },
+    {
+      "name": "Platform settings",
+      "text": "Platform settings"
+    },
+    {
+      "name": "Manage",
+      "text": "Manage"
+    },
+    {
+      "name": "—",
+      "text": "—"
+    },
+    {
+      "name": "—",
+      "text": "—"
+    },
+    {
+      "name": "Audit trail",
+      "text": "Audit trail"
+    },
+    {
+      "name": "View / export",
+      "text": "View / export"
+    },
+    {
+      "name": "—",
+      "text": "—"
+    },
+    {
+      "name": "—",
+      "text": "—"
+    },
+    {
+      "name": "Catalog, inventory & content",
+      "text": "Catalog, inventory & content"
+    },
+    {
+      "name": "—",
+      "text": "—"
+    },
+    {
+      "name": "Manage",
+      "text": "Manage"
+    },
+    {
+      "name": "Browse",
+      "text": "Browse"
+    },
+    {
+      "name": "Orders & shipments",
+      "text": "Orders & shipments"
+    },
+    {
+      "name": "—",
+      "text": "—"
+    },
+    {
+      "name": "Manage",
+      "text": "Manage"
+    },
+    {
+      "name": "Own orders",
+      "text": "Own orders"
+    },
+    {
+      "name": "Shipping zones & rates",
+      "text": "Shipping zones & rates"
+    },
+    {
+      "name": "—",
+      "text": "—"
+    },
+    {
+      "name": "Manage",
+      "text": "Manage"
+    },
+    {
+      "name": "View at checkout",
+      "text": "View at checkout"
+    },
+    {
+      "name": "Customer reviews",
+      "text": "Customer reviews"
+    },
+    {
+      "name": "—",
+      "text": "—"
+    },
+    {
+      "name": "View / reply",
+      "text": "View / reply"
+    },
+    {
+      "name": "Create own review",
+      "text": "Create own review"
+    },
+    {
+      "name": "Merchant role",
+      "text": "Merchant role"
+    },
+    {
+      "name": "System role · 5 staff accounts assigned",
+      "text": "System role · 5 staff accounts assigned"
+    },
+    {
+      "name": "Catalog, inventory, orders, shipments, shipping zones, content a",
+      "text": "Catalog, inventory, orders, shipments, shipping zones, content and analytics."
+    },
+    {
+      "name": "Customer reviews: View and reply only.",
+      "text": "Customer reviews: View and reply only."
+    },
+    {
+      "name": "User administration and platform settings are restricted to admi",
+      "text": "User administration and platform settings are restricted to administrators."
+    },
+    {
+      "name": "Button",
+      "text": "View assigned users"
+    },
+    {
+      "name": "Create a custom role",
+      "text": "Create a custom role"
+    },
+    {
+      "name": "Role name",
+      "text": "Role name"
+    },
+    {
+      "name": "Fulfillment staff",
+      "text": "Fulfillment staff"
+    },
+    {
+      "name": "Based on",
+      "text": "Based on"
+    },
+    {
+      "name": "Merchant ▾",
+      "text": "Merchant ▾"
+    },
+    {
+      "name": "View orders",
+      "text": "View orders"
+    },
+    {
+      "name": "Button",
+      "text": "Allow ▾"
+    },
+    {
+      "name": "Manage shipments",
+      "text": "Manage shipments"
+    },
+    {
+      "name": "Button",
+      "text": "Allow ▾"
+    },
+    {
+      "name": "View inventory",
+      "text": "View inventory"
+    },
+    {
+      "name": "Button",
+      "text": "Allow ▾"
+    },
+    {
+      "name": "Adjust stock",
+      "text": "Adjust stock"
+    },
+    {
+      "name": "Button",
+      "text": "Deny ▾"
+    },
+    {
+      "name": "Edit shipping zones",
+      "text": "Edit shipping zones"
+    },
+    {
+      "name": "Button",
+      "text": "Deny ▾"
+    },
+    {
+      "name": "Publish content",
+      "text": "Publish content"
+    },
+    {
+      "name": "Button",
+      "text": "Deny ▾"
+    },
+    {
+      "name": "Unselected permissions are denied by default.",
+      "text": "Unselected permissions are denied by default."
+    },
+    {
+      "name": "Button",
+      "text": "Create role"
+    },
+    {
+      "name": "Button",
+      "text": "Cancel"
+    }
+  ],
+  "550:318 - Admin Console / Platform Settings / Light": [
+    {
+      "name": "Metro",
+      "text": "Metro"
+    },
+    {
+      "name": "Drip",
+      "text": "Drip"
+    },
+    {
+      "name": "ADMINISTRATOR CONSOLE",
+      "text": "ADMINISTRATOR CONSOLE"
+    },
+    {
+      "name": "◇ Dashboard",
+      "text": "◇  Dashboard"
+    },
+    {
+      "name": "◇ User Accounts",
+      "text": "◇  User Accounts"
+    },
+    {
+      "name": "◇ Roles & Permissions",
+      "text": "◇  Roles & Permissions"
+    },
+    {
+      "name": "◇ Platform Settings",
+      "text": "◇  Platform Settings"
+    },
+    {
+      "name": "◇ Audit Trail",
+      "text": "◇  Audit Trail"
+    },
+    {
+      "name": "12",
+      "text": "12"
+    },
+    {
+      "name": "AD",
+      "text": "AD"
+    },
+    {
+      "name": "Admin User",
+      "text": "Admin User"
+    },
+    {
+      "name": "ADMINISTRATOR · 2FA ON",
+      "text": "ADMINISTRATOR · 2FA ON"
+    },
+    {
+      "name": "Platform Settings",
+      "text": "Platform Settings"
+    },
+    {
+      "name": "Configure shared platform preferences and safeguards.",
+      "text": "Configure shared platform preferences and safeguards."
+    },
+    {
+      "name": "Button",
+      "text": "Save changes"
+    },
+    {
+      "name": "ADMIN CONSOLE  /  PLATFORM SETTINGS                             ",
+      "text": "ADMIN CONSOLE  /  PLATFORM SETTINGS                                      SAMPLE DATA"
+    },
+    {
+      "name": "General preferences",
+      "text": "General preferences"
+    },
+    {
+      "name": "Platform name",
+      "text": "Platform name"
+    },
+    {
+      "name": "MetroDrip",
+      "text": "MetroDrip"
+    },
+    {
+      "name": "Support email",
+      "text": "Support email"
+    },
+    {
+      "name": "support@metrodrip.ph",
+      "text": "support@metrodrip.ph"
+    },
+    {
+      "name": "Currency",
+      "text": "Currency"
+    },
+    {
+      "name": "PHP — Philippine Peso ▾",
+      "text": "PHP — Philippine Peso ▾"
+    },
+    {
+      "name": "Time zone",
+      "text": "Time zone"
+    },
+    {
+      "name": "Asia/Manila (UTC+08:00) ▾",
+      "text": "Asia/Manila (UTC+08:00) ▾"
+    },
+    {
+      "name": "Default language",
+      "text": "Default language"
+    },
+    {
+      "name": "English ▾",
+      "text": "English ▾"
+    },
+    {
+      "name": "Date format",
+      "text": "Date format"
+    },
+    {
+      "name": "DD MMM YYYY ▾",
+      "text": "DD MMM YYYY ▾"
+    },
+    {
+      "name": "Access & security",
+      "text": "Access & security"
+    },
+    {
+      "name": "Staff two-factor authentication",
+      "text": "Staff two-factor authentication"
+    },
+    {
+      "name": "Required ▾",
+      "text": "Required ▾"
+    },
+    {
+      "name": "Session timeout",
+      "text": "Session timeout"
+    },
+    {
+      "name": "30 minutes ▾",
+      "text": "30 minutes ▾"
+    },
+    {
+      "name": "New customer registration",
+      "text": "New customer registration"
+    },
+    {
+      "name": "Enabled ▾",
+      "text": "Enabled ▾"
+    },
+    {
+      "name": "Maintenance mode",
+      "text": "Maintenance mode"
+    },
+    {
+      "name": "Off ▾",
+      "text": "Off ▾"
+    },
+    {
+      "name": "Maintenance mode pauses storefront access for customers.",
+      "text": "Maintenance mode pauses storefront access for customers."
+    },
+    {
+      "name": "Checkout & communications",
+      "text": "Checkout & communications"
+    },
+    {
+      "name": "Payment methods",
+      "text": "Payment methods"
+    },
+    {
+      "name": "GCash · Maya · Card",
+      "text": "GCash · Maya · Card"
+    },
+    {
+      "name": "Payment provider: Test mode",
+      "text": "Payment provider: Test mode"
+    },
+    {
+      "name": "Order confirmation emails",
+      "text": "Order confirmation emails"
+    },
+    {
+      "name": "Enabled ▾",
+      "text": "Enabled ▾"
+    },
+    {
+      "name": "Default sender name",
+      "text": "Default sender name"
+    },
+    {
+      "name": "MetroDrip",
+      "text": "MetroDrip"
+    },
+    {
+      "name": "Shipping coverage and rates are managed in Merchant Console → Sh",
+      "text": "Shipping coverage and rates are managed in Merchant Console → Shipping Zones."
+    },
+    {
+      "name": "Button",
+      "text": "Save changes"
+    },
+    {
+      "name": "Button",
+      "text": "Discard changes"
+    }
+  ],
+  "550:347 - Admin Console / Audit Trail / Light": [
+    {
+      "name": "Metro",
+      "text": "Metro"
+    },
+    {
+      "name": "Drip",
+      "text": "Drip"
+    },
+    {
+      "name": "ADMINISTRATOR CONSOLE",
+      "text": "ADMINISTRATOR CONSOLE"
+    },
+    {
+      "name": "◇ Dashboard",
+      "text": "◇  Dashboard"
+    },
+    {
+      "name": "◇ User Accounts",
+      "text": "◇  User Accounts"
+    },
+    {
+      "name": "◇ Roles & Permissions",
+      "text": "◇  Roles & Permissions"
+    },
+    {
+      "name": "◇ Platform Settings",
+      "text": "◇  Platform Settings"
+    },
+    {
+      "name": "◇ Audit Trail",
+      "text": "◇  Audit Trail"
+    },
+    {
+      "name": "12",
+      "text": "12"
+    },
+    {
+      "name": "AD",
+      "text": "AD"
+    },
+    {
+      "name": "Admin User",
+      "text": "Admin User"
+    },
+    {
+      "name": "ADMINISTRATOR · 2FA ON",
+      "text": "ADMINISTRATOR · 2FA ON"
+    },
+    {
+      "name": "Audit Trail",
+      "text": "Audit Trail"
+    },
+    {
+      "name": "Review a chronological record of platform activity.",
+      "text": "Review a chronological record of platform activity."
+    },
+    {
+      "name": "Button",
+      "text": "Export CSV"
+    },
+    {
+      "name": "ADMIN CONSOLE  /  AUDIT TRAIL                                   ",
+      "text": "ADMIN CONSOLE  /  AUDIT TRAIL                                      SAMPLE DATA"
+    },
+    {
+      "name": "Net sales",
+      "text": "EVENTS TODAY"
+    },
+    {
+      "name": "₱248,600",
+      "text": "12"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Across all platform modules"
+    },
+    {
+      "name": "Net sales",
+      "text": "ACCESS CHANGES"
+    },
+    {
+      "name": "₱248,600",
+      "text": "3"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Role and account updates"
+    },
+    {
+      "name": "Net sales",
+      "text": "FAILED ACTIONS"
+    },
+    {
+      "name": "₱248,600",
+      "text": "1"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Permission check denied"
+    },
+    {
+      "name": "Search events",
+      "text": "Search events"
+    },
+    {
+      "name": "Actor, event or entity",
+      "text": "Actor, event or entity"
+    },
+    {
+      "name": "Button",
+      "text": "Date: Today ▾"
+    },
+    {
+      "name": "Button",
+      "text": "Module: All ▾"
+    },
+    {
+      "name": "Button",
+      "text": "Result: All ▾"
+    },
+    {
+      "name": "Activity log",
+      "text": "Activity log"
+    },
+    {
+      "name": "TIME (PHT)",
+      "text": "TIME (PHT)"
+    },
+    {
+      "name": "ACTOR",
+      "text": "ACTOR"
+    },
+    {
+      "name": "EVENT / ENTITY",
+      "text": "EVENT / ENTITY"
+    },
+    {
+      "name": "RESULT",
+      "text": "RESULT"
+    },
+    {
+      "name": "09:41:22",
+      "text": "09:41:22"
+    },
+    {
+      "name": "Admin User",
+      "text": "Admin User"
+    },
+    {
+      "name": "Suspended customer #1042",
+      "text": "Suspended customer #1042"
+    },
+    {
+      "name": "Success",
+      "text": "Success"
+    },
+    {
+      "name": "09:12:09",
+      "text": "09:12:09"
+    },
+    {
+      "name": "Store Merchant",
+      "text": "Store Merchant"
+    },
+    {
+      "name": "Updated NCR shipping fee to ₱85",
+      "text": "Updated NCR shipping fee to ₱85"
+    },
+    {
+      "name": "Success",
+      "text": "Success"
+    },
+    {
+      "name": "08:55:47",
+      "text": "08:55:47"
+    },
+    {
+      "name": "Store Merchant",
+      "text": "Store Merchant"
+    },
+    {
+      "name": "Replied to review #318",
+      "text": "Replied to review #318"
+    },
+    {
+      "name": "Success",
+      "text": "Success"
+    },
+    {
+      "name": "08:30:16",
+      "text": "08:30:16"
+    },
+    {
+      "name": "Admin User",
+      "text": "Admin User"
+    },
+    {
+      "name": "Granted Merchant role to R. Carlos",
+      "text": "Granted Merchant role to R. Carlos"
+    },
+    {
+      "name": "Success",
+      "text": "Success"
+    },
+    {
+      "name": "08:14:33",
+      "text": "08:14:33"
+    },
+    {
+      "name": "Store Merchant",
+      "text": "Store Merchant"
+    },
+    {
+      "name": "Attempted access to platform settings",
+      "text": "Attempted access to platform settings"
+    },
+    {
+      "name": "Denied",
+      "text": "Denied"
+    },
+    {
+      "name": "08:02:10",
+      "text": "08:02:10"
+    },
+    {
+      "name": "System",
+      "text": "System"
+    },
+    {
+      "name": "Nightly backup verified",
+      "text": "Nightly backup verified"
+    },
+    {
+      "name": "Success",
+      "text": "Success"
+    },
+    {
+      "name": "Showing 6 of 12 events today · Logs are read-only.",
+      "text": "Showing 6 of 12 events today · Logs are read-only."
+    },
+    {
+      "name": "Shipping zone updated",
+      "text": "Shipping zone updated"
+    },
+    {
+      "name": "Event EVT-2026-0920-009 · Success",
+      "text": "Event EVT-2026-0920-009 · Success"
+    },
+    {
+      "name": "Actor: Store Merchant\nModule: Merchant / Shipping Zones\nEntity: ",
+      "text": "Actor: Store Merchant\nModule: Merchant / Shipping Zones\nEntity: Metro Manila · NCR\nTimestamp: 20 Sep 2026, 09:12:09 PHT"
+    },
+    {
+      "name": "Source: Merchant Console · Authenticated staff session",
+      "text": "Source: Merchant Console · Authenticated staff session"
+    },
+    {
+      "name": "Recorded changes",
+      "text": "Recorded changes"
+    },
+    {
+      "name": "STANDARD SHIPPING FEE",
+      "text": "STANDARD SHIPPING FEE"
+    },
+    {
+      "name": "₱90  →  ₱85",
+      "text": "₱90  →  ₱85"
+    },
+    {
+      "name": "All other zone settings unchanged.",
+      "text": "All other zone settings unchanged."
+    },
+    {
+      "name": "Audit records cannot be edited or deleted from this console.",
+      "text": "Audit records cannot be edited or deleted from this console."
+    },
+    {
+      "name": "Button",
+      "text": "Copy event ID"
+    }
+  ],
+  "57:2 - 12 · Merchant Console — Dashboard (Desktop)": [
+    {
+      "name": "Metro",
+      "text": "Metro"
+    },
+    {
+      "name": "Drip",
+      "text": "Drip"
+    },
+    {
+      "name": "MERCHANT / SELLER CONSOLE",
+      "text": "MERCHANT / SELLER CONSOLE"
+    },
+    {
+      "name": "◇ Dashboard",
+      "text": "◇  Dashboard"
+    },
+    {
+      "name": "◇ Products & Categories",
+      "text": "◇  Products & Categories"
+    },
+    {
+      "name": "◇ Inventory",
+      "text": "◇  Inventory"
+    },
+    {
+      "name": "6",
+      "text": "6"
+    },
+    {
+      "name": "◇ Orders",
+      "text": "◇  Orders"
+    },
+    {
+      "name": "5",
+      "text": "5"
+    },
+    {
+      "name": "◇ Shipments",
+      "text": "◇  Shipments"
+    },
+    {
+      "name": "Analytics navigation label",
+      "text": "◇  Shipping Zones"
+    },
+    {
+      "name": "◇ Reviews",
+      "text": "◇  Reviews"
+    },
+    {
+      "name": "2",
+      "text": "2"
+    },
+    {
+      "name": "◇ Content & Banners",
+      "text": "◇  Content & Banners"
+    },
+    {
+      "name": "Analytics navigation label",
+      "text": "◇  Analytics"
+    },
+    {
+      "name": "MD",
+      "text": "MD"
+    },
+    {
+      "name": "Store Merchant",
+      "text": "Store Merchant"
+    },
+    {
+      "name": "MERCHANT · 2FA ON",
+      "text": "MERCHANT · 2FA ON"
+    },
+    {
+      "name": "Dashboard",
+      "text": "Dashboard"
+    },
+    {
+      "name": "/merchant/ · CATALOG · STOCK · ORDERS · CONTENT · REVIEWS",
+      "text": "/merchant/ · CATALOG · STOCK · ORDERS · CONTENT · REVIEWS"
+    },
+    {
+      "name": "↓ Export CSV",
+      "text": "↓ Export CSV"
+    },
+    {
+      "name": "+ Add product",
+      "text": "+ Add product"
+    },
+    {
+      "name": "TODAY'S SALES",
+      "text": "TODAY'S SALES"
+    },
+    {
+      "name": "₱18,540",
+      "text": "₱18,540"
+    },
+    {
+      "name": "▲ 12% vs last Sat",
+      "text": "▲ 12% vs last Sat"
+    },
+    {
+      "name": "ORDERS TODAY",
+      "text": "ORDERS TODAY"
+    },
+    {
+      "name": "14",
+      "text": "14"
+    },
+    {
+      "name": "11 paid · 3 pending",
+      "text": "11 paid · 3 pending"
+    },
+    {
+      "name": "LOW-STOCK SKUS",
+      "text": "LOW-STOCK SKUS"
+    },
+    {
+      "name": "6",
+      "text": "6"
+    },
+    {
+      "name": "Below reorder threshold",
+      "text": "Below reorder threshold"
+    },
+    {
+      "name": "TO SHIP",
+      "text": "TO SHIP"
+    },
+    {
+      "name": "5",
+      "text": "5"
+    },
+    {
+      "name": "Book with J&T today",
+      "text": "Book with J&T today"
+    },
+    {
+      "name": "● Low-stock alerts",
+      "text": "● Low-stock alerts"
+    },
+    {
+      "name": "Inventory →",
+      "text": "Inventory →"
+    },
+    {
+      "name": "PRODUCT",
+      "text": "PRODUCT"
+    },
+    {
+      "name": "VARIANT",
+      "text": "VARIANT"
+    },
+    {
+      "name": "ON HAND",
+      "text": "ON HAND"
+    },
+    {
+      "name": "MIN",
+      "text": "MIN"
+    },
+    {
+      "name": "Text",
+      "text": ""
+    },
+    {
+      "name": "Drip Zip-Up Hoodie",
+      "text": "Drip Zip-Up Hoodie"
+    },
+    {
+      "name": "BLK · M · OVS",
+      "text": "BLK · M · OVS"
+    },
+    {
+      "name": "3",
+      "text": "3"
+    },
+    {
+      "name": "10",
+      "text": "10"
+    },
+    {
+      "name": "Restock",
+      "text": "Restock"
+    },
+    {
+      "name": "Metro Snapback",
+      "text": "Metro Snapback"
+    },
+    {
+      "name": "BLK · ONE SIZE",
+      "text": "BLK · ONE SIZE"
+    },
+    {
+      "name": "3",
+      "text": "3"
+    },
+    {
+      "name": "8",
+      "text": "8"
+    },
+    {
+      "name": "Restock",
+      "text": "Restock"
+    },
+    {
+      "name": "Skyline Pullover",
+      "text": "Skyline Pullover"
+    },
+    {
+      "name": "ASH · L · REG",
+      "text": "ASH · L · REG"
+    },
+    {
+      "name": "2",
+      "text": "2"
+    },
+    {
+      "name": "10",
+      "text": "10"
+    },
+    {
+      "name": "Restock",
+      "text": "Restock"
+    },
+    {
+      "name": "Metro Core Boxy Tee",
+      "text": "Metro Core Boxy Tee"
+    },
+    {
+      "name": "WHT · XL · REG",
+      "text": "WHT · XL · REG"
+    },
+    {
+      "name": "4",
+      "text": "4"
+    },
+    {
+      "name": "12",
+      "text": "12"
+    },
+    {
+      "name": "Restock",
+      "text": "Restock"
+    },
+    {
+      "name": "Recent orders",
+      "text": "Recent orders"
+    },
+    {
+      "name": "All orders →",
+      "text": "All orders →"
+    },
+    {
+      "name": "ORDER",
+      "text": "ORDER"
+    },
+    {
+      "name": "CUSTOMER",
+      "text": "CUSTOMER"
+    },
+    {
+      "name": "TOTAL",
+      "text": "TOTAL"
+    },
+    {
+      "name": "PAY",
+      "text": "PAY"
+    },
+    {
+      "name": "STATUS",
+      "text": "STATUS"
+    },
+    {
+      "name": "MD-2026-00318",
+      "text": "MD-2026-00318"
+    },
+    {
+      "name": "Juan Dela Cruz",
+      "text": "Juan Dela Cruz"
+    },
+    {
+      "name": "₱2,632",
+      "text": "₱2,632"
+    },
+    {
+      "name": "GCASH",
+      "text": "GCASH"
+    },
+    {
+      "name": "Paid",
+      "text": "Paid"
+    },
+    {
+      "name": "MD-2026-00317",
+      "text": "MD-2026-00317"
+    },
+    {
+      "name": "Bea Santos",
+      "text": "Bea Santos"
+    },
+    {
+      "name": "₱1,249",
+      "text": "₱1,249"
+    },
+    {
+      "name": "MAYA",
+      "text": "MAYA"
+    },
+    {
+      "name": "Packed",
+      "text": "Packed"
+    },
+    {
+      "name": "MD-2026-00316",
+      "text": "MD-2026-00316"
+    },
+    {
+      "name": "Miguel Reyes",
+      "text": "Miguel Reyes"
+    },
+    {
+      "name": "₱3,447",
+      "text": "₱3,447"
+    },
+    {
+      "name": "CARD",
+      "text": "CARD"
+    },
+    {
+      "name": "Shipped",
+      "text": "Shipped"
+    },
+    {
+      "name": "MD-2026-00315",
+      "text": "MD-2026-00315"
+    },
+    {
+      "name": "Aliyah Cruz",
+      "text": "Aliyah Cruz"
+    },
+    {
+      "name": "₱849",
+      "text": "₱849"
+    },
+    {
+      "name": "GCASH",
+      "text": "GCASH"
+    },
+    {
+      "name": "Pending",
+      "text": "Pending"
+    },
+    {
+      "name": "MD-2026-00314",
+      "text": "MD-2026-00314"
+    },
+    {
+      "name": "Marco Lim",
+      "text": "Marco Lim"
+    },
+    {
+      "name": "₱1,798",
+      "text": "₱1,798"
+    },
+    {
+      "name": "GCASH",
+      "text": "GCASH"
+    },
+    {
+      "name": "Shipped",
+      "text": "Shipped"
+    },
+    {
+      "name": "Manage your store",
+      "text": "Manage your store"
+    },
+    {
+      "name": "Inventory",
+      "text": "Inventory"
+    },
+    {
+      "name": "6 low-stock SKUs",
+      "text": "6 low-stock SKUs"
+    },
+    {
+      "name": "Review stock levels and adjust quantities.",
+      "text": "Review stock levels and adjust quantities."
+    },
+    {
+      "name": "Button",
+      "text": "Open Inventory →"
+    },
+    {
+      "name": "Orders",
+      "text": "Orders"
+    },
+    {
+      "name": "14 orders today",
+      "text": "14 orders today"
+    },
+    {
+      "name": "Track payment and fulfillment.",
+      "text": "Track payment and fulfillment."
+    },
+    {
+      "name": "Button",
+      "text": "Open Orders →"
+    },
+    {
+      "name": "Shipments",
+      "text": "Shipments"
+    },
+    {
+      "name": "5 ready to book",
+      "text": "5 ready to book"
+    },
+    {
+      "name": "Book parcels and resolve exceptions.",
+      "text": "Book parcels and resolve exceptions."
+    },
+    {
+      "name": "Button",
+      "text": "Open Shipments →"
+    },
+    {
+      "name": "Shipping Zones",
+      "text": "Shipping Zones"
+    },
+    {
+      "name": "4 active zones",
+      "text": "4 active zones"
+    },
+    {
+      "name": "Set coverage, rates and delivery times.",
+      "text": "Set coverage, rates and delivery times."
+    },
+    {
+      "name": "Button",
+      "text": "Open Shipping Zones →"
+    },
+    {
+      "name": "Reviews",
+      "text": "Reviews"
+    },
+    {
+      "name": "2 need a reply",
+      "text": "2 need a reply"
+    },
+    {
+      "name": "Read feedback and respond publicly.",
+      "text": "Read feedback and respond publicly."
+    },
+    {
+      "name": "Button",
+      "text": "Open Reviews →"
+    },
+    {
+      "name": "Content & Banners",
+      "text": "Content & Banners"
+    },
+    {
+      "name": "2 live · 1 scheduled",
+      "text": "2 live · 1 scheduled"
+    },
+    {
+      "name": "Manage storefront placements.",
+      "text": "Manage storefront placements."
+    },
+    {
+      "name": "Button",
+      "text": "Open Content & Banners →"
+    }
+  ],
+  "550:26 - Merchant Console / Inventory / Light": [
+    {
+      "name": "Metro",
+      "text": "Metro"
+    },
+    {
+      "name": "Drip",
+      "text": "Drip"
+    },
+    {
+      "name": "MERCHANT / SELLER CONSOLE",
+      "text": "MERCHANT / SELLER CONSOLE"
+    },
+    {
+      "name": "◇ Dashboard",
+      "text": "◇  Dashboard"
+    },
+    {
+      "name": "◇ Products & Categories",
+      "text": "◇  Products & Categories"
+    },
+    {
+      "name": "◇ Inventory",
+      "text": "◇  Inventory"
+    },
+    {
+      "name": "6",
+      "text": "6"
+    },
+    {
+      "name": "◇ Orders",
+      "text": "◇  Orders"
+    },
+    {
+      "name": "5",
+      "text": "5"
+    },
+    {
+      "name": "◇ Shipments",
+      "text": "◇  Shipments"
+    },
+    {
+      "name": "Analytics navigation label",
+      "text": "◇  Shipping Zones"
+    },
+    {
+      "name": "◇ Reviews",
+      "text": "◇  Reviews"
+    },
+    {
+      "name": "2",
+      "text": "2"
+    },
+    {
+      "name": "◇ Content & Banners",
+      "text": "◇  Content & Banners"
+    },
+    {
+      "name": "Analytics navigation label",
+      "text": "◇  Analytics"
+    },
+    {
+      "name": "MD",
+      "text": "MD"
+    },
+    {
+      "name": "Store Merchant",
+      "text": "Store Merchant"
+    },
+    {
+      "name": "MERCHANT · 2FA ON",
+      "text": "MERCHANT · 2FA ON"
+    },
+    {
+      "name": "Inventory",
+      "text": "Inventory"
+    },
+    {
+      "name": "Track every SKU, reserve and stock movement.",
+      "text": "Track every SKU, reserve and stock movement."
+    },
+    {
+      "name": "Button",
+      "text": "Adjust stock"
+    },
+    {
+      "name": "MERCHANT CONSOLE  /  INVENTORY                                  ",
+      "text": "MERCHANT CONSOLE  /  INVENTORY                                      SAMPLE DATA"
+    },
+    {
+      "name": "Net sales",
+      "text": "ACTIVE SKUS"
+    },
+    {
+      "name": "₱248,600",
+      "text": "112"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Across 3 main categories"
+    },
+    {
+      "name": "Net sales",
+      "text": "LOW STOCK"
+    },
+    {
+      "name": "₱248,600",
+      "text": "6"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Below reorder threshold"
+    },
+    {
+      "name": "Net sales",
+      "text": "OUT OF STOCK"
+    },
+    {
+      "name": "₱248,600",
+      "text": "1"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Restock to resume sales"
+    },
+    {
+      "name": "Search inventory",
+      "text": "Search inventory"
+    },
+    {
+      "name": "Search product or SKU",
+      "text": "Search product or SKU"
+    },
+    {
+      "name": "Button",
+      "text": "Stock status: All ▾"
+    },
+    {
+      "name": "Button",
+      "text": "Category: All ▾"
+    },
+    {
+      "name": "Stock overview",
+      "text": "Stock overview"
+    },
+    {
+      "name": "PRODUCT / SKU",
+      "text": "PRODUCT / SKU"
+    },
+    {
+      "name": "ON HAND",
+      "text": "ON HAND"
+    },
+    {
+      "name": "RESERVED",
+      "text": "RESERVED"
+    },
+    {
+      "name": "AVAILABLE",
+      "text": "AVAILABLE"
+    },
+    {
+      "name": "STATUS",
+      "text": "STATUS"
+    },
+    {
+      "name": "Drip Zip-Up Hoodie · Black / M\nMD-HD-002-BLK-M-OVS",
+      "text": "Drip Zip-Up Hoodie · Black / M\nMD-HD-002-BLK-M-OVS"
+    },
+    {
+      "name": "5",
+      "text": "5"
+    },
+    {
+      "name": "2",
+      "text": "2"
+    },
+    {
+      "name": "3",
+      "text": "3"
+    },
+    {
+      "name": "Low stock · min 10",
+      "text": "Low stock · min 10"
+    },
+    {
+      "name": "Metro Snapback · Black\nMD-CP-001-BLK-OS",
+      "text": "Metro Snapback · Black\nMD-CP-001-BLK-OS"
+    },
+    {
+      "name": "4",
+      "text": "4"
+    },
+    {
+      "name": "1",
+      "text": "1"
+    },
+    {
+      "name": "3",
+      "text": "3"
+    },
+    {
+      "name": "Low stock · min 8",
+      "text": "Low stock · min 8"
+    },
+    {
+      "name": "Skyline Pullover · Gray / L\nMD-HD-003-GRY-L-OVS",
+      "text": "Skyline Pullover · Gray / L\nMD-HD-003-GRY-L-OVS"
+    },
+    {
+      "name": "2",
+      "text": "2"
+    },
+    {
+      "name": "0",
+      "text": "0"
+    },
+    {
+      "name": "2",
+      "text": "2"
+    },
+    {
+      "name": "Low stock · min 10",
+      "text": "Low stock · min 10"
+    },
+    {
+      "name": "Boxy Tee · White / L\nMD-TS-001-WHT-L-REG",
+      "text": "Boxy Tee · White / L\nMD-TS-001-WHT-L-REG"
+    },
+    {
+      "name": "6",
+      "text": "6"
+    },
+    {
+      "name": "2",
+      "text": "2"
+    },
+    {
+      "name": "4",
+      "text": "4"
+    },
+    {
+      "name": "Low stock · min 12",
+      "text": "Low stock · min 12"
+    },
+    {
+      "name": "Cargo Pants · Olive / 32\nMD-PT-002-OLV-32",
+      "text": "Cargo Pants · Olive / 32\nMD-PT-002-OLV-32"
+    },
+    {
+      "name": "0",
+      "text": "0"
+    },
+    {
+      "name": "0",
+      "text": "0"
+    },
+    {
+      "name": "0",
+      "text": "0"
+    },
+    {
+      "name": "Out of stock",
+      "text": "Out of stock"
+    },
+    {
+      "name": "Showing 1–5 of 112 SKUs",
+      "text": "Showing 1–5 of 112 SKUs"
+    },
+    {
+      "name": "Button",
+      "text": "Previous"
+    },
+    {
+      "name": "Button",
+      "text": "Next →"
+    },
+    {
+      "name": "Adjust stock",
+      "text": "Adjust stock"
+    },
+    {
+      "name": "Product / SKU",
+      "text": "Product / SKU"
+    },
+    {
+      "name": "Drip Zip-Up Hoodie · Black / M ▾",
+      "text": "Drip Zip-Up Hoodie · Black / M ▾"
+    },
+    {
+      "name": "Adjustment",
+      "text": "Adjustment"
+    },
+    {
+      "name": "+ 25",
+      "text": "+ 25"
+    },
+    {
+      "name": "Reason",
+      "text": "Reason"
+    },
+    {
+      "name": "Restock ▾",
+      "text": "Restock ▾"
+    },
+    {
+      "name": "On hand: 5 → 30 · Reserved: 2 · Available: 28",
+      "text": "On hand: 5 → 30 · Reserved: 2 · Available: 28"
+    },
+    {
+      "name": "Internal note",
+      "text": "Internal note"
+    },
+    {
+      "name": "Supplier delivery received",
+      "text": "Supplier delivery received"
+    },
+    {
+      "name": "Button",
+      "text": "Apply adjustment"
+    },
+    {
+      "name": "Button",
+      "text": "Cancel"
+    },
+    {
+      "name": "Recent movements",
+      "text": "Recent movements"
+    },
+    {
+      "name": "+25 · Restock",
+      "text": "+25 · Restock"
+    },
+    {
+      "name": "Drip Zip-Up Hoodie · Today, 09:20",
+      "text": "Drip Zip-Up Hoodie · Today, 09:20"
+    },
+    {
+      "name": "−2 · Sale",
+      "text": "−2 · Sale"
+    },
+    {
+      "name": "Boxy Tee · Today, 09:04",
+      "text": "Boxy Tee · Today, 09:04"
+    },
+    {
+      "name": "−1 · Sale",
+      "text": "−1 · Sale"
+    },
+    {
+      "name": "Metro Snapback · Today, 08:47",
+      "text": "Metro Snapback · Today, 08:47"
+    },
+    {
+      "name": "+1 · Return",
+      "text": "+1 · Return"
+    },
+    {
+      "name": "Straight Denim · Today, 08:15",
+      "text": "Straight Denim · Today, 08:15"
+    }
+  ],
+  "550:65 - Merchant Console / Orders / Light": [
+    {
+      "name": "Metro",
+      "text": "Metro"
+    },
+    {
+      "name": "Drip",
+      "text": "Drip"
+    },
+    {
+      "name": "MERCHANT / SELLER CONSOLE",
+      "text": "MERCHANT / SELLER CONSOLE"
+    },
+    {
+      "name": "◇ Dashboard",
+      "text": "◇  Dashboard"
+    },
+    {
+      "name": "◇ Products & Categories",
+      "text": "◇  Products & Categories"
+    },
+    {
+      "name": "◇ Inventory",
+      "text": "◇  Inventory"
+    },
+    {
+      "name": "6",
+      "text": "6"
+    },
+    {
+      "name": "◇ Orders",
+      "text": "◇  Orders"
+    },
+    {
+      "name": "5",
+      "text": "5"
+    },
+    {
+      "name": "◇ Shipments",
+      "text": "◇  Shipments"
+    },
+    {
+      "name": "Analytics navigation label",
+      "text": "◇  Shipping Zones"
+    },
+    {
+      "name": "◇ Reviews",
+      "text": "◇  Reviews"
+    },
+    {
+      "name": "2",
+      "text": "2"
+    },
+    {
+      "name": "◇ Content & Banners",
+      "text": "◇  Content & Banners"
+    },
+    {
+      "name": "Analytics navigation label",
+      "text": "◇  Analytics"
+    },
+    {
+      "name": "MD",
+      "text": "MD"
+    },
+    {
+      "name": "Store Merchant",
+      "text": "Store Merchant"
+    },
+    {
+      "name": "MERCHANT · 2FA ON",
+      "text": "MERCHANT · 2FA ON"
+    },
+    {
+      "name": "Orders",
+      "text": "Orders"
+    },
+    {
+      "name": "Manage payment and fulfillment from one place.",
+      "text": "Manage payment and fulfillment from one place."
+    },
+    {
+      "name": "Button",
+      "text": "Export orders"
+    },
+    {
+      "name": "MERCHANT CONSOLE  /  ORDERS                                     ",
+      "text": "MERCHANT CONSOLE  /  ORDERS                                      SAMPLE DATA"
+    },
+    {
+      "name": "Net sales",
+      "text": "ORDERS TODAY"
+    },
+    {
+      "name": "₱248,600",
+      "text": "14"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "11 paid · 3 pending"
+    },
+    {
+      "name": "Net sales",
+      "text": "TO SHIP"
+    },
+    {
+      "name": "₱248,600",
+      "text": "5"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Ready for fulfillment"
+    },
+    {
+      "name": "Net sales",
+      "text": "TODAY’S SALES"
+    },
+    {
+      "name": "₱248,600",
+      "text": "₱18,540"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Paid orders only"
+    },
+    {
+      "name": "Search orders",
+      "text": "Search orders"
+    },
+    {
+      "name": "Order number, customer or email",
+      "text": "Order number, customer or email"
+    },
+    {
+      "name": "Button",
+      "text": "Payment: All ▾"
+    },
+    {
+      "name": "Button",
+      "text": "Fulfillment: All ▾"
+    },
+    {
+      "name": "All orders",
+      "text": "All orders"
+    },
+    {
+      "name": "ORDER / CUSTOMER",
+      "text": "ORDER / CUSTOMER"
+    },
+    {
+      "name": "TOTAL",
+      "text": "TOTAL"
+    },
+    {
+      "name": "PAYMENT",
+      "text": "PAYMENT"
+    },
+    {
+      "name": "FULFILLMENT",
+      "text": "FULFILLMENT"
+    },
+    {
+      "name": "PLACED",
+      "text": "PLACED"
+    },
+    {
+      "name": "MD-2026-00318 · Juan Dela Cruz",
+      "text": "MD-2026-00318 · Juan Dela Cruz"
+    },
+    {
+      "name": "₱2,632",
+      "text": "₱2,632"
+    },
+    {
+      "name": "Paid · GCash",
+      "text": "Paid · GCash"
+    },
+    {
+      "name": "Unfulfilled",
+      "text": "Unfulfilled"
+    },
+    {
+      "name": "Today, 09:42",
+      "text": "Today, 09:42"
+    },
+    {
+      "name": "MD-2026-00317 · Bea Santos",
+      "text": "MD-2026-00317 · Bea Santos"
+    },
+    {
+      "name": "₱1,249",
+      "text": "₱1,249"
+    },
+    {
+      "name": "Paid · Maya",
+      "text": "Paid · Maya"
+    },
+    {
+      "name": "Packed",
+      "text": "Packed"
+    },
+    {
+      "name": "Today, 09:16",
+      "text": "Today, 09:16"
+    },
+    {
+      "name": "MD-2026-00316 · Miguel Reyes",
+      "text": "MD-2026-00316 · Miguel Reyes"
+    },
+    {
+      "name": "₱3,447",
+      "text": "₱3,447"
+    },
+    {
+      "name": "Paid · Card",
+      "text": "Paid · Card"
+    },
+    {
+      "name": "Shipped",
+      "text": "Shipped"
+    },
+    {
+      "name": "Today, 08:58",
+      "text": "Today, 08:58"
+    },
+    {
+      "name": "MD-2026-00315 · Aliyah Cruz",
+      "text": "MD-2026-00315 · Aliyah Cruz"
+    },
+    {
+      "name": "₱849",
+      "text": "₱849"
+    },
+    {
+      "name": "Pending · GCash",
+      "text": "Pending · GCash"
+    },
+    {
+      "name": "On hold",
+      "text": "On hold"
+    },
+    {
+      "name": "Today, 08:40",
+      "text": "Today, 08:40"
+    },
+    {
+      "name": "MD-2026-00314 · Marco Lim",
+      "text": "MD-2026-00314 · Marco Lim"
+    },
+    {
+      "name": "₱1,798",
+      "text": "₱1,798"
+    },
+    {
+      "name": "Paid · GCash",
+      "text": "Paid · GCash"
+    },
+    {
+      "name": "Shipped",
+      "text": "Shipped"
+    },
+    {
+      "name": "Today, 08:24",
+      "text": "Today, 08:24"
+    },
+    {
+      "name": "Today · Showing 1–5 of 14 orders",
+      "text": "Today · Showing 1–5 of 14 orders"
+    },
+    {
+      "name": "Button",
+      "text": "Previous"
+    },
+    {
+      "name": "Button",
+      "text": "Next →"
+    },
+    {
+      "name": "Order MD-2026-00318",
+      "text": "Order MD-2026-00318"
+    },
+    {
+      "name": "Juan Dela Cruz · Paid via GCash · Awaiting fulfillment",
+      "text": "Juan Dela Cruz · Paid via GCash · Awaiting fulfillment"
+    },
+    {
+      "name": "Drip Zip-Up Hoodie · Black / M\n1 × ₱1,249",
+      "text": "Drip Zip-Up Hoodie · Black / M\n1 × ₱1,249"
+    },
+    {
+      "name": "Skyline Pullover · Gray / L\n1 × ₱1,383",
+      "text": "Skyline Pullover · Gray / L\n1 × ₱1,383"
+    },
+    {
+      "name": "Subtotal ₱2,632  ·  Free shipping",
+      "text": "Subtotal ₱2,632  ·  Free shipping"
+    },
+    {
+      "name": "Total  ₱2,632",
+      "text": "Total  ₱2,632"
+    },
+    {
+      "name": "Button",
+      "text": "Mark as packed"
+    },
+    {
+      "name": "Button",
+      "text": "Create shipment"
+    },
+    {
+      "name": "Delivery details",
+      "text": "Delivery details"
+    },
+    {
+      "name": "Juan Dela Cruz\nSample delivery address\nQuezon City, Metro Manila",
+      "text": "Juan Dela Cruz\nSample delivery address\nQuezon City, Metro Manila 1100"
+    },
+    {
+      "name": "Standard delivery · 2–3 business days",
+      "text": "Standard delivery · 2–3 business days"
+    },
+    {
+      "name": "Order activity",
+      "text": "Order activity"
+    },
+    {
+      "name": "09:42  Payment confirmed\n09:40  Order placed\n09:40  Inventory re",
+      "text": "09:42  Payment confirmed\n09:40  Order placed\n09:40  Inventory reserved"
+    }
+  ],
+  "550:104 - Merchant Console / Shipments / Light": [
+    {
+      "name": "Metro",
+      "text": "Metro"
+    },
+    {
+      "name": "Drip",
+      "text": "Drip"
+    },
+    {
+      "name": "MERCHANT / SELLER CONSOLE",
+      "text": "MERCHANT / SELLER CONSOLE"
+    },
+    {
+      "name": "◇ Dashboard",
+      "text": "◇  Dashboard"
+    },
+    {
+      "name": "◇ Products & Categories",
+      "text": "◇  Products & Categories"
+    },
+    {
+      "name": "◇ Inventory",
+      "text": "◇  Inventory"
+    },
+    {
+      "name": "6",
+      "text": "6"
+    },
+    {
+      "name": "◇ Orders",
+      "text": "◇  Orders"
+    },
+    {
+      "name": "5",
+      "text": "5"
+    },
+    {
+      "name": "◇ Shipments",
+      "text": "◇  Shipments"
+    },
+    {
+      "name": "Analytics navigation label",
+      "text": "◇  Shipping Zones"
+    },
+    {
+      "name": "◇ Reviews",
+      "text": "◇  Reviews"
+    },
+    {
+      "name": "2",
+      "text": "2"
+    },
+    {
+      "name": "◇ Content & Banners",
+      "text": "◇  Content & Banners"
+    },
+    {
+      "name": "Analytics navigation label",
+      "text": "◇  Analytics"
+    },
+    {
+      "name": "MD",
+      "text": "MD"
+    },
+    {
+      "name": "Store Merchant",
+      "text": "Store Merchant"
+    },
+    {
+      "name": "MERCHANT · 2FA ON",
+      "text": "MERCHANT · 2FA ON"
+    },
+    {
+      "name": "Shipments",
+      "text": "Shipments"
+    },
+    {
+      "name": "Book parcels, monitor delivery and resolve exceptions.",
+      "text": "Book parcels, monitor delivery and resolve exceptions."
+    },
+    {
+      "name": "Button",
+      "text": "Create shipment"
+    },
+    {
+      "name": "MERCHANT CONSOLE  /  SHIPMENTS                                  ",
+      "text": "MERCHANT CONSOLE  /  SHIPMENTS                                      SAMPLE DATA"
+    },
+    {
+      "name": "Net sales",
+      "text": "READY TO BOOK"
+    },
+    {
+      "name": "₱248,600",
+      "text": "5"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Paid orders awaiting pickup"
+    },
+    {
+      "name": "Net sales",
+      "text": "IN TRANSIT"
+    },
+    {
+      "name": "₱248,600",
+      "text": "8"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Across active shipments"
+    },
+    {
+      "name": "Net sales",
+      "text": "EXCEPTIONS"
+    },
+    {
+      "name": "₱248,600",
+      "text": "1"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Address needs attention"
+    },
+    {
+      "name": "Search shipments",
+      "text": "Search shipments"
+    },
+    {
+      "name": "Tracking number or order ID",
+      "text": "Tracking number or order ID"
+    },
+    {
+      "name": "Button",
+      "text": "Carrier: All ▾"
+    },
+    {
+      "name": "Button",
+      "text": "Status: All ▾"
+    },
+    {
+      "name": "Shipment queue",
+      "text": "Shipment queue"
+    },
+    {
+      "name": "ORDER / TRACKING",
+      "text": "ORDER / TRACKING"
+    },
+    {
+      "name": "CARRIER",
+      "text": "CARRIER"
+    },
+    {
+      "name": "DESTINATION",
+      "text": "DESTINATION"
+    },
+    {
+      "name": "STATUS",
+      "text": "STATUS"
+    },
+    {
+      "name": "LAST UPDATE",
+      "text": "LAST UPDATE"
+    },
+    {
+      "name": "MD-2026-00317 · Not booked",
+      "text": "MD-2026-00317 · Not booked"
+    },
+    {
+      "name": "J&T Express",
+      "text": "J&T Express"
+    },
+    {
+      "name": "Quezon City, NCR",
+      "text": "Quezon City, NCR"
+    },
+    {
+      "name": "Ready to book",
+      "text": "Ready to book"
+    },
+    {
+      "name": "Today, 09:20",
+      "text": "Today, 09:20"
+    },
+    {
+      "name": "MD-2026-00316 · DEMO-00316",
+      "text": "MD-2026-00316 · DEMO-00316"
+    },
+    {
+      "name": "J&T Express",
+      "text": "J&T Express"
+    },
+    {
+      "name": "Makati, NCR",
+      "text": "Makati, NCR"
+    },
+    {
+      "name": "In transit",
+      "text": "In transit"
+    },
+    {
+      "name": "Today, 09:12",
+      "text": "Today, 09:12"
+    },
+    {
+      "name": "MD-2026-00314 · DEMO-00314",
+      "text": "MD-2026-00314 · DEMO-00314"
+    },
+    {
+      "name": "J&T Express",
+      "text": "J&T Express"
+    },
+    {
+      "name": "Pasig, NCR",
+      "text": "Pasig, NCR"
+    },
+    {
+      "name": "Out for delivery",
+      "text": "Out for delivery"
+    },
+    {
+      "name": "Today, 08:44",
+      "text": "Today, 08:44"
+    },
+    {
+      "name": "MD-2026-00310 · DEMO-00310",
+      "text": "MD-2026-00310 · DEMO-00310"
+    },
+    {
+      "name": "J&T Express",
+      "text": "J&T Express"
+    },
+    {
+      "name": "Cebu City",
+      "text": "Cebu City"
+    },
+    {
+      "name": "Exception",
+      "text": "Exception"
+    },
+    {
+      "name": "Today, 08:15",
+      "text": "Today, 08:15"
+    },
+    {
+      "name": "Carrier booking and tracking shown with sample data.",
+      "text": "Carrier booking and tracking shown with sample data."
+    },
+    {
+      "name": "Book order MD-2026-00317",
+      "text": "Book order MD-2026-00317"
+    },
+    {
+      "name": "Carrier",
+      "text": "Carrier"
+    },
+    {
+      "name": "J&T Express ▾",
+      "text": "J&T Express ▾"
+    },
+    {
+      "name": "Weight",
+      "text": "Weight"
+    },
+    {
+      "name": "0.80 kg",
+      "text": "0.80 kg"
+    },
+    {
+      "name": "Parcel size · L × W × H",
+      "text": "Parcel size · L × W × H"
+    },
+    {
+      "name": "30 × 25 × 10 cm",
+      "text": "30 × 25 × 10 cm"
+    },
+    {
+      "name": "Pickup location",
+      "text": "Pickup location"
+    },
+    {
+      "name": "MetroDrip warehouse ▾",
+      "text": "MetroDrip warehouse ▾"
+    },
+    {
+      "name": "Estimated fee ₱85 · Sample carrier quote",
+      "text": "Estimated fee ₱85 · Sample carrier quote"
+    },
+    {
+      "name": "Button",
+      "text": "Book shipment"
+    },
+    {
+      "name": "Button",
+      "text": "Print packing slip"
+    },
+    {
+      "name": "Tracking · DEMO-00316",
+      "text": "Tracking · DEMO-00316"
+    },
+    {
+      "name": "J&T Express · Estimated arrival tomorrow",
+      "text": "J&T Express · Estimated arrival tomorrow"
+    },
+    {
+      "name": "●  In transit — Makati sorting hub\n     Today, 09:12\n\n●  Parcel ",
+      "text": "●  In transit — Makati sorting hub\n     Today, 09:12\n\n●  Parcel picked up\n     Yesterday, 16:40\n\n●  Shipment booked\n     Yesterday, 10:02"
+    },
+    {
+      "name": "Button",
+      "text": "View tracking"
+    },
+    {
+      "name": "MD-2026-00310 · Address needs attention",
+      "text": "MD-2026-00310 · Address needs attention"
+    },
+    {
+      "name": "Confirm the delivery address before requesting another attempt.",
+      "text": "Confirm the delivery address before requesting another attempt."
+    },
+    {
+      "name": "Button",
+      "text": "Resolve exception"
+    }
+  ],
+  "550:221 - Merchant Console / Shipping Zones / Light": [
+    {
+      "name": "Metro",
+      "text": "Metro"
+    },
+    {
+      "name": "Drip",
+      "text": "Drip"
+    },
+    {
+      "name": "MERCHANT / SELLER CONSOLE",
+      "text": "MERCHANT / SELLER CONSOLE"
+    },
+    {
+      "name": "◇ Dashboard",
+      "text": "◇  Dashboard"
+    },
+    {
+      "name": "◇ Products & Categories",
+      "text": "◇  Products & Categories"
+    },
+    {
+      "name": "◇ Inventory",
+      "text": "◇  Inventory"
+    },
+    {
+      "name": "6",
+      "text": "6"
+    },
+    {
+      "name": "◇ Orders",
+      "text": "◇  Orders"
+    },
+    {
+      "name": "5",
+      "text": "5"
+    },
+    {
+      "name": "◇ Shipments",
+      "text": "◇  Shipments"
+    },
+    {
+      "name": "Analytics navigation label",
+      "text": "◇  Shipping Zones"
+    },
+    {
+      "name": "◇ Reviews",
+      "text": "◇  Reviews"
+    },
+    {
+      "name": "2",
+      "text": "2"
+    },
+    {
+      "name": "◇ Content & Banners",
+      "text": "◇  Content & Banners"
+    },
+    {
+      "name": "Analytics navigation label",
+      "text": "◇  Analytics"
+    },
+    {
+      "name": "MD",
+      "text": "MD"
+    },
+    {
+      "name": "Store Merchant",
+      "text": "Store Merchant"
+    },
+    {
+      "name": "MERCHANT · 2FA ON",
+      "text": "MERCHANT · 2FA ON"
+    },
+    {
+      "name": "Shipping Zones",
+      "text": "Shipping Zones"
+    },
+    {
+      "name": "Manage coverage, shipping fees and delivery estimates.",
+      "text": "Manage coverage, shipping fees and delivery estimates."
+    },
+    {
+      "name": "Button",
+      "text": "Add shipping zone"
+    },
+    {
+      "name": "MERCHANT CONSOLE  /  SHIPPING ZONES                             ",
+      "text": "MERCHANT CONSOLE  /  SHIPPING ZONES                                      SAMPLE DATA"
+    },
+    {
+      "name": "Net sales",
+      "text": "ACTIVE ZONES"
+    },
+    {
+      "name": "₱248,600",
+      "text": "4"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Merchant-managed coverage"
+    },
+    {
+      "name": "Net sales",
+      "text": "NCR STANDARD"
+    },
+    {
+      "name": "₱248,600",
+      "text": "₱85"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Free on orders ₱2,500+"
+    },
+    {
+      "name": "Net sales",
+      "text": "UNCOVERED AREAS"
+    },
+    {
+      "name": "₱248,600",
+      "text": "Blocked"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Checkout requires an eligible zone"
+    },
+    {
+      "name": "Search coverage",
+      "text": "Search coverage"
+    },
+    {
+      "name": "Zone, city or postal code",
+      "text": "Zone, city or postal code"
+    },
+    {
+      "name": "Button",
+      "text": "Status: Active ▾"
+    },
+    {
+      "name": "Shipping zones",
+      "text": "Shipping zones"
+    },
+    {
+      "name": "ZONE / COVERAGE",
+      "text": "ZONE / COVERAGE"
+    },
+    {
+      "name": "STANDARD FEE",
+      "text": "STANDARD FEE"
+    },
+    {
+      "name": "FREE ABOVE",
+      "text": "FREE ABOVE"
+    },
+    {
+      "name": "DELIVERY ESTIMATE",
+      "text": "DELIVERY ESTIMATE"
+    },
+    {
+      "name": "STATUS",
+      "text": "STATUS"
+    },
+    {
+      "name": "Metro Manila · NCR",
+      "text": "Metro Manila · NCR"
+    },
+    {
+      "name": "₱85",
+      "text": "₱85"
+    },
+    {
+      "name": "₱2,500",
+      "text": "₱2,500"
+    },
+    {
+      "name": "2–3 business days",
+      "text": "2–3 business days"
+    },
+    {
+      "name": "Active",
+      "text": "Active"
+    },
+    {
+      "name": "Luzon · Outside NCR",
+      "text": "Luzon · Outside NCR"
+    },
+    {
+      "name": "₱120",
+      "text": "₱120"
+    },
+    {
+      "name": "₱3,000",
+      "text": "₱3,000"
+    },
+    {
+      "name": "3–5 business days",
+      "text": "3–5 business days"
+    },
+    {
+      "name": "Active",
+      "text": "Active"
+    },
+    {
+      "name": "Visayas",
+      "text": "Visayas"
+    },
+    {
+      "name": "₱150",
+      "text": "₱150"
+    },
+    {
+      "name": "₱3,500",
+      "text": "₱3,500"
+    },
+    {
+      "name": "5–7 business days",
+      "text": "5–7 business days"
+    },
+    {
+      "name": "Active",
+      "text": "Active"
+    },
+    {
+      "name": "Mindanao",
+      "text": "Mindanao"
+    },
+    {
+      "name": "₱180",
+      "text": "₱180"
+    },
+    {
+      "name": "₱4,000",
+      "text": "₱4,000"
+    },
+    {
+      "name": "7–10 business days",
+      "text": "7–10 business days"
+    },
+    {
+      "name": "Active",
+      "text": "Active"
+    },
+    {
+      "name": "Sample rates. A checkout address must match one active zone; oth",
+      "text": "Sample rates. A checkout address must match one active zone; otherwise shipping is unavailable."
+    },
+    {
+      "name": "Edit Metro Manila · NCR",
+      "text": "Edit Metro Manila · NCR"
+    },
+    {
+      "name": "Coverage",
+      "text": "Coverage"
+    },
+    {
+      "name": "National Capital Region ▾",
+      "text": "National Capital Region ▾"
+    },
+    {
+      "name": "Standard fee",
+      "text": "Standard fee"
+    },
+    {
+      "name": "₱85",
+      "text": "₱85"
+    },
+    {
+      "name": "Free shipping above",
+      "text": "Free shipping above"
+    },
+    {
+      "name": "₱2,500",
+      "text": "₱2,500"
+    },
+    {
+      "name": "Delivery estimate",
+      "text": "Delivery estimate"
+    },
+    {
+      "name": "2–3 business days",
+      "text": "2–3 business days"
+    },
+    {
+      "name": "Status: Active · All NCR cities included",
+      "text": "Status: Active · All NCR cities included"
+    },
+    {
+      "name": "Button",
+      "text": "Save zone"
+    },
+    {
+      "name": "Button",
+      "text": "Cancel"
+    },
+    {
+      "name": "Check an address",
+      "text": "Check an address"
+    },
+    {
+      "name": "City / municipality",
+      "text": "City / municipality"
+    },
+    {
+      "name": "Quezon City",
+      "text": "Quezon City"
+    },
+    {
+      "name": "Postal code",
+      "text": "Postal code"
+    },
+    {
+      "name": "1100",
+      "text": "1100"
+    },
+    {
+      "name": "Order subtotal",
+      "text": "Order subtotal"
+    },
+    {
+      "name": "₱2,000",
+      "text": "₱2,000"
+    },
+    {
+      "name": "Button",
+      "text": "Check shipping"
+    },
+    {
+      "name": "Eligible · Metro Manila",
+      "text": "Eligible · Metro Manila"
+    },
+    {
+      "name": "Shipping fee: ₱85 · Estimated delivery: 2–3 business days",
+      "text": "Shipping fee: ₱85 · Estimated delivery: 2–3 business days"
+    }
+  ],
+  "550:143 - Merchant Console / Reviews / Light": [
+    {
+      "name": "Metro",
+      "text": "Metro"
+    },
+    {
+      "name": "Drip",
+      "text": "Drip"
+    },
+    {
+      "name": "MERCHANT / SELLER CONSOLE",
+      "text": "MERCHANT / SELLER CONSOLE"
+    },
+    {
+      "name": "◇ Dashboard",
+      "text": "◇  Dashboard"
+    },
+    {
+      "name": "◇ Products & Categories",
+      "text": "◇  Products & Categories"
+    },
+    {
+      "name": "◇ Inventory",
+      "text": "◇  Inventory"
+    },
+    {
+      "name": "6",
+      "text": "6"
+    },
+    {
+      "name": "◇ Orders",
+      "text": "◇  Orders"
+    },
+    {
+      "name": "5",
+      "text": "5"
+    },
+    {
+      "name": "◇ Shipments",
+      "text": "◇  Shipments"
+    },
+    {
+      "name": "Analytics navigation label",
+      "text": "◇  Shipping Zones"
+    },
+    {
+      "name": "◇ Reviews",
+      "text": "◇  Reviews"
+    },
+    {
+      "name": "2",
+      "text": "2"
+    },
+    {
+      "name": "◇ Content & Banners",
+      "text": "◇  Content & Banners"
+    },
+    {
+      "name": "Analytics navigation label",
+      "text": "◇  Analytics"
+    },
+    {
+      "name": "MD",
+      "text": "MD"
+    },
+    {
+      "name": "Store Merchant",
+      "text": "Store Merchant"
+    },
+    {
+      "name": "MERCHANT · 2FA ON",
+      "text": "MERCHANT · 2FA ON"
+    },
+    {
+      "name": "Reviews",
+      "text": "Reviews"
+    },
+    {
+      "name": "Read customer feedback and reply as your store.",
+      "text": "Read customer feedback and reply as your store."
+    },
+    {
+      "name": "Button",
+      "text": "View all reviews"
+    },
+    {
+      "name": "MERCHANT CONSOLE  /  REVIEWS                                    ",
+      "text": "MERCHANT CONSOLE  /  REVIEWS                                      SAMPLE DATA"
+    },
+    {
+      "name": "Net sales",
+      "text": "NEEDS A REPLY"
+    },
+    {
+      "name": "₱248,600",
+      "text": "2"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Keep the conversation going"
+    },
+    {
+      "name": "Net sales",
+      "text": "AVERAGE RATING"
+    },
+    {
+      "name": "₱248,600",
+      "text": "4.7 / 5"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Across 86 reviews"
+    },
+    {
+      "name": "Net sales",
+      "text": "REPLIED"
+    },
+    {
+      "name": "₱248,600",
+      "text": "84"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Public merchant responses"
+    },
+    {
+      "name": "Search reviews",
+      "text": "Search reviews"
+    },
+    {
+      "name": "Product, customer or review text",
+      "text": "Product, customer or review text"
+    },
+    {
+      "name": "Button",
+      "text": "Needs a reply · 2"
+    },
+    {
+      "name": "Button",
+      "text": "Rating: All ▾"
+    },
+    {
+      "name": "Bea S.",
+      "text": "Bea S."
+    },
+    {
+      "name": "Drip Zip-Up Hoodie",
+      "text": "Drip Zip-Up Hoodie"
+    },
+    {
+      "name": "★★★★★ · 5.0",
+      "text": "★★★★★ · 5.0"
+    },
+    {
+      "name": "Super lapad ng fit…",
+      "text": "Super lapad ng fit…"
+    },
+    {
+      "name": "Verified purchase · Needs a reply",
+      "text": "Verified purchase · Needs a reply"
+    },
+    {
+      "name": "Button",
+      "text": "Reply to Bea S."
+    },
+    {
+      "name": "Button",
+      "text": "View review · Bea S."
+    },
+    {
+      "name": "Marco L.",
+      "text": "Marco L."
+    },
+    {
+      "name": "Metro Snapback",
+      "text": "Metro Snapback"
+    },
+    {
+      "name": "★★★☆☆ · 3.0",
+      "text": "★★★☆☆ · 3.0"
+    },
+    {
+      "name": "Color is slightly off.",
+      "text": "Color is slightly off."
+    },
+    {
+      "name": "Verified purchase · Needs a reply",
+      "text": "Verified purchase · Needs a reply"
+    },
+    {
+      "name": "Button",
+      "text": "Reply to Marco L."
+    },
+    {
+      "name": "Button",
+      "text": "View review · Marco L."
+    },
+    {
+      "name": "Reply to Marco L.",
+      "text": "Reply to Marco L."
+    },
+    {
+      "name": "Your response will be public and shown beneath this review.",
+      "text": "Your response will be public and shown beneath this review."
+    },
+    {
+      "name": "Merchant reply",
+      "text": "Merchant reply"
+    },
+    {
+      "name": "Thanks for your feedback, Marco. Please contact our support team",
+      "text": "Thanks for your feedback, Marco. Please contact our support team so we can help with the color difference."
+    },
+    {
+      "name": "106 / 1,000 characters",
+      "text": "106 / 1,000 characters"
+    },
+    {
+      "name": "Button",
+      "text": "Post reply"
+    },
+    {
+      "name": "Button",
+      "text": "Cancel"
+    }
+  ],
+  "550:182 - Merchant Console / Content & Banners / Light": [
+    {
+      "name": "Metro",
+      "text": "Metro"
+    },
+    {
+      "name": "Drip",
+      "text": "Drip"
+    },
+    {
+      "name": "MERCHANT / SELLER CONSOLE",
+      "text": "MERCHANT / SELLER CONSOLE"
+    },
+    {
+      "name": "◇ Dashboard",
+      "text": "◇  Dashboard"
+    },
+    {
+      "name": "◇ Products & Categories",
+      "text": "◇  Products & Categories"
+    },
+    {
+      "name": "◇ Inventory",
+      "text": "◇  Inventory"
+    },
+    {
+      "name": "6",
+      "text": "6"
+    },
+    {
+      "name": "◇ Orders",
+      "text": "◇  Orders"
+    },
+    {
+      "name": "5",
+      "text": "5"
+    },
+    {
+      "name": "◇ Shipments",
+      "text": "◇  Shipments"
+    },
+    {
+      "name": "Analytics navigation label",
+      "text": "◇  Shipping Zones"
+    },
+    {
+      "name": "◇ Reviews",
+      "text": "◇  Reviews"
+    },
+    {
+      "name": "2",
+      "text": "2"
+    },
+    {
+      "name": "◇ Content & Banners",
+      "text": "◇  Content & Banners"
+    },
+    {
+      "name": "Analytics navigation label",
+      "text": "◇  Analytics"
+    },
+    {
+      "name": "MD",
+      "text": "MD"
+    },
+    {
+      "name": "Store Merchant",
+      "text": "Store Merchant"
+    },
+    {
+      "name": "MERCHANT · 2FA ON",
+      "text": "MERCHANT · 2FA ON"
+    },
+    {
+      "name": "Content & Banners",
+      "text": "Content & Banners"
+    },
+    {
+      "name": "Curate storefront placements and scheduled campaigns.",
+      "text": "Curate storefront placements and scheduled campaigns."
+    },
+    {
+      "name": "Button",
+      "text": "New banner"
+    },
+    {
+      "name": "MERCHANT CONSOLE  /  CONTENT & BANNERS                          ",
+      "text": "MERCHANT CONSOLE  /  CONTENT & BANNERS                                      SAMPLE DATA"
+    },
+    {
+      "name": "Net sales",
+      "text": "LIVE BANNERS"
+    },
+    {
+      "name": "₱248,600",
+      "text": "2"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Visible on the storefront"
+    },
+    {
+      "name": "Net sales",
+      "text": "SCHEDULED"
+    },
+    {
+      "name": "₱248,600",
+      "text": "1"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Next campaign ready"
+    },
+    {
+      "name": "Net sales",
+      "text": "DRAFTS"
+    },
+    {
+      "name": "₱248,600",
+      "text": "2"
+    },
+    {
+      "name": "↑ 18.0% vs prior period",
+      "text": "Not published"
+    },
+    {
+      "name": "Storefront placements",
+      "text": "Storefront placements"
+    },
+    {
+      "name": "BANNER",
+      "text": "BANNER"
+    },
+    {
+      "name": "PLACEMENT",
+      "text": "PLACEMENT"
+    },
+    {
+      "name": "STATUS",
+      "text": "STATUS"
+    },
+    {
+      "name": "SCHEDULE",
+      "text": "SCHEDULE"
+    },
+    {
+      "name": "ACTION",
+      "text": "ACTION"
+    },
+    {
+      "name": "Urban Style Redefined",
+      "text": "Urban Style Redefined"
+    },
+    {
+      "name": "Homepage hero",
+      "text": "Homepage hero"
+    },
+    {
+      "name": "Live",
+      "text": "Live"
+    },
+    {
+      "name": "Always on",
+      "text": "Always on"
+    },
+    {
+      "name": "Edit banner",
+      "text": "Edit banner"
+    },
+    {
+      "name": "Free shipping over ₱2,500",
+      "text": "Free shipping over ₱2,500"
+    },
+    {
+      "name": "Announcement bar",
+      "text": "Announcement bar"
+    },
+    {
+      "name": "Live",
+      "text": "Live"
+    },
+    {
+      "name": "Always on",
+      "text": "Always on"
+    },
+    {
+      "name": "Edit banner",
+      "text": "Edit banner"
+    },
+    {
+      "name": "Weekend drop",
+      "text": "Weekend drop"
+    },
+    {
+      "name": "Homepage secondary",
+      "text": "Homepage secondary"
+    },
+    {
+      "name": "Scheduled",
+      "text": "Scheduled"
+    },
+    {
+      "name": "25 Sep · 09:00 PHT",
+      "text": "25 Sep · 09:00 PHT"
+    },
+    {
+      "name": "Edit schedule",
+      "text": "Edit schedule"
+    },
+    {
+      "name": "New season collection",
+      "text": "New season collection"
+    },
+    {
+      "name": "Homepage hero",
+      "text": "Homepage hero"
+    },
+    {
+      "name": "Draft",
+      "text": "Draft"
+    },
+    {
+      "name": "Not scheduled",
+      "text": "Not scheduled"
+    },
+    {
+      "name": "Continue editing",
+      "text": "Continue editing"
+    },
+    {
+      "name": "Member early access",
+      "text": "Member early access"
+    },
+    {
+      "name": "Homepage secondary",
+      "text": "Homepage secondary"
+    },
+    {
+      "name": "Draft",
+      "text": "Draft"
+    },
+    {
+      "name": "Not scheduled",
+      "text": "Not scheduled"
+    },
+    {
+      "name": "Continue editing",
+      "text": "Continue editing"
+    },
+    {
+      "name": "Edit homepage hero",
+      "text": "Edit homepage hero"
+    },
+    {
+      "name": "Headline",
+      "text": "Headline"
+    },
+    {
+      "name": "Urban Style Redefined",
+      "text": "Urban Style Redefined"
+    },
+    {
+      "name": "Supporting text",
+      "text": "Supporting text"
+    },
+    {
+      "name": "Designed for the City",
+      "text": "Designed for the City"
+    },
+    {
+      "name": "Button label",
+      "text": "Button label"
+    },
+    {
+      "name": "Shop Now",
+      "text": "Shop Now"
+    },
+    {
+      "name": "Link destination",
+      "text": "Link destination"
+    },
+    {
+      "name": "/shop",
+      "text": "/shop"
+    },
+    {
+      "name": "Schedule",
+      "text": "Schedule"
+    },
+    {
+      "name": "Always on ▾",
+      "text": "Always on ▾"
+    },
+    {
+      "name": "Button",
+      "text": "Save draft"
+    },
+    {
+      "name": "Button",
+      "text": "Publish banner"
+    },
+    {
+      "name": "Desktop preview",
+      "text": "Desktop preview"
+    },
+    {
+      "name": "METRODRIP",
+      "text": "METRODRIP"
+    },
+    {
+      "name": "URBAN STYLE\nREDEFINED",
+      "text": "URBAN STYLE\nREDEFINED"
+    },
+    {
+      "name": "Designed for the City",
+      "text": "Designed for the City"
+    },
+    {
+      "name": "Button",
+      "text": "Shop Now"
+    },
+    {
+      "name": "Homepage hero · Typography banner",
+      "text": "Homepage hero · Typography banner"
+    },
+    {
+      "name": "Publishing replaces the current hero in this placement.",
+      "text": "Publishing replaces the current hero in this placement."
+    }
+  ]
+}

@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>MetroDrip · Customer Reviews & Replies</title>
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="../Registration/theme.css">
+  <link rel="stylesheet" href="../css/console.css">
+  <script src="../Registration/theme.js"></script>
+</head>
+<body>
+  <!-- Figma: Merchant Console / Reviews / Light 550:143 & Dark 554:664 & 515:27 & 515:212 -->
+  <div class="console-layout">
+    <!-- Left Navigation Sidebar -->
+    <aside class="console-sidebar" aria-label="Merchant Navigation">
+      <div class="sidebar-top">
+        <div class="brand-section">
+          <p class="brand-logo">METRO<span>DRIP</span></p>
+          <p class="console-role-tag">MERCHANT / SELLER CONSOLE</p>
+        </div>
+
+        <nav class="nav-group" aria-label="Merchant console views">
+          <a class="nav-item" href="index.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Dashboard</span>
+          </a>
+          <a class="nav-item" href="catalog.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Products & Categories</span>
+          </a>
+          <a class="nav-item" href="inventory.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Inventory</span>
+            <span class="nav-badge volt" id="badge-inventory">6</span>
+          </a>
+          <a class="nav-item" href="orders.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Orders</span>
+            <span class="nav-badge" id="badge-orders">5</span>
+          </a>
+          <a class="nav-item" href="shipments.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Shipments</span>
+          </a>
+          <a class="nav-item" href="shipping-zones.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Shipping Zones</span>
+          </a>
+          <a class="nav-item is-active" href="reviews.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Reviews</span>
+            <span class="nav-badge volt" id="sidebar-reviews-count">2</span>
+          </a>
+          <a class="nav-item" href="content.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Content & Banners</span>
+          </a>
+          <a class="nav-item" href="analytics.html?v=1.1">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Analytics</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-avatar" aria-hidden="true">MD</div>
+          <div class="user-meta">
+            <p class="user-name">Store Merchant</p>
+            <p class="user-role-badge">MERCHANT · 2FA ON</p>
+          </div>
+        </div>
+
+        <div class="theme-switch-container" role="group" aria-label="Color theme selector">
+          <button type="button" class="theme-toggle-btn is-active" data-theme-option="light" aria-pressed="true">
+            <span aria-hidden="true">☼</span> Light
+          </button>
+          <button type="button" class="theme-toggle-btn" data-theme-option="dark" aria-pressed="false">
+            <span aria-hidden="true">☾</span> Dark
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace Content -->
+    <main class="console-main">
+      <!-- Breadcrumb Bar -->
+      <div class="breadcrumb-bar">
+        <span>MERCHANT CONSOLE</span>
+        <span>/</span>
+        <span>REVIEWS</span>
+        <span class="sample-data">SAMPLE DATA</span>
+      </div>
+
+      <!-- Header -->
+      <header class="console-header">
+        <div class="header-meta">
+          <h1 class="page-title">Reviews</h1>
+          <p class="page-subhead">Read customer feedback and reply as your store.</p>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="btn btn-primary" id="btn-toggle-view-all">
+            View all reviews
+          </button>
+        </div>
+      </header>
+
+      <!-- 3 Stat Metric Cards -->
+      <section class="stat-cards-grid" style="grid-template-columns: repeat(3, 1fr);" aria-label="Customer review metrics">
+        <article class="stat-card">
+          <p class="stat-label">NEEDS A REPLY</p>
+          <p class="stat-value" id="metric-needs-reply">2</p>
+          <p class="stat-subtext">Keep the conversation going</p>
+        </article>
+        <article class="stat-card">
+          <p class="stat-label">AVERAGE RATING</p>
+          <p class="stat-value">4.7 / 5</p>
+          <p class="stat-subtext">Across 86 reviews</p>
+        </article>
+        <article class="stat-card">
+          <p class="stat-label">REPLIED</p>
+          <p class="stat-value" id="metric-replied-count">84</p>
+          <p class="stat-subtext">Public merchant responses</p>
+        </article>
+      </section>
+
+      <!-- Search & Filters Toolbar -->
+      <div class="console-toolbar" aria-label="Reviews search and filters">
+        <div class="search-input-wrap">
+          <span class="search-glyph" aria-hidden="true">🔍</span>
+          <input type="text" id="search-reviews-input" placeholder="Product, customer or review text" aria-label="Search reviews">
+        </div>
+        <button type="button" class="toolbar-pill-btn is-active" id="btn-filter-needs-reply">
+          Needs a reply · <span id="chip-reply-count">2</span>
+        </button>
+        <select class="toolbar-select" id="filter-rating-select" aria-label="Filter by star rating">
+          <option value="all">Rating: All ▾</option>
+          <option value="5">5 stars ★★★★★</option>
+          <option value="4">4 stars ★★★★☆</option>
+          <option value="3">3 stars ★★★☆☆</option>
+        </select>
+      </div>
+
+      <!-- Customer Reviews List Panel -->
+      <section class="panel-card" aria-labelledby="heading-reviews-list">
+        <div class="panel-header">
+          <h2 class="panel-title" id="heading-reviews-list">Customer feedback</h2>
+        </div>
+        <div style="padding: 16px;">
+          <div class="reviews-container" id="reviews-list-container">
+            <!-- Populated dynamically matching Figma 550:143 -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Inline Reply Composer Card matching Figma 550:143 bottom -->
+      <section class="panel-card" id="card-reply-composer" style="margin-top: 24px;" aria-labelledby="heading-reply-composer">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title" id="heading-reply-composer">Reply to Marco L.</h2>
+            <p class="td-muted" style="font-size: 11px; margin-top: 2px;">Your response will be public and shown beneath this review.</p>
+          </div>
+        </div>
+        <form id="form-reply-composer" style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+          <div>
+            <label class="form-label" for="reply-composer-textarea">Merchant reply</label>
+            <textarea class="form-input" id="reply-composer-textarea" rows="4" style="width: 100%; resize: vertical;" maxlength="1000">Thanks for your feedback, Marco. Please contact our support team so we can help with the color difference.</textarea>
+            <div style="display: flex; justify-content: flex-end; font-size: 11px; color: var(--color-muted); margin-top: 4px;">
+              <span id="composer-char-count">106 / 1,000 characters</span>
+            </div>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button type="submit" class="btn btn-primary" id="btn-post-reply">Post reply</button>
+            <button type="button" class="btn btn-secondary" id="btn-cancel-reply">Cancel</button>
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modal: View Customer Review (Figma: 515:212) -->
+  <div class="modal-overlay" id="modal-view-review" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-view-title" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-view-title">Customer review</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-view-modal" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+          <h4 id="view-customer-name" style="font-size: 14px; font-weight: 700; color: var(--color-ink);">Bea S.</h4>
+          <span id="view-star-rating" class="td-mono" style="font-size: 13px;">5 of 5 stars</span>
+        </div>
+        <p class="td-muted" style="font-size: 12px;" id="view-product-name">Drip Zip-Up Hoodie</p>
+        <blockquote id="view-review-body" style="font-size: 14px; line-height: 1.5; color: var(--color-ink); font-style: italic; border-left: 3px solid var(--color-border); padding-left: 12px; margin: 4px 0;">
+          &ldquo;Super lapad ng fit...&rdquo;
+        </blockquote>
+        <p class="td-muted" style="font-size: 11px;">Preview from the existing design. Load the complete review in production.</p>
+        <div id="view-reply-status" class="td-muted" style="font-size: 12px; font-weight: 500;">
+          No merchant reply yet
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn-close-view-footer">Close</button>
+        <button type="button" class="btn btn-primary" id="btn-modal-open-reply">Reply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <script src="reviews.js"></script>
+  <script src="../js/user-session.js"></script>
+</body>
+</html>

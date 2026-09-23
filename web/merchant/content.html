@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>MetroDrip · Content & Banners</title>
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="../Registration/theme.css">
+  <link rel="stylesheet" href="../css/console.css">
+  <script src="../Registration/theme.js"></script>
+</head>
+<body>
+  <!-- Figma: Merchant Console / Content & Banners / Light 550:182 & Dark 554:793 -->
+  <div class="console-layout">
+    <!-- Left Navigation Sidebar -->
+    <aside class="console-sidebar" aria-label="Merchant Navigation">
+      <div class="sidebar-top">
+        <div class="brand-section">
+          <p class="brand-logo">METRO<span>DRIP</span></p>
+          <p class="console-role-tag">MERCHANT / SELLER CONSOLE</p>
+        </div>
+
+        <nav class="nav-group" aria-label="Merchant console views">
+          <a class="nav-item" href="index.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Dashboard</span>
+          </a>
+          <a class="nav-item" href="catalog.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Products & Categories</span>
+          </a>
+          <a class="nav-item" href="inventory.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Inventory</span>
+            <span class="nav-badge volt" id="badge-inventory">6</span>
+          </a>
+          <a class="nav-item" href="orders.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Orders</span>
+            <span class="nav-badge" id="badge-orders">5</span>
+          </a>
+          <a class="nav-item" href="shipments.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Shipments</span>
+          </a>
+          <a class="nav-item" href="shipping-zones.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Shipping Zones</span>
+          </a>
+          <a class="nav-item" href="reviews.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Reviews</span>
+            <span class="nav-badge volt" id="badge-reviews">2</span>
+          </a>
+          <a class="nav-item is-active" href="content.html">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Content & Banners</span>
+          </a>
+          <a class="nav-item" href="analytics.html?v=1.1">
+            <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Analytics</span>
+          </a>
+        </nav>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-avatar" aria-hidden="true">MD</div>
+          <div class="user-meta">
+            <p class="user-name">Store Merchant</p>
+            <p class="user-role-badge">MERCHANT · 2FA ON</p>
+          </div>
+        </div>
+
+        <div class="theme-switch-container" role="group" aria-label="Color theme selector">
+          <button type="button" class="theme-toggle-btn is-active" data-theme-option="light" aria-pressed="true">
+            <span aria-hidden="true">☼</span> Light
+          </button>
+          <button type="button" class="theme-toggle-btn" data-theme-option="dark" aria-pressed="false">
+            <span aria-hidden="true">☾</span> Dark
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace Content -->
+    <main class="console-main">
+      <!-- Breadcrumb Bar -->
+      <div class="breadcrumb-bar">
+        <span>MERCHANT CONSOLE</span>
+        <span>/</span>
+        <span>CONTENT & BANNERS</span>
+        <span class="sample-data">SAMPLE DATA</span>
+      </div>
+
+      <!-- Header -->
+      <header class="console-header">
+        <div class="header-meta">
+          <h1 class="page-title">Content & Banners</h1>
+          <p class="page-subhead">Curate storefront placements and scheduled campaigns.</p>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="btn btn-primary" id="btn-open-new-banner">
+            + New banner
+          </button>
+        </div>
+      </header>
+
+      <!-- 3 Stat Metric Cards -->
+      <section class="stat-cards-grid" style="grid-template-columns: repeat(3, 1fr);" aria-label="Banner placements summary">
+        <article class="stat-card">
+          <p class="stat-label">LIVE BANNERS</p>
+          <p class="stat-value" id="metric-live-banners">2</p>
+          <p class="stat-subtext">Visible on the storefront</p>
+        </article>
+        <article class="stat-card">
+          <p class="stat-label">SCHEDULED</p>
+          <p class="stat-value" id="metric-scheduled-banners">1</p>
+          <p class="stat-subtext">Next campaign ready</p>
+        </article>
+        <article class="stat-card">
+          <p class="stat-label">DRAFTS</p>
+          <p class="stat-value" id="metric-draft-banners">2</p>
+          <p class="stat-subtext">Not published</p>
+        </article>
+      </section>
+
+      <!-- Storefront Placements Table -->
+      <section class="panel-card" aria-labelledby="heading-storefront-placements">
+        <div class="panel-header">
+          <h2 class="panel-title" id="heading-storefront-placements">Storefront placements</h2>
+        </div>
+        <div class="table-responsive">
+          <table class="data-table" id="table-placements" aria-label="Placements list">
+            <thead>
+              <tr>
+                <th scope="col">Banner</th>
+                <th scope="col">Placement</th>
+                <th scope="col">Status</th>
+                <th scope="col">Schedule</th>
+                <th scope="col" style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="placements-table-body">
+              <!-- Populated dynamically matching Figma 550:182 -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 2-Column Grid: Banner Editor + Desktop Live Preview -->
+      <div class="panel-grid-2col" style="margin-top: 24px;">
+        <!-- Left: Edit banner form -->
+        <section class="panel-card" id="card-banner-editor" aria-labelledby="heading-banner-editor">
+          <div class="panel-header">
+            <h2 class="panel-title" id="heading-banner-editor">Edit homepage hero</h2>
+          </div>
+          <form id="form-banner-editor" style="padding: 18px; display: flex; flex-direction: column; gap: 14px;">
+            <div class="form-group">
+              <label class="form-label" for="input-banner-headline">Headline</label>
+              <input type="text" class="form-input" id="input-banner-headline" value="Urban Style Redefined" required maxlength="60">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="input-banner-subtext">Supporting text</label>
+              <input type="text" class="form-input" id="input-banner-subtext" value="Designed for the City" required maxlength="120">
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div class="form-group">
+                <label class="form-label" for="input-banner-button-label">Button label</label>
+                <input type="text" class="form-input" id="input-banner-button-label" value="Shop Now" required maxlength="30">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="input-banner-destination">Link destination</label>
+                <input type="text" class="form-input" id="input-banner-destination" value="/shop" required>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="select-banner-schedule">Schedule</label>
+              <select class="form-select" id="select-banner-schedule">
+                <option value="always">Always on</option>
+                <option value="scheduled">Scheduled window</option>
+                <option value="draft">Draft (hidden)</option>
+              </select>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 6px;">
+              <button type="button" class="btn btn-primary" id="btn-save-draft">Save draft</button>
+              <button type="submit" class="btn btn-secondary" id="btn-publish-banner">Publish banner</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- Right: Live Real-time Desktop Preview Card -->
+        <section class="panel-card" aria-labelledby="heading-desktop-preview">
+          <div class="panel-header">
+            <h2 class="panel-title" id="heading-desktop-preview">Desktop preview</h2>
+          </div>
+          <div style="padding: 18px;">
+            <div class="banner-preview-box" id="banner-preview-card">
+              <p class="banner-preview-brand">METRODRIP</p>
+              <h3 class="banner-preview-headline" id="preview-headline">URBAN STYLE<br>REDEFINED</h3>
+              <p class="banner-preview-sub" id="preview-subtext">Designed for the City</p>
+              <a href="#" class="banner-preview-cta" id="preview-cta-button">Shop Now</a>
+            </div>
+            <div style="margin-top: 14px; font-size: 11px; color: var(--color-muted); line-height: 1.5;">
+              <p style="margin: 0; font-weight: 600;">Homepage hero · Typography banner</p>
+              <p style="margin: 2px 0 0 0;">Publishing replaces the current hero in this placement.</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal: Create New Banner Placement -->
+  <div class="modal-overlay" id="modal-new-banner" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-new-banner-title" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-new-banner-title">New Storefront Banner</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-new-banner-modal" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="form-new-banner" style="padding: 18px; display: flex; flex-direction: column; gap: 12px;">
+        <div class="form-group">
+          <label class="form-label" for="new-banner-name">Banner campaign title</label>
+          <input type="text" class="form-input" id="new-banner-name" placeholder="e.g. Midnight Cyber Drop" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="new-banner-placement">Placement location</label>
+          <select class="form-select" id="new-banner-placement" required>
+            <option value="Homepage hero">Homepage hero</option>
+            <option value="Homepage secondary">Homepage secondary</option>
+            <option value="Announcement bar">Announcement bar</option>
+            <option value="Category banner">Category banner</option>
+            <option value="Checkout footer">Checkout footer</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="new-banner-headline">Display headline</label>
+          <input type="text" class="form-input" id="new-banner-headline" placeholder="e.g. MIDNIGHT CYBER DROP" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="new-banner-subtext">Supporting text</label>
+          <input type="text" class="form-input" id="new-banner-subtext" placeholder="e.g. Limited to 150 pieces worldwide" required>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label class="form-label" for="new-banner-cta">Button label</label>
+            <input type="text" class="form-input" id="new-banner-cta" value="Shop Now" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="new-banner-link">Target URL</label>
+            <input type="text" class="form-input" id="new-banner-link" value="/collections/midnight" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="new-banner-status">Initial status</label>
+          <select class="form-select" id="new-banner-status">
+            <option value="Draft">Draft (Unpublished)</option>
+            <option value="Live">Live immediately</option>
+            <option value="Scheduled">Scheduled</option>
+          </select>
+        </div>
+        <div class="modal-footer" style="padding: 12px 0 0 0; margin-top: 8px;">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-new-banner">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create banner</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <script src="content.js"></script>
+  <script src="../js/user-session.js"></script>
+</body>
+</html>
