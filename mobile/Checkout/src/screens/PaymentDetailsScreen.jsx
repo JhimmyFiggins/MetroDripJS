@@ -16,6 +16,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useCart } from '../../../context/CartContext';
+import { createOrder } from '../../../../src/services/orderService';
 import { CheckoutProgress } from '../components/CheckoutProgress';
 import { colors, fonts } from '../theme';
 
@@ -193,20 +194,10 @@ export function PaymentDetailsScreen() {
       console.log('STARTING ORDER API REQUEST');
       console.log('ORDER ITEMS:', JSON.stringify(orderDraft.items, null, 2));
       console.log('FIRST ITEM:', orderDraft.items?.[0]);
-      
-      console.log('SHIPPING ADDRESS:', JSON.stringify({
-        name: orderDraft.fullName,
-        address_line1: orderDraft.address,
-        address_line2: null,
-        city: 'Quezon City',
-        state: 'Metro Manila (NCR)',
-        postal_code: null,
-        country: 'PH',
-        phone: orderDraft.mobile,
-      }, null, 2));
 
-      console.log('ORDER BODY:', JSON.stringify({
-        customer_id: null,
+      // customer_id is resolved server-side from the X-Customer-ID header,
+      // which apiClient fills from AuthContext.
+      const orderBody = {
         status: 'pending',
         subtotal: orderDraft.items.reduce(
           (sum, item) => sum + Number(item.price) * item.quantity,
@@ -237,60 +228,22 @@ export function PaymentDetailsScreen() {
           tax_amount: 0,
           tax_rate: 0,
         })),
-      }, null, 2));
+      };
+      console.log('ORDER BODY:', JSON.stringify(orderBody, null, 2));
 
-      const orderResponse = await fetch(
-        
-        'http://10.0.2.2:8000/orders/',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Customer-ID': '1',
-          },
-            body: JSON.stringify({
-            customer_id: null,
-            status: 'pending',
-            subtotal: orderDraft.items.reduce(
-              (sum, item) => sum + Number(item.price) * item.quantity,
-              0
-            ),
-            tax: 0,
-            shipping: 150,
-            discount: 0,
-            total: totalAmount,
-            currency: 'PHP',
-            notes: null,
-
-            lines: orderDraft.items.map((item) => ({
-              product: item.productId,
-              variant: item.variantId,
-              quantity: item.quantity,
-              unit_price: Number(item.price),
-              discount_amount: 0,
-              tax_amount: 0,
-              tax_rate: 0,
-            })),
-            shipping_address: {
-              name: orderDraft.fullName,
-              address_line1: orderDraft.address,
-              address_line2: null,
-              city: 'Quezon City',
-              state: 'Metro Manila (NCR)',
-              postal_code: null,
-              country: 'PH',
-              phone: orderDraft.mobile,
-            },
-          }),
-        }
-      );
-      console.log('ORDER API RESPONSE:', orderResponse.status);
-      console.log('ORDER API ERROR:', await orderResponse.text());
-      if (!orderResponse.ok) {
-        throw new Error('Failed to create order');
+      let savedOrder;
+      try {
+        savedOrder = await createOrder(orderBody);
+      } catch (error) {
+        console.error('Failed to create order:', error);
+        const msg =
+          (error && error.message) ||
+          'Something went wrong while creating your order. Please try again.';
+        Platform.OS === 'web' && typeof window !== 'undefined'
+          ? window.alert(`Order Failed\n\n${msg}`)
+          : Alert.alert('Order Failed', msg);
+        return;
       }
-
-      const savedOrder = await orderResponse.json();
 
       const now = new Date();
       const formattedDate = `${now.toLocaleDateString('en-US', {

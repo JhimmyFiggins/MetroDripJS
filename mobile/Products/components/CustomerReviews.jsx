@@ -10,6 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { colors, fonts } from '../../Checkout/src/theme';
+import { apiFetch } from '../../../src/services/apiClient';
 import { getReviewsForProduct, getReviewStats, addReviewForProduct } from '../data/reviewsData';
 
 export default function CustomerReviews({ productId }) {
@@ -26,8 +27,7 @@ export default function CustomerReviews({ productId }) {
 
   useEffect(() => {
     if (!productId) return;
-    fetch(`http://10.0.2.2:8000/products/${productId}/reviews/`)
-      .then((res) => res.json())
+    apiFetch(`/products/${productId}/reviews/`, { auth: false })
       .then((data) => {
         if (data && data.reviews && data.reviews.length > 0) {
           setReviews(data.reviews);
@@ -51,23 +51,13 @@ export default function CustomerReviews({ productId }) {
     };
 
     try {
-      const response = await fetch(`http://10.0.2.2:8000/products/${productId}/reviews/`, {
+      const data = await apiFetch(`/products/${productId}/reviews/`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Customer-ID': '1',
-        },
-        body: JSON.stringify(reviewPayload),
+        body: reviewPayload,
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.review) {
-          setReviews((current) => [data.review, ...current]);
-        } else {
-          const updated = addReviewForProduct(productId, reviewPayload);
-          setReviews([...updated]);
-        }
+      if (data && data.review) {
+        setReviews((current) => [data.review, ...current]);
       } else {
         const updated = addReviewForProduct(productId, reviewPayload);
         setReviews([...updated]);

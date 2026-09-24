@@ -7,5 +7,6 @@ urlpatterns = [
     path('api/merchant/', include('catalog.merchant_urls')),
     path('', include('catalog.urls')),
     path('orders/', include('orders.urls')),
+    path('', include('fulfillment.urls')),
     path('', include('identity.urls')),
 ]

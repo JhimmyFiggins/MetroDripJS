@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import InitialScreen from '../Registration/screens/InitialScreen';
 import LoginScreen from '../Registration/screens/LoginScreen';
 import SignupScreen from '../Registration/screens/SignupScreen';
+import ForgotPasswordScreen from '../Registration/screens/ForgotPasswordScreen.js';
 
 import HomeScreen from '../Home/Home';
 
@@ -13,6 +14,9 @@ import ShopScreen from '../Products/Shop';
 import WishlistScreen from '../Wishlist/Wishlist.jsx';
 
 import OrderHistory from '../Orders/OrderHistory.jsx';
+import OrderTracking from '../Orders/OrderTracking.jsx';
+
+import NotificationsScreen from '../Notifications/NotificationsScreen.jsx';
 
 import Account from '../Account_Management/Account.jsx';
 import ProductDetailsScreen from '../Products/ProductDetails';
@@ -46,10 +50,13 @@ export default function AppNavigator() {
                 <Stack.Screen name="Initial" component={InitialScreen} />
                 <Stack.Screen name="Login" component={LoginScreen} />
                 <Stack.Screen name="Signup" component={SignupScreen} />
+                <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
                 <Stack.Screen name="Home" component={HomeScreen} />
                 <Stack.Screen name="Shop" component={ShopScreen} />
                 <Stack.Screen name="Saved" component={WishlistScreen}/>
                 <Stack.Screen name="History" component={OrderHistory} />
+                <Stack.Screen name="OrderTracking" component={OrderTracking} />
+                <Stack.Screen name="Notifications" component={NotificationsScreen} />
                 <Stack.Screen name="ProductDetails" component={ProductDetailsScreen}/>
                 <Stack.Screen name="Cart" component={ShoppingCart}/>
                 <Stack.Screen name="Checkout" component={CheckoutScreen} />

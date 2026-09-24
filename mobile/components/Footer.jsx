@@ -4,39 +4,38 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { useNavigation } from '@react-navigation/native';
 
-export default function Footer() {
+export default function Footer({ active = null }) {
   const navigation = useNavigation();
   return (
-    
+
         <View style={styles.container}>
         <NavItem
             icon="home-outline"
             label="Home"
-            active
+            active={active === 'Home'}
             onPress={() => navigation.navigate('Home')}
         />
 
-        <NavItem icon="search-outline" label="Shop" onPress={() => navigation.navigate('Shop')} />
-        <NavItem icon="heart-outline" label="Saved" onPress={() => navigation.navigate('Saved')} />
-        <NavItem icon="receipt-outline" label="Orders" onPress={() => navigation.navigate('History')} />
-        <NavItem icon="person-circle-outline" label="Account" onPress={() => navigation.navigate('Account')} />
+        <NavItem icon="search-outline" label="Shop" active={active === 'Shop'} onPress={() => navigation.navigate('Shop')} />
+        <NavItem icon="heart-outline" label="Saved" active={active === 'Saved'} onPress={() => navigation.navigate('Saved')} />
+        <NavItem icon="receipt-outline" label="Orders" active={active === 'Orders'} onPress={() => navigation.navigate('History')} />
+        <NavItem icon="person-circle-outline" label="Account" active={active === 'Account'} onPress={() => navigation.navigate('Account')} />
         </View>
-    
 
-    
+
   );
 }
 
 const NavItem = ({ icon, label, active = false, onPress }) => {
   return (
-      <TouchableOpacity 
-        style={styles.item} 
+      <TouchableOpacity
+        style={styles.item}
         onPress={onPress}
       >
-        <Ionicons 
-          name={icon} 
-          size={24} 
-          color={active ? '#000' : '#888'} 
+        <Ionicons
+          name={icon}
+          size={24}
+          color={active ? '#141414' : '#63635C'}
         />
         <Text style={[styles.label, active && styles.activeLabel]}>
           {label}
@@ -63,16 +62,16 @@ const styles = StyleSheet.create({
     label: {
         fontSize: 12,
         marginTop: 4,
-        color: 'rgb(136, 136, 136)',
+        color: '#63635C',
     },
     activeLabel: {
-        color: 'rgb(0, 0, 0)',
+        color: '#141414',
         fontWeight: '600',
     },
     indicator: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
+        width: 5,
+        height: 5,
+        borderRadius: 2.5,
         backgroundColor: '#D3EE42', // Volt dot under active tab per Figma
         marginTop: 2,
     },

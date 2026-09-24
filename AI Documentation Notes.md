@@ -1023,3 +1023,63 @@ Document the comprehensive testing and verification of all modules, components, 
 
 
 
+
+---
+
+# Delivery Note: Customer UI Completion (2026-09-22)
+
+Figma source: file `SmJIlTZ9ZVRxQ5eKucmrd0`, canvas "01 · Customer", via figma-developer-mcp. Covers mobile screens M01–M11 plus Order Confirmation and Payment (GCash/Maya/Card) flow screens.
+
+# Module / File: src/services/apiClient.js
+## Purpose
+Single HTTP client for the mobile app; eliminates per-screen hardcoded base URLs and customer headers.
+## Public Interfaces
+- `BASE_URL` — `expo.extra.apiUrl` override, else `http://10.0.2.2:8000` (Android) / `http://127.0.0.1:8000` (other).
+- `setCustomerId(id)` / `clearCustomer()` / `getCustomerId()` — module-level customer identity, set by AuthContext login/logout. In-memory only (no AsyncStorage dependency).
+- `apiFetch(path, { method, body, auth = true, headers })` — JSON encode/decode, injects `X-Customer-ID` when `auth`, 15s AbortController timeout. Throws `ApiError` (`.status`, `.data`) on non-2xx, timeout, or network failure.
+## Verification Status
+Executed: babel-preset-expo transform OK; consumed by all migrated screens; expo web export bundles cleanly. Live HTTP verified via Django runserver smoke (2026-09-22).
+
+# Module / File: src/services/{authService, orderService, wishlistService, notificationService}.js
+## Purpose
+Typed wrappers over Django customer endpoints. authService: login/signup/forgotPassword/getProfile/updateProfile. orderService: getOrders/getOrder/createOrder/getOrderTracking. wishlistService: getWishlist/addToWishlist (body `product_ref`)/removeFromWishlist (DELETE with body). notificationService: getNotifications/getUnreadCount/markRead/markAllRead + `timeAgo(iso)` helper.
+## Known Risks / Follow-ups
+- Wishlist delete is body-based DELETE on `/wishlist/`; switch to `?product_ref=` query if a proxy strips DELETE bodies.
+
+# Module / File: mobile/Orders/OrderTracking.jsx
+## Purpose
+Figma M07 Order Tracking. Route `OrderTracking`, params `{ orderId }`.
+## Behavior
+GET `/orders/<id>/tracking/` → ETA hero (ink block, ARRIVING label, courier + tracking chip; "Preparing your order" fallback when shipment null), 6-stage timeline (placed → payment_confirmed → packed → shipped → out_for_delivery → delivered; volt done dots, outlined pending dots), Items list, sticky bar: Get help (Alert) / Track live (refetch). States: loading, 404 "Order not found" + retry, generic error.
+## Verification Status
+Executed: syntax + bundle. Live API response verified via curl (order 33, ownership 404 for wrong customer). Runtime rendering not exercised on device.
+
+# Module / File: mobile/Notifications/NotificationsScreen.jsx
+## Purpose
+Figma M08 Notifications. Route `Notifications`, no params.
+## Behavior
+GET `/notifications/` → TODAY/EARLIER groups (device-local date), unread = surface fill + volt icon circle, read = white + border. Type icons: order 🚚, drop 🔥, payment ✓, review ★, stock ♡. Tap → optimistic markRead; navigates to OrderTracking when `order_id` present. ⚙ header action → mark all read. Pull-to-refresh; empty state. Footer tab bar with `active="Orders"` per Figma M08.
+## Verification Status
+Executed: syntax + bundle + live endpoint smoke (seed data: 5 notifications, 2 unread for customer 1).
+
+# Module / File: mobile/components/Footer.jsx
+## Purpose
+Shared bottom tab bar. Now takes `active` prop ('Home'|'Shop'|'Saved'|'Orders'|'Account'|null). Active = ink icon/label + 5×5 volt dot; inactive muted #63635C. All call sites pass their tab; Cart passes none (Cart is not a tab).
+
+# Backend Endpoints Added (metrodrip_backend)
+## Purpose
+Customer-facing APIs backing M03/M07/M08.
+- `GET /notifications/`, `POST /notifications/<id>/read/`, `POST /notifications/read-all/` — fulfillment app (uses existing `NotificationsNotification` model; `category` serialized as `type`). Data migration `fulfillment.0002_seed_demo_notifications` seeds 5 demo notifications for customer id=1.
+- `GET /orders/<id>/tracking/` — orders app. Returns order summary, shipment block (courier hardcoded "J&T Express" — model has no courier field; ETA derived `booked_at + 2d`), 6-event timeline (real timestamps where available; derived offsets documented in code). Ownership enforced → 404 for other customers.
+- `GET /products/` extended: `?size= ?color= ?fit=` (variant match, case-insensitive, distinct), `?sort=newest|price_asc|price_desc`, `?search=` now also matches variant SKU.
+## Verification Status
+Executed: `manage.py check` clean, 41 existing tests pass, Django test-client + live runserver curl smoke for all new endpoints (2026-09-22). Unverified: real shipment rows (table empty — mapping tested with synthetic rolled-back data only).
+
+# Known Risks / Follow-ups (project-wide, pre-existing unless noted)
+- Auth is `X-Customer-ID` header only (spoofable); login stores/compares plaintext passwords and logs them; `GET /orders/<id>/` lacks an ownership check (tracking endpoint does check). Security debt — needs a real auth pass before production.
+- Payment is simulated (no PayMongo keys); `OrderConfirmationScreen`/`PaymentDetailsScreen` keep the 900ms simulation, but the order POST now flows through orderService with the real customer id.
+- BASE_URL defaults to the local dev server; set `expo.extra.apiUrl` in app.json for device/production builds. The render.com deployment does NOT have the new endpoints until the backend is redeployed.
+- Stale duplicate files remain in repo (`App copy.js`, `Appa.js`, `OrderHistory copy.jsx`, `ProductDetails copy.jsx`, `Checkout/src/screens/CheckoutScreen2.jsx` dead code) — not in the bundle graph; candidates for deletion.
+- `mobile/Cart/CartScreen.jsx` imports Footer but never renders it (dead import).
+- Account "Member since" shows "—" until `/profile/` serializes `date_joined`; My Reviews stat is 0 (no per-customer reviews endpoint).
+- No persistence: AuthContext + CartContext are in-memory; app restart = signed out, empty cart.

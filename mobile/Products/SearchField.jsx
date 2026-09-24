@@ -1,40 +1,76 @@
-import { StyleSheet, View, Text, TextInput, FlatList } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, View, Text, TextInput } from 'react-native';
+import { colors, fonts } from '../Checkout/src/theme';
 
-import React, { useState } from 'react';
+// Controlled search input with debounce. Shop owns the query state; this
+// component reports settled input via onSearch after `debounceMs` of no typing.
+export default function SearchField({ value, onSearch, debounceMs = 300 }) {
+    const [text, setText] = useState(value ?? '');
+    const timerRef = useRef(null);
 
-// type SearchBarComponentProps = {};
+    // Sync external resets (e.g. removing the search filter chip).
+    useEffect(() => {
+        if (value !== undefined && value !== text) {
+            setText(value);
+        }
+    }, [value]);
 
-export default function SearchField(){
-    const [search, setSearch] = useState('');
-    //  const filteredProducts = products.filter((product) =>
-    //     product.name.toLowerCase().includes(search.toLowerCase())
-    // );
+    useEffect(() => {
+        return () => {
+            if (timerRef.current) clearTimeout(timerRef.current);
+        };
+    }, []);
+
+    const handleChange = (next) => {
+        setText(next);
+        if (!onSearch) return;
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => onSearch(next), debounceMs);
+    };
+
+    const handleSubmit = () => {
+        if (timerRef.current) clearTimeout(timerRef.current);
+        if (onSearch) onSearch(text);
+    };
+
     return (
-        <View>
-            <TextInput style={styles.searchInput}
-                placeholder="Search products..."
-                placeholderTextColor="gray"
-                value={search}
-                onChangeText={setSearch}
+        <View style={styles.searchPill}>
+            <Text style={styles.searchGlyph}>⌕</Text>
+            <TextInput
+                style={styles.searchInput}
+                placeholder="Search products, SKU…"
+                placeholderTextColor={colors.muted}
+                value={text}
+                onChangeText={handleChange}
+                onSubmitEditing={handleSubmit}
+                returnKeyType="search"
+                autoCorrect={false}
+                autoCapitalize="none"
             />
-
-            {/* <FlatList
-                data={filteredProducts}
-                keyExtractor={(item) => item.id.toString()}
-                renderItem={({ item }) => (
-                <Text>{item.name}</Text>
-                )}
-            /> */}
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-   searchInput:{
-    fontSize: 16,
-    color: 'gray',
-    fontWeight: 'bold',
-    paddingLeft: 10,
-    
-   }, 
+    searchPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        height: 44,
+        paddingHorizontal: 14,
+        backgroundColor: colors.surface,
+        borderRadius: 9999,
+    },
+    searchGlyph: {
+        fontFamily: fonts.interRegular,
+        fontSize: 16,
+        color: colors.muted,
+    },
+    searchInput: {
+        flex: 1,
+        fontFamily: fonts.interRegular,
+        fontSize: 14,
+        color: colors.ink,
+        padding: 0,
+    },
 });
