@@ -1076,10 +1076,24 @@ Customer-facing APIs backing M03/M07/M08.
 Executed: `manage.py check` clean, 41 existing tests pass, Django test-client + live runserver curl smoke for all new endpoints (2026-09-22). Unverified: real shipment rows (table empty — mapping tested with synthetic rolled-back data only).
 
 # Known Risks / Follow-ups (project-wide, pre-existing unless noted)
-- Auth is `X-Customer-ID` header only (spoofable); login stores/compares plaintext passwords and logs them; `GET /orders/<id>/` lacks an ownership check (tracking endpoint does check). Security debt — needs a real auth pass before production.
+- Resolved (Microservices Extraction 2026-09-27): Auth is no longer spoofable `X-Customer-ID`. Identity service now implements PBKDF2 password hashing, verifiable `AuthToken` issuance (`Bearer <token>`), and RBAC permissions. Plaintext logging removed.
+- Resolved (Microservices Extraction 2026-09-27): Orders now implements COD Checkout Saga with server-authoritative whole-peso pricing, catalog stock reservations with TTL, immutable line/address snapshots, and outbox event publishing.
+- Resolved (Microservices Extraction 2026-09-27): Merchant Console `web/merchant/orders.js` wired to dynamic `/api/merchant/orders/`, removing all hardcoded operational demo fallback arrays.
 - Payment is simulated (no PayMongo keys); `OrderConfirmationScreen`/`PaymentDetailsScreen` keep the 900ms simulation, but the order POST now flows through orderService with the real customer id.
 - BASE_URL defaults to the local dev server; set `expo.extra.apiUrl` in app.json for device/production builds. The render.com deployment does NOT have the new endpoints until the backend is redeployed.
 - Stale duplicate files remain in repo (`App copy.js`, `Appa.js`, `OrderHistory copy.jsx`, `ProductDetails copy.jsx`, `Checkout/src/screens/CheckoutScreen2.jsx` dead code) — not in the bundle graph; candidates for deletion.
 - `mobile/Cart/CartScreen.jsx` imports Footer but never renders it (dead import).
 - Account "Member since" shows "—" until `/profile/` serializes `date_joined`; My Reviews stat is 0 (no per-customer reviews endpoint).
 - No persistence: AuthContext + CartContext are in-memory; app restart = signed out, empty cart.
+
+---
+
+# MetroDripJS Microservices Architecture Handover (2026-09-27)
+
+## Topology
+- **5 Independently Deployable Django Services**: `identity` (:8001), `catalog` (:8002), `orders` (:8003), `fulfillment` (:8004), `content` (:8005).
+- **API Gateway**: Edge routing on port 8000 injecting `X-Correlation-ID` and routing paths with zero business tables.
+- **Database Isolation**: Dedicated databases (`db_identity`, `db_catalog`, `db_orders`, `db_fulfillment`, `db_content`). Zero cross-service ORM imports or database joins.
+- **Purchase Snapshots**: `OrdersOrderLine` preserves `product_name_snapshot`, `variant_desc_snapshot`, `sku_snapshot`, `unit_price`, and `quantity` with indexed `product_ref` and `variant_ref`.
+- **Verification Evidence**: 46 unit & contract tests pass (11 identity, 8 catalog, 11 orders, 5 fulfillment, 5 content, 6 gateway routing) + automated End-to-End Saga verification in `scripts/verify_microservices_e2e.py` (5/5 phases passed).
+

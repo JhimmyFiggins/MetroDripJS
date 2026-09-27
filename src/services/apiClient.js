@@ -22,17 +22,27 @@ export const BASE_URL =
 const REQUEST_TIMEOUT_MS = 15000;
 
 let currentCustomerId = null;
+let currentAuthToken = null;
 
 export function setCustomerId(id) {
   currentCustomerId = id ?? null;
 }
 
+export function setAuthToken(token) {
+  currentAuthToken = token ?? null;
+}
+
 export function clearCustomer() {
   currentCustomerId = null;
+  currentAuthToken = null;
 }
 
 export function getCustomerId() {
   return currentCustomerId;
+}
+
+export function getAuthToken() {
+  return currentAuthToken;
 }
 
 export class ApiError extends Error {
@@ -58,8 +68,13 @@ export async function apiFetch(path, { method = 'GET', body, auth = true, header
     serializedBody = JSON.stringify(body);
   }
 
-  if (auth && currentCustomerId != null) {
-    finalHeaders['X-Customer-ID'] = String(currentCustomerId);
+  if (auth) {
+    if (currentAuthToken) {
+      finalHeaders['Authorization'] = `Bearer ${currentAuthToken}`;
+    }
+    if (currentCustomerId != null) {
+      finalHeaders['X-Customer-ID'] = String(currentCustomerId);
+    }
   }
 
   const controller = new AbortController();

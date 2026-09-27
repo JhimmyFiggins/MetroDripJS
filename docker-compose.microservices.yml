@@ -1,0 +1,154 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: metrodrip-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_dev_root_2026
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./database/init_microservices_postgresql.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - metrodrip-net
+
+  identity-service:
+    build:
+      context: ./services/identity
+      dockerfile: Dockerfile
+    container_name: metrodrip-identity
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=8001
+      - DEBUG=False
+      - DATABASE_URL=postgresql://identity_user:identity_dev_secret_2026@postgres:5432/db_identity
+      - SECRET_KEY=identity_svc_secret_key_change_in_prod_2026
+      - ALLOWED_HOSTS=*
+      - INTERNAL_TOKEN=internal_service_mesh_secret_2026
+    depends_on:
+      - postgres
+    networks:
+      - metrodrip-net
+
+  catalog-service:
+    build:
+      context: ./services/catalog
+      dockerfile: Dockerfile
+    container_name: metrodrip-catalog
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    environment:
+      - PORT=8002
+      - DEBUG=False
+      - DATABASE_URL=postgresql://catalog_user:catalog_dev_secret_2026@postgres:5432/db_catalog
+      - SECRET_KEY=catalog_svc_secret_key_change_in_prod_2026
+      - ALLOWED_HOSTS=*
+      - INTERNAL_TOKEN=internal_service_mesh_secret_2026
+    depends_on:
+      - postgres
+    networks:
+      - metrodrip-net
+
+  orders-service:
+    build:
+      context: ./services/orders
+      dockerfile: Dockerfile
+    container_name: metrodrip-orders
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    environment:
+      - PORT=8003
+      - DEBUG=False
+      - DATABASE_URL=postgresql://orders_user:orders_dev_secret_2026@postgres:5432/db_orders
+      - SECRET_KEY=orders_svc_secret_key_change_in_prod_2026
+      - ALLOWED_HOSTS=*
+      - CATALOG_SERVICE_URL=http://catalog-service:8002
+      - FULFILLMENT_SERVICE_URL=http://fulfillment-service:8004
+      - IDENTITY_SERVICE_URL=http://identity-service:8001
+      - INTERNAL_TOKEN=internal_service_mesh_secret_2026
+    depends_on:
+      - postgres
+      - catalog-service
+      - fulfillment-service
+    networks:
+      - metrodrip-net
+
+  fulfillment-service:
+    build:
+      context: ./services/fulfillment
+      dockerfile: Dockerfile
+    container_name: metrodrip-fulfillment
+    restart: unless-stopped
+    ports:
+      - "8004:8004"
+    environment:
+      - PORT=8004
+      - DEBUG=False
+      - DATABASE_URL=postgresql://fulfillment_user:fulfillment_dev_secret_2026@postgres:5432/db_fulfillment
+      - SECRET_KEY=fulfillment_svc_secret_key_change_in_prod_2026
+      - ALLOWED_HOSTS=*
+      - INTERNAL_TOKEN=internal_service_mesh_secret_2026
+    depends_on:
+      - postgres
+    networks:
+      - metrodrip-net
+
+  content-service:
+    build:
+      context: ./services/content
+      dockerfile: Dockerfile
+    container_name: metrodrip-content
+    restart: unless-stopped
+    ports:
+      - "8005:8005"
+    environment:
+      - PORT=8005
+      - DEBUG=False
+      - DATABASE_URL=postgresql://content_user:content_dev_secret_2026@postgres:5432/db_content
+      - SECRET_KEY=content_svc_secret_key_change_in_prod_2026
+      - ALLOWED_HOSTS=*
+      - INTERNAL_TOKEN=internal_service_mesh_secret_2026
+    depends_on:
+      - postgres
+    networks:
+      - metrodrip-net
+
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: metrodrip-gateway
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - IDENTITY_URL=http://identity-service:8001
+      - CATALOG_URL=http://catalog-service:8002
+      - ORDERS_URL=http://orders-service:8003
+      - FULFILLMENT_URL=http://fulfillment-service:8004
+      - CONTENT_URL=http://content-service:8005
+      - INTERNAL_TOKEN=internal_service_mesh_secret_2026
+    depends_on:
+      - identity-service
+      - catalog-service
+      - orders-service
+      - fulfillment-service
+      - content-service
+    networks:
+      - metrodrip-net
+
+networks:
+  metrodrip-net:
+    driver: bridge
+
+volumes:
+  pgdata:
