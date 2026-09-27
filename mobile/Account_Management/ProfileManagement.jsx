@@ -6,12 +6,14 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
+  Alert,
 } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
 
 import { colors, fonts } from '../Checkout/src/theme';
+import { getProfile, updateProfile } from '../../src/services/authService';
 
 import AdaptHeader from '../components/AdaptHeader';
 
@@ -22,50 +24,50 @@ export default function ProfileManagement() {
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('');
     const [address, setAddress] = useState('');
+    const [memberSince, setMemberSince] = useState('');
 
     const screenTitle = "Profile Management"
     useEffect(() => {
-    fetch('http://10.0.2.2:8000/profile/', {
-        headers: {
-            'X-Customer-ID': '1',
-        },
-        })
-        .then(response => response.json())
+    let active = true;
+    getProfile()
         .then(data => {
-        setName(data.name);
-        setEmail(data.email);
-        setPhone(data.phone);
+        if (!active) return;
+        setName(data.name || '');
+        setEmail(data.email || '');
+        setPhone(data.phone || '');
 
         const savedAddress = data.addresses?.address || '';
         setAddress(savedAddress);
+
+        const joined = new Date(data.date_joined);
+        if (!Number.isNaN(joined.getTime())) {
+            setMemberSince(
+            `${String(joined.getMonth() + 1).padStart(2, '0')}.${joined.getFullYear()}`
+            );
+        }
         })
         .catch(error => {
         console.error('Failed to load profile:', error);
         });
+    return () => {
+        active = false;
+    };
     }, []);
     const handleSave = () => {
-    fetch('http://10.0.2.2:8000/profile/', {
-        method: 'PUT',
-        headers: {
-        'Content-Type': 'application/json',
-        'X-Customer-ID': '1',
-        },
-        body: JSON.stringify({
+    updateProfile({
         name: name,
         email: email,
         phone: phone,
         addresses: {
             address: address,
         },
-        }),
     })
-        .then(response => response.json())
-        .then(data => {
-        alert('Profile updated.');
+        .then(() => {
+        Alert.alert('Profile updated.');
         })
         .catch(error => {
         console.error('Failed to update profile:', error);
-        alert('Failed to update profile.');
+        Alert.alert('Failed to update profile.');
         });
     };
 
@@ -97,13 +99,7 @@ export default function ProfileManagement() {
 
                     <View style={styles.memberInfo}>
                     <Text style={styles.memberText}>
-                        MEMBER SINCE 07.2026
-                    </Text>
-
-                    <Text style={styles.dot}>•</Text>
-
-                    <Text style={styles.memberText}>
-                        3 ORDERS
+                        MEMBER SINCE {memberSince || '—'}
                     </Text>
                     </View>
                 </View>
@@ -232,27 +228,27 @@ const styles = StyleSheet.create({
     },
 
     avatarText: {
-        fontFamily: fonts.bold,
+        fontFamily: fonts.interBold,
         fontSize: 22,
         color: colors.ink,
     },
 
     profileName: {
-        fontFamily: fonts.bold,
+        fontFamily: fonts.interBold,
         fontSize: 20,
         color: colors.ink,
         marginBottom: 6,
     },
 
     memberText: {
-        fontFamily: fonts.mono,
+        fontFamily: fonts.monoRegular,
         fontSize: 10,
         color: colors.muted,
         letterSpacing: 0.5,
     },
 
     sectionTitle: {
-        fontFamily: fonts.mono,
+        fontFamily: fonts.monoRegular,
         fontSize: 11,
         color: colors.ink,
         letterSpacing: 1,
@@ -268,7 +264,7 @@ const styles = StyleSheet.create({
     },
 
     label: {
-        fontFamily: fonts.mono,
+        fontFamily: fonts.monoRegular,
         fontSize: 9,
         color: colors.muted,
         letterSpacing: 0.8,
@@ -281,7 +277,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.surface,
         paddingHorizontal: 14,
         height: 48,
-        fontFamily: fonts.regular,
+        fontFamily: fonts.interRegular,
         fontSize: 14,
         color: colors.ink,
     },
@@ -296,7 +292,7 @@ const styles = StyleSheet.create({
     },
 
     addressLabel: {
-        fontFamily: fonts.mono,
+        fontFamily: fonts.monoRegular,
         fontSize: 9,
         color: colors.muted,
         letterSpacing: 0.8,
@@ -304,7 +300,7 @@ const styles = StyleSheet.create({
     },
 
     addressInput: {
-        fontFamily: fonts.regular,
+        fontFamily: fonts.interRegular,
         fontSize: 14,
         color: colors.ink,
         minHeight: 55,
@@ -322,7 +318,7 @@ const styles = StyleSheet.create({
     },
 
     saveText: {
-        fontFamily: fonts.mono,
+        fontFamily: fonts.monoRegular,
         fontSize: 11,
         color: colors.ink,
         letterSpacing: 1,
@@ -335,7 +331,7 @@ const styles = StyleSheet.create({
     },
 
     backText: {
-        fontFamily: fonts.mono,
+        fontFamily: fonts.monoRegular,
         fontSize: 11,
         color: colors.muted,
     },
@@ -358,7 +354,7 @@ const styles = StyleSheet.create({
     },
 
     avatarText: {
-    fontFamily: fonts.bold,
+    fontFamily: fonts.interBold,
     fontSize: 20,
     color: colors.ink,
     },
@@ -368,7 +364,7 @@ const styles = StyleSheet.create({
     },
 
     name: {
-    fontFamily: fonts.bold,
+    fontFamily: fonts.interBold,
     fontSize: 20,
     color: colors.ink,
     marginBottom: 8,
@@ -380,14 +376,14 @@ const styles = StyleSheet.create({
     },
 
     memberText: {
-    fontFamily: fonts.mono,
+    fontFamily: fonts.monoRegular,
     fontSize: 10,
     color: colors.muted,
     letterSpacing: 0.5,
     },
 
     dot: {
-    fontFamily: fonts.mono,
+    fontFamily: fonts.monoRegular,
     fontSize: 10,
     color: colors.muted,
     marginHorizontal: 8,

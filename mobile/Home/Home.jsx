@@ -16,6 +16,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 // Temp API Services
 import { categoryService } from '../../src/services/categoryService';
 import { productService } from '../../src/services/productService';
+import { apiFetch } from '../../src/services/apiClient';
 import { products } from '../data/product.js';
 import ProductCards from '../Products/ProductCards';
 import ProductDetails from '../Products/ProductDetails';
@@ -46,8 +47,7 @@ export default function Home({ navigation, route }) {
     ];
 
     useEffect(() => {
-            fetch('https://metrodripjs.onrender.com/categories/')
-                .then(response => response.json())
+            apiFetch('/categories/', { auth: false })
                 .then(data => setCategoryList(data))
                 .catch(error => console.error('Failed to load categories:', error));
         }, []);
@@ -192,7 +192,7 @@ export default function Home({ navigation, route }) {
                         </View>
                     </>
                 )}
-            <Footer/>
+            <Footer active="Home"/>
         </SafeAreaProvider>
     );
 }

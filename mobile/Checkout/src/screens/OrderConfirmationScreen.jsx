@@ -205,7 +205,9 @@ export function OrderConfirmationScreen() {
             <Pressable
               accessibilityLabel="Track order"
               accessibilityRole="button"
-              onPress={() => navigation.navigate('Home')}
+              onPress={() =>
+                navigation.navigate('OrderTracking', { orderId: order.orderId })
+              }
               style={({ pressed }) => [
                 styles.primaryButton,
                 pressed && styles.primaryButtonPressed,

@@ -1,183 +1,215 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, ScrollView, TouchableOpacity, Text, View } from 'react-native';
-import { DrawerContentScrollView } from '@react-navigation/drawer'; // Added import
+import { DrawerContentScrollView } from '@react-navigation/drawer';
 
-import { fonts } from '../../src/theme/font'; 
-import { size, fit, sort, subCategories } from '../data/categories.js';
+import { fonts } from '../../src/theme/font';
+import { apiFetch } from '../../src/services/apiClient';
+import { size, fit, sort } from '../data/categories.js';
 
-export default function FilterContainer({ onCategoryChange, ...props }) {
-    const [categories, setCategories] = useState([]);
-    const [activeCategory, setActiveCategory] = useState(1);
-    const [activeSubCategory, setActiveSubCategory] = useState(null);
-    const [activeSize, setActiveSize] = useState(1);
-    const [activeFit, setActiveFit] = useState(null);
-    const [activeSort, setActiveSort] = useState(null);
+// Backend currently seeds Black only; extra options are harmless (they just
+// filter to zero results until matching variants exist).
+const colorOptions = [
+    { id: 1, color_name: 'Black' },
+    { id: 2, color_name: 'White' },
+    { id: 3, color_name: 'Gray' },
+    { id: 4, color_name: 'Navy' },
+];
+
+// Map the hardcoded sort labels to the API's sort param values.
+const SORT_VALUE_BY_NAME = {
+    'Newest': 'newest',
+    'Low Price': 'price_asc',
+    'High Price': 'price_desc',
+};
+
+export default function FilterContainer({
+    filters,
+    onFiltersChange,
+    onClearAll,
+    categories: categoriesProp,
+    ...props
+}) {
+    const [categories, setCategories] = useState(
+        Array.isArray(categoriesProp) ? categoriesProp : []
+    );
 
     useEffect(() => {
-        fetch('https://metrodripjs.onrender.com/categories/')
-            .then(response => response.json())
-            .then(data => setCategories(data))
-            .catch(error => console.error('Failed to load categories:', error));
-    }, []);
+        if (Array.isArray(categoriesProp)) {
+            setCategories(categoriesProp);
+            return;
+        }
+        let cancelled = false;
+        apiFetch('/categories/')
+            .then((data) => {
+                if (!cancelled) setCategories(Array.isArray(data) ? data : []);
+            })
+            .catch((error) => console.error('Failed to load categories:', error));
+        return () => {
+            cancelled = true;
+        };
+    }, [categoriesProp]);
+
+    const patch = (p) => {
+        if (onFiltersChange) onFiltersChange(p);
+    };
+
+    const activeCategory = filters ? filters.category : null;
+    const activeSize = filters ? filters.size : null;
+    const activeColor = filters ? filters.color : null;
+    const activeFit = filters ? filters.fit : null;
+    const activeSort = filters ? filters.sort : 'newest';
 
     return (
         <DrawerContentScrollView {...props} contentContainerStyle={styles.container}
-            
-        > 
+
+        >
             <ScrollView
                 showsVerticalScrollIndicator={false}
                 showsHorizontalScrollIndicator={false}
             >
                 <Text style={styles.titleFilter}>FILTERS</Text>
-                
+
                 <Text style={styles.title}>Category</Text>
-                
+
                 <View style={styles.buttonRowContainer}>
+                    <View style={styles.fullWidthItem}>
+                        <TouchableOpacity
+                            style={[styles.baseButton, activeCategory == null && styles.activeButton]}
+                            onPress={() => patch({ category: null })}
+                        >
+                            <Text style={[styles.baseButtonText, activeCategory == null && styles.activeButtonText]}>
+                                All
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
                     {categories.map((item) => {
                         const isActive = item.id === activeCategory;
 
                         return (
                             <View key={item.id} style={styles.fullWidthItem}>
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     style={[styles.baseButton, isActive && styles.activeButton]}
-                                    onPress={() => {
-                                        setActiveCategory(item.id);
-                                        setActiveSubCategory(null);
-                                        props.navigation.navigate('ShopContent', {
-                                            selectedCategory: item.id,
-                                        });
-                                    }}
+                                    onPress={() => patch({ category: isActive ? null : item.id })}
                                 >
                                     <Text style={[styles.baseButtonText, isActive && styles.activeButtonText]}>
                                         {item.name}
                                     </Text>
                                 </TouchableOpacity>
-
-                                {isActive && renderSubCategory(activeCategory, activeSubCategory, setActiveSubCategory)}
                             </View>
                         );
                     })}
                 </View>
 
                 <Text style={styles.title}>Size</Text>
-                {renderSizes(activeSize, setActiveSize)}
+                <View style={styles.buttonRowContainer}>
+                    {size.map((item) => {
+                        // "All" clears the size filter; everything else maps to
+                        // the variant attribute value the API expects.
+                        const value = item.size_attribute === 'All' ? null : item.size_attribute;
+                        const isSizeActive = value === null ? activeSize == null : item.size_attribute === activeSize;
+
+                        return (
+                            <TouchableOpacity
+                                key={item.id}
+                                style={[
+                                    styles.baseButton,
+                                    styles.sizeButton,
+                                    isSizeActive && styles.activeButton
+                                ]}
+                                onPress={() => patch({ size: value })}
+                            >
+                                <Text
+                                    style={[
+                                        styles.baseButtonText,
+                                        styles.sizeButtonText,
+                                        isSizeActive && styles.activeButtonText
+                                    ]}
+                                >
+                                    {item.size_attribute}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+
+                <Text style={styles.title}>Color</Text>
+                <View style={styles.buttonRowContainer}>
+                    {colorOptions.map((item) => {
+                        const isColorActive = item.color_name === activeColor;
+
+                        return (
+                            <TouchableOpacity
+                                key={item.id}
+                                style={[styles.baseButton, isColorActive && styles.activeButton]}
+                                onPress={() => patch({ color: isColorActive ? null : item.color_name })}
+                            >
+                                <Text style={[styles.baseButtonText, isColorActive && styles.activeButtonText]}>
+                                    {item.color_name}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
 
                 <Text style={styles.title}>Fit</Text>
-                {renderFits(activeFit, setActiveFit)}
+                <View style={styles.buttonRowContainer}>
+                    {fit.map((item) => {
+                        const isActiveFit = item.fit_name === activeFit;
+
+                        return (
+                            <TouchableOpacity
+                                key={item.id}
+                                style={[styles.baseButton, isActiveFit && styles.activeButton]}
+                                onPress={() => patch({ fit: isActiveFit ? null : item.fit_name })}
+                            >
+                                <Text style={[styles.baseButtonText, isActiveFit && styles.activeButtonText]}>
+                                    {item.fit_name}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
 
                 <Text style={styles.title}>Sort</Text>
-                {renderSort(activeSort, setActiveSort)}
+                <View style={styles.buttonRowContainer}>
+                    {sort.map((item) => {
+                        const value = SORT_VALUE_BY_NAME[item.sort_name] || 'newest';
+                        const isActiveSort = value === activeSort;
+
+                        return (
+                            <TouchableOpacity
+                                key={item.id}
+                                style={[styles.baseButton, isActiveSort && styles.activeButton]}
+                                onPress={() => patch({ sort: value })}
+                            >
+                                <Text style={[styles.baseButtonText, isActiveSort && styles.activeButtonText]}>
+                                    {item.sort_name}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+
+                <View style={styles.actionsRow}>
+                    <TouchableOpacity
+                        style={styles.clearButton}
+                        onPress={() => {
+                            if (onClearAll) onClearAll();
+                        }}
+                    >
+                        <Text style={styles.clearButtonText}>Clear all</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.applyButton}
+                        onPress={() => props.navigation && props.navigation.closeDrawer()}
+                    >
+                        <Text style={styles.applyButtonText}>Show results</Text>
+                    </TouchableOpacity>
+                </View>
                 </ScrollView>
         </DrawerContentScrollView>
     );
 }
-
-
-// Sub-Category Component Renderer
-const renderSubCategory = (activeCategory, activeSubCategory, setActiveSubCategory) => {
-    const currentSubs = subCategories[activeCategory];
-
-    if (!currentSubs || currentSubs.length === 0) return null;
-
-    return (
-        <View style={styles.buttonRowContainer}>
-            {currentSubs.map((subItem) => {
-                const isSubActive = subItem.id === activeSubCategory;
-                
-                return (
-                    <TouchableOpacity 
-                        key={subItem.id} 
-                        style={[styles.baseButton, styles.subCatButton, isSubActive && styles.activeButton]}
-                        onPress={() => setActiveSubCategory(subItem.id)}
-                    >
-                        <Text style={[styles.baseButtonText, isSubActive && styles.activeButtonText]}>
-                            {subItem.name}
-                        </Text>
-                    </TouchableOpacity>
-                );
-            })}
-        </View>
-    );
-};
-
-// Sizes Renderer
-const renderSizes = (activeSize, setActiveSize) => {
-    return (
-        <View style={styles.buttonRowContainer}>
-            {size.map((item) => {
-                const isSizeActive = item.id === activeSize;
-
-                return (
-                    <TouchableOpacity
-                        key={item.id}
-                        style={[
-                            styles.baseButton,
-                            styles.sizeButton,
-                            isSizeActive && styles.activeButton
-                        ]}
-                        onPress={() => setActiveSize(item.id)}
-                    >
-                        <Text
-                            style={[
-                                styles.baseButtonText,
-                                styles.sizeButtonText,
-                                isSizeActive && styles.activeButtonText
-                            ]}
-                        >
-                            {item.size_attribute}
-                        </Text>
-                    </TouchableOpacity>
-                );
-            })}
-        </View>
-    );
-};
-
-// Fit Renderer
-const renderFits = (activeFit, setActiveFit) => {
-    return (
-        <View style={styles.buttonRowContainer}>
-            {fit.map((item) => {
-                const isActiveFit = item.id === activeFit;
-
-                return (
-                    <TouchableOpacity 
-                        key={item.id}
-                        style={[styles.baseButton, isActiveFit && styles.activeButton]}
-                        onPress={() => setActiveFit(item.id)}
-                    >
-                        <Text style={[styles.baseButtonText, isActiveFit && styles.activeButtonText]}>
-                            {item.fit_name}
-                        </Text>
-                    </TouchableOpacity>
-                );
-            })}
-        </View>
-    );
-};
-
-// Sort Renderer
-const renderSort = (activeSort, setActiveSort) => {
-    return (
-        <View style={styles.buttonRowContainer}>
-            {sort.map((item) => {
-                const isActiveSort = item.id === activeSort;
-
-                return (
-                    <TouchableOpacity 
-                        key={item.id}
-                        style={[styles.baseButton, isActiveSort && styles.activeButton]}
-                        onPress={() => setActiveSort(item.id)}
-                    >
-                        <Text style={[styles.baseButtonText, isActiveSort && styles.activeButtonText]}>
-                            {item.sort_name}
-                        </Text>
-                    </TouchableOpacity>
-                );
-            })}
-        </View>
-    );
-};
 
 const styles = StyleSheet.create({
     container: {
@@ -230,10 +262,6 @@ const styles = StyleSheet.create({
     },
 
     // SPECIFIC OVERRIDES
-    subCatButton: {
-        backgroundColor: 'rgb(246, 246, 246)',
-        marginLeft: 10,
-    },
     sizeButton: {
         minHeight: 35,
     },
@@ -245,6 +273,38 @@ const styles = StyleSheet.create({
         borderColor: 'rgb(0, 0, 0)',
     },
     activeButtonText: {
+        color: '#FFF',
+    },
+    actionsRow: {
+        flexDirection: 'row',
+        gap: 8,
+        paddingHorizontal: 9,
+        paddingTop: 16,
+        paddingBottom: 24,
+    },
+    clearButton: {
+        flex: 1,
+        borderRadius: 9999,
+        borderWidth: 1,
+        borderColor: 'rgb(228, 228, 223)',
+        paddingVertical: 10,
+        alignItems: 'center',
+    },
+    clearButtonText: {
+        fontFamily: fonts.interBold,
+        fontSize: 12,
+        color: 'rgb(0, 0, 0)',
+    },
+    applyButton: {
+        flex: 1,
+        borderRadius: 9999,
+        backgroundColor: 'rgb(0, 0, 0)',
+        paddingVertical: 10,
+        alignItems: 'center',
+    },
+    applyButtonText: {
+        fontFamily: fonts.interBold,
+        fontSize: 12,
         color: '#FFF',
     },
     row: {

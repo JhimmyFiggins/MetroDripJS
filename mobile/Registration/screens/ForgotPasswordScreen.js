@@ -5,16 +5,23 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+
 import { useTheme } from '../theme';
+import { fonts } from '../../Checkout/src/theme';
+import { forgotPassword } from '../../../src/services/authService';
+import { ApiError } from '../../../src/services/apiClient';
 
 export default function ForgotPasswordScreen({ navigation }) {
-  const { theme, mode, setMode } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { theme } = useTheme();
   const styles = useMemoStyles(theme);
   const isDark = theme.mode === 'dark';
 
@@ -38,118 +45,96 @@ export default function ForgotPasswordScreen({ navigation }) {
     setLoading(true);
 
     try {
-      const response = await fetch('http://10.0.2.2:8000/forgot-password/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: email.trim() }),
-      });
-
-      const data = await response.json();
-      if (response.ok && data.success) {
+      const data = await forgotPassword(email.trim());
+      if (data && data.success) {
         setSent(true);
       } else {
-        setError(data.error || 'Failed to send password reset link.');
+        setError((data && data.error) || 'Failed to send password reset link.');
       }
     } catch (err) {
-      // Fallback to confirmation for offline/simulated mode
-      setSent(true);
+      if (err instanceof ApiError && err.status > 0) {
+        setError(
+          (err.data && err.data.error) || 'Failed to send password reset link.'
+        );
+      } else {
+        // Fallback to confirmation for offline/simulated mode
+        setSent(true);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleTheme = () => {
-    setMode(isDark ? 'light' : 'dark');
-  };
-
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style={isDark ? "light" : "dark"} />
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+
+      {/* Top Navigation Bar with Back Button (Figma 67:9) */}
+      <View style={styles.topNav}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Login'))}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <Ionicons name="chevron-back" size={24} color={theme.text} />
+        </TouchableOpacity>
+      </View>
+
       <KeyboardAvoidingView
         style={styles.keyboard}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.main}>
-
-          {/* LOGO + DARK MODE TOGGLE */}
-          <View style={styles.topRow}>
-            <View style={styles.logoContainer}>
-              <Text style={styles.logo}>METRODRIP</Text>
-              <Text style={styles.logoSub}>
-                STREETWEAR • FASHION • CULTURE
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={styles.themeToggle}
-              onPress={toggleTheme}
-              accessibilityRole="switch"
-              accessibilityLabel="Toggle dark mode"
-              accessibilityState={{ checked: isDark }}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Text style={styles.themeToggleText}>
-                {isDark ? 'LIGHT' : 'DARK'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* BACK */}
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Text style={styles.backText}>‹ BACK</Text>
-          </TouchableOpacity>
-
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: Math.max(insets.bottom, 24) + 16 },
+          ]}
+          keyboardShouldPersistTaps="handled"
+        >
           {!sent ? (
             <>
               {/* HEADER */}
               <View style={styles.header}>
-                <Text style={styles.title}>RESET PASSWORD</Text>
-                <Text style={styles.description}>
-                  Enter the email linked to your account and we'll send you a
-                  link to reset your password.
+                <Text style={styles.title}>Reset Password</Text>
+                <Text style={styles.subtitle}>
+                  Enter the email linked to your account and we'll send you a link to reset your password.
                 </Text>
               </View>
 
               {/* FORM */}
               <View style={styles.form}>
-                <Text style={styles.label}>EMAIL</Text>
-                <TextInput
-                  style={[styles.input, error && styles.inputError]}
-                  placeholder="Enter your email"
-                  placeholderTextColor={theme.placeholder}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  returnKeyType="done"
-                  value={email}
-                  onChangeText={(text) => {
-                    setEmail(text);
-                    if (error) setError(null);
-                  }}
-                  onSubmitEditing={handleReset}
-                  accessibilityLabel="Email"
-                  accessibilityHint="Enter the email address linked to your account"
-                />
+                {/* EMAIL */}
+                <View style={[styles.fieldCard, error && styles.fieldCardError]}>
+                  <Text style={styles.fieldLabel}>EMAIL</Text>
+                  <TextInput
+                    style={styles.fieldInput}
+                    placeholder="juan@email.com"
+                    placeholderTextColor={theme.placeholder}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="done"
+                    value={email}
+                    onChangeText={(text) => {
+                      setEmail(text);
+                      if (error) setError(null);
+                    }}
+                    onSubmitEditing={handleReset}
+                    accessibilityLabel="Email"
+                  />
+                </View>
                 {error ? (
                   <Text style={styles.errorText} accessibilityRole="alert">
                     {error}
                   </Text>
                 ) : null}
 
+                {/* PRIMARY CTA */}
                 <TouchableOpacity
-                  style={[
-                    styles.resetButton,
-                    loading && styles.buttonDisabled,
-                  ]}
+                  style={[styles.primaryButton, loading && styles.buttonDisabled]}
                   onPress={handleReset}
                   disabled={loading}
                   activeOpacity={0.85}
@@ -160,10 +145,19 @@ export default function ForgotPasswordScreen({ navigation }) {
                   {loading ? (
                     <ActivityIndicator color={theme.accentText} />
                   ) : (
-                    <Text style={styles.resetButtonText}>
-                      SEND RESET LINK
-                    </Text>
+                    <Text style={styles.primaryButtonText}>Send reset link</Text>
                   )}
+                </TouchableOpacity>
+
+                {/* BACK TO LOGIN */}
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={() => navigation.navigate('Login')}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Back to sign in"
+                >
+                  <Text style={styles.secondaryButtonText}>Back to sign in</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -171,40 +165,34 @@ export default function ForgotPasswordScreen({ navigation }) {
             <>
               {/* SUCCESS STATE */}
               <View style={styles.header}>
-                <Text style={styles.title}>CHECK YOUR EMAIL</Text>
-                <Text style={styles.description}>
-                  If an account exists for {email.trim()}, a password reset
-                  link is on its way. It may take a few minutes to arrive.
+                <Text style={styles.title}>Check Your Email</Text>
+                <Text style={styles.subtitle}>
+                  If an account exists for {email.trim()}, a password reset link is on its way. It may take a few minutes to arrive.
                 </Text>
               </View>
 
-              <TouchableOpacity
-                style={styles.resetButton}
-                onPress={() => navigation.navigate('Login')}
-                accessibilityRole="button"
-                accessibilityLabel="Back to login"
-              >
-                <Text style={styles.resetButtonText}>BACK TO LOGIN</Text>
-              </TouchableOpacity>
+              <View style={styles.form}>
+                <TouchableOpacity
+                  style={styles.primaryButton}
+                  onPress={() => navigation.navigate('Login')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Back to sign in"
+                >
+                  <Text style={styles.primaryButtonText}>Back to sign in</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.resendButton}
-                onPress={handleReset}
-                accessibilityRole="button"
-                accessibilityLabel="Resend reset link"
-              >
-                <Text style={styles.resendText}>Didn't get it? Resend</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.resendButton}
+                  onPress={handleReset}
+                  accessibilityRole="button"
+                  accessibilityLabel="Resend reset link"
+                >
+                  <Text style={styles.resendText}>Didn't get it? Resend</Text>
+                </TouchableOpacity>
+              </View>
             </>
           )}
-
-        </View>
-
-        {/* FOOTER BAND */}
-        <View style={styles.footerBand}>
-          <Text style={styles.footer}>BUILT FOR THE STREETS</Text>
-        </View>
-
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -220,140 +208,118 @@ function makeStyles(theme) {
       flex: 1,
       backgroundColor: theme.background,
     },
+    topNav: {
+      height: 52,
+      paddingHorizontal: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+      justifyContent: 'center',
+    },
+    backBtn: {
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'flex-start',
+    },
     keyboard: {
       flex: 1,
-      justifyContent: 'space-between',
     },
-    main: {
-      flex: 1,
+    scrollContent: {
       paddingHorizontal: 24,
-      paddingTop: 25,
-    },
-    topRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      marginBottom: 30,
-    },
-    logoContainer: {},
-    logo: {
-      fontSize: 21,
-      fontWeight: '900',
-      color: theme.text,
-      letterSpacing: -1,
-    },
-    logoSub: {
-      fontSize: 7,
-      fontWeight: '600',
-      color: theme.textMuted,
-      marginTop: 2,
-      letterSpacing: 0.5,
-    },
-    themeToggle: {
-      borderWidth: 1,
-      borderColor: theme.border,
-      borderRadius: 3,
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-    },
-    themeToggleText: {
-      fontSize: 9,
-      fontWeight: '900',
-      color: theme.text,
-      letterSpacing: 0.5,
-    },
-    backButton: {
-      alignSelf: 'flex-start',
-      marginBottom: 20,
-    },
-    backText: {
-      fontSize: 11,
-      fontWeight: '900',
-      color: theme.textMuted,
-      letterSpacing: 0.5,
+      paddingTop: 16,
     },
     header: {
-      marginBottom: 35,
+      marginBottom: 20,
     },
     title: {
-      fontSize: 28,
-      fontWeight: '900',
+      fontFamily: fonts.anton,
+      fontSize: 34,
       color: theme.text,
-      letterSpacing: -1,
+      letterSpacing: 0.5,
     },
-    description: {
-      fontSize: 12,
+    subtitle: {
+      fontFamily: fonts.interRegular,
+      fontSize: 14,
+      lineHeight: 20,
       color: theme.textMuted,
-      marginTop: 8,
-      lineHeight: 18,
+      marginTop: 6,
     },
     form: {
       width: '100%',
     },
-    label: {
-      fontSize: 10,
-      fontWeight: '900',
-      color: theme.label,
-      marginBottom: 8,
-      letterSpacing: 0.5,
-    },
-    input: {
-      height: 52,
-      backgroundColor: theme.surface,
+    fieldCard: {
+      backgroundColor: theme.card,
       borderWidth: 1,
       borderColor: theme.border,
-      borderRadius: 3,
+      borderRadius: 10,
       paddingHorizontal: 14,
-      fontSize: 13,
-      color: theme.text,
-      marginBottom: 20,
+      paddingTop: 9,
+      paddingBottom: 9,
+      marginBottom: 12,
     },
-    inputError: {
+    fieldCardError: {
       borderColor: theme.error,
-      marginBottom: 6,
+    },
+    fieldLabel: {
+      fontFamily: fonts.monoRegular,
+      fontSize: 9,
+      letterSpacing: 0.8,
+      color: theme.label,
+      marginBottom: 3,
+    },
+    fieldInput: {
+      fontFamily: fonts.interRegular,
+      fontSize: 14,
+      color: theme.text,
+      height: 24,
+      padding: 0,
     },
     errorText: {
-      fontSize: 10,
-      fontWeight: '700',
+      fontFamily: fonts.interRegular,
+      fontSize: 11,
       color: theme.error,
-      marginBottom: 14,
+      marginTop: -6,
+      marginBottom: 10,
+      paddingHorizontal: 4,
     },
-    resetButton: {
-      height: 53,
+    primaryButton: {
+      height: 54,
+      borderRadius: 9999,
       backgroundColor: theme.accent,
-      borderRadius: 3,
       justifyContent: 'center',
       alignItems: 'center',
+      marginTop: 8,
     },
     buttonDisabled: {
       opacity: 0.7,
     },
-    resetButtonText: {
-      fontSize: 12,
-      fontWeight: '900',
+    primaryButtonText: {
+      fontFamily: fonts.interBold,
+      fontSize: 16,
       color: theme.accentText,
-      letterSpacing: 1,
+    },
+    secondaryButton: {
+      height: 52,
+      borderRadius: 9999,
+      backgroundColor: theme.surface,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginTop: 12,
+    },
+    secondaryButtonText: {
+      fontFamily: fonts.interSemiBold,
+      fontSize: 15,
+      color: theme.text,
     },
     resendButton: {
       alignItems: 'center',
-      marginTop: 18,
+      paddingVertical: 14,
+      marginTop: 8,
     },
     resendText: {
-      fontSize: 11,
-      fontWeight: '700',
-      color: theme.textMuted,
-      textDecorationLine: 'underline',
-    },
-    footerBand: {
-      backgroundColor: theme.footerBg,
-      paddingVertical: 14,
-      paddingHorizontal: 24,
-    },
-    footer: {
-      fontSize: 9,
-      fontWeight: '900',
-      color: theme.footerText,
-      letterSpacing: 0.5,
+      fontFamily: fonts.interMedium,
+      fontSize: 13,
+      color: theme.link,
     },
   });
 }

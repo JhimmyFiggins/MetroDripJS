@@ -19,29 +19,30 @@ import { colors, fonts } from '../Checkout/src/theme';
 import AdaptHeader from '../components/AdaptHeader';
 import Footer from '../components/Footer';
 
+import { getWishlist, removeFromWishlist } from '../../src/services/wishlistService';
+
 
 
 export default function Wishlist({navigate}) {
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
   const navigation = useNavigation();
   const [wishlistItems, setWishlistItems] = useState([]);
   const screenTitle = 'Wish list'
 
   useFocusEffect(
     useCallback(() => {
-      fetch('http://10.0.2.2:8000/wishlist/', {
-        headers: {
-          'X-Customer-ID': String(user.id),
-        },
-      })
-        .then(response => response.json())
+      if (isGuest || !user) {
+        setWishlistItems([]);
+        return;
+      }
+      getWishlist()
         .then(data => {
-          setWishlistItems(data);
+          setWishlistItems(Array.isArray(data) ? data : []);
         })
         .catch(error => {
           console.error('Failed to load wishlist:', error);
         });
-    }, [user])
+    }, [user, isGuest])
   );
   return (
     <SafeAreaProvider>
@@ -53,7 +54,21 @@ export default function Wishlist({navigate}) {
         >
           <AdaptHeader screenTitle={screenTitle}/>
 
-          {wishlistItems.length === 0 ? (
+          {isGuest || !user ? (
+            <View style={styles.signedOutContainer}>
+              <Text style={styles.emptyText}>
+                Sign in to save items to your wish list
+              </Text>
+              <TouchableOpacity
+                style={styles.signInButton}
+                onPress={() => navigation.navigate('Login')}
+                accessibilityRole="button"
+                accessibilityLabel="Sign in"
+              >
+                <Text style={styles.signInButtonText}>Sign in</Text>
+              </TouchableOpacity>
+            </View>
+          ) : wishlistItems.length === 0 ? (
             <Text style={styles.emptyText}>
               Your wish list is empty
             </Text>
@@ -70,7 +85,7 @@ export default function Wishlist({navigate}) {
             >
               <View>
                 <Text style={styles.orderNumber}>
-                  {item.name}
+                  {item.name || 'Saved item'}
                 </Text>
 
                 <Text style={styles.orderDetails}>
@@ -79,22 +94,11 @@ export default function Wishlist({navigate}) {
               </View>
 <TouchableOpacity
                   onPress={() => {
-                      fetch('http://10.0.2.2:8000/wishlist/', {
-                          method: 'DELETE',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            'X-Customer-ID': String(user.id),
-                          },
-                          body: JSON.stringify({
-                              id: item.id,
-                          }),
-                      })
-                      .then(response => {
-                          if (response.ok) {
-                              setWishlistItems(current =>
-                                  current.filter(wishlistItem => wishlistItem.id !== item.id)
-                              );
-                          }
+                      removeFromWishlist(item.product_ref)
+                      .then(() => {
+                          setWishlistItems(current =>
+                              current.filter(wishlistItem => wishlistItem.id !== item.id)
+                          );
                       })
                       .catch(error => {
                           console.error('Failed to remove wishlist item:', error);
@@ -108,7 +112,7 @@ export default function Wishlist({navigate}) {
             ))
           )}
         </ScrollView>
-        <Footer/>
+        <Footer active="Saved"/>
       </View>
       {/* <Footer/> */}
     </SafeAreaProvider>
@@ -118,7 +122,7 @@ export default function Wishlist({navigate}) {
 const styles = StyleSheet.create({
   screen: {
     height: '100%',
-    weight: '100%',
+    width: '100%',
     backgroundColor: 'rgb(255, 255, 255)',
   },
 
@@ -144,6 +148,23 @@ const styles = StyleSheet.create({
     color: colors.muted,
     textAlign: 'center',
     marginTop: 30,
+  },
+  signedOutContainer: {
+    alignItems: 'center',
+    marginTop: 30,
+  },
+  signInButton: {
+    marginTop: 16,
+    backgroundColor: colors.volt,
+    borderRadius: 9999,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+  },
+  signInButtonText: {
+    fontFamily: fonts.interBold,
+    fontSize: 14,
+    color: colors.ink,
   },
   
 

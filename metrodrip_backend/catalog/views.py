@@ -38,8 +38,36 @@ class ProductListAPIView(ListAPIView):
             qs = qs.filter(
                 Q(name__icontains=term) |
                 Q(description__icontains=term) |
-                Q(sku__icontains=term)
+                Q(sku__icontains=term) |
+                Q(variants__sku__icontains=term)
+            ).distinct()
+
+        size_param = self.request.query_params.get('size')
+        if size_param:
+            qs = qs.filter(variants__attributes__size__iexact=size_param.strip())
+
+        color_param = self.request.query_params.get('color')
+        if color_param:
+            color_term = color_param.strip()
+            qs = qs.filter(
+                Q(variants__attributes__color__iexact=color_term) |
+                Q(variants__color__name__iexact=color_term)
             )
+
+        fit_param = self.request.query_params.get('fit')
+        if fit_param:
+            qs = qs.filter(variants__attributes__fit__iexact=fit_param.strip())
+
+        if size_param or color_param or fit_param:
+            qs = qs.distinct()
+
+        sort_param = (self.request.query_params.get('sort') or '').strip().lower()
+        if sort_param == 'newest':
+            return qs.order_by('-created_at')
+        if sort_param == 'price_asc':
+            return qs.order_by('base_price')
+        if sort_param == 'price_desc':
+            return qs.order_by('-base_price')
 
         return qs.order_by('id')
 

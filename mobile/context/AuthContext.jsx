@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
+import { setCustomerId, clearCustomer } from '../../src/services/apiClient';
 
 const AuthContext = createContext();
 
@@ -9,10 +10,12 @@ export function AuthProvider({ children }) {
 
   const login = (customer) => {
     setUser(customer);
+    setCustomerId(customer?.id);
   };
 
   const logout = () => {
     setUser(null);
+    clearCustomer();
   };
 
   return (

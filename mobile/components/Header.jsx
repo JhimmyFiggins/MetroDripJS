@@ -1,13 +1,32 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { StyleSheet, TouchableOpacity, Text, View, Platform, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts, colors } from '../Checkout/src/theme';
+import * as notificationService from '../../src/services/notificationService';
 
 export default function Header() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      notificationService
+        .getUnreadCount()
+        .then((count) => {
+          if (active) setUnreadCount(count || 0);
+        })
+        .catch(() => {
+          if (active) setUnreadCount(0);
+        });
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
 
   return (
     <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
@@ -25,11 +44,13 @@ export default function Header() {
       <View style={styles.actionsRow}>
         <TouchableOpacity 
           style={styles.iconButton}
+          onPress={() => navigation.navigate('Notifications')}
           activeOpacity={0.7}
           accessibilityRole="button"
           accessibilityLabel="Notifications"
         >
           <Ionicons name="notifications-outline" size={22} color={colors.ink} />
+          {unreadCount > 0 && <View style={styles.notificationDot} />}
         </TouchableOpacity>
         
         <TouchableOpacity 
@@ -90,8 +111,18 @@ const styles = StyleSheet.create({
   },
   iconButton: {
     padding: 6,
+    position: 'relative',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  notificationDot: {
+    position: 'absolute',
+    top: 4,
+    right: 5,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#C2282D',
   },
   cartIcon: {
     width: 24,

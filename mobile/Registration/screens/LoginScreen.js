@@ -5,26 +5,27 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 import { useTheme } from '../theme.js';
-import { fonts} from '../../Checkout/src/theme.ts';
+import { fonts } from '../../Checkout/src/theme.ts';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
+import { login as loginCustomer } from '../../../src/services/authService';
+import { ApiError } from '../../../src/services/apiClient';
 
 export default function LoginScreen({ navigation }) {
-  
-
+  const insets = useSafeAreaInsets();
   const { login, logout } = useAuth();
   const { clearCart } = useCart();
-  const { theme, mode, setMode } = useTheme();
+  const { theme } = useTheme();
   const styles = useMemoStyles(theme);
   const isDark = theme.mode === 'dark';
 
@@ -63,169 +64,143 @@ export default function LoginScreen({ navigation }) {
     setLoading(true);
 
     try {
-      const response = await fetch('https://metrodripjs.onrender.com/login/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: email.trim(),
-          password: password,
-        }),
-      });
-
-      const data = await response.json();
-      console.log('LOGIN RESPONSE:', response.status, data);
-      if (!response.ok) {
-        alert(data.error || 'Invalid email or password.');
-        return;
-      }
-
+      const data = await loginCustomer(email.trim(), password);
       login(data);
       navigation.navigate('Home');
-
     } catch (error) {
       console.error('Login failed:', error);
-      alert('Unable to connect to the server.');
+      if (error instanceof ApiError && error.status > 0) {
+        alert((error.data && error.data.error) || 'Invalid email or password.');
+      } else {
+        alert('Unable to connect to the server.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // Requirement 25 — mobile app must support guest checkout at parity with
-  // web. Skips auth and drops the user straight into the shopping flow.
   const handleContinueAsGuest = () => {
     clearCart();
     logout();
     navigation.navigate('Home', { guest: true });
   };
 
-  const toggleTheme = () => {
-    setMode(isDark ? 'light' : 'dark');
-  };
-
   return (
-    <SafeAreaProvider style={styles.container}>
-      <StatusBar style={isDark ? "light" : "dark"} />
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+
+      {/* Top Navigation Bar with Back Button (Figma 67:9) */}
+      <View style={styles.topNav}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home'))}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <Ionicons name="chevron-back" size={24} color={theme.text} />
+        </TouchableOpacity>
+      </View>
+
       <KeyboardAvoidingView
         style={styles.keyboard}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.main}>
-
-          {/* Insert Header here */}
-          {/* LOGO + DARK MODE TOGGLE */}
-          {/* <View style={styles.topRow}>
-            <View style={styles.logoContainer}>
-              <Text style={styles.logo}>METRODRIP</Text>
-              <Text style={styles.logoSub}>
-                STREETWEAR • FASHION • CULTURE
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={styles.themeToggle}
-              onPress={toggleTheme}
-              accessibilityRole="switch"
-              accessibilityLabel="Toggle dark mode"
-              accessibilityState={{ checked: isDark }}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Text style={styles.themeToggleText}>
-                {isDark ? 'LIGHT' : 'DARK'}
-              </Text>
-            </TouchableOpacity>
-          </View> */}
-
-          {/* HEADER */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: Math.max(insets.bottom, 24) + 16 },
+          ]}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header Title & Subtitle (Figma 67:14 - 67:16) */}
           <View style={styles.header}>
-            <Text style={styles.title}>WELCOME</Text>
-            <Text style={styles.description}>
-              Sign in to continue your MetroDrip journey.
+            <Text style={styles.title}>Welcome</Text>
+            <Text style={styles.subtitle}>
+              Sign in to track orders, save your fits, and check out faster.
             </Text>
           </View>
 
-          {/* Navigation - Sign in and Sign up */}
-          <View style={styles.navigationContainer}>
-            <TouchableOpacity 
-              style={styles.signInBtn}
-              onPress={() => navigation.navigate('Login')}
+          {/* Segmented Switcher - Sign in & Register (Figma 67:17) */}
+          <View style={styles.segmentedContainer}>
+            <TouchableOpacity
+              style={[styles.segmentBtn, styles.segmentBtnActive]}
+              activeOpacity={0.9}
             >
-              <Text style={styles.signInBtnText}>Sign In</Text>
+              <Text style={styles.segmentTextActive}>Sign in</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.registerBtn}
+            <TouchableOpacity
+              style={styles.segmentBtn}
               onPress={() => navigation.navigate('Signup')}
+              activeOpacity={0.7}
             >
-              <Text style={styles.registerBtnText}>Register</Text>
+              <Text style={styles.segmentTextInactive}>Register</Text>
             </TouchableOpacity>
           </View>
 
-          {/* FORM */}
+          {/* Form Fields (Figma EL-f6fb781b) */}
           <View style={styles.form}>
-
-            <Text style={styles.label}>EMAIL</Text>
-            <TextInput
-              style={[styles.input, errors.email && styles.inputError]}
-              placeholder="Enter your email"
-              placeholderTextColor={theme.placeholder}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="next"
-              value={email}
-              onChangeText={(text) => {
-                setEmail(text);
-                if (errors.email) setErrors((e) => ({ ...e, email: null }));
-              }}
-              onSubmitEditing={() => passwordRef.current?.focus()}
-              accessibilityLabel="Email"
-              accessibilityHint="Enter the email address for your account"
-            />
+            {/* EMAIL */}
+            <View style={[styles.fieldCard, errors.email && styles.fieldCardError]}>
+              <Text style={styles.fieldLabel}>EMAIL</Text>
+              <TextInput
+                style={styles.fieldInput}
+                placeholder="juan@email.com"
+                placeholderTextColor={theme.placeholder}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="next"
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  if (errors.email) setErrors((e) => ({ ...e, email: null }));
+                }}
+                onSubmitEditing={() => passwordRef.current?.focus()}
+                accessibilityLabel="Email"
+              />
+            </View>
             {errors.email ? (
               <Text style={styles.errorText} accessibilityRole="alert">
                 {errors.email}
               </Text>
             ) : null}
 
-            <Text style={styles.label}>PASSWORD</Text>
-            <View style={styles.passwordRow}>
-              <TextInput
-                ref={passwordRef}
-                style={[
-                  styles.input,
-                  styles.passwordInput,
-                  errors.password && styles.inputError,
-                ]}
-                placeholder="Enter your password"
-                placeholderTextColor={theme.placeholder}
-                secureTextEntry={!showPassword}
-                returnKeyType="done"
-                value={password}
-                onChangeText={(text) => {
-                  setPassword(text);
-                  if (errors.password)
-                    setErrors((e) => ({ ...e, password: null }));
-                }}
-                onSubmitEditing={handleLogin}
-                accessibilityLabel="Password"
-                accessibilityHint="Enter your account password"
-              />
-              <TouchableOpacity
-                style={styles.showToggle}
-                onPress={() => setShowPassword((v) => !v)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  showPassword ? 'Hide password' : 'Show password'
-                }
-              >
-                <Text style={styles.showToggleText}>
-                  {showPassword ? 'HIDE' : 'SHOW'}
-                </Text>
-              </TouchableOpacity>
+            {/* PASSWORD */}
+            <View style={[styles.fieldCard, errors.password && styles.fieldCardError]}>
+              <Text style={styles.fieldLabel}>PASSWORD</Text>
+              <View style={styles.inputRow}>
+                <TextInput
+                  ref={passwordRef}
+                  style={styles.fieldInput}
+                  placeholder="••••••••••"
+                  placeholderTextColor={theme.placeholder}
+                  secureTextEntry={!showPassword}
+                  returnKeyType="done"
+                  value={password}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    if (errors.password) setErrors((e) => ({ ...e, password: null }));
+                  }}
+                  onSubmitEditing={handleLogin}
+                  accessibilityLabel="Password"
+                />
+                <TouchableOpacity
+                  style={styles.eyeBtn}
+                  onPress={() => setShowPassword((v) => !v)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  <Ionicons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={20}
+                    color={theme.textMuted}
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
             {errors.password ? (
               <Text style={styles.errorText} accessibilityRole="alert">
@@ -233,65 +208,62 @@ export default function LoginScreen({ navigation }) {
               </Text>
             ) : null}
 
+            {/* FORGOT PASSWORD (Figma 67:31) */}
             <TouchableOpacity
               style={styles.forgotButton}
               onPress={() => navigation.navigate('ForgotPassword')}
               accessibilityRole="link"
               accessibilityLabel="Forgot password"
             >
-              <Text style={styles.forgotText}>Forgot Password?</Text>
+              <Text style={styles.forgotText}>Forgot password?</Text>
             </TouchableOpacity>
 
-            {/* LOGIN */}
+            {/* PRIMARY CTA - SIGN IN (Figma 67:33) */}
             <TouchableOpacity
-              style={[styles.loginButton, loading && styles.buttonDisabled]}
+              style={[styles.primaryButton, loading && styles.buttonDisabled]}
               onPress={handleLogin}
               disabled={loading}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel="Log in"
+              accessibilityLabel="Sign in"
               accessibilityState={{ disabled: loading, busy: loading }}
             >
               {loading ? (
                 <ActivityIndicator color={theme.accentText} />
               ) : (
-                <Text style={styles.loginButtonText}>LOGIN</Text>
+                <Text style={styles.primaryButtonText}>Sign in</Text>
               )}
             </TouchableOpacity>
 
-            {/* GUEST CHECKOUT */}
+            {/* "or" DIVIDER (Figma 67:38) */}
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            {/* SECONDARY CTA - CONTINUE AS GUEST (Figma 67:42) */}
             <TouchableOpacity
               style={styles.guestButton}
               onPress={handleContinueAsGuest}
+              activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel="Continue as guest"
             >
-              <Text style={styles.guestButtonText}>CONTINUE AS GUEST</Text>
+              <Text style={styles.guestButtonText}>Continue as guest</Text>
             </TouchableOpacity>
 
+            {/* FOOTNOTE (Figma 67:44) */}
+            <Text style={styles.footnote}>
+              Bought as a guest before? Register with the same email and your past orders come with you.
+            </Text>
           </View>
-
-          {/* SIGN UP */}
-          {/* <View style={styles.bottomContainer}>
-            <Text style={styles.accountText}>Don't have an account?</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-              <Text style={styles.signupText}>CREATE ACCOUNT</Text>
-            </TouchableOpacity>
-          </View> */}
-
-        </View>
-
-        {/* FOOTER BAND */}
-        <View style={styles.footerBand}>
-          <Text style={styles.footer}>BUILT FOR THE STREETS</Text>
-        </View>
-
+        </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaProvider>
+    </SafeAreaView>
   );
 }
 
-// Regenerates the stylesheet whenever the theme changes.
 function useMemoStyles(theme) {
   return React.useMemo(() => makeStyles(theme), [theme]);
 }
@@ -302,222 +274,181 @@ function makeStyles(theme) {
       flex: 1,
       backgroundColor: theme.background,
     },
+    topNav: {
+      height: 52,
+      paddingHorizontal: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+      justifyContent: 'center',
+    },
+    backBtn: {
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'flex-start',
+    },
     keyboard: {
       flex: 1,
-      justifyContent: 'space-between',
     },
-    main: {
-      flex: 1,
+    scrollContent: {
       paddingHorizontal: 24,
-      paddingTop: 25,
-    },
-    topRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      marginBottom: 45,
-    },
-    logoContainer: {},
-    logo: {
-      fontSize: 21,
-      fontWeight: '900',
-      color: theme.text,
-      letterSpacing: -1,
-    },
-    logoSub: {
-      fontSize: 7,
-      fontWeight: '600',
-      color: theme.textMuted,
-      marginTop: 2,
-      letterSpacing: 0.5,
-    },
-    themeToggle: {
-      borderWidth: 1,
-      borderColor: theme.border,
-      borderRadius: 3,
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-    },
-    themeToggleText: {
-      fontSize: 9,
-      fontWeight: '900',
-      color: theme.text,
-      letterSpacing: 0.5,
+      paddingTop: 16,
     },
     header: {
-      marginTop: 70,
-      borderTopWidth: 1,
-      borderTopColor: 'rgb(0,0,0)',
-      marginBottom: 10,
-      paddingTop:30,
+      marginBottom: 16,
     },
     title: {
-      fontSize: 31,
-      fontWeight: '900',
+      fontFamily: fonts.anton,
+      fontSize: 34,
       color: theme.text,
-      letterSpacing: -1,
+      letterSpacing: 0.5,
     },
-    description: {
-      fontSize: 12,
+    subtitle: {
+      fontFamily: fonts.interRegular,
+      fontSize: 14,
+      lineHeight: 20,
       color: theme.textMuted,
-      marginTop: 8,
-      lineHeight: 18,
+      marginTop: 6,
     },
-    navigationContainer: {
+    segmentedContainer: {
       flexDirection: 'row',
-      backgroundColor: 'rgb(244, 244, 242)',
-      borderRadius: 10,
+      alignItems: 'center',
+      backgroundColor: theme.surface,
+      borderRadius: 12,
       padding: 4,
-      width: '100%',
-      marginBottom: 15,
+      height: 46,
+      marginBottom: 18,
     },
-    signInBtn: {
+    segmentBtn: {
       flex: 1,
-      alignItems: 'center',
+      height: 38,
+      borderRadius: 9,
       justifyContent: 'center',
-      borderRadius: 8,
-      paddingVertical: 10,
-      backgroundColor: 'rgb(255, 255, 255)',
+      alignItems: 'center',
     },
-    signInBtnText: {
+    segmentBtnActive: {
+      backgroundColor: theme.card,
+    },
+    segmentTextActive: {
+      fontFamily: fonts.interSemiBold,
       fontSize: 14,
-      fontFamily: fonts.interBold,
       color: theme.text,
-      textAlign: 'center',
     },
-    registerBtnText: {
+    segmentTextInactive: {
+      fontFamily: fonts.interSemiBold,
       fontSize: 14,
-      fontFamily: fonts.interBold,
       color: theme.textMuted,
-      textAlign: 'center',
-    },
-    registerBtn: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: 8,
-      paddingVertical: 10,
     },
     form: {
       width: '100%',
     },
-    label: {
-      fontSize: 10,
-      // fontWeight: '900',
-      fontFamily:fonts.interBold,
-      color: theme.label,
-      marginBottom: 8,
-      letterSpacing: 0.5,
-    },
-    input: {
-      height: 52,
-      backgroundColor: theme.surface,
+    fieldCard: {
+      backgroundColor: theme.card,
       borderWidth: 1,
       borderColor: theme.border,
-      borderRadius: 5,
+      borderRadius: 10,
       paddingHorizontal: 14,
-      fontSize: 13,
-      color: theme.text,
-      marginBottom: 20,
+      paddingTop: 9,
+      paddingBottom: 9,
+      marginBottom: 12,
     },
-    inputError: {
+    fieldCardError: {
       borderColor: theme.error,
-      marginBottom: 6,
+    },
+    fieldLabel: {
+      fontFamily: fonts.monoRegular,
+      fontSize: 9,
+      letterSpacing: 0.8,
+      color: theme.label,
+      marginBottom: 3,
+    },
+    fieldInput: {
+      fontFamily: fonts.interRegular,
+      fontSize: 14,
+      color: theme.text,
+      height: 24,
+      padding: 0,
+    },
+    inputRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    eyeBtn: {
+      paddingLeft: 10,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     errorText: {
-      fontSize: 10,
-      fontWeight: '700',
+      fontFamily: fonts.interRegular,
+      fontSize: 11,
       color: theme.error,
-      marginBottom: 14,
-    },
-    passwordRow: {
-      position: 'relative',
-      justifyContent: 'center',
-    },
-    passwordInput: {
-      paddingRight: 60,
-    },
-    showToggle: {
-      position: 'absolute',
-      right: 14,
-      top: 0,
-      height: 52,
-      justifyContent: 'center',
-    },
-    showToggleText: {
-      fontSize: 9,
-      fontWeight: '900',
-      color: theme.textMuted,
-      letterSpacing: 0.5,
+      marginTop: -6,
+      marginBottom: 10,
+      paddingHorizontal: 4,
     },
     forgotButton: {
       alignSelf: 'flex-end',
-      marginTop: -8,
-      marginBottom: 25,
+      marginTop: 2,
+      marginBottom: 16,
     },
     forgotText: {
-      fontSize: 10,
-      fontWeight: '700',
-      color: theme.textMuted,
+      fontFamily: fonts.interMedium,
+      fontSize: 13,
+      color: theme.link,
     },
-    loginButton: {
-      height: 53,
+    primaryButton: {
+      height: 54,
+      borderRadius: 9999,
       backgroundColor: theme.accent,
-      borderRadius: 3,
       justifyContent: 'center',
       alignItems: 'center',
-      borderRadius:25,
+      marginTop: 4,
     },
     buttonDisabled: {
       opacity: 0.7,
     },
-    loginButtonText: {
-      fontSize: 12,
-      fontWeight: '900',
+    primaryButtonText: {
+      fontFamily: fonts.interBold,
+      fontSize: 16,
       color: theme.accentText,
-      letterSpacing: 1,
+    },
+    dividerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginVertical: 18,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: theme.border,
+    },
+    dividerText: {
+      fontFamily: fonts.interRegular,
+      fontSize: 12,
+      color: theme.textMuted,
+      marginHorizontal: 12,
     },
     guestButton: {
-      height: 48,
-      borderRadius:25,
-      borderWidth: 1,
-      borderColor: theme.border,
+      height: 52,
+      borderRadius: 9999,
+      backgroundColor: theme.surface,
       justifyContent: 'center',
       alignItems: 'center',
-      marginTop: 12,
-      
     },
     guestButtonText: {
-      fontSize: 11,
-      fontWeight: '900',
+      fontFamily: fonts.interSemiBold,
+      fontSize: 15,
       color: theme.text,
-      letterSpacing: 0.8,
     },
-    bottomContainer: {
-      alignItems: 'center',
-      marginTop: 30,
-    },
-    accountText: {
-      fontSize: 11,
+    footnote: {
+      fontFamily: fonts.interRegular,
+      fontSize: 12,
+      lineHeight: 18,
       color: theme.textMuted,
-      marginBottom: 7,
-    },
-    signupText: {
-      fontSize: 11,
-      fontWeight: '900',
-      color: theme.text,
-      textDecorationLine: 'underline',
-    },
-    footerBand: {
-      backgroundColor: theme.footerBg,
-      paddingVertical: 14,
-      paddingHorizontal: 24,
-    },
-    footer: {
-      fontSize: 9,
-      fontWeight: '900',
-      color: theme.footerText,
-      letterSpacing: 0.5,
+      textAlign: 'center',
+      marginTop: 18,
+      paddingHorizontal: 12,
     },
   });
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 import {
   StyleSheet,
@@ -20,10 +20,13 @@ import { colors, fonts } from '../Checkout/src/theme';
 import AdaptHeader from '../components/AdaptHeader';
 import Footer from '../components/Footer';
 
+import { getOrders } from '../../src/services/orderService';
+
 
 
 export default function OrderHistory({navigate}) {
   
+  const navigation = useNavigation();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const fixedOrders= new Array(2); 
@@ -31,14 +34,9 @@ export default function OrderHistory({navigate}) {
 
   useFocusEffect(
     useCallback(() => {
-      fetch('http://10.0.2.2:8000/orders/', {
-          headers: {
-            'X-Customer-ID': '1',
-          },
-        })
-        .then(response => response.json())
+      getOrders()
         .then(data => {
-          setOrders(data);
+          setOrders(Array.isArray(data) ? data : []);
           setLoading(false);
         })
         .catch(error => {
@@ -65,7 +63,7 @@ export default function OrderHistory({navigate}) {
             <TouchableOpacity
               key={order.id}
               style={styles.orderCard}
-              onPress={() => {}}
+              onPress={() => navigation.navigate('OrderTracking', { orderId: order.id })}
             >
               <View>
                 <Text style={styles.orderNumber}>
@@ -101,7 +99,7 @@ export default function OrderHistory({navigate}) {
               ))
             )}
         </ScrollView>
-        <Footer/>
+        <Footer active="Orders"/>
       </View>
       {/* <Footer/> */}
     </SafeAreaProvider>
@@ -111,7 +109,7 @@ export default function OrderHistory({navigate}) {
 const styles = StyleSheet.create({
   screen: {
     height: '100%',
-    weight: '100%',
+    width: '100%',
     backgroundColor: 'rgb(255, 255, 255)',
   },
 

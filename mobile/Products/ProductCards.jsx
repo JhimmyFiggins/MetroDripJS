@@ -4,27 +4,31 @@ import { productService } from '../../src/services/productService';
 import { fonts } from '../Checkout/src/theme';
 import { useNavigation } from '@react-navigation/native'; // Import navigation hook
 
-const API_URL = 'https://metrodripjs.onrender.com/products/';
-
-export default function ProductCards({ selectedCategory, onSelectProduct }) {
+export default function ProductCards({ selectedCategory, onSelectProduct, products: productsProp }) {
     const navigation = useNavigation();
 
+    // When the parent passes `products`, it owns fetching/filtering (Shop).
+    // Otherwise keep the legacy self-fetch behavior (Home).
+    const isControlled = Array.isArray(productsProp);
+
     const [productList, setProductList] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(!isControlled);
     const [error, setError] = useState(null);
+
+    const sourceProducts = isControlled ? productsProp : productList;
 
     let filteredProducts;
 
     // Add new arrivals and trending logic here
-    if (selectedCategory) {
+    if (!isControlled && selectedCategory) {
         if(selectedCategory === 1){ //Default Category - All
-            filteredProducts = productList;
+            filteredProducts = sourceProducts;
         }else{
-            filteredProducts = productList.filter(product => 
+            filteredProducts = sourceProducts.filter(product =>
             product.category === selectedCategory);
         }
     } else {
-        filteredProducts = productList;
+        filteredProducts = sourceProducts;
     }
     const formatPrice = price => {
         return `₱${price.toLocaleString('en-PH', {
@@ -34,13 +38,11 @@ export default function ProductCards({ selectedCategory, onSelectProduct }) {
     
 
     useEffect(() => {
+        if (isControlled) return; // Parent (Shop) owns fetching.
+
         const fetchProducts = async () => {
             try {
-                const response = await fetch(API_URL);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status}`);
-                }
-                const data = await response.json();
+                const data = await productService.getAllProducts();
                 setProductList(data);
             } catch (err) {
                 setError(err.message);
@@ -50,9 +52,9 @@ export default function ProductCards({ selectedCategory, onSelectProduct }) {
         };
 
         fetchProducts();
-    }, []);
+    }, [isControlled]);
 
-    if (loading) {
+    if (!isControlled && loading) {
         return (
             <View style={styles.container}>
                 <ActivityIndicator size="large" />
@@ -60,7 +62,7 @@ export default function ProductCards({ selectedCategory, onSelectProduct }) {
         );
     }
 
-    if (error) {
+    if (!isControlled && error) {
         return (
             <View style={styles.container}>
                 <Text>Error loading products: {error}</Text>
