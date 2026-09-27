@@ -186,3 +186,69 @@ Open:
 1. **Unstyled page or missing ring graphic**: the server root is not `web/`. Paths such as `../../assets/deco-ring.svg` need `web/` as root.
 2. **Theme does not persist**: the browser is blocking site storage (private window). The theme still switches for the current page.
 3. **Port 8765 in use**: pick another port, e.g. `python3 -m http.server 8080 -d web`.
+
+---
+
+## Microservices Architecture & Execution
+
+MetroDripJS backend is decomposed into **five independently deployable Django services** and an API Gateway with dedicated private databases, zero cross-service ORM imports, and snapshot-based boundary contracts.
+
+### Service Matrix & Ports
+
+| Service | Port | Database | Primary Responsibility | Directory |
+| --- | --- | --- | --- | --- |
+| **API Gateway** | `8000` | N/A (Edge) | Reverse proxy, path routing, `X-Correlation-ID` injection | `gateway/` |
+| **Identity** | `8001` | `db_identity` | Accounts, PBKDF2 password hashing, AuthTokens, RBAC | `services/identity/` |
+| **Catalog** | `8002` | `db_catalog` | Categories, products, variants, quotes, stock reservations | `services/catalog/` |
+| **Orders** | `8003` | `db_orders` | COD saga orchestration, immutable snapshots, outbox, reviews | `services/orders/` |
+| **Fulfillment** | `8004` | `db_fulfillment` | Shipping quotes, zones, shipments, notifications | `services/fulfillment/` |
+| **Content** | `8005` | `db_content` | Homepage banners, contact inquiries, CMS | `services/content/` |
+
+### Running Locally (All Services + Gateway)
+
+You can launch and verify all 5 microservices plus the API Gateway simultaneously with the automated orchestrator:
+
+```powershell
+# Run the automated end-to-end integration verifier
+metrodrip_backend\.venv\Scripts\python.exe scripts\verify_microservices_e2e.py
+```
+
+To run individual services manually:
+
+```powershell
+# Terminal 1: Identity Service
+cd services\identity
+..\..\metrodrip_backend\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8001 --noreload
+
+# Terminal 2: Catalog Service
+cd services\catalog
+..\..\metrodrip_backend\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8002 --noreload
+
+# Terminal 3: Orders Service
+cd services\orders
+..\..\metrodrip_backend\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8003 --noreload
+
+# Terminal 4: Fulfillment Service
+cd services\fulfillment
+..\..\metrodrip_backend\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8004 --noreload
+
+# Terminal 5: Content Service
+cd services\content
+..\..\metrodrip_backend\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8005 --noreload
+
+# Terminal 6: API Gateway
+python gateway\gateway.py
+```
+
+### Production Deployment via Docker Compose
+
+A complete production multi-container environment with PostgreSQL 16 (isolated role-per-database), all 5 microservices, and Nginx edge gateway is defined in `docker-compose.microservices.yml`:
+
+```sh
+# Start all microservices, isolated PostgreSQL databases, and edge gateway
+docker compose -f docker-compose.microservices.yml up --build -d
+
+# Verify all services report healthy
+curl -i http://localhost:8000/health/
+```
+
