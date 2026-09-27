@@ -1,6 +1,6 @@
 # AIO.md — Master Router and Shared Controls
 
-Revision: 1.8.0 · Updated: 2026-09-27  
+Revision: 1.10.0 · Updated: 2026-09-27  
 Companion: [AGENTS.md](AGENTS.md) · Directives: [Project-Operating-Directives.md](Project-Operating-Directives.md)  
 Integration: Anti-Slop upstream `HEAD` · Plannable upstream `HEAD` · watermarks-remover upstream `HEAD` · package skills `prompt-enhancer` + `industry-terms-translator`
 
@@ -31,6 +31,10 @@ If `AI Skills/` does not exist at the working root:
 4. Continue routing. Do not stop the task solely because the folder was missing.
 
 If a required specialist file is missing inside `AI Skills/`, refer to the repository instructions above to scaffold it. If unavailable, state that the specialist is unavailable and complete the work with labeled assumptions rather than inventing the missing contract.
+
+### Project Guidelines directory for development workspaces
+
+Apply [AGENTS.md's Project Guidelines guidance](AGENTS.md#project-guidelines-folder) only when the workspace project warrants durable project-specific records or the user requests them. Assess relevance on new and existing projects; do not require the folder or all seven pages by default. When applicable, recover missing, empty, corrupt, or template-only **relevant** pages from the [canonical templates](https://github.com/SecretlySpy/Tweaks-Configurations-Troubleshooting/tree/main/AI%20Configs/Project%20Guidelines), using bundled copies first and filling them from inspected project evidence. Merge valid existing records and relevant user uploads without inventing facts. The folder contains project records, not another specialist; Coding Companion and AGENTS.md own engineering delivery. Report blocked writes without claiming completion.
 
 ---
 
