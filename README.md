@@ -171,8 +171,10 @@ Detailed, verified technical specifications based on [AGENTS.md](AGENTS.md) are 
 
 1. [Plan and Goals](Project%20Guidelines/Plan%20and%20Goals.md) — Scope, personas, non-goals, functional/non-functional requirements, milestones, and risk register.
 2. [Design Prototype](Project%20Guidelines/Design%20Prototype.md) — User journeys (M01–M08), Figma canvas bindings, design tokens (Volt/Ink/Paper), adaptive responsive layouts, and WCAG standards.
-3. [Database Structure](Project%20Guidelines/Database Structure.md) — 5 isolated database schemas (`db_identity`, `db_catalog`, `db_orders`, `db_fulfillment`, `db_content`), elimination of cross-boundary foreign keys, immutable purchase snapshots, and PostgreSQL 16 configs.
+3. [Database Structure](Project%20Guidelines/Database%20Structure.md) — 5 isolated database schemas (`db_identity`, `db_catalog`, `db_orders`, `db_fulfillment`, `db_content`), elimination of cross-boundary foreign keys, immutable purchase snapshots, and PostgreSQL 16 configs.
 4. [Backend Functionalities](Project%20Guidelines/Backend%20Functionalities.md) — Full API contract matrix, PBKDF2 authentication, orchestrated COD Checkout Saga, expiring stock holds (600s TTL), and outbox event streaming.
 5. [Architecture and Operations](Project%20Guidelines/Architecture%20and%20Operations.md) — Container topology, port allocations (8000–8005), Docker Compose deployment, Nginx edge routing, and operational runbooks.
 6. [Verification and Evaluation](Project%20Guidelines/Verification%20and%20Evaluation.md) — Test execution commands, 46/46 unit tests passing matrix, 5-phase E2E saga verification, and negative test evidence.
 7. [Decisions and Handover](Project%20Guidelines/Decisions%20and%20Handover.md) — Architecture Decision Records (ADR-01 to ADR-06), resume snapshot, exact file paths, and cold-start continuation instructions.
+8. [AI Documentation Notes](Project%20Guidelines/AI%20Documentation%20Notes.md) — Compact retrieval map for locating authoritative project knowledge.
+9. [Tech Stack Setup Guide](Project%20Guidelines/Tech%20Stack%20Setup%20Guide.md) — Local setup, service launch, and troubleshooting guidance, with an [interactive companion](Project%20Guidelines/tech-stack-setup.html).

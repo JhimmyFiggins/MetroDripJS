@@ -5,12 +5,17 @@ node_modules/
 
 # Python test artifacts (tracked bytecode still requires explicit cleanup)
 __pycache__/
+*.py[cod]
 .pytest_cache/
+.venv/
+venv/
 
 # Expo
 .expo/
 dist/
 web-build/
+web/_expo/
+web/metadata.json
 expo-env.d.ts
 
 # Native

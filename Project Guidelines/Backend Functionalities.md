@@ -142,7 +142,6 @@ Client App                   Orders Service                 Catalog Service     
 If a customer reserves stock but closes their browser without completing checkout, reservations naturally expire after 10 minutes (600s TTL).
 
 - **Command**: `services/catalog/manage.py release_expired_holds`
-- **Standalone Runner**: [scripts/sweep_expired_holds.py](file:///a:/Users/Archim%20Pameroyan/Documents/GitHub/MetroDripJS/scripts/sweep_expired_holds.py)
 - **Behavior**: Queries `catalog_stockhold` for `status="held"` and `expires_at <= NOW()`, transitions them to `released`, and logs audit metrics.
 - **Production Schedule**: Configured as a cron task executing every 60 seconds.
 

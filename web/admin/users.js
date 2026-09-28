@@ -264,6 +264,7 @@
       if (modal) {
         modal.hidden = true;
         form?.reset();
+        openBtn?.focus();
       }
     };
 
@@ -273,6 +274,25 @@
 
     modal?.addEventListener('click', (e) => {
       if (e.target === modal) closeModal();
+    });
+
+    modal?.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+      } else if (e.key === 'Tab') {
+        const controls = Array.from(modal.querySelectorAll('button, input, select, textarea'))
+          .filter(control => !control.disabled);
+        if (!controls.length) return;
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     });
 
     form?.addEventListener('submit', (e) => {

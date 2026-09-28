@@ -1,6 +1,6 @@
 # Verification and Evaluation
 
-> Current authority: [QA Report 2026-09-27](QA%20Report%202026-09-27.md). Release is **HOLD**, not fully verified. The sections below are historical migration notes and their readiness, security, concurrency and E2E claims are not current evidence.
+> Current authority: [QA Report 2026-09-28](QA%20Report%202026-09-28.md), with the [previous QA report](QA%20Report%202026-09-27.md) retaining its unresolved coverage matrix. Release is **HOLD**, not fully verified. The sections below are historical migration notes and their readiness, security, concurrency and E2E claims are not current evidence.
 
 **Status:** Fully Verified & Executed Test Evidence  
 **Project:** MetroDripJS Urban Streetwear E-Commerce Platform  
@@ -78,7 +78,7 @@ metrodrip_backend\.venv\Scripts\python.exe gateway\test_gateway_routing.py
 
 ## 3. End-to-End Integration Suite (`verify_microservices_e2e.py`)
 
-The end-to-end integration test runner ([scripts/verify_microservices_e2e.py](file:///a:/Users/Archim%20Pameroyan/Documents/GitHub/MetroDripJS/scripts/verify_microservices_e2e.py)) validates cross-service distributed workflows against live running servers:
+The end-to-end integration test runner ([scripts/verify_microservices_e2e.py](../scripts/verify_microservices_e2e.py)) validates cross-service distributed workflows against live running servers:
 
 - **Phase 1: Gateway Routing & Aggregated Health Verification**
   - Sends requests to `http://localhost:8000/health/` and individual path prefixes (`/api/v1/auth/`, `/api/v1/catalog/`, `/api/v1/orders/`, `/api/v1/fulfillment/`, `/api/v1/content/`).
@@ -102,7 +102,7 @@ The end-to-end integration test runner ([scripts/verify_microservices_e2e.py](fi
 - **Phase 5: Merchant Console Live Parity**
   - Queries `GET /api/merchant/orders/` using merchant Bearer token.
   - Confirms the newly placed order is present with full snapshot details.
-  - Verifies all legacy mock orders were purged from [web/merchant/orders.js](file:///a:/Users/Archim%20Pameroyan/Documents/GitHub/MetroDripJS/web/merchant/orders.js).
+  - Verifies all legacy mock orders were purged from [web/merchant/orders.js](../web/merchant/orders.js).
 
 ---
 
@@ -126,3 +126,32 @@ The end-to-end integration test runner ([scripts/verify_microservices_e2e.py](fi
   - Verified single-column mobile layout with sticky safe payment footer on 320px and 390px viewports.
   - Verified 44×44px touch targets on all interactive elements.
   - Verified visible inline error text and `aria-invalid="true"` attributes.
+
+---
+
+## 6. Repository Cleanup Verification — 2026-09-28
+
+The [cleanup manifest](Decisions%20and%20Handover.md#5-repository-cleanup-record--2026-09-28) was checked against the final working tree. These results verify the cleanup scope only; they do not change the release **HOLD** status or close the QA report's production, native-device, PostgreSQL, staff-session, or automatic outbox/reconciliation gaps.
+
+| Check | Observed result | Status |
+| --- | --- | --- |
+| `npm run test:client` | 114 tests passed, 0 failed after the legacy-runtime guard was narrowed to ignore only deleted bytecode and the known empty `inspectdb` stub. Node emitted the existing module-type warning. | PASS |
+| Identity service tests | 19 passed against an in-memory SQLite test database. | PASS |
+| Catalog service tests | 21 passed against an in-memory SQLite test database. | PASS |
+| Orders service tests | 28 passed against an in-memory SQLite test database. | PASS |
+| Fulfillment service tests | 18 passed against an in-memory SQLite test database. | PASS |
+| Content service tests | 19 passed against an in-memory SQLite test database. | PASS |
+| Gateway unit/HTTP tests | 17 passed. | PASS |
+| E2E safety tests | 4 passed. | PASS |
+| `scripts/verify_microservices_e2e.py` | All 5 isolated API integration phases passed; child services terminated cleanly. Automatic outbox delivery/reconciliation remains explicitly unverified. | PASS with stated gap |
+| Python source compilation in memory | 191 retained `.py` files compiled with 0 syntax errors; no bytecode was written. | PASS |
+| Relative JavaScript import resolution | 160 relative imports across 87 JS/JSX/MJS/TS/TSX files resolved to retained files. | PASS |
+| Local documentation links | 38 Markdown files checked with 0 missing local targets; 0 `file:///A:/...` links remain. | PASS |
+| Static HTML asset pointers | 19 HTML files checked with 0 missing local `href`/`src` targets. | PASS |
+| Python dependency consistency | `python -m pip check` reported no broken requirements. | PASS |
+| Node lockfile/dependency resolution | `npm ci --dry-run --ignore-scripts` completed successfully without installing packages or changing the lockfile. | PASS |
+| Compose parse | `docker compose -f docker-compose.microservices.yml config --quiet` exited 0; Compose warned that the top-level `version` attribute is obsolete. | PASS with warning |
+| Whitespace/error check | `git diff --check` passed for the cleanup change set when the three pre-existing governance-file edits were excluded. The full worktree check still reports their intentional Markdown line-break whitespace. | PASS for cleanup scope |
+| Generated cache scan | 0 `__pycache__` or `.pytest_cache` directories remain outside `.venv`, `.git`, and the untouched nested `.kilo/worktrees` state. | PASS |
+
+Automated total: **240 tests passed** across client, five services, gateway, and E2E safety suites, plus the five live isolated-service integration phases. Browser layout automation, native Expo builds/devices, live PostgreSQL behavior, and production deployment were not rerun for this structural-only cleanup.

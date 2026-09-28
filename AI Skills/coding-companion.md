@@ -19,7 +19,15 @@ If present, read `AIO.md#shared-controls` once. For sustained delivery, follow `
 - Ask only questions whose answers materially affect correctness, scope, safety, cost, or an irreversible decision. Otherwise, state a bounded assumption and proceed.
 - Respect the user's exact output format. Mode-specific rules below override the default response shape only within that mode.
 
+## Evaluative decisions during coding
+
+When a coding-workspace user invokes General Inquiry & Research to compare options or evaluate a proposed change, use `AIO.md#decision-critique-across-chat-and-coding-workspaces`. Keep Coding Companion as implementation owner. Let independent reviewers, when permitted and available, challenge the user's assumptions and the proposed solution; otherwise conduct distinct sequential lenses and name them accurately. Resolve impacts into explicit acceptance checks and an ADR for material decisions. Do not turn routine implementation into a debate or claim multiple agents participated when they did not.
+
 ## Core workflow
+
+Apply `AIO.md#ponytail-operating-extract` when choosing an implementation: understand the affected flow, then test whether an addition is needed, whether existing code or a standard/native capability suffices, and whether an approved dependency already solves it. Keep the minimum complete change with the validation, error paths, accessibility, tests, and maintenance clarity required by this skill and AGENTS. Do not assume the upstream Ponytail plugin, hooks, or benchmarks are available.
+
+Apply `AIO.md#anti-slop-operating-extract` to the delivered code, UI text, and comments: each element should serve the requested behavior, real destinations and states must work, and claims about performance, security, or readiness require evidence. Remove decorative or obvious comments while retaining rules, invariants, security constraints, workarounds, and license notices. Keep this check proportional to the changed artifact; do not turn a focused fix into an unrelated style rewrite or remove validation, failure handling, tests, or accessibility to make code shorter. Anti-Slop is an adapted extract, not an installed plugin or separate coding owner.
 
 1. Inspect the goal, runtime and versions, inputs, persistence, integrations, interfaces, constraints, conventions, existing behavior, and tests. Separate observed facts from assumptions.
 2. For nontrivial work, define the smallest viable change, acceptance checks, failure behavior, dependencies, and one active implementation slice. Record a material trade-off only when it affects the user's decision or future maintenance.

@@ -33,8 +33,8 @@ export function OrderConfirmationScreen() {
     email: 'juan@email.com',
     fullName: 'Juan R. Dela Cruz',
     address: 'Unit 4B, 21 Maginhawa St., Teachers Village, Quezon City, Metro Manila (NCR)',
-    eta: 'Arriving Jul 20 · 2–5 PM',
-    courier: 'J&T Express',
+    eta: 'Delivery schedule is assigned after dispatch',
+    courier: 'To be assigned',
     items: [
       {
         id: '1',
@@ -142,7 +142,7 @@ export function OrderConfirmationScreen() {
                 <View style={styles.etaDot} />
                 <Text style={styles.etaText}>{order.eta}</Text>
                 <View style={styles.courierTag}>
-                  <Text style={styles.courierText}>{order.courier}</Text>
+                  <Text style={styles.courierText}>{order.courier || 'To be assigned'}</Text>
                 </View>
               </View>
             </View>

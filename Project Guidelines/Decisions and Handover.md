@@ -24,7 +24,7 @@
 ## 2. Resume Snapshot
 
 - **Date & Environment**: 2026-09-27 | Local Development (`Windows 11`, Python 3.11 Virtual Environment, SQLite per service) & Production Docker Compose (`PostgreSQL 16`, Nginx).
-- **Current Status**: Release HOLD. [Current QA report](QA%20Report%202026-09-27.md) supersedes historical test counts and zero-blocker claims in this document. Staff sessions and event/reconciliation automation remain incomplete; native and PostgreSQL verification are blocked.
+- **Current Status**: Release HOLD. [Current QA report](QA%20Report%202026-09-28.md) and its [predecessor](QA%20Report%202026-09-27.md) supersede historical test counts and zero-blocker claims in this document. Add User keyboard dismissal is fixed, but staff sessions, demo-on-error state, and event/reconciliation automation remain incomplete; native and PostgreSQL verification are blocked.
 - **Repository Location**: `A:\Users\Archim Pameroyan\Documents\GitHub\MetroDripJS`
 
 ### Completed Deliverables and Exact File Paths
@@ -57,23 +57,26 @@ MetroDripJS/
 │   └── init_microservices_postgresql.sql   # PostgreSQL 16 multi-database provisioning
 ├── docker-compose.microservices.yml        # Multi-container orchestration spec
 ├── scripts/
-│   ├── verify_microservices_e2e.py         # 5-phase automated E2E integration test suite
-│   └── sweep_expired_holds.py              # Standalone stock hold sweeper runner
+│   └── verify_microservices_e2e.py         # 5-phase automated E2E integration test suite
 ├── web/merchant/
 │   ├── orders.html                         # Merchant orders console UI
 │   └── orders.js                           # Dynamic API wiring (fake fallbacks removed)
 ├── src/services/
 │   └── apiClient.js                        # Client API adapter with Bearer token injection
 ├── README.md                               # Microservices Architecture & Engineering Handbook
-├── Tech Stack Setup Guide.md               # Infrastructure & environment deployment guide
 └── Project Guidelines/                     # Canonical project documentation (AGENTS.md)
+    ├── AI Documentation Notes.md            # Compact retrieval index
     ├── Plan and Goals.md
     ├── Design Prototype.md
     ├── Database Structure.md
     ├── Backend Functionalities.md
     ├── Architecture and Operations.md
     ├── Verification and Evaluation.md
-    └── Decisions and Handover.md
+    ├── Decisions and Handover.md
+    ├── QA Report 2026-09-27.md
+    ├── QA Report 2026-09-28.md
+    ├── Tech Stack Setup Guide.md            # Infrastructure & environment deployment guide
+    └── tech-stack-setup.html                # Interactive setup companion
 ```
 
 ---
@@ -108,7 +111,7 @@ To resume development, spin up the environment, or run verification tests from a
    metrodrip_backend\.venv\Scripts\python.exe scripts\verify_microservices_e2e.py
    ```
 2. **Start Services for Active Development**:
-   Follow [Architecture and Operations.md](file:///a:/Users/Archim%20Pameroyan/Documents/GitHub/MetroDripJS/Project%20Guidelines/Architecture%20and%20Operations.md#4-operational-runbooks) Runbook 2 to launch services on ports `8000`–`8005`.
+   Follow [Architecture and Operations.md](Architecture%20and%20Operations.md#4-operational-runbooks) Runbook 2 to launch services on ports `8000`–`8005`.
 3. **Launch Production Containerized Stack**:
    ```sh
    docker compose -f docker-compose.microservices.yml up --build -d
@@ -118,3 +121,85 @@ To resume development, spin up the environment, or run verification tests from a
    - Run hold sweeper every 60 seconds in production: `python manage.py release_expired_holds`.
    - All monetary changes must strictly adhere to the whole Philippine Peso integer standard (ADR-03).
    - No direct ORM imports or database-level foreign keys across microservice boundaries (ADR-02).
+
+---
+
+## 5. Repository Cleanup Record — 2026-09-28
+
+### Scope and decision
+
+The cleanup preserved application logic, active UI files, endpoints, schemas, migrations, databases, configuration mappings, design-source artifacts, and local environments. A path was removed only when direct inspection established that it was generated, unreferenced by the active entry graph, superseded by an authoritative source, or an obsolete archive already recoverable from Git history.
+
+Result: 316 tracked cleanup files (5,848,530 bytes / 5.58 MiB) and 11 ignored cache directories were removed. The two additional tracked deletions shown by Git are the pre-existing documentation relocations described below.
+
+The two root documentation moves were already present as uncommitted user work when this cleanup began. Their destination copies were verified line-for-line before references were updated:
+
+- `AI Documentation Notes.md` → `Project Guidelines/AI Documentation Notes.md`; the destination was then condensed into the required retrieval-only index.
+- `Tech Stack Setup Guide.md` → `Project Guidelines/Tech Stack Setup Guide.md`; content was preserved unchanged.
+- `Project Guidelines/tech-stack-setup.html` was retained as the setup guide's interactive companion.
+
+### Deletion manifest
+
+| Removed path or exact path class | Count | Evidence and impact |
+| --- | ---: | --- |
+| `**/__pycache__/*.pyc` from the cache roots listed below | 303 tracked files | Interpreter-specific bytecode for Python 3.12, 3.14, and 3.15; ignored and regenerated from retained `.py` sources. |
+| Eleven ignored cache directories listed below | 11 directories | Untracked `.pyc`/pytest state only; regenerated by Python or pytest. |
+| `.idea/caches/deviceStreaming.xml` | 1 file | Machine-local IDE device-streaming cache; no build/runtime reference. |
+| `App copy.js`, `Appa.js` | 2 files | Superseded root prototypes; `index.js` imports only `App.js`. |
+| `mobile/Orders/OrderHistory copy.jsx`, `mobile/Products/ProductDetails copy.jsx`, `mobile/Checkout/src/screens/CheckoutScreen2.jsx` | 3 files | Older alternates absent from `mobile/navigation/AppNavigator.jsx` and all import searches. |
+| `metrodrip_backend.zip`, `metrodrip_backend (2).zip` | 2 files | Historical source snapshots duplicating older tracked backend content; unused by scripts/builds and recoverable from Git history. |
+| `metrodrip_backend/models_existing.py` | 1 file | Unreferenced, incomplete Django `inspectdb` stub encoded as UTF-16; it contained no model class and could not be parsed as Python source. |
+| `web/_expo/static/js/web/index-0fa32d492e34ece9057127791a120421.js`, `index-7d96f73b742d709303dd172293131cb7.js`, `index-8ea306153b74a113cc54dbf4fa5e1c7c.js` | 3 files | Orphaned Expo exports. No HTML references them; `web/index.html` is the current static console portal. |
+| `web/metadata.json` | 1 file | Empty metadata for the removed Expo export; no consumer. |
+
+Tracked Python cache roots removed in full:
+
+```text
+gateway/__pycache__
+metrodrip_backend/{catalog,content,fulfillment,identity,metrodrip_backend,orders}/__pycache__
+metrodrip_backend/{catalog,content,fulfillment,identity,orders}/migrations/__pycache__
+metrodrip_backend/identity/management/commands/__pycache__
+services/catalog/catalog/{__pycache__,management/__pycache__,management/commands/__pycache__,migrations/__pycache__,tests/__pycache__}
+services/catalog/catalog_service/__pycache__
+services/content/content/{__pycache__,management/commands/__pycache__,migrations/__pycache__,tests/__pycache__}
+services/content/content_service/__pycache__
+services/fulfillment/fulfillment/{__pycache__,management/__pycache__,management/commands/__pycache__,migrations/__pycache__,tests/__pycache__}
+services/fulfillment/fulfillment_service/__pycache__
+services/identity/identity/{__pycache__,management/__pycache__,management/commands/__pycache__,migrations/__pycache__,tests/__pycache__}
+services/identity/identity_service/__pycache__
+services/orders/orders/{__pycache__,management/__pycache__,management/commands/__pycache__,migrations/__pycache__,tests/__pycache__}
+services/orders/orders_service/__pycache__
+```
+
+Ignored cache directories removed after an exact `git clean -ndX` preview:
+
+```text
+gateway/__pycache__
+services/catalog/.pytest_cache
+services/catalog/catalog/tests/__pycache__
+services/content/.pytest_cache
+services/content/content/tests/__pycache__
+services/fulfillment/.pytest_cache
+services/fulfillment/fulfillment/__pycache__
+services/fulfillment/fulfillment/tests/__pycache__
+services/identity/.pytest_cache
+services/identity/identity/tests/__pycache__
+web/__pycache__
+```
+
+### Preventive rules and retained candidates
+
+- `.gitignore` now covers `*.py[cod]`, common virtual-environment directories, and the removed `web/_expo/` export metadata. `.idea/.gitignore` now covers IDE cache state.
+- Root and `Project Guidelines/` documentation references now target the canonical in-folder setup/index files. Machine-specific `file:///A:/...` links were replaced with portable repository-relative paths, and stale references to the nonexistent `scripts/sweep_expired_holds.py` were removed in favor of the retained catalog management command.
+- `AI Skills/*.md` links to the root router now use `../AIO.md`; the obsolete `personal-style.md` link now targets AIO's embedded style contract.
+- `tests/client/checkoutScreenInvariants.test.mjs` still rejects changes to legacy runtime sources. Its Git-status filter now permits only deleted `__pycache__/*.pyc` files and `metrodrip_backend/models_existing.py`, the verified empty `inspectdb` stub. This repaired the cleanup-specific false positive without broadening the runtime exception.
+- `metrodrip_backend/.venv/` remains local because the documented test workflow depends on it; it is ignored and reproducible.
+- All SQLite databases, the monolith baseline backup, schemas, and migrations remain because they are protected data/state artifacts under the requested scope.
+- `figma_node.json`, `figma_summary.txt`, `parse_figma.js`, and `web/consoles_figma_texts.json` remain because existing design documentation identifies them as source/reference artifacts; no provenance-preserving migration target was established.
+- `.idea/runConfigurations/`, `.vscode/`, `.claude/`, `.kilo/skills/`, `CLAUDE.md`, and `GEMINI.md` remain because they provide active developer/agent entry points. The nested ignored `.kilo/worktrees/` state was not modified.
+
+### Recovery
+
+Tracked removals can be restored from the preceding Git revision. Ignored cache directories are recreated by the relevant test/runtime tools. No history rewrite, commit, push, database mutation, migration, or deployment was performed.
+
+Verification evidence, including the initial guard failure and the successful rerun, is recorded in [Verification and Evaluation](Verification%20and%20Evaluation.md#6-repository-cleanup-verification--2026-09-28).

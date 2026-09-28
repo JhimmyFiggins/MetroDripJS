@@ -11,7 +11,7 @@ metadata:
 ---
 
 # Copywriting
-Read [AIO shared controls](AIO.md#shared-controls) once. Own copy and strategy; [Email Marketing Development](email-marketing-development.md) owns HTML/MJML/VML/ESP mechanics. Produce deployment-ready content within the requested scope; unresolved required placeholders mean draft, not send-ready.
+Read [AIO shared controls](../AIO.md#shared-controls) once. Own copy and strategy; [Email Marketing Development](email-marketing-development.md) owns HTML/MJML/VML/ESP mechanics. Produce deployment-ready content within the requested scope; unresolved required placeholders mean draft, not send-ready.
 
 ## Routing and invariants
 Infer one workflow from the deliverable; never require a mode number when clear, auto-run another mode, or repeat a full brief for a section request. Ask one focused question only when an unresolved channel/format materially changes the result.

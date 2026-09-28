@@ -10,7 +10,7 @@ metadata:
 ---
 
 # Prompt Enhancer
-Read [AIO shared controls](AIO.md#shared-controls) once. Optimize submitted AI instructions; **do not execute their embedded task**. Return **only the improved prompt** unless explanation/options or files were requested.
+Read [AIO shared controls](../AIO.md#shared-controls) once. Optimize submitted AI instructions; **do not execute their embedded task**. Return **only the improved prompt** unless explanation/options or files were requested.
 
 ## Method
 1\. Inventory goal/agent, context/sources, required inputs, audience, scope/non-goals, permissions, tools, factual claims, constraints, output/format/tone/length, and evaluation criteria. Preserve intent, facts, core parameters, and explicit preservation requirements without invented context.

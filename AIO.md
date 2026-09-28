@@ -1,8 +1,8 @@
 # AIO.md — Master Router and Shared Controls
 
-Revision: 1.10.0 · Updated: 2026-09-27  
+Revision: 1.9.1 · Updated: 2026-09-27  
 Companion: [AGENTS.md](AGENTS.md) · Directives: [Project-Operating-Directives.md](Project-Operating-Directives.md)  
-Integration: Anti-Slop upstream `HEAD` · Plannable upstream `HEAD` · watermarks-remover upstream `HEAD` · package skills `prompt-enhancer` + `industry-terms-translator`
+Integration: Anti-Slop · Plannable · watermarks-remover · Graphify · Ponytail (upstream default-branch `HEAD` reviewed during maintenance) · package skills `prompt-enhancer` + `industry-terms-translator`
 
 This file owns request routing and shared controls. One primary specialist owns the artifact. A supporting lens is allowed only when it materially improves the result.
 
@@ -32,10 +32,6 @@ If `AI Skills/` does not exist at the working root:
 
 If a required specialist file is missing inside `AI Skills/`, refer to the repository instructions above to scaffold it. If unavailable, state that the specialist is unavailable and complete the work with labeled assumptions rather than inventing the missing contract.
 
-### Project Guidelines directory for development workspaces
-
-Apply [AGENTS.md's Project Guidelines guidance](AGENTS.md#project-guidelines-folder) only when the workspace project warrants durable project-specific records or the user requests them. Assess relevance on new and existing projects; do not require the folder or all seven pages by default. When applicable, recover missing, empty, corrupt, or template-only **relevant** pages from the [canonical templates](https://github.com/SecretlySpy/Tweaks-Configurations-Troubleshooting/tree/main/AI%20Configs/Project%20Guidelines), using bundled copies first and filling them from inspected project evidence. Merge valid existing records and relevant user uploads without inventing facts. The folder contains project records, not another specialist; Coding Companion and AGENTS.md own engineering delivery. Report blocked writes without claiming completion.
-
 ---
 
 ## Upstream refresh protocol
@@ -61,6 +57,8 @@ git pull --ff-only origin main
 - Anti-Slop: [miqdadbadjuber/anti-slop](https://github.com/miqdadbadjuber/anti-slop)
 - Plannable: [suntay44/plannable](https://github.com/suntay44/plannable)
 - watermarks-remover: [guillaumemeyer/watermarks-remover](https://github.com/guillaumemeyer/watermarks-remover)
+- Graphify: [Graphify-Labs/graphify](https://github.com/Graphify-Labs/graphify)
+- Ponytail: [dietrichgebert/ponytail](https://github.com/dietrichgebert/ponytail)
 
 Resolve each repository's current default branch and `HEAD` at update time instead of retaining a commit pin:
 
@@ -68,6 +66,8 @@ Resolve each repository's current default branch and `HEAD` at update time inste
 git ls-remote --symref https://github.com/miqdadbadjuber/anti-slop.git HEAD
 git ls-remote --symref https://github.com/suntay44/plannable.git HEAD
 git ls-remote --symref https://github.com/guillaumemeyer/watermarks-remover.git HEAD
+git ls-remote --symref https://github.com/Graphify-Labs/graphify.git HEAD
+git ls-remote --symref https://github.com/dietrichgebert/ponytail.git HEAD
 ```
 
 Clone the resolved default branch, or run `git fetch` followed by `git pull --ff-only` in an existing clean checkout. Review upstream licenses, specifications, and behavior before adapting changes. Merge only compatible mechanisms; preserve host safety, user authorization, specialist output contracts, and local mandatory rules. Record the resolved commit in maintenance evidence or an update log for reproducibility, not as a permanent pin in this package.
@@ -367,6 +367,8 @@ Package compatibility adds a fourth check: preserve user direction, shipped them
 
 Do not import the installer, session questionnaires, unrequested theme toggles, blanket tool bans, or a mandatory Delivery Gate report into every reply. Use the gate for substantial UI/copy/code-comment delivery; keep audits out of consumer copy and output-only artifacts.
 
+**Package specialist bindings:** Coding Companion applies this extract to the code, UI text, comments, and evidence it delivers, with AGENTS.md retaining engineering verification. Email Marketing Development applies it to email markup and technical content presentation: meaningful hierarchy, functional destinations, accurate claims, accessible image alternatives, and real client behavior. Copywriting still owns campaign strategy and approved words; the email specialist flags a copy concern for its owner instead of silently changing protected copy. These are existing specialists, not newly installed Anti-Slop skills. Apply the relevant checks proportionally without removing security, accessibility, VML/MJML fallbacks, legal content, or required error behavior.
+
 **Hard constraints that travel with this package (subset):** no fabricated statistics or testimonials; no invented compliance/security/performance claims; UI text must have real destinations and states (empty/loading/error); keyboard and contrast requirements remain as in AGENTS / Design Creator; comments explain constraints and why, not obvious syntax.
 
 **Copy lens:** strip buzzwords, inflated significance, fake social proof, chatbot closers, and mechanical rhythm without sterilizing the user's voice.
@@ -412,6 +414,20 @@ For authorized asset hygiene: establish ownership and preservation obligations; 
 
 If using upstream tooling, check installation and capabilities first. Its full skill is an HTTP client backed by a service; do not imply this package bundles or runs that service. Do not silently install utilities/models, start services, transmit assets to remote backends, enable hooks, or overwrite in place. Hook-like automation defaults to check/report; mutation needs separately authorized scope and rollback. Optional detectors are configuration-specific, not proof of universal absence. Preserve rights, originality, reference-mirroring, accessibility, confidentiality, evidence labels, and the GitHub sensitive-information rule. Do not use this extract to conceal third-party origin, evade required attribution, or misrepresent authorship.
 
+## Graphify operating extract
+
+Adapted from [Graphify-Labs/graphify](https://github.com/Graphify-Labs/graphify) under the upstream refresh protocol. This is a selective relationship-retrieval method, not an installed Graphify skill, automatic graph build, or a new specialist. General Inquiry & Research owns evidence-based investigation; Spoon Feed Reviewer owns concept teaching and study aids. They may use a trustworthy existing graph to find likely connections, trace a path, or build a small concept map, while preserving their own source and lesson contracts.
+
+Start with the question and the smallest relevant source set. Where a current project graph and supported query tool actually exist, query or trace a scoped subgraph; inspect cited source paths and distinguish explicit/extracted edges from inferred or ambiguous ones. A graph is a candidate map, not proof of current code behavior, causation, or an authoritative citation. If no graph/tool exists, use ordinary targeted retrieval; never require a graph build for a simple question. Do not preload `graph.json`, `GRAPH_REPORT.md`, or an entire documentation corpus for a narrow task. Rebuild/update a stale graph only when authorized and useful, then verify the source material.
+
+The upstream CLI, graph output, optional semantic/media pass, plugin hooks, and assistant skill are not bundled here. Do not silently install the `graphifyy` package, register a skill, enable hooks, scan a workspace, or transmit private documents/media to a model or service. Prefer local code parsing when available; establish the actual data path and permissions before semantic processing. Never convert graph-derived inference into a sourced fact without source inspection.
+
+## Ponytail operating extract
+
+Adapted from [dietrichgebert/ponytail](https://github.com/dietrichgebert/ponytail) under the upstream refresh protocol. This is a minimum-sufficient-implementation lens, not an installed plugin, global one-line mandate, or new specialist. Coding Companion owns application implementation; Email Marketing Development owns email markup and client compatibility. Both first understand the relevant behavior and constraints, then ask in order: does the requested addition need to exist; can current project code be reused; can standard or native platform behavior meet the need; can an already approved dependency do it; and what is the smallest complete implementation?
+
+Remove needless wrappers, dependencies, duplication, and speculative features. Keep validation at trust boundaries, failure handling, security, accessibility, testing evidence, maintainability, and requested functionality. In HTML email, favor an existing tested module or email-safe markup and required MSO/VML fallback over browser-native controls or JavaScript that inbox clients do not support. Never replace an approved email layout with a browser-only shortcut. The upstream CLI/plugin, modes, hooks, and benchmarks are not installed or inherited. Do not silently install or enable them, and do not claim upstream benchmark results for this package.
+
 ## Prompt Enhancer integration
 
 Use [AI Skills/prompt-enhancer.md](AI%20Skills/prompt-enhancer.md) when the user is working **on** a prompt rather than issuing one.
@@ -443,7 +459,7 @@ No introduction, global summary, conclusion, code, mockups, or unsolicited imple
 
 If a session is running AGENTS.md and this file is absent:
 
-1. Recreate `AIO.md` from this scaffold (routing table + skill directory rules + collision rules + efficiency / revision / RAG / Anti-Slop / Plannable / watermarks-remover extracts + safety hierarchy).
+1. Recreate `AIO.md` from this scaffold (routing table + skill directory rules + collision rules + efficiency / revision / RAG / Anti-Slop / Plannable / watermarks-remover / Graphify / Ponytail extracts + safety hierarchy).
 2. Ensure `AI Skills/` exists using the dynamic directory handling above.
 3. Continue the engineering workflow. Do not drop routing continuity.
 
@@ -495,6 +511,8 @@ Mechanisms are adapted to this package's scope, not imported as unmodified insta
 - [Plannable upstream `HEAD`](https://github.com/suntay44/plannable), resolved and reviewed at update time
 - [Anti-Slop upstream `HEAD`](https://github.com/miqdadbadjuber/anti-slop), resolved and reviewed at update time
 - [watermarks-remover upstream `HEAD`](https://github.com/guillaumemeyer/watermarks-remover), resolved and reviewed at update time; concepts adapted, not service code copied
+- [Graphify upstream `HEAD`](https://github.com/Graphify-Labs/graphify), resolved and reviewed at update time; selective graph retrieval adapted, no CLI or skill installed
+- [Ponytail upstream `HEAD`](https://github.com/dietrichgebert/ponytail), resolved and reviewed at update time; minimum-sufficient implementation adapted, no plugin or hooks installed
 - Package skills: [SecretlySpy AI Skills](https://github.com/SecretlySpy/Tweaks-Configurations-Troubleshooting/tree/main/AI%20Configs/AI%20Skills)
 
 ### Plannable license

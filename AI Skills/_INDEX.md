@@ -34,13 +34,17 @@
 | `AGENTS.md` | Engineering delivery protocol | Sustained codebase implementation, refactoring, debugging, security, testing, operations, documentation, and handoff; applies with Coding Companion for engineering delivery |
 | `Project-Operating-Directives.md` | Package-wide operating directives | Resolving package conflicts, recovering missing files, enforcing safety boundaries, specialist handoff, and portable multi-environment use |
 
+## Development project records and decision review
+
+`AGENTS.md` defines the optional, project-applicable `Project Guidelines/` folder: seven canonical topic pages, a small `AI Documentation Notes.md` retrieval index, and a `Tech Stack Setup Guide.md` with an interactive static companion for runnable projects. The folder is project documentation, not a sixteenth specialist. `AIO.md#decision-critique-across-chat-and-coding-workspaces` activates pros/cons and self-critique only for comparative, impact, and evaluative questions. In a coding workspace, General Inquiry & Research can support Coding Companion with a bounded council when permitted and available; otherwise label sequential review honestly. Standard chat uses the same decision objective without requiring multiple agents. The 10% handover trigger applies only to a host-reported numeric remaining limit.
+
 ## Upstream updates
 
 Refresh this directory only during an authorized install, recovery, or maintenance task. Use [AI Skills on GitHub](https://github.com/SecretlySpy/Tweaks-Configurations-Troubleshooting/tree/main/AI%20Configs/AI%20Skills) as the primary source and [AI Configs on GitHub](https://github.com/SecretlySpy/Tweaks-Configurations-Troubleshooting/tree/main/AI%20Configs) for the three root files.
 
 For a clean install, clone the repository's default branch. In an existing clean checkout, run `git fetch origin main` and `git pull --ff-only origin main`, then compare `AI Configs/` against the installed package before merging. Preserve authorized local overlays; do not overwrite uncommitted changes or refresh from the network during ordinary tasks.
 
-When the package incorporates Anti-Slop or Plannable, follow `AIO.md#upstream-refresh-protocol`: resolve each repository's current default-branch `HEAD`, review its latest source and license, and record the resolved commit in maintenance evidence instead of adding a static pin.
+When the package incorporates Anti-Slop, Plannable, watermarks-remover, Graphify, or Ponytail, follow `AIO.md#upstream-refresh-protocol`: resolve each repository's current default-branch `HEAD`, review its latest source and license, and record the resolved commit in maintenance evidence instead of adding a static pin.
 
 If GitHub is unavailable, use the verified fallback files:
 
