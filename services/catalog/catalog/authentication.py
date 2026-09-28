@@ -1,5 +1,7 @@
 from rest_framework import authentication
 from django.conf import settings
+import json
+import urllib.request
 
 class SimpleUser:
     def __init__(self, user_id=None, role='anonymous', email='', is_authenticated=False):
@@ -26,5 +28,19 @@ class InternalServiceOrGatewayAuthentication(authentication.BaseAuthentication):
             )
             return (user, None)
 
-        # External client with user headers passed directly without internal token must NOT be trusted
+        parts = (request.headers.get('Authorization') or '').split()
+        if len(parts) == 2 and parts[0].lower() in ('bearer', 'token'):
+            try:
+                req = urllib.request.Request(
+                    f'{settings.IDENTITY_SERVICE_URL}/api/identity/verify-token/',
+                    data=json.dumps({'token': parts[1]}).encode(),
+                    headers={'Content-Type': 'application/json'}, method='POST')
+                with urllib.request.urlopen(req, timeout=2) as response:
+                    data = json.loads(response.read())
+                customer = data.get('customer', {})
+                if data.get('valid') and customer.get('id'):
+                    return SimpleUser(customer['id'], customer.get('role', 'customer'),
+                                      customer.get('email', ''), True), None
+            except Exception:
+                return None
         return None

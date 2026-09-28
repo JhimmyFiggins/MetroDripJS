@@ -77,6 +77,7 @@ class IdentityAuthTests(TestCase):
 
     def test_verify_token_endpoint(self):
         token = AuthToken.objects.create(customer=self.customer)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token.key}')
         res = self.client.post('/api/identity/verify-token/', {'token': token.key}, format='json')
         self.assertEqual(res.status_code, 200)
         self.assertTrue(res.data['valid'])

@@ -1,5 +1,7 @@
 # MetroDripJS: Microservices Architecture & Engineering Handbook
 
+> **Release status: HOLD.** The [current QA report](Project%20Guidelines/QA%20Report%202026-09-27.md), finalized 2026-09-28, supersedes historical completion claims and test counts below. Staff authentication and event/recovery automation remain incomplete; native and PostgreSQL verification are blocked.
+
 MetroDripJS is an urban streetwear e-commerce platform built with React Native/Expo (mobile client), vanilla HTML/JS merchant/admin consoles, and a distributed backend consisting of **five independently deployable Django microservices** routed through an **API Gateway**.
 
 ---

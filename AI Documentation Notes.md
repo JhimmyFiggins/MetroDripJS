@@ -1,4 +1,39 @@
-# Project Architectural Scope: Mobile App Only (iOS & Android)
+# Current QA and Integration Notes
+
+Updated 2026-09-28. [Current QA report](Project%20Guidelines/QA%20Report%202026-09-27.md) is the verification authority. Release HOLD. Results: 240 automated tests, 64 browser layout cases and five isolated API phases passing. Staff sessions, automatic event/recovery workflows, native devices and PostgreSQL concurrency are not certified. The historical mobile design scope below does not describe the full current repository or the user's multi-platform QA scope.
+
+## Module: `mobile/Checkout/src/data/buildOrderPayload.js`
+- Purpose: translate a checkout draft into the active Orders service contract without client-supplied prices or identity.
+- Public interfaces: `buildOrderItems(items)`, `splitShippingAddress(draft = {})`, `buildIdempotencyKey(draft, items)`, `buildOrderPayload(draft)`; exported `CheckoutPayloadError`.
+- Inputs: draft object with variant-backed items, positive safe-integer quantities, recipient/contact data and discrete address/zone fields. Numeric digit strings normalize to integers.
+- Outputs: `items`, `delivery_zone`, `payment_method: 'COD'`, `idempotency_key`, and `shipping_address`; no network request is made by the builder.
+- Errors: invalid/empty items and required address/contact omissions throw `CheckoutPayloadError`; UI displays its message.
+- Side effects: a WeakMap caches a retry key for the same draft and unchanged order fields. Independent drafts receive distinct keys. Keys are not credentials and do not survive application restart.
+- Performance: linear in payload size; weak keys do not retain discarded drafts.
+- Verification: executable Node payload and same-tick submission-handler regressions pass; JSX/native rendering remains unverified.
+
+## Modules: Service Authentication and Permissions
+- Paths: Catalog, Content and Fulfillment `authentication.py`, corresponding permissions/views, and service settings.
+- Interface: DRF `authenticate(self, request)` returns a verified principal or no authentication; merchant permissions require established staff roles.
+- Data flow: external Bearer token -> Identity introspection with a two-second timeout -> verified role/customer -> endpoint permission. Identity retains valid body-token introspection for existing service callers.
+- Security: unsigned identity/role headers do not authenticate; gateway strips them and public internal-token headers. Stock mutations and fulfillment events require the private service token. Identity failure denies access.
+- Verification: service security/CRUD suites and real disposable merchant/customer checks pass. Production edge and secret configuration remain unverified.
+
+## Modules: Orders Saga and Fulfillment Events
+- Paths: `services/orders/orders/saga.py`, Orders `views.py`, Fulfillment `views.py`.
+- Behavior: validate checkout principal and payload; reject cross-customer key reuse; quote/reserve; persist local order/outbox; confirm stock. Failed local persistence attempts compensating release.
+- Recovery: shipping failure rejects checkout; uncertain commit returns 503 with pending state; explicit rejection cancels order/outbox and records release success or `release_pending`. No dispatcher/reconciler is supplied.
+- Local integrity: fulfillment shipment and notification share an atomic transaction; shipment-row locking serializes replay on supporting databases.
+- Verification: 28 Orders and 18 Fulfillment tests pass. Integration proves sequential replay, local rollback, cascade restoration and duplicate manual consumption. PostgreSQL lock behavior and crash recovery remain unverified.
+
+## Module: `scripts/verify_microservices_e2e.py`
+- Purpose: disposable five-service HTTP integration runner, not browser/native E2E certification.
+- Interfaces: `main()`, `isolated_environment(directory, ports)`, `prepare_database(name, directory, env)`, `make_request(url, method='GET', data=None, headers=None)`.
+- Dependencies: current Python interpreter, service dependencies, ephemeral loopback ports, SQLite and synthetic fixtures. No existing seed imports or provider calls.
+- Side effects: owned temporary databases and child processes; fixture transactions; child termination and SQLite handle closure before cleanup. Synthetic credentials are omitted from output.
+- Verification: four safety regressions and all five API phases pass; exact evidence and defect mappings are in the QA report.
+
+# Historical Mobile Design Scope (iOS & Android)
 
 > [!IMPORTANT]
 > **Platform Target**: This codebase is exclusively for the **MetroDrip Mobile App (iOS / Android)** built on React Native & Expo.

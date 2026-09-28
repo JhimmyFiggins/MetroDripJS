@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,29 +17,12 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useCart } from '../../../context/CartContext';
 import { createOrder } from '../../../../src/services/orderService';
+import { buildOrderPayload, CheckoutPayloadError } from '../data/buildOrderPayload';
 import { CheckoutProgress } from '../components/CheckoutProgress';
 import { colors, fonts } from '../theme';
 
 // Method definitions with icons and subtitles matching Figma
 const PAYMENT_METHODS = [
-  {
-    id: 'gcash',
-    title: 'GCash',
-    subtitle: 'Pay via the GCash app',
-    badge: 'GCash',
-  },
-  {
-    id: 'maya',
-    title: 'Maya',
-    subtitle: 'Wallet or Maya card',
-    badge: 'Maya',
-  },
-  {
-    id: 'card',
-    title: 'Card',
-    subtitle: 'Visa · Mastercard · JCB',
-    badge: 'Card',
-  },
   {
     id: 'cod',
     title: 'Cash on Delivery',
@@ -59,13 +42,17 @@ export function PaymentDetailsScreen() {
   const clearCart = cartContext?.clearCart || (() => {});
 
   // Retrieve draft order and method from navigation params, with Figma fallbacks (node 452:2)
+  // The fallback is display-only: its items carry no catalog product id, so
+  // buildOrderPayload refuses to submit them instead of posting a phantom order.
   const orderDraft = route.params?.orderDraft || {
     orderId: 'MD-2026-00318',
     total: 2632,
     fullName: 'Juan R. Dela Cruz',
     mobile: '0917 555 0143',
     email: 'juan@email.com',
-    address: 'Unit 4B, 21 Maginhawa St., Teachers Village, Quezon City, Metro Manila (NCR)',
+    address: 'Unit 4B, 21 Maginhawa St., Teachers Village',
+    city: 'Quezon City',
+    zone: 'Metro Manila (NCR)',
     items: [
       {
         id: '1',
@@ -86,8 +73,9 @@ export function PaymentDetailsScreen() {
     ],
   };
 
-  const initialMethod = route.params?.paymentMethod || 'gcash';
-  const [selectedMethod, setSelectedMethod] = useState(initialMethod);
+  // The orders service settles COD only, so the method is fixed rather than
+  // carried over from the previous screen's selection.
+  const [selectedMethod, setSelectedMethod] = useState('cod');
   const [methodModalVisible, setMethodModalVisible] = useState(false);
 
   // Form states - GCash (Figma node 452:2)
@@ -111,6 +99,7 @@ export function PaymentDetailsScreen() {
 
   // Submission state
   const [isProcessing, setIsProcessing] = useState(false);
+  const submitInFlight = useRef(false);
 
   const totalAmount = Number(orderDraft.total) || 0;
   const itemCount = orderDraft.items?.reduce((sum, it) => sum + (it.quantity || 1), 0) || 0;
@@ -144,92 +133,44 @@ export function PaymentDetailsScreen() {
   const currentMethodObj =
     PAYMENT_METHODS.find((m) => m.id === selectedMethod) || PAYMENT_METHODS[0];
   
-    const handlePay = async () => {
-    // Validation
-    if (selectedMethod === 'gcash') {
-      if (!gcashMobile.trim() || !gcashAccountName.trim()) {
-        const msg = 'Please enter both your GCash mobile number and account name.';
-        Platform.OS === 'web' && typeof window !== 'undefined'
-          ? window.alert(`Incomplete GCash Details\n\n${msg}`)
-          : Alert.alert('Incomplete GCash Details', msg);
-        return;
-      }
-    } else if (selectedMethod === 'maya') {
-      if (!mayaMobile.trim() || !mayaAccountName.trim()) {
-        const msg = 'Please enter both your Maya mobile number and account name.';
-        Platform.OS === 'web' && typeof window !== 'undefined'
-          ? window.alert(`Incomplete Maya Details\n\n${msg}`)
-          : Alert.alert('Incomplete Maya Details', msg);
-        return;
-      }
-    } else if (selectedMethod === 'card') {
-      if (!cardNumber.trim() || !cardExpiry.trim() || !cardCvv.trim() || !cardName.trim()) {
-        const msg = 'Please fill in all card details (number, expiry, CVV, and name on card).';
-        Platform.OS === 'web' && typeof window !== 'undefined'
-          ? window.alert(`Incomplete Card Details\n\n${msg}`)
-          : Alert.alert('Incomplete Card Details', msg);
-        return;
-      }
+  const handlePay = async () => {
+    // Guard in the handler, not only on the button: a second tap in the same
+    // tick would otherwise start a second saga run before `disabled` applies.
+    if (submitInFlight.current) return;
+
+    // The orders service only settles COD today; offering a wallet or card
+    // would post a payment_method it rejects with 400.
+    if (selectedMethod !== 'cod') {
+      const msg = `Payment method ${currentMethodObj.title} is currently unavailable. Real provider integration pending; please use COD.`;
+      Platform.OS === 'web' && typeof window !== 'undefined'
+        ? window.alert(`Payment Method Unavailable\n\n${msg}`)
+        : Alert.alert('Payment Method Unavailable', msg);
+      return;
     }
 
+    submitInFlight.current = true;
     setIsProcessing(true);
 
-    // Simulate PayMongo transaction processing
       setTimeout(async () => {
-      console.log('PAY BUTTON REACHED');
-      setIsProcessing(false);
-      
-      // Compute display payment details string for confirmation receipt
-      let paymentDetailStr = '';
-      if (selectedMethod === 'gcash') {
-        paymentDetailStr = `GCash · ${gcashMobile}`;
-      } else if (selectedMethod === 'maya') {
-        paymentDetailStr = `Maya ${mayaFundingSource === 'wallet' ? 'Wallet' : 'Card'} · ${mayaMobile}`;
-      } else if (selectedMethod === 'card') {
-        const last4 = cardNumber.replace(/\s+/g, '').slice(-4) || '1111';
-        paymentDetailStr = `${getCardBrand(cardNumber)} ending in ${last4}`;
-      } else {
-        paymentDetailStr = `Cash on Delivery · ${orderDraft.mobile}`;
-      } 
-      console.log('STARTING ORDER API REQUEST');
-      console.log('ORDER ITEMS:', JSON.stringify(orderDraft.items, null, 2));
-      console.log('FIRST ITEM:', orderDraft.items?.[0]);
+      const paymentDetailStr = `Cash on Delivery · ${orderDraft.mobile}`;
 
-      // customer_id is resolved server-side from the X-Customer-ID header,
-      // which apiClient fills from AuthContext.
-      const orderBody = {
-        status: 'pending',
-        subtotal: orderDraft.items.reduce(
-          (sum, item) => sum + Number(item.price) * item.quantity,
-          0
-        ),
-        tax: 0,
-        shipping: 150,
-        discount: 0,
-        total: totalAmount,
-        currency: 'PHP',
-        notes: null,
-        shipping_address: {
-          name: orderDraft.fullName,
-          address_line1: orderDraft.address,
-          address_line2: null,
-          city: 'Quezon City',
-          state: 'Metro Manila (NCR)',
-          postal_code: null,
-          country: 'PH',
-          phone: orderDraft.mobile,
-        },
-        lines: orderDraft.items.map((item) => ({
-          product: item.productId,
-          variant: item.variantId,
-          quantity: item.quantity,
-          unit_price: Number(item.price),
-          discount_amount: 0,
-          tax_amount: 0,
-          tax_rate: 0,
-        })),
-      };
-      console.log('ORDER BODY:', JSON.stringify(orderBody, null, 2));
+      // Validate before spending a request. The caller is identified by the
+      // Authorization header, which apiClient fills from AuthContext.
+      let orderBody;
+      try {
+        orderBody = buildOrderPayload(orderDraft);
+      } catch (error) {
+        submitInFlight.current = false;
+        setIsProcessing(false);
+        const msg =
+          (error instanceof CheckoutPayloadError && error.message) ||
+          (error && error.message) ||
+          'Something went wrong while preparing your order. Please try again.';
+        Platform.OS === 'web' && typeof window !== 'undefined'
+          ? window.alert(`Order Failed\n\n${msg}`)
+          : Alert.alert('Order Failed', msg);
+        return;
+      }
 
       let savedOrder;
       try {
@@ -243,6 +184,11 @@ export function PaymentDetailsScreen() {
           ? window.alert(`Order Failed\n\n${msg}`)
           : Alert.alert('Order Failed', msg);
         return;
+      } finally {
+        // Release the button only once the request has settled, so a second tap
+        // cannot create a duplicate order.
+        submitInFlight.current = false;
+        setIsProcessing(false);
       }
 
       const now = new Date();
@@ -256,17 +202,32 @@ export function PaymentDetailsScreen() {
 
       const orderPayload = {
         orderId: savedOrder.id,
-        refNo: `PM-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
-        total: totalAmount,
+        refNo: savedOrder.order_no,
+        // The saga prices from catalog, so the server figures are the only ones
+        // worth showing. Never fall back to the local cart arithmetic.
+        subtotal: Number(savedOrder.subtotal),
+        shipping: Number(savedOrder.shipping),
+        total: Number(savedOrder.total),
         date: formattedDate,
         paymentMethod: currentMethodObj.title,
         paymentDetail: paymentDetailStr,
         email: orderDraft.email || 'juan@email.com',
         fullName: orderDraft.fullName || 'Juan R. Dela Cruz',
         address: orderDraft.address || 'Metro Manila (NCR)',
-        eta: 'Arriving in 2–3 days (Jul 20 · 2–5 PM)',
-        courier: 'J&T Express',
-        items: orderDraft.items || [],
+        // The service assigns no courier and no ETA until dispatch, so say that
+        // rather than promising a date it never computed.
+        eta: 'Delivery schedule is assigned after dispatch',
+        courier: 'To be assigned',
+        // The service returns priced lines under its own keys; map them to what
+        // the confirmation renders so no line displays a ₱0 price.
+        items: (savedOrder.items || []).map((line, idx) => ({
+          id: line.sku || `${line.variant_ref ?? idx}`,
+          name: line.product_name || 'Item',
+          variant: line.variant_desc || '',
+          price: Number(line.unit_price) || 0,
+          quantity: line.quantity || 1,
+          image: orderDraft.items?.[idx]?.image,
+        })),
       };
 
       clearCart();

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
+import { clampQuantity } from './cartLogic';
 
 const CartContext = createContext();
 
@@ -40,12 +41,9 @@ export function CartProvider({ children }) {
         const updatedCart = [...currentCart];
         const existingItem = updatedCart[existingIndex];
 
-        const newQuantity =
-          existingItem.quantity + (newItem.quantity || 1);
-
         updatedCart[existingIndex] = {
           ...existingItem,
-          quantity: Math.min(newQuantity, existingItem.stock),
+          quantity: clampQuantity(existingItem, newItem.quantity || 1),
         };
 
         return updatedCart;
@@ -62,11 +60,9 @@ export function CartProvider({ children }) {
           return item;
         }
 
-        const newQuantity = item.quantity + amount;
-
         return {
           ...item,
-          quantity: Math.max(1, Math.min(newQuantity, item.stock)),
+          quantity: clampQuantity(item, amount),
         };
       })
     );

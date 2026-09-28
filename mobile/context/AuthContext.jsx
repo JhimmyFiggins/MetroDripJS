@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
-import { setCustomerId, clearCustomer } from '../../src/services/apiClient';
+import { setAuthToken, clearCustomer } from '../../src/services/apiClient';
 
 const AuthContext = createContext();
 
@@ -8,9 +8,12 @@ export function AuthProvider({ children }) {
 
   const isGuest = user === null;
 
+  // identity /login/ and /signup/ return { token, id, name, email, phone }.
+  // The gateway forwards Authorization and nothing else, so the token is the
+  // only thing that carries the caller into orders, profile and wishlist.
   const login = (customer) => {
     setUser(customer);
-    setCustomerId(customer?.id);
+    setAuthToken(customer?.token ?? null);
   };
 
   const logout = () => {

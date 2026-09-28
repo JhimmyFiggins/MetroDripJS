@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework.renderers import JSONRenderer
 
 from .models import CmsHomepageBanner, CmsContactMessage
+from .authentication import ContentAuthentication, IsMerchantOrAdmin
 
 
 class HealthCheckAPIView(APIView):
@@ -42,20 +43,10 @@ class PublicBannersAPIView(APIView):
 
 class MerchantBannersAPIView(APIView):
     """Merchant console banner management."""
+    authentication_classes = [ContentAuthentication]
+    permission_classes = [IsMerchantOrAdmin]
     def get(self, request):
         banners = CmsHomepageBanner.objects.all().order_by('order', 'id')
-        if not banners.exists():
-            default_banners = [
-                {'title': 'Urban Style Redefined', 'image_url': '/assets/banners/hero.jpg', 'link_url': '/shop', 'is_active': True, 'order': 1},
-                {'title': 'Free shipping over ₱2,500', 'image_url': '/assets/banners/shipping.jpg', 'link_url': '/shipping', 'is_active': True, 'order': 2},
-                {'title': 'Weekend drop', 'image_url': '/assets/banners/weekend.jpg', 'link_url': '/drops/weekend', 'is_active': False, 'order': 3},
-                {'title': 'New season collection', 'image_url': '/assets/banners/fw26.jpg', 'link_url': '/collections/fw26', 'is_active': False, 'order': 4},
-                {'title': 'Member early access', 'image_url': '/assets/banners/vip.jpg', 'link_url': '/vip', 'is_active': False, 'order': 5},
-            ]
-            for b in default_banners:
-                CmsHomepageBanner.objects.create(**b)
-            banners = CmsHomepageBanner.objects.all().order_by('order', 'id')
-
         data = [
             {
                 'id': b.id,
@@ -101,6 +92,8 @@ class MerchantBannersAPIView(APIView):
 
 
 class MerchantBannerDetailAPIView(APIView):
+    authentication_classes = [ContentAuthentication]
+    permission_classes = [IsMerchantOrAdmin]
     def patch(self, request, pk):
         try:
             banner = CmsHomepageBanner.objects.get(pk=pk)
@@ -145,8 +138,10 @@ class MerchantBannerDetailAPIView(APIView):
 
 class ContactMessagesAPIView(APIView):
     """Contact message submission (public) and listing (merchant/admin)."""
-    authentication_classes = []
-    permission_classes = []
+    authentication_classes = [ContentAuthentication]
+
+    def get_permissions(self):
+        return [] if self.request.method == 'POST' else [IsMerchantOrAdmin()]
 
     def post(self, request):
         name = request.data.get('name', '').strip()
@@ -187,6 +182,8 @@ class ContactMessagesAPIView(APIView):
 
 
 class ContactMessageDetailAPIView(APIView):
+    authentication_classes = [ContentAuthentication]
+    permission_classes = [IsMerchantOrAdmin]
     def patch(self, request, pk):
         try:
             msg = CmsContactMessage.objects.get(pk=pk)

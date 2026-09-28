@@ -3,6 +3,7 @@ from datetime import timedelta
 from django.http import HttpResponse
 from django.utils import timezone
 from django.db.models import Sum, Count
+from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -17,6 +18,52 @@ from .models import (
 )
 from .saga import execute_cod_checkout_saga, SagaExecutionError
 from .permissions import IsCustomerAuthenticated, IsMerchantOrAdmin
+
+
+def _resolve_customer_id(request):
+    """
+    Resolve the acting customer id ONLY from an authenticated principal.
+
+    The internal service mesh may carry X-User-ID, but only when the request
+    also presents a valid X-Internal-Token. Raw X-User-ID / X-Customer-ID
+    headers from an unauthenticated caller are never trusted: they previously
+    let anonymous requests read any customer's history or place orders as an
+    arbitrary customer id.
+    """
+    user = getattr(request, 'user', None)
+    if user is not None and getattr(user, 'is_authenticated', False):
+        uid = getattr(user, 'id', None)
+        if uid:
+            return int(uid)
+
+    internal_token = request.headers.get('X-Internal-Token')
+    if internal_token and internal_token == getattr(settings, 'INTERNAL_TOKEN', None):
+        cust_hdr = request.headers.get('X-User-ID') or request.headers.get('X-Customer-ID')
+        if cust_hdr and cust_hdr.isdigit():
+            return int(cust_hdr)
+
+    return None
+
+
+def _order_access_decision(request, order):
+    """
+    Returns 'allow', 'deny', or 'unauthenticated' for an order detail/tracking
+    request. Anonymous callers previously fell through to 'allow' and received
+    another customer's private shipping address.
+    """
+    user = getattr(request, 'user', None)
+    if not user or not getattr(user, 'is_authenticated', False):
+        return 'unauthenticated'
+
+    user_role = getattr(user, 'role', '')
+    if user_role in ('merchant', 'admin', 'superadmin', 'staff'):
+        return 'allow'
+
+    customer_id = getattr(user, 'id', None)
+    if customer_id and order.customer_ref == customer_id:
+        return 'allow'
+
+    return 'deny'
 
 
 class HealthCheckAPIView(APIView):
@@ -36,13 +83,7 @@ class OrdersListCreateAPIView(APIView):
 
     def get(self, request):
         """List orders for the authenticated customer."""
-        customer_id = getattr(request.user, 'id', None)
-        if not customer_id:
-            # Check internal or header fallback if authenticated
-            cust_hdr = request.headers.get('X-User-ID')
-            if cust_hdr and cust_hdr.isdigit():
-                customer_id = int(cust_hdr)
-
+        customer_id = _resolve_customer_id(request)
         if not customer_id:
             return Response({'error': 'Authentication required.'}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -80,27 +121,34 @@ class OrdersListCreateAPIView(APIView):
 
     def post(self, request):
         """Execute COD Checkout Saga."""
-        customer_id = getattr(request.user, 'id', None)
+        customer_id = _resolve_customer_id(request)
         if not customer_id:
-            cust_hdr = request.headers.get('X-User-ID') or request.headers.get('X-Customer-ID')
-            if cust_hdr and cust_hdr.isdigit():
-                customer_id = int(cust_hdr)
+            return Response({'error': 'Authentication required.'}, status=status.HTTP_401_UNAUTHORIZED)
 
         payload = request.data
+        if not isinstance(payload, dict):
+            return Response({'error': 'Checkout must be a JSON object.'}, status=400)
         lines_input = payload.get('lines') or payload.get('items', [])
+        if not isinstance(lines_input, list):
+            return Response({'error': 'Order items must be an array.'}, status=400)
         
         # Support format from mobile client
         items = []
         for line in lines_input:
+            if not isinstance(line, dict):
+                return Response({'error': 'Each order item must be an object.'}, status=400)
             v_id = line.get('variant') or line.get('variant_id') or line.get('variantId')
             qty = line.get('quantity', 1)
-            if v_id:
-                items.append({'variant_id': v_id, 'quantity': qty})
+            if type(v_id) is not int or v_id <= 0 or type(qty) is not int or qty <= 0:
+                return Response({'error': 'Variant IDs and quantities must be positive integers.'}, status=400)
+            items.append({'variant_id': v_id, 'quantity': qty})
 
         if not items:
             return Response({'error': 'Order items are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        shipping_address = payload.get('shipping_address') or {}
+        shipping_address = payload.get('shipping_address', {})
+        if not isinstance(shipping_address, dict):
+            return Response({'error': 'Shipping address must be an object.'}, status=400)
         if not shipping_address and 'fullName' in payload:
             shipping_address = {
                 'name': payload.get('fullName'),
@@ -109,9 +157,16 @@ class OrdersListCreateAPIView(APIView):
             }
 
         delivery_zone = payload.get('delivery_zone') or 'NCR (Metro Manila)'
+        if not isinstance(delivery_zone, str):
+            return Response({'error': 'Delivery zone must be text.'}, status=400)
         idempotency_key = request.headers.get('X-Idempotency-Key') or payload.get('idempotency_key')
+        if idempotency_key is not None and (not isinstance(idempotency_key, str) or not 1 <= len(idempotency_key) <= 64):
+            return Response({'error': 'Idempotency key must contain 1 to 64 characters.'}, status=400)
 
-        payment_method = (payload.get('payment_method') or 'COD').lower()
+        payment_method = payload.get('payment_method') or 'COD'
+        if not isinstance(payment_method, str):
+            return Response({'error': 'Payment method must be text.'}, status=400)
+        payment_method = payment_method.lower()
         if payment_method not in ('cod', 'cash_on_delivery'):
             return Response({
                 'error': f'Payment method {payment_method} is currently unavailable. Real provider integration pending; please use COD.'
@@ -163,10 +218,10 @@ class OrderDetailAPIView(APIView):
         if not order:
             return Response({'error': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Enforce customer ownership check if customer caller
-        customer_id = getattr(request.user, 'id', None)
-        user_role = getattr(request.user, 'role', '')
-        if user_role == 'customer' and customer_id and order.customer_ref != customer_id:
+        decision = _order_access_decision(request, order)
+        if decision == 'unauthenticated':
+            return Response({'error': 'Authentication required.'}, status=status.HTTP_401_UNAUTHORIZED)
+        if decision == 'deny':
             return Response({'error': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         addr = getattr(order, 'shipping_address', None)
@@ -211,9 +266,10 @@ class OrderTrackingAPIView(APIView):
         if not order:
             return Response({'error': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        customer_id = getattr(request.user, 'id', None)
-        user_role = getattr(request.user, 'role', '')
-        if user_role == 'customer' and customer_id and order.customer_ref != customer_id:
+        decision = _order_access_decision(request, order)
+        if decision == 'unauthenticated':
+            return Response({'error': 'Authentication required.'}, status=status.HTTP_401_UNAUTHORIZED)
+        if decision == 'deny':
             return Response({'error': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         stages = ['placed', 'payment_confirmed', 'packed', 'shipped', 'out_for_delivery', 'delivered']

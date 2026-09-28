@@ -21,24 +21,14 @@ export const BASE_URL =
 
 const REQUEST_TIMEOUT_MS = 15000;
 
-let currentCustomerId = null;
 let currentAuthToken = null;
-
-export function setCustomerId(id) {
-  currentCustomerId = id ?? null;
-}
 
 export function setAuthToken(token) {
   currentAuthToken = token ?? null;
 }
 
 export function clearCustomer() {
-  currentCustomerId = null;
   currentAuthToken = null;
-}
-
-export function getCustomerId() {
-  return currentCustomerId;
 }
 
 export function getAuthToken() {
@@ -52,6 +42,25 @@ export class ApiError extends Error {
     this.status = status;
     this.data = data;
   }
+}
+
+// Django REST Framework reports validation failures as { field: [messages] }.
+// Forms render `error.message`, so a bare status string hides the real reason a
+// login or checkout was rejected.
+function describeErrorPayload(data) {
+  if (typeof data === 'string') return data.trim() || null;
+  if (!data || typeof data !== 'object') return null;
+
+  const direct = data.error || data.detail || data.message;
+  if (typeof direct === 'string' && direct) return direct;
+
+  const parts = [];
+  for (const [field, value] of Object.entries(data)) {
+    const text = Array.isArray(value) ? value.join(' ') : value;
+    if (text === undefined || text === null || text === '') continue;
+    parts.push(`${field}: ${text}`);
+  }
+  return parts.length > 0 ? parts.join('\n') : null;
 }
 
 export async function apiFetch(path, { method = 'GET', body, auth = true, headers = {} } = {}) {
@@ -68,13 +77,8 @@ export async function apiFetch(path, { method = 'GET', body, auth = true, header
     serializedBody = JSON.stringify(body);
   }
 
-  if (auth) {
-    if (currentAuthToken) {
-      finalHeaders['Authorization'] = `Bearer ${currentAuthToken}`;
-    }
-    if (currentCustomerId != null) {
-      finalHeaders['X-Customer-ID'] = String(currentCustomerId);
-    }
+  if (auth && currentAuthToken) {
+    finalHeaders['Authorization'] = `Bearer ${currentAuthToken}`;
   }
 
   const controller = new AbortController();
@@ -109,8 +113,7 @@ export async function apiFetch(path, { method = 'GET', body, auth = true, header
 
   if (!response.ok) {
     const message =
-      (data && typeof data === 'object' && (data.error || data.detail || data.message)) ||
-      `Request failed with status ${response.status}.`;
+      describeErrorPayload(data) || `Request failed with status ${response.status}.`;
     throw new ApiError(message, { status: response.status, data });
   }
 

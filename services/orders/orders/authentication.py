@@ -31,7 +31,10 @@ class OrdersServiceAuthentication(authentication.BaseAuthentication):
         # Check Authorization header (fallback or direct service call)
         auth_header = request.headers.get('Authorization') or request.META.get('HTTP_AUTHORIZATION')
         if auth_header and auth_header.startswith(('Bearer ', 'Token ')):
-            token = auth_header.split()[1]
+            parts = auth_header.split()
+            if len(parts) != 2:
+                return None
+            token = parts[1]
             identity_url = getattr(settings, 'IDENTITY_SERVICE_URL', 'http://127.0.0.1:8001')
             try:
                 req = urllib.request.Request(

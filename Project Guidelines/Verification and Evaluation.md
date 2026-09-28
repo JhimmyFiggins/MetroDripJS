@@ -1,5 +1,7 @@
 # Verification and Evaluation
 
+> Current authority: [QA Report 2026-09-27](QA%20Report%202026-09-27.md). Release is **HOLD**, not fully verified. The sections below are historical migration notes and their readiness, security, concurrency and E2E claims are not current evidence.
+
 **Status:** Fully Verified & Executed Test Evidence  
 **Project:** MetroDripJS Urban Streetwear E-Commerce Platform  
 **Test Suite:** 46 Unit/Contract Tests + 5-Phase End-to-End Integration Saga Suite  

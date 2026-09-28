@@ -22,18 +22,20 @@ class HealthCheckAPIView(APIView):
 
 
 class VerifyTokenAPIView(APIView):
+    # Possession of a valid opaque token authenticates this introspection call.
     authentication_classes = []
     permission_classes = []
 
     def post(self, request):
+        if not isinstance(request.data, dict):
+            return Response({'valid': False, 'error': 'Expected a JSON object.'}, status=400)
         token_key = request.data.get('token')
         if not token_key:
-            auth_header = request.headers.get('Authorization') or ''
-            parts = auth_header.split()
-            if len(parts) == 2:
+            parts = (request.headers.get('Authorization') or '').split()
+            if len(parts) == 2 and parts[0].lower() in ('bearer', 'token'):
                 token_key = parts[1]
 
-        if not token_key:
+        if not isinstance(token_key, str) or not token_key:
             return Response({'valid': False, 'error': 'Token is required.'}, status=400)
 
         token = AuthToken.objects.select_related('customer').filter(key=token_key).first()

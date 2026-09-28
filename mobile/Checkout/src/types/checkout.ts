@@ -1,5 +1,5 @@
-// Restrict payment state to methods displayed in the Figma checkout module.
-export type PaymentMethod = 'gcash' | 'maya' | 'card';
+// Restrict payment state to methods the orders service actually settles.
+export type PaymentMethod = 'cod';
 
 // Describe the editable delivery information collected by checkout.
 export type DeliveryAddress = {

@@ -70,9 +70,11 @@ export default function LoginScreen({ navigation }) {
     } catch (error) {
       console.error('Login failed:', error);
       if (error instanceof ApiError && error.status > 0) {
-        alert((error.data && error.data.error) || 'Invalid email or password.');
+        // apiClient flattens DRF { field: [messages] } bodies into the message,
+        // so a rejected email or password reads as the server's own reason.
+        alert(error.message || 'Invalid email or password.');
       } else {
-        alert('Unable to connect to the server.');
+        alert(error?.message || 'Unable to connect to the server.');
       }
     } finally {
       setLoading(false);

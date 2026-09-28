@@ -1,5 +1,21 @@
 # MetroDripJS Setup & Emulator Guide
 
+## Current QA Workflow
+
+Release is **HOLD**. See the [current QA report](Project%20Guidelines/QA%20Report%202026-09-27.md) for executed evidence and open blockers; setup instructions are not release certification.
+
+For non-destructive local API verification, run `python -B scripts/verify_microservices_e2e.py` from the repository root using an interpreter with the service dependencies installed. It uses that interpreter, disposable SQLite databases, synthetic fixtures, random loopback ports and owned-process cleanup. Do not run legacy seed commands as test setup: they can import existing application data. Run `npm run test:client` for dependency-light contract/dev-server checks, not native compilation.
+
+| Setting | QA / Development Behavior |
+| --- | --- |
+| `DATABASE_URL` | Runner overrides it for every service with a separate temporary SQLite file |
+| `IDENTITY_SERVICE_URL` | Catalog, Orders, Fulfillment and Content validate bearer tokens through Identity; Compose uses `http://identity-service:8001` |
+| `BIND_HOST` | Python gateway and development static server default to `127.0.0.1`; broader binding is an explicit operational choice |
+| `X-Idempotency-Key` | Gateway forwards it; checkout also accepts `idempotency_key` in JSON |
+| Gateway `/health/` | Returns 503 when an upstream dependency is unhealthy |
+
+The final local run used Python 3.15.0b2/Django 5.2.16. Repeat checks on the supported deployment runtime. Docker/PostgreSQL and native Nginx were unavailable; no production or native-device validation is implied.
+
 MetroDripJS is an Expo shopping application built with React Native.
 
 ## Prerequisites and versions

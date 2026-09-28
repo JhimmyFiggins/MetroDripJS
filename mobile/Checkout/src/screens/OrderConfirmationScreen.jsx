@@ -28,8 +28,8 @@ export function OrderConfirmationScreen() {
     refNo: 'PM-8H2K19XQ',
     total: 2632,
     date: 'Jul 18 · 9:42 AM',
-    paymentMethod: 'GCash',
-    paymentDetail: 'GCash · 0917 555 0143',
+    paymentMethod: 'Cash on Delivery',
+    paymentDetail: 'Cash on Delivery · pay on arrival',
     email: 'juan@email.com',
     fullName: 'Juan R. Dela Cruz',
     address: 'Unit 4B, 21 Maginhawa St., Teachers Village, Quezon City, Metro Manila (NCR)',
@@ -93,7 +93,8 @@ export function OrderConfirmationScreen() {
               <Text style={styles.checkIcon}>✓</Text>
             </View>
 
-            <Text style={styles.successSub}>PAYMENT SUCCESSFUL</Text>
+            {/* Cash on delivery: the order is placed, but no money has moved yet. */}
+            <Text style={styles.successSub}>ORDER PLACED · CASH ON DELIVERY</Text>
             <Text style={styles.orderConfirmedTitle}>Order confirmed</Text>
 
             <View style={styles.metaRow}>
@@ -109,7 +110,7 @@ export function OrderConfirmationScreen() {
             <Text style={styles.sectionTitle}>Payment</Text>
             <View style={styles.cardBox}>
               <View style={styles.cardRow}>
-                <Text style={styles.rowLabel}>Amount paid</Text>
+                <Text style={styles.rowLabel}>Amount due on delivery</Text>
                 <Text style={styles.rowValueBold}>{formatPeso(order.total)}</Text>
               </View>
 
@@ -249,17 +250,17 @@ export function OrderConfirmationScreen() {
 
               <View style={styles.receiptRow}>
                 <Text style={styles.receiptLabel}>Subtotal</Text>
-                <Text style={styles.receiptVal}>{formatPeso(order.total - 100)}</Text>
+                <Text style={styles.receiptVal}>{formatPeso(order.subtotal ?? order.total)}</Text>
               </View>
               <View style={styles.receiptRow}>
-                <Text style={styles.receiptLabel}>Metro Manila Shipping</Text>
-                <Text style={styles.receiptVal}>{formatPeso(100)}</Text>
+                <Text style={styles.receiptLabel}>Shipping</Text>
+                <Text style={styles.receiptVal}>{formatPeso(order.shipping ?? 0)}</Text>
               </View>
 
               <View style={styles.modalDivider} />
 
               <View style={styles.receiptRow}>
-                <Text style={styles.receiptTotalLabel}>TOTAL PAID</Text>
+                <Text style={styles.receiptTotalLabel}>AMOUNT DUE</Text>
                 <Text style={styles.receiptTotalVal}>{formatPeso(order.total)}</Text>
               </View>
 

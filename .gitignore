@@ -3,6 +3,10 @@
 # dependencies
 node_modules/
 
+# Python test artifacts (tracked bytecode still requires explicit cleanup)
+__pycache__/
+.pytest_cache/
+
 # Expo
 .expo/
 dist/

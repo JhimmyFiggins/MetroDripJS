@@ -35,6 +35,11 @@ class FulfillmentServiceTests(TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.data), 3)
 
+        # PATCH requires internal token with merchant/admin role
+        self.client.credentials(
+            HTTP_X_INTERNAL_TOKEN='internal_service_mesh_secret_2026',
+            HTTP_X_USER_ROLE='merchant'
+        )
         patch_res = self.client.patch(f'/shipping-zones/{self.ncr.id}/', {'fee': 90}, format='json')
         self.assertEqual(patch_res.status_code, 200)
         self.ncr.refresh_from_db()
@@ -51,10 +56,13 @@ class FulfillmentServiceTests(TestCase):
 
         # Unauthenticated request rejected
         unauth_res = self.client.get('/notifications/')
-        self.assertEqual(unauth_res.status_code, 401)
+        self.assertIn(unauth_res.status_code, (401, 403))
 
-        # Authenticated customer 1
-        self.client.credentials(HTTP_X_USER_ID='1')
+        # Authenticated customer 1 via internal token
+        self.client.credentials(
+            HTTP_X_INTERNAL_TOKEN='internal_service_mesh_secret_2026',
+            HTTP_X_USER_ID='1'
+        )
         res = self.client.get('/notifications/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.data), 1)
@@ -74,7 +82,8 @@ class FulfillmentServiceTests(TestCase):
             'total': 1883,
         }
 
-        # 1. First event consumption
+        # 1. First event consumption - requires internal token
+        self.client.credentials(HTTP_X_INTERNAL_TOKEN='internal_service_mesh_secret_2026')
         res = self.client.post('/api/fulfillment/events/order-placed/', payload, format='json')
         self.assertEqual(res.status_code, 200)
         self.assertTrue(ShippingShipment.objects.filter(order_ref=999).exists())

@@ -18,6 +18,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useNavigation } from '@react-navigation/native';
 import { useCart } from '../../../context/CartContext';
+import { cartTotals } from '../../../context/cartLogic';
 
 // Compose the screen from focused reusable controls.
 import { CheckoutProgress } from '../components/CheckoutProgress';
@@ -43,8 +44,9 @@ export function CheckoutScreen() {
 
   // Track delivery values as one object for structured form handling.
   const [address, setAddress] = useState(initialDeliveryAddress);
-  // Default to GCash.
-  const [paymentMethod, setPaymentMethod] = useState('gcash');
+  // The orders service settles COD only (services/orders OrdersListCreateAPIView
+  // rejects any other payment_method with 400), so COD is the sole option.
+  const [paymentMethod, setPaymentMethod] = useState('cod');
   // Control delivery zone selector modal visibility.
   const [zoneSelectorVisible, setZoneSelectorVisible] = useState(false);
   // Store invalid field names without altering pristine state.
@@ -71,14 +73,7 @@ export function CheckoutScreen() {
 
   const cartContext = useCart();
   const cart = cartContext?.cart || [];
-  const subtotal = cart.reduce(
-    (total, item) => total + item.price * item.quantity,
-    0
-  );
-
-  const shipping = subtotal > 0 ? 150 : 0;
-  const discount = 0;
-  const total = subtotal + shipping - discount;
+  const { total } = cartTotals(cart);
   const clearCart = cartContext?.clearCart || (() => {});
 
   // Validate all fields before simulated payment initiation.
@@ -107,33 +102,20 @@ export function CheckoutScreen() {
           image: it.image,
           badge: it.name ? it.name.charAt(0) : 'M',
         }))
-      : [
-            {
-              id: '1',
-              name: 'Drip Zip-Up Hoodie',
-              variant: 'BLACK · M · OVS ×1',
-              price: 1249,
-              quantity: 1,
-              badge: 'H',
-            },
-            {
-              id: '2',
-              name: 'Metro Core Boxy Tee',
-              variant: 'WHITE · L · REG ×2',
-              price: 691.5,
-              quantity: 2,
-              badge: 'T',
-            },
-          ];
+      : [];
 
     const orderDraft = {
       orderId: `MD-2026-00${Math.floor(100 + Math.random() * 900)}`,
       total: total,
-      paymentMethod: selectedOption?.title || 'GCash',
+      paymentMethod: selectedOption?.title || 'Cash on Delivery',
       email: address.email,
       fullName: address.fullName,
       mobile: address.mobile,
-      address: `${address.address}, ${address.city}, ${address.zone}`,
+      // Keep city and zone discrete: the order API stores them as their own
+      // columns, and a single joined string can only be re-parsed by guesswork.
+      address: address.address,
+      city: address.city,
+      zone: address.zone,
       items: orderItems,
     };
 
