@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="../css/console.css">
   <script src="../Registration/theme.js"></script>
 </head>
-<body>
+<body class="console-page--stateful">
   <!-- Figma: Merchant Console / Orders / Light 550:65 & Dark 554:431 -->
   <div class="console-layout">
     <!-- Left Navigation Sidebar -->
@@ -66,7 +66,7 @@
           <div class="user-avatar" aria-hidden="true">MD</div>
           <div class="user-meta">
             <p class="user-name">Store Merchant</p>
-            <p class="user-role-badge">MERCHANT · 2FA ON</p>
+            <p class="user-role-badge">MERCHANT</p>
           </div>
         </div>
 
@@ -88,7 +88,7 @@
         <span>MERCHANT CONSOLE</span>
         <span>/</span>
         <span>ORDERS</span>
-        <span class="sample-data">SAMPLE DATA</span>
+        <span class="data-source-badge" id="orders-source-status" aria-live="polite">CONNECTING</span>
       </div>
 
       <!-- Header -->
@@ -98,28 +98,42 @@
           <p class="page-subhead">Manage payment and fulfillment from one place.</p>
         </div>
         <div class="header-actions">
+          <button type="button" class="btn btn-secondary" id="btn-refresh-orders">
+            Refresh
+          </button>
           <button type="button" class="btn btn-secondary" id="btn-export-orders">
             Export orders
           </button>
         </div>
       </header>
 
+      <section class="console-state-banner is-info" id="orders-state-banner" role="status" aria-live="polite" aria-atomic="true">
+        <div class="console-state-copy">
+          <p class="console-state-eyebrow" id="orders-state-eyebrow">LOADING</p>
+          <h2 class="console-state-title" id="orders-state-title">Loading orders</h2>
+          <p class="console-state-message" id="orders-state-message">Connecting to the order service. Existing order actions stay unavailable until the response is verified.</p>
+        </div>
+        <div class="console-state-actions">
+          <button type="button" class="btn btn-secondary" id="btn-retry-orders" hidden>Try again</button>
+        </div>
+      </section>
+
       <!-- 3 Stat Metric Cards -->
       <section class="stat-cards-grid" style="grid-template-columns: repeat(3, 1fr);" aria-label="Order fulfillment metrics">
         <article class="stat-card">
           <p class="stat-label">ORDERS TODAY</p>
-          <p class="stat-value" id="metric-orders-count">14</p>
-          <p class="stat-subtext">11 paid · 3 pending</p>
+          <p class="stat-value" id="metric-orders-count">—</p>
+          <p class="stat-subtext" id="metric-orders-detail">Waiting for order data</p>
         </article>
         <article class="stat-card">
           <p class="stat-label">TO SHIP</p>
-          <p class="stat-value" id="metric-to-ship">5</p>
-          <p class="stat-subtext">Ready for fulfillment</p>
+          <p class="stat-value" id="metric-to-ship">—</p>
+          <p class="stat-subtext" id="metric-to-ship-detail">Waiting for order data</p>
         </article>
         <article class="stat-card">
           <p class="stat-label">TODAY'S SALES</p>
-          <p class="stat-value" id="metric-sales">₱18,540</p>
-          <p class="stat-subtext">Paid orders only</p>
+          <p class="stat-value" id="metric-sales">—</p>
+          <p class="stat-subtext" id="metric-sales-detail">Paid orders only</p>
         </article>
       </section>
 
@@ -150,7 +164,7 @@
           <h2 class="panel-title" id="heading-all-orders">All orders</h2>
         </div>
         <div class="table-responsive">
-          <table class="data-table" id="all-orders-table">
+          <table class="data-table data-table--adaptive" id="all-orders-table">
             <thead>
               <tr>
                 <th scope="col">ORDER / CUSTOMER</th>
@@ -160,16 +174,18 @@
                 <th scope="col">PLACED</th>
               </tr>
             </thead>
-            <tbody id="all-orders-tbody">
-              <!-- Seeded matching Figma frame 550:65 -->
+            <tbody id="all-orders-tbody" aria-live="polite" aria-busy="true">
+              <tr class="table-state-row table-loading-row">
+                <td colspan="5"><span class="skeleton-line is-wide"></span><span class="sr-only">Loading orders</span></td>
+              </tr>
             </tbody>
           </table>
         </div>
         <div class="pagination-footer">
-          <span id="orders-pagination-info">Today · Showing 1–5 of 14 orders</span>
+          <span id="orders-pagination-info">Loading orders…</span>
           <div class="pagination-btns">
             <button type="button" class="pagination-btn" disabled>Previous</button>
-            <button type="button" class="pagination-btn">Next &rarr;</button>
+            <button type="button" class="pagination-btn" disabled>Next &rarr;</button>
           </div>
         </div>
       </section>
@@ -180,35 +196,28 @@
         <section class="panel-card" id="card-order-detail" aria-labelledby="heading-order-detail">
           <div class="panel-header">
             <div>
-              <h2 class="panel-title" id="detail-order-number">Order MD-2026-00318</h2>
-              <p class="td-mono td-muted" style="font-size: 11px; margin-top: 2px;" id="detail-order-sub">Juan Dela Cruz · Paid via GCash · Awaiting fulfillment</p>
+              <h2 class="panel-title" id="detail-order-number">No order selected</h2>
+              <p class="td-mono td-muted" style="font-size: 11px; margin-top: 2px;" id="detail-order-sub">Select an order after the directory loads.</p>
             </div>
           </div>
           <div style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
             <!-- Line items list -->
             <div id="detail-line-items" style="display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--color-border); padding-bottom: 12px;">
-              <div style="display: flex; justify-content: space-between; font-size: 13px;">
-                <span>Drip Zip-Up Hoodie · Black / M</span>
-                <span class="td-mono">1 &times; &#8369;1,249</span>
-              </div>
-              <div style="display: flex; justify-content: space-between; font-size: 13px;">
-                <span>Skyline Pullover · Gray / L</span>
-                <span class="td-mono">1 &times; &#8369;1,383</span>
-              </div>
+              <p class="td-muted">No items to display.</p>
             </div>
 
             <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--color-muted);" id="detail-subtotal-row">
-              <span>Subtotal &#8369;2,632</span>
-              <span>Free shipping</span>
+              <span>Subtotal —</span>
+              <span>Shipping —</span>
             </div>
 
             <p style="font-family: var(--font-display); font-size: 22px; color: var(--color-ink);" id="detail-total-amount">
-              Total &#8369;2,632
+              Total —
             </p>
 
             <div style="display: flex; gap: 10px; margin-top: 4px;">
-              <button type="button" class="btn btn-primary" id="btn-mark-packed">Mark as packed</button>
-              <a href="shipments.html" class="btn btn-secondary" id="btn-create-shipment-link">Create shipment</a>
+              <button type="button" class="btn btn-primary" id="btn-mark-packed" disabled>Mark as packed</button>
+              <a href="shipments.html" class="btn btn-secondary is-disabled" id="btn-create-shipment-link" aria-disabled="true" tabindex="-1">Create shipment</a>
             </div>
           </div>
         </section>
@@ -220,17 +229,15 @@
           </div>
           <div style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
             <div>
-              <p style="font-weight: 700; font-size: 13px; color: var(--color-ink);" id="delivery-customer-name">Juan Dela Cruz</p>
-              <p class="td-muted" style="font-size: 12px; margin-top: 2px;" id="delivery-address-text">Sample delivery address<br>Quezon City, Metro Manila 1100</p>
-              <p class="td-muted" style="font-size: 11px; margin-top: 4px;" id="delivery-speed-text">Standard delivery · 2–3 business days</p>
+              <p style="font-weight: 700; font-size: 13px; color: var(--color-ink);" id="delivery-customer-name">—</p>
+              <p class="td-muted" style="font-size: 12px; margin-top: 2px;" id="delivery-address-text">Delivery address unavailable.</p>
+              <p class="td-muted" style="font-size: 11px; margin-top: 4px;" id="delivery-speed-text">Delivery estimate unavailable.</p>
             </div>
 
             <div style="border-top: 1px solid var(--color-border); padding-top: 12px;">
               <h3 style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-muted); margin-bottom: 8px;">Order activity</h3>
               <div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;" id="order-activity-list">
-                <p><span class="td-mono td-muted">09:42</span> Payment confirmed</p>
-                <p><span class="td-mono td-muted">09:40</span> Order placed</p>
-                <p><span class="td-mono td-muted">09:40</span> Inventory reserved</p>
+                <p class="td-muted">No activity recorded.</p>
               </div>
             </div>
           </div>

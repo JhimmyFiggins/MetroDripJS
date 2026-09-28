@@ -44,8 +44,7 @@ export function CheckoutScreen() {
 
   // Track delivery values as one object for structured form handling.
   const [address, setAddress] = useState(initialDeliveryAddress);
-  // The orders service settles COD only (services/orders OrdersListCreateAPIView
-  // rejects any other payment_method with 400), so COD is the sole option.
+  // The selected value is a provider-neutral method understood by the orders API.
   const [paymentMethod, setPaymentMethod] = useState('cod');
   // Control delivery zone selector modal visibility.
   const [zoneSelectorVisible, setZoneSelectorVisible] = useState(false);
@@ -74,7 +73,6 @@ export function CheckoutScreen() {
   const cartContext = useCart();
   const cart = cartContext?.cart || [];
   const { total } = cartTotals(cart);
-  const clearCart = cartContext?.clearCart || (() => {});
 
   // Validate all fields before simulated payment initiation.
   const handlePay = () => {

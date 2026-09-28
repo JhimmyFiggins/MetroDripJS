@@ -1,390 +1,425 @@
-/**
- * MetroDrip Merchant Console - Customer Reviews Management
- * Figma Spec: 550:143 & 554:664 & 515:27 & 515:212
- */
-
-(function () {
+// Merchant reviews console backed only by authenticated review records.
+(() => {
   'use strict';
 
-  // Seed Reviews State
-  let reviews = [
-    {
-      id: 1,
-      customer: 'Bea S.',
-      initials: 'BS',
-      rating: 5,
-      product: 'Drip Zip-Up Hoodie',
-      productSku: 'MD-HD-001',
-      date: '2 days ago',
-      text: 'Super lapad ng fit and solid ng tela. Worth it!',
-      needsReply: true,
-      reply: null,
-      replyDate: null
-    },
-    {
-      id: 2,
-      customer: 'Marco L.',
-      initials: 'ML',
-      rating: 4,
-      product: 'Oversized Acid Wash Tee',
-      productSku: 'MD-TS-042',
-      date: '3 days ago',
-      text: 'Nice heavy cotton, but the acid wash pattern is slightly lighter in person than in product photos.',
-      needsReply: true,
-      reply: null,
-      replyDate: null
-    },
-    {
-      id: 3,
-      customer: 'Sarah T.',
-      initials: 'ST',
-      rating: 5,
-      product: 'Cargo Utility Pant - Black',
-      productSku: 'MD-PT-088',
-      date: '1 week ago',
-      text: 'Pockets are actually functional and the cut is super modern. Love this brand!',
-      needsReply: false,
-      reply: 'Thank you so much Sarah! Glad the utility pockets are hitting the mark.',
-      replyDate: '6 days ago'
-    },
-    {
-      id: 4,
-      customer: 'Devon K.',
-      initials: 'DK',
-      rating: 5,
-      product: 'Signature Nylon Bucket Hat',
-      productSku: 'MD-HT-012',
-      date: '2 weeks ago',
-      text: 'Water-resistant material works great during rainy commute.',
-      needsReply: false,
-      reply: 'Thanks for the feedback Devon! We designed that specifically for unpredictable city weather.',
-      replyDate: '13 days ago'
-    }
-  ];
+  const API_BASE = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+    ? 'http://127.0.0.1:8000/api/merchant'
+    : '/api/merchant';
+  const SESSION_KEY = 'metrodrip_active_user';
+  const LOGIN_URL = '../Registration/screens/MerchantLoginScreen.html';
 
-  let currentFilter = {
-    onlyNeedsReply: true,
-    rating: 'all',
-    search: ''
-  };
+  let reviews = [];
+  let reviewsLoaded = false;
+  let activeReplyReviewId = null;
+  let activeModalReviewId = null;
+  let lastFocusedElement = null;
+  const filters = { onlyNeedsReply: true, rating: 'all', search: '' };
 
-  let activeReplyReviewId = 2; // Default targeting Marco L. matching Figma 550:143
-  let activeModalReview = null;
-
-  // DOM Elements
   const reviewsContainer = document.getElementById('reviews-list-container');
-  const metricNeedsReply = document.getElementById('metric-needs-reply');
-  const metricRepliedCount = document.getElementById('metric-replied-count');
-  const chipReplyCount = document.getElementById('chip-reply-count');
-  const sidebarReviewsCount = document.getElementById('sidebar-reviews-count');
+  const modal = document.getElementById('modal-view-review');
+  const replyTextarea = document.getElementById('reply-composer-textarea');
 
-  const btnFilterNeedsReply = document.getElementById('btn-filter-needs-reply');
-  const btnToggleViewAll = document.getElementById('btn-toggle-view-all');
-  const searchInput = document.getElementById('search-reviews-input');
-  const filterRatingSelect = document.getElementById('filter-rating-select');
+  function escapeHtml(value) {
+    const element = document.createElement('div');
+    element.appendChild(document.createTextNode(String(value ?? '')));
+    return element.innerHTML;
+  }
 
-  const replyComposerCard = document.getElementById('card-reply-composer');
-  const headingReplyComposer = document.getElementById('heading-reply-composer');
-  const formReplyComposer = document.getElementById('form-reply-composer');
-  const replyComposerTextarea = document.getElementById('reply-composer-textarea');
-  const composerCharCount = document.getElementById('composer-char-count');
-  const btnCancelReply = document.getElementById('btn-cancel-reply');
+  function merchantSession() {
+    try {
+      const session = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null');
+      const role = String(session?.role || '').toLowerCase();
+      const token = session?.access_token || session?.token || '';
+      return token && session?.is_staff === true && ['merchant', 'admin'].includes(role)
+        ? { ...session, token }
+        : null;
+    } catch {
+      return null;
+    }
+  }
 
-  // Modal Elements
-  const modalViewReview = document.getElementById('modal-view-review');
-  const btnCloseViewModal = document.getElementById('btn-close-view-modal');
-  const btnCloseViewFooter = document.getElementById('btn-close-view-footer');
-  const btnModalOpenReply = document.getElementById('btn-modal-open-reply');
-  const viewCustomerName = document.getElementById('view-customer-name');
-  const viewStarRating = document.getElementById('view-star-rating');
-  const viewProductName = document.getElementById('view-product-name');
-  const viewReviewBody = document.getElementById('view-review-body');
-  const viewReplyStatus = document.getElementById('view-reply-status');
+  async function responseError(response, fallback) {
+    let message = fallback;
+    try {
+      const data = await response.json();
+      message = data?.error?.message || data?.error || data?.detail || fallback;
+    } catch {
+      // Keep the status-specific fallback when the response is not JSON.
+    }
+    const error = new Error(message);
+    error.status = response.status;
+    return error;
+  }
 
-  const toastContainer = document.getElementById('toast-container');
+  async function requestJson(path, options = {}) {
+    const session = merchantSession();
+    if (!session) {
+      const error = new Error('Sign in with an authorized merchant account to manage reviews.');
+      error.status = 401;
+      throw error;
+    }
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${session.token}`,
+        ...(options.headers || {}),
+      },
+    });
+    if (!response.ok) throw await responseError(response, `Review request returned HTTP ${response.status}.`);
+    return response.status === 204 ? null : response.json();
+  }
 
   function showToast(message, type = 'success') {
-    if (!toastContainer) return;
+    const container = document.getElementById('toast-container');
+    if (!container) return;
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     toast.textContent = message;
-    toastContainer.appendChild(toast);
-    setTimeout(() => {
-      toast.classList.add('fade-out');
-      setTimeout(() => toast.remove(), 300);
-    }, 3000);
+    container.appendChild(toast);
+    window.setTimeout(() => toast.remove(), 3500);
   }
 
-  function getStars(count) {
-    return '★'.repeat(count) + '☆'.repeat(5 - count);
+  function ensureStateBanner() {
+    let banner = document.getElementById('reviews-page-state');
+    if (banner) return banner;
+    banner = document.createElement('section');
+    banner.id = 'reviews-page-state';
+    banner.className = 'console-state-banner is-info';
+    banner.hidden = true;
+    banner.innerHTML = `
+      <div class="console-state-copy">
+        <p class="console-state-eyebrow" data-state-eyebrow>STATUS</p>
+        <strong class="console-state-title" data-state-title></strong>
+        <p class="console-state-message" data-state-message></p>
+      </div>
+      <div class="console-state-actions">
+        <button type="button" class="btn btn-secondary btn-sm" data-state-retry hidden>Try again</button>
+        <a class="btn btn-primary btn-sm" data-state-signin href="${LOGIN_URL}" hidden>Merchant sign in</a>
+      </div>`;
+    document.querySelector('.console-header')?.insertAdjacentElement('afterend', banner);
+    banner.querySelector('[data-state-retry]')?.addEventListener('click', loadReviews);
+    return banner;
+  }
+
+  function setPageState(kind, title = '', message = '', { retry = false, signIn = false } = {}) {
+    const banner = ensureStateBanner();
+    if (kind === 'ready') {
+      banner.hidden = true;
+      return;
+    }
+    const tone = kind === 'partial' || kind === 'permission' ? 'warning' : kind;
+    banner.hidden = false;
+    banner.className = `console-state-banner is-${tone === 'loading' ? 'info' : tone}`;
+    banner.setAttribute('role', ['error', 'permission'].includes(kind) ? 'alert' : 'status');
+    banner.querySelector('[data-state-eyebrow]').textContent = kind === 'permission' ? 'ACCESS REQUIRED' : kind.toUpperCase();
+    banner.querySelector('[data-state-title]').textContent = title;
+    banner.querySelector('[data-state-message]').textContent = message;
+    banner.querySelector('[data-state-retry]').hidden = !retry;
+    banner.querySelector('[data-state-signin]').hidden = !signIn;
+  }
+
+  function setListState(kind, title, message) {
+    if (!reviewsContainer) return;
+    reviewsContainer.setAttribute('aria-busy', kind === 'loading' ? 'true' : 'false');
+    reviewsContainer.innerHTML = kind === 'loading'
+      ? '<div class="skeleton-stack" aria-hidden="true"><span class="skeleton-line is-wide"></span><span class="skeleton-line"></span><span class="skeleton-line is-wide"></span></div><span class="sr-only">Loading customer reviews</span>'
+      : `<div class="table-state"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(message)}</span></div>`;
+  }
+
+  function normalizeReview(review) {
+    const rating = Number(review?.rating);
+    return {
+      id: Number(review?.id),
+      customer: String(review?.customer_name || review?.customer || 'Customer name unavailable'),
+      product: String(review?.product_name || 'Product unavailable'),
+      body: String(review?.body || ''),
+      rating: Number.isInteger(rating) && rating >= 1 && rating <= 5 ? rating : 0,
+      status: String(review?.status || 'unreported'),
+      reply: review?.merchant_reply ? String(review.merchant_reply) : '',
+      repliedAt: review?.replied_at ? String(review.replied_at) : null,
+      createdAt: review?.created_at ? String(review.created_at) : null,
+    };
+  }
+
+  function initials(name) {
+    const parts = String(name).trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '??';
+    return (parts.length === 1 ? parts[0].slice(0, 2) : `${parts[0][0]}${parts.at(-1)[0]}`).toUpperCase();
+  }
+
+  function stars(rating) {
+    return rating ? '★'.repeat(rating) + '☆'.repeat(5 - rating) : 'Rating unavailable';
+  }
+
+  function needsReply(review) {
+    return !review.reply;
+  }
+
+  function setComposerEnabled(enabled) {
+    ['reply-composer-textarea', 'btn-post-reply', 'btn-cancel-reply'].forEach((id) => {
+      const control = document.getElementById(id);
+      if (control) control.disabled = !enabled;
+    });
+  }
+
+  function clearReplyTarget() {
+    activeReplyReviewId = null;
+    if (replyTextarea) replyTextarea.value = '';
+    const heading = document.getElementById('heading-reply-composer');
+    if (heading) heading.textContent = 'Select a review to reply';
+    setComposerEnabled(false);
+    updateCharCount();
   }
 
   function updateMetrics() {
-    const needsReplyCount = reviews.filter(r => r.needsReply).length;
-    const repliedCount = 84 + reviews.filter(r => !r.needsReply && r.reply).length - 2; // Baseline from 84
+    const needsReplyCount = reviews.filter(needsReply).length;
+    const repliedCount = reviews.filter((review) => Boolean(review.reply)).length;
+    const rated = reviews.filter((review) => review.rating > 0);
+    const average = rated.length
+      ? (rated.reduce((sum, review) => sum + review.rating, 0) / rated.length).toFixed(1)
+      : null;
+    const values = {
+      'metric-needs-reply': needsReplyCount,
+      'metric-replied-count': repliedCount,
+      'chip-reply-count': needsReplyCount,
+      'sidebar-reviews-count': needsReplyCount,
+    };
+    Object.entries(values).forEach(([id, value]) => {
+      const element = document.getElementById(id);
+      if (element) element.textContent = String(value);
+    });
+    const averageElement = document.getElementById('metric-average-rating');
+    if (averageElement) averageElement.textContent = average ? `${average} / 5` : '—';
+    const cohort = document.getElementById('metric-review-cohort');
+    if (cohort) cohort.textContent = `${rated.length} loaded rated review${rated.length === 1 ? '' : 's'}`;
+  }
 
-    if (metricNeedsReply) metricNeedsReply.textContent = needsReplyCount;
-    if (chipReplyCount) chipReplyCount.textContent = needsReplyCount;
-    if (sidebarReviewsCount) sidebarReviewsCount.textContent = needsReplyCount;
-    if (metricRepliedCount) metricRepliedCount.textContent = repliedCount;
+  function filteredReviews() {
+    return reviews.filter((review) => {
+      if (filters.onlyNeedsReply && !needsReply(review)) return false;
+      if (filters.rating !== 'all' && review.rating !== Number(filters.rating)) return false;
+      if (!filters.search) return true;
+      const haystack = `${review.customer} ${review.product} ${review.body}`.toLowerCase();
+      return haystack.includes(filters.search);
+    });
   }
 
   function renderReviews() {
-    if (!reviewsContainer) return;
-
-    let filtered = reviews.filter(r => {
-      if (currentFilter.onlyNeedsReply && !r.needsReply) return false;
-      if (currentFilter.rating !== 'all' && r.rating !== parseInt(currentFilter.rating, 10)) return false;
-      if (currentFilter.search) {
-        const q = currentFilter.search.toLowerCase();
-        const matchCust = r.customer.toLowerCase().includes(q);
-        const matchProd = r.product.toLowerCase().includes(q);
-        const matchText = r.text.toLowerCase().includes(q);
-        if (!matchCust && !matchProd && !matchText) return false;
-      }
-      return true;
-    });
-
-    if (filtered.length === 0) {
-      reviewsContainer.innerHTML = `
-        <div style="padding: 32px 16px; text-align: center; color: var(--color-muted);">
-          <p style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">No reviews match your filter</p>
-          <p style="font-size: 12px;">Try clearing your search query or switching to "View all reviews".</p>
-        </div>
-      `;
+    if (!reviewsContainer || !reviewsLoaded) return;
+    reviewsContainer.setAttribute('aria-busy', 'false');
+    const filtered = filteredReviews();
+    if (!reviews.length) {
+      setListState('empty', 'No customer reviews', 'Submitted reviews will appear here after the API stores them.');
       return;
     }
-
-    reviewsContainer.innerHTML = filtered.map(r => `
-      <article class="review-item-card" data-review-id="${r.id}" style="border: 1px solid var(--color-border); border-radius: 6px; padding: 16px; margin-bottom: 12px; background: var(--color-paper);">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+    if (!filtered.length) {
+      setListState('empty', 'No reviews match this view', 'Clear the search, rating, or reply filter to see other loaded reviews.');
+      return;
+    }
+    reviewsContainer.innerHTML = filtered.map((review) => `
+      <article class="review-item-card" data-review-id="${review.id}" style="border: 1px solid var(--color-border); border-radius: 6px; padding: 16px; margin-bottom: 12px; background: var(--color-paper);">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px;">
           <div style="display: flex; align-items: center; gap: 10px;">
-            <div style="width: 34px; height: 34px; border-radius: 50%; background: var(--color-surface); border: 1px solid var(--color-border); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; color: var(--color-ink);">
-              ${r.initials}
-            </div>
+            <div style="width: 34px; height: 34px; border-radius: 50%; background: var(--color-surface); border: 1px solid var(--color-border); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; color: var(--color-ink);" aria-hidden="true">${escapeHtml(initials(review.customer))}</div>
             <div>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <h3 style="font-size: 13px; font-weight: 700; color: var(--color-ink); margin: 0;">${r.customer}</h3>
-                <span style="font-size: 11px; color: var(--color-muted);">${r.date}</span>
-                ${r.needsReply ? '<span class="status-pill status-alert" style="font-size: 10px; padding: 2px 6px;">Needs reply</span>' : '<span class="status-pill status-active" style="font-size: 10px; padding: 2px 6px;">Replied</span>'}
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <h3 style="font-size: 13px; font-weight: 700; color: var(--color-ink); margin: 0;">${escapeHtml(review.customer)}</h3>
+                <span style="font-size: 11px; color: var(--color-muted);">${escapeHtml(review.createdAt || 'Date unavailable')}</span>
+                <span class="status-pill ${needsReply(review) ? 'status-alert' : 'status-active'}" style="font-size: 10px; padding: 2px 6px;">${needsReply(review) ? 'Needs reply' : 'Replied'}</span>
               </div>
-              <div style="display: flex; align-items: center; gap: 8px; margin-top: 2px;">
-                <span class="td-mono" style="color: #ffb800; font-size: 12px;">${getStars(r.rating)}</span>
-                <span style="font-size: 11px; color: var(--color-muted); font-weight: 500;">Product: <strong>${r.product}</strong></span>
+              <div style="display: flex; align-items: center; gap: 8px; margin-top: 2px; flex-wrap: wrap;">
+                <span class="td-mono" style="color: #9a6b00; font-size: 12px;" aria-label="${review.rating ? `${review.rating} out of 5 stars` : 'Rating unavailable'}">${escapeHtml(stars(review.rating))}</span>
+                <span style="font-size: 11px; color: var(--color-muted); font-weight: 500;">Product: <strong>${escapeHtml(review.product)}</strong></span>
               </div>
             </div>
           </div>
-          <div style="display: flex; gap: 8px;">
-            <button type="button" class="btn btn-secondary btn-view-review" data-id="${r.id}" style="padding: 4px 10px; font-size: 11px;">
-              View review
-            </button>
-            ${r.needsReply ? `
-              <button type="button" class="btn btn-primary btn-trigger-reply" data-id="${r.id}" style="padding: 4px 10px; font-size: 11px;">
-                Reply
-              </button>
-            ` : ''}
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
+            <button type="button" class="btn btn-secondary btn-view-review" data-id="${review.id}" style="padding: 4px 10px; font-size: 11px;">View review</button>
+            ${needsReply(review) ? `<button type="button" class="btn btn-primary btn-trigger-reply" data-id="${review.id}" style="padding: 4px 10px; font-size: 11px;">Reply</button>` : ''}
           </div>
         </div>
-
-        <div style="font-size: 13px; line-height: 1.5; color: var(--color-ink); margin-bottom: 8px;">
-          ${r.text}
-        </div>
-
-        ${r.reply ? `
+        <p style="font-size: 13px; line-height: 1.5; color: var(--color-ink); margin: 0 0 8px;">${escapeHtml(review.body || 'Review text unavailable')}</p>
+        ${review.reply ? `
           <div style="margin-top: 12px; padding: 10px 14px; background: var(--color-surface); border-left: 3px solid var(--color-ink); border-radius: 0 4px 4px 0;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-              <span style="font-size: 11px; font-weight: 700; color: var(--color-ink); text-transform: uppercase; letter-spacing: 0.5px;">Merchant Response</span>
-              <span style="font-size: 10px; color: var(--color-muted);">${r.replyDate || 'Just now'}</span>
+            <div style="display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px;">
+              <span style="font-size: 11px; font-weight: 700; color: var(--color-ink); text-transform: uppercase; letter-spacing: 0.5px;">Merchant response</span>
+              <span style="font-size: 10px; color: var(--color-muted);">${escapeHtml(review.repliedAt || 'Time unavailable')}</span>
             </div>
-            <p style="font-size: 12px; color: var(--color-ink); margin: 0; line-height: 1.4;">${r.reply}</p>
-          </div>
-        ` : ''}
-      </article>
-    `).join('');
-
-    // Attach listeners
-    reviewsContainer.querySelectorAll('.btn-view-review').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = parseInt(btn.dataset.id, 10);
-        openViewModal(id);
-      });
-    });
-
-    reviewsContainer.querySelectorAll('.btn-trigger-reply').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = parseInt(btn.dataset.id, 10);
-        setReplyTarget(id);
-      });
-    });
+            <p style="font-size: 12px; color: var(--color-ink); margin: 0; line-height: 1.4;">${escapeHtml(review.reply)}</p>
+          </div>` : ''}
+      </article>`).join('');
   }
 
   function setReplyTarget(reviewId) {
-    const target = reviews.find(r => r.id === reviewId);
-    if (!target) return;
-
-    activeReplyReviewId = reviewId;
-    if (headingReplyComposer) {
-      headingReplyComposer.textContent = `Reply to ${target.customer}`;
-    }
-
-    if (replyComposerTextarea) {
-      if (reviewId === 2) {
-        replyComposerTextarea.value = 'Thanks for your feedback, Marco. Please contact our support team so we can help with the color difference.';
-      } else if (reviewId === 1) {
-        replyComposerTextarea.value = 'Salamat sa review, Bea! Enjoy the hoodie and stay dripped.';
-      } else {
-        replyComposerTextarea.value = `Thank you for your feedback, ${target.customer.split(' ')[0]}!`;
-      }
-      updateCharCount();
-      replyComposerTextarea.focus();
-    }
-
-    if (replyComposerCard) {
-      replyComposerCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+    const review = reviews.find((item) => item.id === reviewId);
+    if (!review) return;
+    activeReplyReviewId = review.id;
+    const heading = document.getElementById('heading-reply-composer');
+    if (heading) heading.textContent = `Reply to ${review.customer}`;
+    if (replyTextarea) replyTextarea.value = '';
+    setComposerEnabled(true);
+    updateCharCount();
+    document.getElementById('card-reply-composer')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    replyTextarea?.focus();
   }
 
   function updateCharCount() {
-    if (!replyComposerTextarea || !composerCharCount) return;
-    const len = replyComposerTextarea.value.length;
-    composerCharCount.textContent = `${len} / 1,000 characters`;
+    const counter = document.getElementById('composer-char-count');
+    if (counter) counter.textContent = `${replyTextarea?.value.length || 0} / 1,000 characters`;
   }
 
-  function openViewModal(reviewId) {
-    const target = reviews.find(r => r.id === reviewId);
-    if (!target) return;
-
-    activeModalReview = target;
-    if (viewCustomerName) viewCustomerName.textContent = target.customer;
-    if (viewStarRating) viewStarRating.textContent = `${target.rating} of 5 stars (${getStars(target.rating)})`;
-    if (viewProductName) viewProductName.textContent = `${target.product} (${target.productSku})`;
-    if (viewReviewBody) viewReviewBody.textContent = `“${target.text}”`;
-
-    if (viewReplyStatus) {
-      if (target.reply) {
-        viewReplyStatus.innerHTML = `<span style="color: var(--color-ink); font-weight: 600;">Replied:</span> "${target.reply}"`;
-      } else {
-        viewReplyStatus.textContent = 'No merchant reply yet';
-      }
-    }
-
-    if (btnModalOpenReply) {
-      btnModalOpenReply.style.display = target.needsReply ? 'inline-block' : 'none';
-    }
-
-    if (modalViewReview) modalViewReview.hidden = false;
+  function openModal(reviewId, trigger) {
+    const review = reviews.find((item) => item.id === reviewId);
+    if (!review || !modal) return;
+    activeModalReviewId = review.id;
+    lastFocusedElement = trigger || document.activeElement;
+    document.getElementById('view-customer-name').textContent = review.customer;
+    document.getElementById('view-star-rating').textContent = review.rating ? `${review.rating} of 5 stars` : 'Rating unavailable';
+    document.getElementById('view-product-name').textContent = review.product;
+    document.getElementById('view-review-body').textContent = review.body || 'Review text unavailable';
+    document.getElementById('view-reply-status').textContent = review.reply
+      ? `Merchant response: ${review.reply}`
+      : 'No merchant reply yet';
+    const replyButton = document.getElementById('btn-modal-open-reply');
+    if (replyButton) replyButton.hidden = !needsReply(review);
+    modal.hidden = false;
+    document.getElementById('btn-close-view-modal')?.focus();
   }
 
-  function closeViewModal() {
-    if (modalViewReview) modalViewReview.hidden = true;
-    activeModalReview = null;
+  function closeModal() {
+    if (!modal) return;
+    modal.hidden = true;
+    activeModalReviewId = null;
+    lastFocusedElement?.focus?.();
+    lastFocusedElement = null;
   }
 
-  // Setup Event Handlers
-  if (btnFilterNeedsReply) {
-    btnFilterNeedsReply.addEventListener('click', () => {
-      currentFilter.onlyNeedsReply = !currentFilter.onlyNeedsReply;
-      btnFilterNeedsReply.classList.toggle('is-active', currentFilter.onlyNeedsReply);
-      renderReviews();
-    });
-  }
+  async function loadReviews() {
+    reviewsLoaded = false;
+    clearReplyTarget();
+    setPageState('loading', 'Loading live reviews', 'Customer feedback is being requested from the server.');
+    setListState('loading', '', 'Loading customer reviews');
+    ['metric-needs-reply', 'metric-replied-count', 'metric-average-rating', 'chip-reply-count', 'sidebar-reviews-count']
+      .forEach((id) => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = '—';
+      });
+    const cohort = document.getElementById('metric-review-cohort');
+    if (cohort) cohort.textContent = 'Waiting for live data';
 
-  if (btnToggleViewAll) {
-    btnToggleViewAll.addEventListener('click', () => {
-      currentFilter.onlyNeedsReply = false;
-      if (btnFilterNeedsReply) btnFilterNeedsReply.classList.remove('is-active');
-      renderReviews();
-      showToast('Showing all customer reviews');
-    });
-  }
-
-  if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      currentFilter.search = e.target.value.trim();
-      renderReviews();
-    });
-  }
-
-  if (filterRatingSelect) {
-    filterRatingSelect.addEventListener('change', (e) => {
-      currentFilter.rating = e.target.value;
-      renderReviews();
-    });
-  }
-
-  if (replyComposerTextarea) {
-    replyComposerTextarea.addEventListener('input', updateCharCount);
-  }
-
-  if (btnCancelReply) {
-    btnCancelReply.addEventListener('click', () => {
-      if (replyComposerTextarea) {
-        replyComposerTextarea.value = '';
-        updateCharCount();
-      }
-      showToast('Reply canceled', 'info');
-    });
-  }
-
-  if (formReplyComposer) {
-    formReplyComposer.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const replyText = replyComposerTextarea ? replyComposerTextarea.value.trim() : '';
-      if (!replyText) {
-        showToast('Please enter reply text before posting', 'error');
-        return;
-      }
-
-      const target = reviews.find(r => r.id === activeReplyReviewId);
-      if (!target) {
-        showToast('Unable to find review to reply to', 'error');
-        return;
-      }
-
-      target.needsReply = false;
-      target.reply = replyText;
-      target.replyDate = 'Just now';
-
+    try {
+      const payload = await requestJson('/reviews/');
+      if (!Array.isArray(payload)) throw new Error('The review service returned an unsupported payload.');
+      reviews = payload.map(normalizeReview).filter((review) => Number.isFinite(review.id));
+      reviewsLoaded = true;
       updateMetrics();
       renderReviews();
+      setPageState('ready');
+    } catch (error) {
+      reviews = [];
+      const permission = error?.status === 401 || error?.status === 403;
+      setListState('error', permission ? 'Merchant access required' : 'Reviews unavailable', error.message);
+      setPageState(permission ? 'permission' : 'error', permission ? 'Merchant access required' : 'Reviews could not be loaded', error.message, {
+        retry: !permission,
+        signIn: permission,
+      });
+    }
+  }
 
-      showToast(`Reply posted for ${target.customer}`);
+  async function postReply(event) {
+    event.preventDefault();
+    const review = reviews.find((item) => item.id === activeReplyReviewId);
+    const reply = String(replyTextarea?.value || '').trim();
+    if (!review) {
+      showToast('Select a review before posting a reply.', 'error');
+      return;
+    }
+    if (!reply) {
+      showToast('Enter a reply before posting.', 'error');
+      replyTextarea?.focus();
+      return;
+    }
 
-      // Reset composer to next review needing reply if any
-      const nextTarget = reviews.find(r => r.needsReply);
-      if (nextTarget) {
-        setReplyTarget(nextTarget.id);
-      } else {
-        if (replyComposerTextarea) replyComposerTextarea.value = '';
-        updateCharCount();
-        if (headingReplyComposer) headingReplyComposer.textContent = 'Reply to review';
+    const submit = document.getElementById('btn-post-reply');
+    if (submit) {
+      submit.disabled = true;
+      submit.textContent = 'Posting…';
+    }
+    try {
+      const result = await requestJson(`/reviews/${review.id}/reply/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reply }),
+      });
+      review.reply = String(result?.merchant_reply || reply);
+      review.repliedAt = result?.replied_at ? String(result.replied_at) : null;
+      updateMetrics();
+      renderReviews();
+      clearReplyTarget();
+      setPageState('ready');
+      showToast(`Reply posted for ${review.customer}.`);
+    } catch (error) {
+      const permission = error?.status === 401 || error?.status === 403;
+      setPageState(permission ? 'permission' : 'partial', 'Reply was not posted', error.message, { signIn: permission });
+      showToast(`Reply was not posted: ${error.message}`, 'error');
+    } finally {
+      if (submit) {
+        submit.disabled = activeReplyReviewId === null;
+        submit.textContent = 'Post reply';
       }
+    }
+  }
+
+  function initHandlers() {
+    document.getElementById('btn-filter-needs-reply')?.addEventListener('click', (event) => {
+      filters.onlyNeedsReply = !filters.onlyNeedsReply;
+      event.currentTarget.classList.toggle('is-active', filters.onlyNeedsReply);
+      event.currentTarget.setAttribute('aria-pressed', String(filters.onlyNeedsReply));
+      renderReviews();
+    });
+    document.getElementById('btn-toggle-view-all')?.addEventListener('click', () => {
+      filters.onlyNeedsReply = false;
+      const button = document.getElementById('btn-filter-needs-reply');
+      button?.classList.remove('is-active');
+      button?.setAttribute('aria-pressed', 'false');
+      renderReviews();
+    });
+    document.getElementById('search-reviews-input')?.addEventListener('input', (event) => {
+      filters.search = event.target.value.trim().toLowerCase();
+      renderReviews();
+    });
+    document.getElementById('filter-rating-select')?.addEventListener('change', (event) => {
+      filters.rating = event.target.value;
+      renderReviews();
+    });
+    reviewsContainer?.addEventListener('click', (event) => {
+      const viewButton = event.target.closest('.btn-view-review');
+      if (viewButton) return openModal(Number(viewButton.dataset.id), viewButton);
+      const replyButton = event.target.closest('.btn-trigger-reply');
+      if (replyButton) setReplyTarget(Number(replyButton.dataset.id));
+    });
+    replyTextarea?.addEventListener('input', updateCharCount);
+    document.getElementById('btn-cancel-reply')?.addEventListener('click', clearReplyTarget);
+    document.getElementById('form-reply-composer')?.addEventListener('submit', postReply);
+    document.getElementById('btn-close-view-modal')?.addEventListener('click', closeModal);
+    document.getElementById('btn-close-view-footer')?.addEventListener('click', closeModal);
+    document.getElementById('btn-modal-open-reply')?.addEventListener('click', () => {
+      const reviewId = activeModalReviewId;
+      closeModal();
+      if (reviewId !== null) setReplyTarget(reviewId);
+    });
+    modal?.addEventListener('click', (event) => {
+      if (event.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && modal && !modal.hidden) closeModal();
     });
   }
 
-  // Modal Handlers
-  if (btnCloseViewModal) btnCloseViewModal.addEventListener('click', closeViewModal);
-  if (btnCloseViewFooter) btnCloseViewFooter.addEventListener('click', closeViewModal);
-
-  if (btnModalOpenReply) {
-    btnModalOpenReply.addEventListener('click', () => {
-      if (activeModalReview) {
-        const id = activeModalReview.id;
-        closeViewModal();
-        setReplyTarget(id);
-      }
-    });
-  }
-
-  if (modalViewReview) {
-    modalViewReview.addEventListener('click', (e) => {
-      if (e.target === modalViewReview) closeViewModal();
-    });
-  }
-
-  // Initial Boot
-  updateMetrics();
-  renderReviews();
-  updateCharCount();
-
+  document.addEventListener('DOMContentLoaded', () => {
+    initHandlers();
+    clearReplyTarget();
+    loadReviews();
+  });
 })();

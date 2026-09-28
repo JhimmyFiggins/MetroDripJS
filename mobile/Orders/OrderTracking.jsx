@@ -1,53 +1,72 @@
-import React, { useState, useCallback } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
-
 import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
-  ScrollView,
-  TouchableOpacity,
-  ActivityIndicator,
-  Alert,
 } from 'react-native';
-
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
 import { colors, fonts } from '../Checkout/src/theme';
-
 import { getOrderTracking } from '../../src/services/orderService';
+import {
+  classifyOrderError,
+  trackingEvents,
+  trackingHeadline,
+  trackingItems,
+  trackingOrderNumber,
+} from './orderPresentation';
 
-// Dark-surface tokens from the M07 Figma spec that are not in the shared theme.
 const darkSurface = '#252524';
 const mutedOnDark = '#A8A8A0';
 const chipText = '#F2F2EF';
 
-const formatEventTime = iso => {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) {
-    return '—';
-  }
-  return `${date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  })} · ${date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  })}`;
-};
+function TrackingSkeleton() {
+  return (
+    <View accessibilityLabel="Loading tracking details" accessibilityRole="progressbar" style={styles.skeletonPage}>
+      <View style={styles.skeletonHero}>
+        <View style={styles.skeletonHeroLabel} />
+        <View style={styles.skeletonHeroTitle} />
+        <View style={styles.skeletonHeroMeta} />
+      </View>
+      <View style={styles.skeletonBody}>
+        {[0, 1, 2, 3].map((row) => (
+          <View key={row} style={styles.skeletonTimelineRow}>
+            <View style={styles.skeletonDot} />
+            <View style={styles.skeletonTextGroup}>
+              <View style={styles.skeletonTextWide} />
+              <View style={styles.skeletonTextNarrow} />
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
 
-const formatExpected = iso => {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) {
-    return '—';
-  }
-  return `Expected ${date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  })}`;
-};
+function FatalState({ error, onAction }) {
+  return (
+    <View accessibilityLiveRegion="polite" style={styles.stateContainer}>
+      <View style={styles.stateIcon}>
+        <Text style={styles.stateIconText}>!</Text>
+      </View>
+      <Text style={styles.errorTitle}>{error.title}</Text>
+      <Text style={styles.stateText}>{error.message}</Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onAction}
+        style={({ pressed }) => [styles.retryButton, pressed && styles.buttonPressed]}
+      >
+        <Text style={styles.retryButtonText}>{error.actionLabel}</Text>
+      </Pressable>
+    </View>
+  );
+}
 
 export default function OrderTracking() {
   const navigation = useNavigation();
@@ -58,472 +77,327 @@ export default function OrderTracking() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [refreshError, setRefreshError] = useState(null);
+  const trackingRef = useRef(null);
+  const requestSequence = useRef(0);
 
-  const loadTracking = useCallback(async () => {
-    try {
-      setError(null);
-      const data = await getOrderTracking(orderId);
-      setTracking(data);
-    } catch (err) {
-      console.error('Failed to load order tracking:', err);
-      if (err && err.status === 404) {
-        setError('Order not found');
-      } else {
-        setError((err && err.message) || 'Failed to load tracking details.');
-      }
-    } finally {
+  const loadTracking = useCallback(async ({ preserveData = false } = {}) => {
+    const requestId = ++requestSequence.current;
+    if (preserveData && trackingRef.current) setRefreshing(true);
+    else setLoading(true);
+    setError(null);
+    setRefreshError(null);
+
+    if (orderId == null || String(orderId).trim() === '') {
+      setError(classifyOrderError({ status: 404 }, 'tracking'));
       setLoading(false);
       setRefreshing(false);
+      return;
+    }
+
+    try {
+      const data = await getOrderTracking(orderId);
+      if (requestId !== requestSequence.current) return;
+      if (!data || typeof data !== 'object' || !data.order) {
+        throw new Error('Tracking response was incomplete.');
+      }
+      trackingRef.current = data;
+      setTracking(data);
+    } catch (caught) {
+      if (requestId !== requestSequence.current) return;
+      const safeError = classifyOrderError(caught, 'tracking');
+      if (preserveData && trackingRef.current) setRefreshError(safeError);
+      else setError(safeError);
+    } finally {
+      if (requestId === requestSequence.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [orderId]);
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
-      loadTracking();
-    }, [loadTracking])
+      loadTracking({ preserveData: Boolean(trackingRef.current) });
+      return () => {
+        requestSequence.current += 1;
+      };
+    }, [loadTracking]),
   );
 
-  const handleTrackLive = () => {
-    setRefreshing(true);
+  const handleErrorAction = () => {
+    if (error?.kind === 'session') {
+      navigation.navigate('Login');
+      return;
+    }
+    if (error?.kind === 'permission' || error?.kind === 'not_found') {
+      navigation.goBack();
+      return;
+    }
     loadTracking();
   };
 
   const handleGetHelp = () => {
     Alert.alert(
       'Get help',
-      'Need a hand with this order? Email us at support@metrodrip.ph and include your order number.',
-      [{ text: 'OK' }]
+      'Email support@metrodrip.ph and include the order reference shown on this screen.',
+      [{ text: 'OK' }],
     );
   };
 
   const order = tracking?.order;
   const shipment = tracking?.shipment;
-  const events = tracking?.events || [];
-  const items = order?.items || [];
-
-  const orderNumber =
-    order?.number ||
-    (order?.id != null
-      ? `MD-2026-${String(order.id).padStart(5, '0')}`
-      : `MD-2026-${String(orderId ?? '').padStart(5, '0')}`);
+  const events = trackingEvents(tracking);
+  const items = trackingItems(tracking);
+  const orderNumber = trackingOrderNumber(tracking, orderId);
+  const headline = trackingHeadline(tracking);
+  const courier = String(shipment?.courier || '').trim();
+  const trackingNumber = String(shipment?.tracking_number || '').trim();
 
   return (
-    <SafeAreaProvider>
-      <View style={styles.screen}>
-        <StatusBar style="dark" />
+    <SafeAreaView edges={['top', 'bottom']} style={styles.screen}>
+      <StatusBar style="dark" />
+      <View style={styles.header}>
+        <Pressable
+          accessibilityLabel="Go back"
+          accessibilityRole="button"
+          hitSlop={8}
+          onPress={() => navigation.goBack()}
+          style={({ pressed }) => [styles.backButton, pressed && styles.buttonPressed]}
+        >
+          <Text style={styles.backArrow}>‹</Text>
+        </Pressable>
+        <Text numberOfLines={1} style={styles.headerTitle}>{orderNumber}</Text>
+        <View style={styles.headerSpacer} />
+      </View>
 
-        {/* Header — AdaptHeader pattern, but back uses goBack so tracking can be
-            reached from Notifications or OrderConfirmation */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            accessibilityLabel="Go back"
-            accessibilityRole="button"
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
-            <Text style={styles.backArrow}>‹</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Order {orderNumber}</Text>
-        </View>
-
-        {loading ? (
-          <View style={styles.stateContainer}>
-            <ActivityIndicator color={colors.ink} size="large" />
-            <Text style={styles.stateText}>Loading tracking details...</Text>
-          </View>
-        ) : error ? (
-          <View style={styles.stateContainer}>
-            <Text style={styles.errorTitle}>{error}</Text>
-            <Text style={styles.stateText}>
-              We could not load tracking for this order.
-            </Text>
-            <TouchableOpacity style={styles.retryButton} onPress={handleTrackLive}>
-              <Text style={styles.retryButtonText}>TRY AGAIN</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
+      {loading ? (
+        <TrackingSkeleton />
+      ) : error ? (
+        <FatalState error={error} onAction={handleErrorAction} />
+      ) : (
+        <>
           <ScrollView
             contentContainerStyle={styles.container}
             showsVerticalScrollIndicator={false}
           >
-            {/* ETA HERO */}
+            {refreshError && (
+              <View accessibilityLiveRegion="polite" style={styles.partialBanner}>
+                <View style={styles.partialTextGroup}>
+                  <Text style={styles.partialTitle}>{refreshError.title}</Text>
+                  <Text style={styles.partialMessage}>
+                    Showing the last loaded tracking details. {refreshError.message}
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityLabel="Retry refreshing tracking"
+                  accessibilityRole="button"
+                  onPress={() => loadTracking({ preserveData: true })}
+                  style={styles.partialRetry}
+                >
+                  <Text style={styles.partialRetryText}>Retry</Text>
+                </Pressable>
+              </View>
+            )}
+
             <View style={styles.hero}>
               <Text style={styles.heroLabel}>
-                {shipment ? 'ARRIVING' : 'STATUS'}
+                {shipment?.eta_label ? 'DELIVERY UPDATE' : 'ORDER STATUS'}
               </Text>
-              <Text style={styles.heroEta}>
-                {shipment ? shipment.eta_label : 'Preparing your order'}
-              </Text>
-              {shipment && (
-                <View style={styles.heroRow}>
-                  <Text style={styles.heroCourier}>{shipment.courier}</Text>
-                  <View style={styles.trackingChip}>
-                    <Text style={styles.trackingChipText}>
-                      {shipment.tracking_number}
-                    </Text>
+              <Text style={styles.heroHeadline}>{headline}</Text>
+              {courier || trackingNumber ? (
+                <View style={styles.heroMetaRow}>
+                  {!!courier && <Text style={styles.heroCourier}>{courier}</Text>}
+                  {!!trackingNumber && (
+                    <View style={styles.trackingChip}>
+                      <Text style={styles.trackingChipText}>{trackingNumber}</Text>
+                    </View>
+                  )}
+                </View>
+              ) : (
+                <Text style={styles.heroSupportingText}>
+                  Courier and tracking details will appear after dispatch.
+                </Text>
+              )}
+            </View>
+
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Progress</Text>
+                {refreshing && (
+                  <View accessibilityLiveRegion="polite" style={styles.refreshingLabel}>
+                    <ActivityIndicator color={colors.ink} size="small" />
+                    <Text style={styles.refreshingText}>Refreshing</Text>
                   </View>
+                )}
+              </View>
+              {events.length === 0 ? (
+                <View style={styles.emptyPanel}>
+                  <Text style={styles.emptyTitle}>No tracking updates yet</Text>
+                  <Text style={styles.emptyText}>Updates will appear here as fulfillment progresses.</Text>
+                </View>
+              ) : (
+                <View style={styles.timeline}>
+                  {events.map((event, index) => {
+                    const done = event.state === 'done';
+                    const isLast = index === events.length - 1;
+                    return (
+                      <View key={event.key} style={styles.timelineRow}>
+                        <View style={styles.timelineRail}>
+                          <View style={done ? styles.dotDone : styles.dotPending} />
+                          {!isLast && (
+                            <View style={[styles.connector, !done && styles.connectorPending]} />
+                          )}
+                        </View>
+                        <View style={styles.timelineContent}>
+                          <Text style={[styles.eventTitle, !done && styles.eventTitlePending]}>
+                            {event.title}
+                          </Text>
+                          <Text style={styles.eventTime}>
+                            {event.timestamp || (done ? 'Completed' : 'Awaiting update')}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
                 </View>
               )}
             </View>
 
-            {/* TIMELINE */}
-            <View style={styles.timeline}>
-              {events.length === 0 ? (
-                <Text style={styles.emptyText}>
-                  No tracking events yet. Check back soon.
-                </Text>
-              ) : (
-                events.map((event, index) => {
-                  const done = event.state === 'done';
-                  const isLast = index === events.length - 1;
-                  return (
-                    <View key={event.key || index} style={styles.timelineRow}>
-                      <View style={styles.timelineRail}>
-                        {done ? (
-                          <View style={styles.dotDone} />
-                        ) : (
-                          <View style={styles.dotPending} />
-                        )}
-                        {!isLast && (
-                          <View
-                            style={[
-                              styles.connector,
-                              !done && styles.connectorPending,
-                            ]}
-                          />
-                        )}
-                      </View>
-                      <View style={styles.timelineContent}>
-                        <Text
-                          style={[
-                            styles.eventTitle,
-                            !done && styles.eventTitlePending,
-                          ]}
-                        >
-                          {event.title}
-                        </Text>
-                        <Text style={styles.eventTime}>
-                          {done
-                            ? formatEventTime(event.timestamp)
-                            : formatExpected(event.timestamp)}
-                        </Text>
-                      </View>
-                    </View>
-                  );
-                })
-              )}
-            </View>
-
-            {/* ITEMS */}
-            <View style={styles.itemsSection}>
-              <Text style={styles.itemsHeading}>Items</Text>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Items</Text>
               {items.length === 0 ? (
-                <Text style={styles.emptyText}>No items on this order.</Text>
+                <View style={styles.emptyPanel}>
+                  <Text style={styles.emptyTitle}>Item details unavailable</Text>
+                  <Text style={styles.emptyText}>The order is still valid. Refresh to request its item details again.</Text>
+                </View>
               ) : (
-                items.map((item, index) => (
-                  <View key={item.id || index} style={styles.itemRow}>
-                    <View style={styles.itemThumb}>
-                      <Text style={styles.itemThumbLetter}>
-                        {item.name ? item.name.charAt(0) : 'M'}
-                      </Text>
-                    </View>
-                    <View style={styles.itemInfo}>
-                      <Text numberOfLines={1} style={styles.itemName}>
-                        {item.name}
-                      </Text>
-                      <Text style={styles.itemMeta}>
-                        {item.variant_label ? `${item.variant_label} ` : ''}×
-                        {item.quantity}
-                      </Text>
-                    </View>
-                  </View>
-                ))
+                <View style={styles.itemList}>
+                  {items.map((item, index) => {
+                    const name = String(item.name || item.product_name || 'Item');
+                    return (
+                      <View key={item.id || `${name}-${index}`} style={styles.itemRow}>
+                        <View style={styles.itemThumb}>
+                          <Text style={styles.itemThumbLetter}>{name.charAt(0).toUpperCase()}</Text>
+                        </View>
+                        <View style={styles.itemInfo}>
+                          <Text numberOfLines={2} style={styles.itemName}>{name}</Text>
+                          <Text style={styles.itemMeta}>
+                            {item.variant_label ? `${item.variant_label} · ` : ''}Quantity {item.quantity}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
               )}
             </View>
           </ScrollView>
-        )}
 
-        {/* STICKY BOTTOM BAR */}
-        {!loading && !error && (
           <View style={styles.bottomBar}>
-            <TouchableOpacity
+            <Pressable
               accessibilityLabel="Get help with this order"
               accessibilityRole="button"
-              style={styles.helpButton}
               onPress={handleGetHelp}
+              style={({ pressed }) => [styles.helpButton, pressed && styles.buttonPressed]}
             >
               <Text style={styles.helpButtonText}>Get help</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              accessibilityLabel="Refresh live tracking"
+            </Pressable>
+            <Pressable
+              accessibilityLabel="Refresh tracking details"
               accessibilityRole="button"
-              style={styles.trackButton}
-              onPress={handleTrackLive}
               disabled={refreshing}
+              onPress={() => loadTracking({ preserveData: true })}
+              style={({ pressed }) => [
+                styles.trackButton,
+                pressed && styles.buttonPressed,
+                refreshing && styles.buttonDisabled,
+              ]}
             >
               {refreshing ? (
                 <ActivityIndicator color={colors.ink} size="small" />
               ) : (
-                <Text style={styles.trackButtonText}>Track live</Text>
+                <Text style={styles.trackButtonText}>Refresh</Text>
               )}
-            </TouchableOpacity>
+            </Pressable>
           </View>
-        )}
-      </View>
-    </SafeAreaProvider>
+        </>
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: 'rgb(255, 255, 255)',
-  },
-
-  // Header
-  header: {
-    height: 52,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.paper,
-  },
-  backButton: {
-    paddingRight: 10,
-  },
-  backArrow: {
-    fontSize: 26,
-    color: colors.ink,
-    lineHeight: 28,
-  },
-  headerTitle: {
-    fontFamily: fonts.interBold,
-    fontSize: 15,
-    color: colors.ink,
-  },
-
-  container: {
-    paddingBottom: 40,
-  },
-
-  // Loading / error / empty states
-  stateContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-    gap: 8,
-  },
-  stateText: {
-    fontFamily: fonts.interRegular,
-    fontSize: 13,
-    color: colors.muted,
-    textAlign: 'center',
-  },
-  errorTitle: {
-    fontFamily: fonts.interBold,
-    fontSize: 17,
-    color: colors.ink,
-    textAlign: 'center',
-  },
-  retryButton: {
-    marginTop: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 9999,
-    backgroundColor: colors.volt,
-  },
-  retryButtonText: {
-    fontFamily: fonts.interBold,
-    fontSize: 13,
-    color: colors.ink,
-  },
-  emptyText: {
-    fontFamily: fonts.monoRegular,
-    fontSize: 12,
-    color: colors.muted,
-    textAlign: 'center',
-    marginTop: 10,
-  },
-
-  // ETA hero
-  hero: {
-    backgroundColor: colors.ink,
-    padding: 16,
-    gap: 6,
-  },
-  heroLabel: {
-    fontFamily: fonts.monoSemiBold,
-    fontSize: 10,
-    letterSpacing: 1.4,
-    color: colors.volt,
-  },
-  heroEta: {
-    fontFamily: fonts.anton,
-    fontSize: 28,
-    color: colors.paper,
-  },
-  heroRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  heroCourier: {
-    fontFamily: fonts.interMedium,
-    fontSize: 12,
-    color: mutedOnDark,
-  },
-  trackingChip: {
-    backgroundColor: darkSurface,
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  trackingChipText: {
-    fontFamily: fonts.monoRegular,
-    fontSize: 10,
-    color: chipText,
-  },
-
-  // Timeline
-  timeline: {
-    paddingHorizontal: 16,
-    paddingVertical: 18,
-  },
-  timelineRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  timelineRail: {
-    width: 24,
-    alignItems: 'center',
-  },
-  dotDone: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.volt,
-  },
-  dotPending: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: colors.paper,
-    borderWidth: 2,
-    borderColor: colors.border,
-    marginTop: 1,
-  },
-  connector: {
-    width: 2,
-    height: 38,
-    backgroundColor: colors.volt,
-  },
-  connectorPending: {
-    backgroundColor: colors.border,
-  },
-  timelineContent: {
-    flex: 1,
-    paddingBottom: 18,
-    gap: 2,
-  },
-  eventTitle: {
-    fontFamily: fonts.interSemiBold,
-    fontSize: 14,
-    color: colors.ink,
-  },
-  eventTitlePending: {
-    color: colors.muted,
-  },
-  eventTime: {
-    fontFamily: fonts.monoRegular,
-    fontSize: 11,
-    color: colors.muted,
-  },
-
-  // Items
-  itemsSection: {
-    paddingHorizontal: 16,
-    gap: 10,
-  },
-  itemsHeading: {
-    fontFamily: fonts.interBold,
-    fontSize: 15,
-    color: colors.ink,
-  },
-  itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  itemThumb: {
-    width: 52,
-    height: 60,
-    borderRadius: 10,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  itemThumbLetter: {
-    fontFamily: fonts.anton,
-    fontSize: 26,
-    color: colors.border,
-  },
-  itemInfo: {
-    flex: 1,
-    gap: 3,
-  },
-  itemName: {
-    fontFamily: fonts.interSemiBold,
-    fontSize: 13,
-    color: colors.ink,
-  },
-  itemMeta: {
-    fontFamily: fonts.monoRegular,
-    fontSize: 10,
-    color: colors.muted,
-  },
-
-  // Sticky bottom bar
-  bottomBar: {
-    flexDirection: 'row',
-    gap: 12,
-    backgroundColor: colors.paper,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 12,
-    paddingHorizontal: 16,
-    paddingBottom: 30,
-  },
-  helpButton: {
-    flex: 1,
-    height: 52,
-    borderRadius: 9999,
-    borderWidth: 1,
-    borderColor: colors.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.paper,
-  },
-  helpButtonText: {
-    fontFamily: fonts.interBold,
-    fontSize: 15,
-    color: colors.ink,
-  },
-  trackButton: {
-    flex: 1,
-    height: 52,
-    borderRadius: 9999,
-    backgroundColor: colors.volt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  trackButtonText: {
-    fontFamily: fonts.interBold,
-    fontSize: 15,
-    color: colors.ink,
-  },
+  screen: { flex: 1, backgroundColor: colors.paper },
+  header: { minHeight: 56, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+  backButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  backArrow: { fontSize: 28, lineHeight: 30, color: colors.ink },
+  headerTitle: { flex: 1, fontFamily: fonts.interBold, fontSize: 15, color: colors.ink, textAlign: 'center' },
+  headerSpacer: { width: 44 },
+  container: { paddingBottom: 28 },
+  buttonPressed: { opacity: 0.72 },
+  buttonDisabled: { opacity: 0.58 },
+  skeletonPage: { flex: 1 },
+  skeletonHero: { height: 160, padding: 18, gap: 13, backgroundColor: colors.ink },
+  skeletonHeroLabel: { width: 92, height: 9, borderRadius: 5, backgroundColor: darkSurface },
+  skeletonHeroTitle: { width: '64%', height: 28, borderRadius: 7, backgroundColor: darkSurface },
+  skeletonHeroMeta: { width: '46%', height: 14, borderRadius: 7, backgroundColor: darkSurface },
+  skeletonBody: { padding: 18, gap: 16 },
+  skeletonTimelineRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  skeletonDot: { width: 16, height: 16, borderRadius: 8, backgroundColor: colors.border },
+  skeletonTextGroup: { flex: 1, gap: 7 },
+  skeletonTextWide: { width: '60%', height: 12, borderRadius: 6, backgroundColor: colors.surface },
+  skeletonTextNarrow: { width: '38%', height: 9, borderRadius: 5, backgroundColor: colors.surface },
+  stateContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 10 },
+  stateIcon: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
+  stateIconText: { fontFamily: fonts.interBold, fontSize: 20, color: colors.danger },
+  stateText: { maxWidth: 320, fontFamily: fonts.interRegular, fontSize: 13, lineHeight: 20, color: colors.muted, textAlign: 'center' },
+  errorTitle: { fontFamily: fonts.interBold, fontSize: 19, color: colors.ink, textAlign: 'center' },
+  retryButton: { minHeight: 48, minWidth: 140, marginTop: 8, paddingHorizontal: 22, borderRadius: 999, backgroundColor: colors.volt, alignItems: 'center', justifyContent: 'center' },
+  retryButtonText: { fontFamily: fonts.interBold, fontSize: 14, color: colors.ink },
+  partialBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, margin: 14, marginBottom: 0, padding: 13, borderWidth: 1, borderColor: '#E8D47C', borderRadius: 10, backgroundColor: '#FFF9E6' },
+  partialTextGroup: { flex: 1, gap: 2 },
+  partialTitle: { fontFamily: fonts.interBold, fontSize: 12, color: colors.ink },
+  partialMessage: { fontFamily: fonts.interRegular, fontSize: 11, lineHeight: 16, color: colors.muted },
+  partialRetry: { minWidth: 48, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  partialRetryText: { fontFamily: fonts.interBold, fontSize: 12, color: colors.ink, textDecorationLine: 'underline' },
+  hero: { marginTop: 14, backgroundColor: colors.ink, padding: 18, gap: 7 },
+  heroLabel: { fontFamily: fonts.monoSemiBold, fontSize: 10, letterSpacing: 1.4, color: colors.volt },
+  heroHeadline: { fontFamily: fonts.anton, fontSize: 30, lineHeight: 38, color: colors.paper },
+  heroMetaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  heroCourier: { fontFamily: fonts.interMedium, fontSize: 12, color: mutedOnDark },
+  heroSupportingText: { fontFamily: fonts.interRegular, fontSize: 12, lineHeight: 18, color: mutedOnDark },
+  trackingChip: { backgroundColor: darkSurface, borderRadius: 5, paddingHorizontal: 8, paddingVertical: 4 },
+  trackingChipText: { fontFamily: fonts.monoRegular, fontSize: 10, color: chipText },
+  section: { paddingHorizontal: 16, paddingTop: 20, gap: 12 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionTitle: { fontFamily: fonts.interBold, fontSize: 16, color: colors.ink },
+  refreshingLabel: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  refreshingText: { fontFamily: fonts.interRegular, fontSize: 11, color: colors.muted },
+  emptyPanel: { padding: 18, gap: 4, borderRadius: 12, backgroundColor: colors.surface },
+  emptyTitle: { fontFamily: fonts.interSemiBold, fontSize: 13, color: colors.ink },
+  emptyText: { fontFamily: fonts.interRegular, fontSize: 12, lineHeight: 18, color: colors.muted },
+  timeline: { paddingTop: 2 },
+  timelineRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  timelineRail: { width: 28, alignItems: 'center' },
+  dotDone: { width: 16, height: 16, borderRadius: 8, backgroundColor: colors.volt },
+  dotPending: { width: 14, height: 14, marginTop: 1, borderRadius: 7, borderWidth: 2, borderColor: colors.border, backgroundColor: colors.paper },
+  connector: { width: 2, height: 42, backgroundColor: colors.volt },
+  connectorPending: { backgroundColor: colors.border },
+  timelineContent: { flex: 1, minHeight: 58, paddingBottom: 14, gap: 3 },
+  eventTitle: { fontFamily: fonts.interSemiBold, fontSize: 14, color: colors.ink },
+  eventTitlePending: { color: colors.muted },
+  eventTime: { fontFamily: fonts.monoRegular, fontSize: 10, color: colors.muted },
+  itemList: { gap: 12 },
+  itemRow: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  itemThumb: { width: 52, height: 60, borderRadius: 10, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  itemThumbLetter: { fontFamily: fonts.anton, fontSize: 26, color: colors.border },
+  itemInfo: { flex: 1, gap: 4 },
+  itemName: { fontFamily: fonts.interSemiBold, fontSize: 13, lineHeight: 18, color: colors.ink },
+  itemMeta: { fontFamily: fonts.monoRegular, fontSize: 10, color: colors.muted },
+  bottomBar: { flexDirection: 'row', gap: 12, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.paper },
+  helpButton: { flex: 1, minHeight: 52, borderRadius: 999, borderWidth: 1, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.paper },
+  helpButtonText: { fontFamily: fonts.interBold, fontSize: 15, color: colors.ink },
+  trackButton: { flex: 1, minHeight: 52, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.volt },
+  trackButtonText: { fontFamily: fonts.interBold, fontSize: 15, color: colors.ink },
 });

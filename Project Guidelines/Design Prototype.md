@@ -1,10 +1,10 @@
 # Design Prototype
 
-**Status:** Verified & Implemented Design Specification  
+**Status:** Approved design additions completed in Figma; code implemented locally; final/browser/native verification separated below
 **Project:** MetroDripJS Urban Streetwear E-Commerce Platform  
-**Target Clients:** React Native / Expo Mobile App (iOS & Android) + Web Merchant Console  
+**Target Clients:** React Native / Expo Mobile App (iOS & Android) + Web Merchant and Administrator Consoles
 **Figma Prototype:** [MetroDrip Figma Workspace](https://www.figma.com/design/SmJIlTZ9ZVRxQ5eKucmrd0/MetroDrip?node-id=31-2)  
-**Date:** 2026-09-27  
+**Updated:** 2026-09-28
 
 ---
 
@@ -12,18 +12,36 @@
 
 | Journey / Screen | User Goal | Entry & Exit | Loading, Empty, Error, Success States | Prototype Link / File | Verified Behavior |
 |---|---|---|---|---|---|
-| **M01: Splash & Initial Screen** | Onboard shopper, establish brand vibe, route to registration or catalog. | Entry: App launch.<br>Exit: Tap "Shop Now" → Home, or "Sign In" → Auth. | Loading: Skeleton logo pulse.<br>Empty: N/A.<br>Error: Network retry toast.<br>Success: Smooth fade transition to catalog. | `mobile/screens/InitialScreen.jsx` | Verified on Expo Web & Android emulator. Minimalist urban aesthetic with high-contrast typography. |
-| **M02: Catalog & Drops Feed** | Browse drops, filter by streetwear categories (Hoodies, Tees, Headwear, Accessories). | Entry: Initial Screen or Bottom Tab.<br>Exit: Tap product card → Product Detail. | Loading: Shimmer product cards.<br>Empty: "No drops available for this category".<br>Error: Retry banner.<br>Success: Grid view with badges and prices. | `mobile/screens/HomeScreen.jsx` | Verified. Dynamic category filter tabs; prices displayed in whole PHP (`₱`). |
-| **M03: Product Detail Screen (PDP)** | Inspect garment details, view lookbook photos, select size and color variants. | Entry: Product card tap.<br>Exit: Tap "Add to Cart" or "Back". | Loading: Spinner on image carousel.<br>Empty: Out of stock badge if inventory is 0.<br>Error: Notification on missing size selection.<br>Success: Variant selected, button active. | `mobile/screens/ProductDetailScreen.jsx` | Verified. Dynamic variant selector disables out-of-stock sizes. |
-| **M04: Shopping Cart** | Review chosen items, adjust quantities, verify whole-peso subtotal. | Entry: Cart icon.<br>Exit: Tap "Proceed to Checkout" → M05. | Loading: Skeleton row.<br>Empty: "Your bag is empty" with "Browse Drops" CTA.<br>Error: Quantity exceeds stock toast.<br>Success: Subtotal recalculated instantly. | `mobile/screens/CartScreen.jsx` | Verified. Subtotal calculation enforces integer whole-peso arithmetic. |
-| **M05: Adaptive Checkout** | Fill delivery address, pick shipping zone, select Cash on Delivery, place order. | Entry: Cart "Checkout".<br>Exit: Tap "Place Order" → Confirmation. | Loading: Spinner on "Place Order".<br>Empty: Form fields blank initially.<br>Error: Red border, `aria-invalid`, inline error label.<br>Success: Confirmation alert and redirect. | [mobile/Checkout/src/screens/CheckoutScreen.jsx](../mobile/Checkout/src/screens/CheckoutScreen.jsx) | Verified across 4 viewports (320px, 390px, 768px, 1280px). 2-column desktop grid & 1-column mobile sticky footer. |
-| **M06: Order Confirmation** | Review placed order reference (`MD-2026-XXXXX`), delivery estimate, and COD total. | Entry: Saga completion.<br>Exit: Tap "Continue Shopping" → Home. | Loading: Receipt rendering animation.<br>Empty: N/A.<br>Error: "Order lookup failed".<br>Success: Green checkmark badge, order ID, items list. | `mobile/screens/OrderConfirmationScreen.jsx` | Verified. Displays immutable snapshot items and confirmed COD total. |
-| **M07: Customer Order History** | Track status of placed orders (Pending, Shipped, Delivered, Cancelled). | Entry: Account profile tab.<br>Exit: Tap order row → Order Details. | Loading: Skeleton orders list.<br>Empty: "No previous orders found".<br>Error: Offline banner.<br>Success: Sorted chronological order history. | `mobile/screens/OrdersScreen.jsx` | Verified. Displays historical orders with current status and item summaries. |
-| **M08: Merchant Orders Console** | Merchant staff review real-time orders, search by ID, filter by status, update state. | Entry: Web browser login.<br>Exit: Log out or switch console view. | Loading: Table spinner.<br>Empty: "No merchant orders match filter".<br>Error: Server error alert box.<br>Success: Live data populated table. | [web/merchant/orders.html](../web/merchant/orders.html) & [web/merchant/orders.js](../web/merchant/orders.js) | Verified. Fully dynamic; connects to `GET /api/merchant/orders/`; legacy mock fallback removed. |
+| **M01: Splash & Initial Screen** | Onboard shopper, establish brand vibe, route to registration or catalog. | Entry: App launch.<br>Exit: Tap "Shop Now" → Home, or "Sign In" → Auth. | Loading: Skeleton logo pulse.<br>Empty: N/A.<br>Error: Network retry toast.<br>Success: Smooth fade transition to catalog. | `mobile/screens/InitialScreen.jsx` | Historical design/runtime claim; not rerun on a native device in this enhancement. |
+| **M02: Catalog & Drops Feed** | Browse drops, filter by streetwear categories (Hoodies, Tees, Headwear, Accessories). | Entry: Initial Screen or Bottom Tab.<br>Exit: Tap product card → Product Detail. | Loading: Shimmer product cards.<br>Empty: "No drops available for this category".<br>Error: Retry banner.<br>Success: Grid view with badges and prices. | `mobile/screens/HomeScreen.jsx` | Historical behavior; current native-device verification is UNVERIFIED. |
+| **M03: Product Detail Screen (PDP)** | Inspect garment details, view lookbook photos, select size and color variants. | Entry: Product card tap.<br>Exit: Tap "Add to Cart" or "Back". | Loading: Spinner on image carousel.<br>Empty: Out of stock badge if inventory is 0.<br>Error: Notification on missing size selection.<br>Success: Variant selected, button active. | `mobile/screens/ProductDetailScreen.jsx` | Historical behavior; current native-device verification is UNVERIFIED. |
+| **M04: Shopping Cart** | Review chosen items, adjust quantities, verify subtotal. | Entry: Cart icon.<br>Exit: Tap "Proceed to Checkout" → M05. | Loading: Skeleton row.<br>Empty: "Your bag is empty" with "Browse Drops" CTA.<br>Error: Quantity exceeds stock toast.<br>Success: Subtotal recalculated instantly. | `mobile/screens/CartScreen.jsx` | Historical behavior; current native-device verification is UNVERIFIED. |
+| **M05: Adaptive Checkout** | Fill delivery address, pick shipping zone, select COD or hosted GCash/Maya/card, and create an idempotent order attempt. | Entry: Cart "Checkout".<br>Exit: COD → confirmation; online → external Hosted Checkout then owned status. | Loading: submission lock/skeleton.<br>Empty: no cart/address.<br>Error: field errors, stock/catalog conflict, offline, provider unavailable, uncertain submission.<br>Success: COD confirmation or online redirect action. | [mobile/Checkout/src/screens/CheckoutScreen.jsx](../mobile/Checkout/src/screens/CheckoutScreen.jsx) | Implemented in source and contract tests; live provider/native flow remains UNVERIFIED. |
+| **M06: Payment Verification / Order Confirmation** | See truthful order and payment state without treating a redirect as proof. | Entry: COD completion, foreground/deep-link return, order history.<br>Exit: paid → details; pending → refresh; failed/expired → recover/change path. | Loading: owned status skeleton.<br>Empty: order not found without ownership leakage.<br>Error: offline/session expired/provider deferred.<br>Partial: order saved but payment still verifying.<br>Success: server-reported paid receipt or COD due-on-delivery summary. | [mobile/Checkout/src/screens/OrderConfirmationScreen.jsx](../mobile/Checkout/src/screens/OrderConfirmationScreen.jsx) | Implemented in source and contract tests; native return/provider delivery remains UNVERIFIED. |
+| **M07: Customer Order History & Detail** | Track orders and recover pending/failed online payments. | Entry: Account profile tab.<br>Exit: order row → owned detail/tracking/payment status. | Loading: skeleton list/detail.<br>Empty: "No orders yet".<br>Error: offline/session expired with retry/sign-in.<br>Partial: unavailable courier/ETA/timestamps remain unknown, not fabricated.<br>Success: chronological history with separate order/payment states. | `mobile/Orders/OrderHistory.jsx`, `OrderTracking.jsx` | Truthful presentation helpers implemented and source-tested; native rendering UNVERIFIED. |
+| **M08: Merchant/Admin Consoles** | Staff operate authenticated dashboards without demo fallbacks. | Entry: role-specific login.<br>Exit: token-revoking sign out. | Loading: skeleton/banner.<br>Empty: no results with recovery action.<br>Error: permission/API/write failure.<br>Partial: retain last confirmed rows and label refresh failure.<br>Success: server-confirmed data/mutation. | `web/merchant/`, `web/admin/`, `web/js/user-session.js` | Authenticated session/API states implemented. Chromium harness is mocked; live browser-to-Django integration is UNVERIFIED. |
 
 ---
 
-## 2. Interface Specification & Design Tokens
+## 2. Figma completion record
+
+The connected MetroDrip Figma file was rechecked after the user reconnected access. The following design additions are present:
+
+| Area | Completed node(s) | Contents/status |
+|---|---|---|
+| Customer missing flows | `708:4544` | 20 customer screens covering checkout/payment and recovery gaps |
+| Merchant missing flows | `709:5008` | 12 merchant-console frames |
+| Administrator missing flows | `710:4846` | 12 administrator-console frames |
+| ERD and topology | `711:4544`; root `711:4545` | Database/system architecture additions |
+| Customer state matrix | `720:4544`; root `720:4545` | Default/active, loading, empty, error, and partial-failure coverage |
+
+The merchant page's 24 `2FA ON` labels and administrator page's 16 `2FA ON` labels were replaced with `MERCHANT · VERIFIED SESSION` and `ADMINISTRATOR · VERIFIED SESSION`. Recheck found zero stale `2FA ON` labels and zero text-overflow findings in those updated pages. This wording reflects an authenticated session; it does not imply MFA is implemented.
+
+The source Figma file remains: [MetroDrip](https://www.figma.com/design/SmJIlTZ9ZVRxQ5eKucmrd0/MetroDrip).
+
+---
+
+## 3. Interface Specification & Design Tokens
 
 ### Color Palette (Urban Streetwear Aesthetic)
 
@@ -65,7 +83,7 @@
 
 ---
 
-## 3. Responsive & Adaptive Layout Architecture
+## 4. Responsive & Adaptive Layout Architecture
 
 The checkout experience in [mobile/Checkout/src/screens/CheckoutScreen.jsx](../mobile/Checkout/src/screens/CheckoutScreen.jsx) dynamically adapts between mobile viewports and widescreen displays using React Native `useWindowDimensions()`:
 
@@ -77,14 +95,14 @@ Mobile Layout (< 768px):               Desktop / Tablet Layout (>= 768px):
 │ [1. Delivery Address]     │          │ [1. Delivery Address]  │ [Order Summary Panel]  │
 │ - Full Name               │          │ - Full Name            │ - Items Subtotal: ₱1399│
 │ - Street / Barangay       │          │ - Street / Barangay    │ - Shipping Fee:   ₱150 │
-│ - City / Province         │          │ - City / Province      │ - Total COD:      ₱1549│
+│ - City / Province         │          │ - City / Province      │ - Total:          ₱1549│
 │ - Phone Number            │          │ - Phone Number         ├────────────────────────┤
-├───────────────────────────┤          ├────────────────────────┤ [Payment Method (COD)] │
+├───────────────────────────┤          ├────────────────────────┤ [Payment Method]       │
 │ [2. Shipping Zone]        │          │ [2. Shipping Zone]     │ (o) Cash on Delivery   │
-│ Selected: Metro Manila    │          │ Selected: Metro Manila │ ( ) GCash (Disabled)   │
+│ Selected: Metro Manila    │          │ Selected: Metro Manila │ ( ) GCash / Maya / Card│
 ├───────────────────────────┤          └────────────────────────┴────────────────────────┤
-│ [3. Payment Method (COD)] │          │                   [ PLACE ORDER ]               │
-│ (o) Cash on Delivery      │          └─────────────────────────────────────────────────┘
+│ [3. Payment Method]       │          │          [ PLACE ORDER / CONTINUE SECURELY ]    │
+│ COD / GCash / Maya / Card │          └─────────────────────────────────────────────────┘
 ├───────────────────────────┤
 │ [STICKY BOTTOM FOOTER]    │
 │ Total: ₱1,549  [PLACE ORD]│
@@ -100,9 +118,27 @@ Mobile Layout (< 768px):               Desktop / Tablet Layout (>= 768px):
    - Side-by-side 2-column layout: Form inputs on the left; sticky order summary, payment selection, and action button on the right.
    - Delivery zone selection transforms into a centered, focus-trapped dialog card.
 
+Online methods never reveal PAN, expiry, CVV, wallet login, PIN, or OTP fields inside MetroDrip. The selected method opens PayMongo Hosted Checkout in an external browser. Returning to the app opens a payment-verification state; it does not show a paid success state until the owned order endpoint reports the webhook-backed transition. Pending, failed, expired, cancelled, stock/price conflict, offline, session-expired, and uncertain-submission states keep a clear recovery action and do not clear the cart prematurely.
+
 ---
 
-## 4. Accessibility & Quality Standards (WCAG 2.1 AA)
+### Required resilience and console states
+
+Every data surface must provide a stable layout for default/active, loading/skeleton, empty, error, and partial/stale states. The implemented contract is:
+
+| Surface | Missing/required states | Primary recovery action |
+|---|---|---|
+| Customer session | Session expired, permission denied | Sign in again; back to safe account/home route |
+| Customer network/data | Offline, cached/stale partial data, retry failure | Retry; continue browsing cached content when safe |
+| Checkout | Price changed, stock changed, shipping quote unavailable, duplicate/uncertain submit | Review updated order; retry same idempotent attempt; return to cart |
+| Online payment | Hosted redirect, verifying, pending, failed, expired, cancelled, provider unavailable | Refresh owned status; reopen eligible session; change method; contact support with order reference |
+| Order history/detail | Loading, no orders, stale partial list, forbidden/not found, per-order payment action | Retry; sign in; resume eligible payment |
+| Merchant dashboard/orders | Responsive narrow layout, loading, no results, API error, partial metrics/table | Retry panel; clear filters; keep unaffected operational data visible |
+| Admin users/roles | Responsive narrow layout, loading, no results, permission denied, partial failure | Retry; return to authorized area; never expose disabled actions as successful |
+
+Skeletons reserve final geometry and use reduced-motion behavior. Empty states explain why the surface is empty and present one relevant next action. Error copy distinguishes a local validation issue, authorization/session issue, offline state, provider delay, and server failure. Partial states label stale/unknown values instead of substituting fake data.
+
+## 5. Accessibility & Quality Standards (WCAG 2.1 AA)
 
 - **Color Contrast**: Text and interactive icons maintain minimum 4.5:1 contrast against backgrounds (Ink `#111111` on Paper `#F9F9FB` achieves 15.8:1 contrast).
 - **Form Semantics & Errors**:

@@ -1,15 +1,79 @@
-// Merchant Console Controller
-// Interacts with /api/merchant/ endpoints with graceful fallback to seeded Figma state.
+// Merchant dashboard and catalog: authenticated API data with truthful resilient UI states.
 (() => {
   const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://127.0.0.1:8000/api/merchant'
     : '/api/merchant';
+  const SESSION_KEY = 'metrodrip_active_user';
+  const MERCHANT_LOGIN_URL = '../Registration/screens/MerchantLoginScreen.html';
 
-  // --- Utility: HTML-safe text helper (XSS prevention) ---
-  function escapeHtml(str) {
+  let activeModal = null;
+  let catalogProducts = [];
+  let catalogCategories = [];
+  const reviewCache = new Map();
+  let currentViewingReview = null;
+  let currentEditingProductId = null;
+  let currentActiveOrderId = null;
+  let currentActiveOrderStatus = null;
+  let dashboardLoaded = false;
+  let catalogProductsLoaded = false;
+
+  function escapeHtml(value) {
     const div = document.createElement('div');
-    div.appendChild(document.createTextNode(str));
+    div.appendChild(document.createTextNode(String(value ?? '')));
     return div.innerHTML;
+  }
+
+  function activeMerchantSession() {
+    try {
+      const session = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null');
+      const role = String(session?.role || '').toLowerCase();
+      const token = session?.access_token || session?.token || '';
+      return token && session?.is_staff === true && role === 'merchant'
+        ? { ...session, token }
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function responseError(response, fallback) {
+    let message = fallback;
+    try {
+      const data = await response.json();
+      message = data?.error?.message || data?.error || data?.detail || fallback;
+    } catch {
+      // Use the status-specific fallback when the server did not return JSON.
+    }
+    const error = new Error(message);
+    error.status = response.status;
+    return error;
+  }
+
+  async function authorizedFetch(path, options = {}) {
+    const session = activeMerchantSession();
+    if (!session) {
+      const error = new Error('Sign in with a merchant account to use this console.');
+      error.status = 401;
+      throw error;
+    }
+
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${session.token}`,
+        ...(options.headers || {}),
+      },
+    });
+    if (!response.ok) {
+      throw await responseError(response, `Request failed with status ${response.status}.`);
+    }
+    return response;
+  }
+
+  async function requestJson(path, options = {}) {
+    const response = await authorizedFetch(path, options);
+    return response.status === 204 ? null : response.json();
   }
 
   function showToast(message, type = 'success') {
@@ -25,8 +89,100 @@
     }, 3500);
   }
 
-  // --- Track currently open modal for Escape key ---
-  let activeModal = null;
+  function ensureStateBanner() {
+    let banner = document.getElementById('merchant-console-state');
+    if (banner) return banner;
+
+    banner = document.createElement('section');
+    banner.id = 'merchant-console-state';
+    banner.className = 'console-state-banner is-info';
+    banner.hidden = true;
+    banner.innerHTML = `
+      <div class="console-state-copy">
+        <p class="console-state-eyebrow" data-state-eyebrow>STATUS</p>
+        <strong class="console-state-title" data-state-title></strong>
+        <p class="console-state-message" data-state-message></p>
+      </div>
+      <div class="console-state-actions">
+        <button type="button" class="btn btn-secondary btn-sm" data-state-retry hidden>Try again</button>
+        <a class="btn btn-primary btn-sm" data-state-signin href="${MERCHANT_LOGIN_URL}" hidden>Merchant sign in</a>
+      </div>`;
+
+    const main = document.querySelector('.console-main');
+    const header = main?.querySelector('.console-header');
+    if (main && header) header.insertAdjacentElement('afterend', banner);
+    banner.querySelector('[data-state-retry]')?.addEventListener('click', initializePage);
+    return banner;
+  }
+
+  function setPageState(kind, title = '', message = '', options = {}) {
+    const banner = ensureStateBanner();
+    if (kind === 'ready') {
+      banner.hidden = true;
+      return;
+    }
+
+    const tone = kind === 'permission' || kind === 'partial' ? 'warning' : kind;
+    banner.hidden = false;
+    banner.className = `console-state-banner is-${tone === 'loading' ? 'info' : tone}`;
+    banner.setAttribute('role', ['error', 'permission'].includes(kind) ? 'alert' : 'status');
+    banner.querySelector('[data-state-eyebrow]').textContent = options.eyebrow || (
+      kind === 'permission' ? 'ACCESS REQUIRED' : kind === 'partial' ? 'PARTIAL DATA' : kind.toUpperCase()
+    );
+    banner.querySelector('[data-state-title]').textContent = title;
+    banner.querySelector('[data-state-message]').textContent = message;
+    banner.querySelector('[data-state-retry]').hidden = !options.retry;
+    banner.querySelector('[data-state-signin]').hidden = !options.signIn;
+  }
+
+  function setTableState(tbodyId, columns, kind, title, message) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+    tbody.setAttribute('aria-busy', kind === 'loading' ? 'true' : 'false');
+    if (kind === 'loading') {
+      tbody.innerHTML = `
+        <tr class="table-state-row table-loading-row">
+          <td colspan="${columns}">
+            <div class="skeleton-stack" aria-hidden="true">
+              <span class="skeleton-line is-wide"></span>
+              <span class="skeleton-line"></span>
+              <span class="skeleton-line is-wide"></span>
+            </div>
+            <span class="sr-only">${escapeHtml(message)}</span>
+          </td>
+        </tr>`;
+      return;
+    }
+    tbody.innerHTML = `
+      <tr class="table-state-row">
+        <td colspan="${columns}">
+          <div class="table-state">
+            <strong>${escapeHtml(title)}</strong>
+            <span>${escapeHtml(message)}</span>
+          </div>
+        </td>
+      </tr>`;
+  }
+
+  function setConsoleMutationsEnabled(enabled) {
+    [
+      'btn-merchant-export-csv',
+      'btn-merchant-add-product',
+      'btn-open-add-product',
+      'btn-manage-categories',
+      'btn-submit-restock',
+      'btn-submit-product',
+      'btn-save-edit-product',
+      'btn-submit-category',
+      'btn-submit-reply-review',
+    ].forEach((id) => {
+      const control = document.getElementById(id);
+      if (control) control.disabled = !enabled;
+    });
+    document.querySelectorAll('.btn-open-restock, .btn-edit-product, .btn-reply-review').forEach((button) => {
+      button.disabled = !enabled;
+    });
+  }
 
   function setActiveModal(modal) {
     activeModal = modal;
@@ -36,22 +192,221 @@
     activeModal = null;
   }
 
-  // --- ESCAPE KEY HANDLER (BUG-02 fix) ---
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && activeModal && !activeModal.hidden) {
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && activeModal && !activeModal.hidden) {
       activeModal.hidden = true;
       clearActiveModal();
     }
   });
 
-  // --- 1. RESTOCK MODAL (Dashboard & Inventory) ---
+  function money(value) {
+    if (typeof value === 'string' && value.trim().startsWith('₱')) return value.trim();
+    const numeric = Number(String(value ?? '').replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(numeric) ? `₱${Math.round(numeric).toLocaleString('en-PH')}` : '—';
+  }
+
+  function formatDate(value) {
+    if (!value) return 'Not reported';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return new Intl.DateTimeFormat('en-PH', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  }
+
+  function categoryKey(value) {
+    const category = String(value || '').toLowerCase();
+    if (category.includes('top')) return 'tops';
+    if (category.includes('bottom')) return 'bottoms';
+    return 'accessories';
+  }
+
+  function statusKey(value) {
+    return String(value || 'unknown').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  }
+
+  function showActionError(title, error) {
+    const permissionFailure = error?.status === 401 || error?.status === 403;
+    if (permissionFailure) setConsoleMutationsEnabled(false);
+    setPageState(permissionFailure ? 'permission' : 'error', title, error.message, {
+      signIn: permissionFailure,
+      retry: false,
+    });
+    showToast(error.message, 'error');
+  }
+
+  function setMetric(id, value, detail) {
+    const valueEl = document.getElementById(id);
+    if (!valueEl) return;
+    valueEl.textContent = value;
+    const detailEl = valueEl.closest('.stat-card')?.querySelector('.stat-subtext');
+    if (detailEl && detail !== undefined) detailEl.textContent = detail;
+  }
+
+  function resetDashboardMetrics() {
+    setMetric('metric-today-sales', '—', 'Waiting for live data');
+    setMetric('metric-orders-today', '—', 'Waiting for live data');
+    setMetric('metric-low-stock', '—', 'Waiting for live data');
+    setMetric('metric-to-ship', '—', 'Waiting for live data');
+    ['badge-inventory', 'badge-orders', 'badge-reviews'].forEach((id) => {
+      const badge = document.getElementById(id);
+      if (badge) badge.textContent = '—';
+    });
+    const workspaceValues = {
+      'workspace-metric-inventory': 'Live data unavailable',
+      'workspace-metric-orders': 'Live data unavailable',
+      'workspace-metric-shipments': 'Live data unavailable',
+      'workspace-metric-zones': 'Live data unavailable',
+      'workspace-metric-reviews': 'Live data unavailable',
+      'workspace-metric-content': 'Live data unavailable',
+    };
+    Object.entries(workspaceValues).forEach(([id, value]) => {
+      const element = document.getElementById(id);
+      if (element) element.textContent = value;
+    });
+  }
+
+  function renderDashboardMetrics(metrics = {}) {
+    const ordersToday = Number(metrics.orders_today ?? 0);
+    const lowStock = Number(metrics.low_stock_skus ?? 0);
+    const toShip = Number(metrics.to_ship ?? 0);
+    setMetric('metric-today-sales', metrics.today_sales || money(0), metrics.today_sales_trend || 'No comparison cohort reported');
+    setMetric('metric-orders-today', ordersToday.toLocaleString(), metrics.orders_today_breakdown || 'No payment breakdown reported');
+    setMetric('metric-low-stock', lowStock.toLocaleString(), lowStock ? 'At or below the reorder threshold' : 'No low-stock SKUs');
+    setMetric('metric-to-ship', toShip.toLocaleString(), toShip ? 'Awaiting fulfillment' : 'No orders awaiting fulfillment');
+
+    const inventoryBadge = document.getElementById('badge-inventory');
+    const ordersBadge = document.getElementById('badge-orders');
+    const inventoryWorkspace = document.getElementById('workspace-metric-inventory');
+    const ordersWorkspace = document.getElementById('workspace-metric-orders');
+    const shipmentWorkspace = document.getElementById('workspace-metric-shipments');
+    if (inventoryBadge) inventoryBadge.textContent = lowStock.toLocaleString();
+    if (ordersBadge) ordersBadge.textContent = toShip.toLocaleString();
+    if (inventoryWorkspace) inventoryWorkspace.textContent = `${lowStock} low-stock SKU${lowStock === 1 ? '' : 's'}`;
+    if (ordersWorkspace) ordersWorkspace.textContent = `${ordersToday} order${ordersToday === 1 ? '' : 's'} today`;
+    if (shipmentWorkspace) shipmentWorkspace.textContent = `${toShip} awaiting fulfillment`;
+  }
+
+  function renderLowStock(entries) {
+    const tbody = document.getElementById('low-stock-tbody');
+    if (!tbody) return;
+    tbody.setAttribute('aria-busy', 'false');
+    if (!entries.length) {
+      setTableState('low-stock-tbody', 5, 'empty', 'No low-stock alerts', 'Inventory is currently above the configured dashboard threshold.');
+      return;
+    }
+    tbody.innerHTML = entries.map((entry) => `
+      <tr data-sku="${escapeHtml(entry.sku)}">
+        <td class="td-strong">${escapeHtml(entry.product || 'Product not reported')}</td>
+        <td class="td-mono td-muted">${escapeHtml(entry.variant || 'Variant not reported')}</td>
+        <td class="td-mono" style="color: var(--color-danger); font-weight: 600;">${escapeHtml(entry.on_hand)}</td>
+        <td class="td-mono td-muted">${escapeHtml(entry.min)}</td>
+        <td>
+          <button type="button" class="btn btn-secondary btn-sm btn-open-restock"
+            data-product="${escapeHtml(entry.product || '')}"
+            data-variant="${escapeHtml(entry.variant || 'Variant not reported')}"
+            data-sku="${escapeHtml(entry.sku || '')}">Restock</button>
+        </td>
+      </tr>`).join('');
+  }
+
+  function orderRecordId(order) {
+    if (order?.id !== undefined && order?.id !== null) return Number(order.id);
+    const match = String(order?.order_no || '').match(/(\d+)$/);
+    return match ? Number(match[1]) : null;
+  }
+
+  function renderRecentOrders(orders) {
+    const tbody = document.getElementById('orders-tbody');
+    if (!tbody) return;
+    tbody.setAttribute('aria-busy', 'false');
+    if (!orders.length) {
+      setTableState('orders-tbody', 5, 'empty', 'No recent orders', 'New orders will appear here after checkout creates them.');
+      return;
+    }
+    tbody.innerHTML = orders.map((order) => {
+      const recordId = orderRecordId(order);
+      const fulfillment = String(order.status || 'Not reported');
+      const payment = String(order.payment_method || 'Not reported').toUpperCase();
+      return `
+        <tr ${recordId ? `class="clickable-row" data-order-id="${recordId}" tabindex="0"` : ''}>
+          <td class="td-mono td-strong">${escapeHtml(order.order_no || 'Order number not reported')}</td>
+          <td>${escapeHtml(order.customer || 'Customer not reported')}</td>
+          <td class="td-mono td-strong">${escapeHtml(money(order.total))}</td>
+          <td class="td-mono td-muted">${escapeHtml(payment)}</td>
+          <td><span class="status-pill ${statusKey(order.raw_status || fulfillment)}">${escapeHtml(fulfillment)}</span></td>
+        </tr>`;
+    }).join('');
+  }
+
+  function setDashboardSupplementalData(reviews, zones, banners) {
+    const replyCount = Array.isArray(reviews) ? reviews.filter((review) => !review.merchant_reply).length : null;
+    const activeZones = Array.isArray(zones) ? zones.filter((zone) => zone.is_active !== false).length : null;
+    const liveBanners = Array.isArray(banners) ? banners.filter((banner) => banner.is_active === true).length : null;
+    const draftBanners = Array.isArray(banners) ? banners.filter((banner) => banner.is_active !== true).length : null;
+    const reviewBadge = document.getElementById('badge-reviews');
+    const reviewsWorkspace = document.getElementById('workspace-metric-reviews');
+    const zonesWorkspace = document.getElementById('workspace-metric-zones');
+    const contentWorkspace = document.getElementById('workspace-metric-content');
+    if (reviewBadge) reviewBadge.textContent = replyCount === null ? '—' : replyCount.toLocaleString();
+    if (reviewsWorkspace) reviewsWorkspace.textContent = replyCount === null ? 'Live data unavailable' : `${replyCount} need${replyCount === 1 ? 's' : ''} a reply`;
+    if (zonesWorkspace) zonesWorkspace.textContent = activeZones === null ? 'Live data unavailable' : `${activeZones} active zone${activeZones === 1 ? '' : 's'}`;
+    if (contentWorkspace) contentWorkspace.textContent = liveBanners === null ? 'Live data unavailable' : `${liveBanners} live · ${draftBanners} draft`;
+  }
+
+  async function loadDashboard() {
+    dashboardLoaded = false;
+    setConsoleMutationsEnabled(false);
+    resetDashboardMetrics();
+    setTableState('low-stock-tbody', 5, 'loading', '', 'Loading low-stock alerts');
+    setTableState('orders-tbody', 5, 'loading', '', 'Loading recent orders');
+    setPageState('loading', 'Loading live merchant data', 'Sales, inventory, orders, and workspace counts are being requested from the server.');
+
+    const results = await Promise.allSettled([
+      requestJson('/dashboard/'),
+      requestJson('/reviews/'),
+      requestJson('/shipping-zones/'),
+      requestJson('/banners/'),
+    ]);
+    const [dashboardResult, reviewsResult, zonesResult, bannersResult] = results;
+    if (dashboardResult.status === 'rejected') {
+      const error = dashboardResult.reason;
+      const permissionFailure = error?.status === 401 || error?.status === 403;
+      resetDashboardMetrics();
+      setTableState('low-stock-tbody', 5, 'error', permissionFailure ? 'Merchant access required' : 'Inventory unavailable', error.message);
+      setTableState('orders-tbody', 5, 'error', permissionFailure ? 'Merchant access required' : 'Orders unavailable', error.message);
+      setPageState(permissionFailure ? 'permission' : 'error', permissionFailure ? 'Merchant access required' : 'Dashboard data could not be loaded', error.message, {
+        retry: !permissionFailure,
+        signIn: permissionFailure,
+      });
+      return;
+    }
+
+    const data = dashboardResult.value || {};
+    renderDashboardMetrics(data.metrics || {});
+    renderLowStock(Array.isArray(data.low_stock_alerts) ? data.low_stock_alerts : []);
+    renderRecentOrders(Array.isArray(data.recent_orders) ? data.recent_orders : []);
+    setDashboardSupplementalData(
+      reviewsResult.status === 'fulfilled' ? reviewsResult.value : null,
+      zonesResult.status === 'fulfilled' ? zonesResult.value : null,
+      bannersResult.status === 'fulfilled' ? bannersResult.value : null,
+    );
+    dashboardLoaded = true;
+    setConsoleMutationsEnabled(true);
+
+    const supplementalFailures = results.slice(1).filter((result) => result.status === 'rejected');
+    if (supplementalFailures.length) {
+      setPageState('partial', 'Some workspace counts are unavailable', 'Core dashboard data is live, but one or more supporting services did not respond.', { retry: true });
+    } else {
+      setPageState('ready');
+    }
+  }
+
   const modalRestock = document.getElementById('modal-restock');
   const btnCloseRestock = document.getElementById('btn-close-restock');
   const btnCancelRestock = document.getElementById('btn-cancel-restock');
   const formRestock = document.getElementById('form-restock');
 
   function openRestockModal(productName, variantCode, sku) {
-    if (!modalRestock) return;
+    if (!modalRestock || !dashboardLoaded || !sku) return;
     document.getElementById('restock-product-name').value = productName;
     document.getElementById('restock-variant-code').value = `${variantCode} (${sku})`;
     document.getElementById('restock-sku-hidden').value = sku;
@@ -68,118 +423,78 @@
 
   btnCloseRestock?.addEventListener('click', closeRestockModal);
   btnCancelRestock?.addEventListener('click', closeRestockModal);
-  modalRestock?.addEventListener('click', (e) => {
-    if (e.target === modalRestock) closeRestockModal();
+  modalRestock?.addEventListener('click', (event) => {
+    if (event.target === modalRestock) closeRestockModal();
   });
 
-  // Use event delegation for restock buttons (fixes dynamically added rows)
-  document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.btn-open-restock');
-    if (!btn) return;
-    openRestockModal(btn.dataset.product, btn.dataset.variant, btn.dataset.sku);
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest('.btn-open-restock');
+    if (!button) return;
+    openRestockModal(button.dataset.product, button.dataset.variant, button.dataset.sku);
   });
 
-  formRestock?.addEventListener('submit', async (e) => {
-    e.preventDefault();
+  formRestock?.addEventListener('submit', async (event) => {
+    event.preventDefault();
     const sku = document.getElementById('restock-sku-hidden').value;
-    const qtyInput = document.getElementById('restock-quantity');
-    const qty = parseInt(qtyInput.value, 10);
+    const quantityInput = document.getElementById('restock-quantity');
+    const quantity = Number.parseInt(quantityInput.value, 10);
     const reason = document.getElementById('restock-reason').value;
-
-    // Validation: quantity must be a positive integer
-    if (!qty || qty < 1) {
-      showToast('Quantity must be at least 1.', 'error');
-      qtyInput?.focus();
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 1000) {
+      showToast('Quantity must be a whole number from 1 to 1,000.', 'error');
+      quantityInput?.focus();
       return;
     }
 
-    if (qty > 1000) {
-      showToast('Quantity cannot exceed 1,000 per transaction.', 'error');
-      qtyInput?.focus();
-      return;
-    }
-
+    const submit = document.getElementById('btn-submit-restock');
+    if (submit) submit.disabled = true;
     try {
-      await fetch(`${API_BASE}/inventory/restock/`, {
+      await requestJson('/inventory/restock/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sku, quantity: qty, reason }),
+        body: JSON.stringify({ sku, quantity, reason }),
       });
-    } catch {
-      // Offline fallback
+      closeRestockModal();
+      await loadDashboard();
+      showToast(`Committed +${quantity} units for SKU ${sku}.`);
+    } catch (error) {
+      if (submit) submit.disabled = false;
+      showActionError('Inventory was not changed', error);
     }
-
-    // Update UI table row stock if on Dashboard
-    const row = document.querySelector(`tr[data-sku="${CSS.escape(sku)}"]`);
-    if (row) {
-      const onHandCell = row.children[2];
-      const currentVal = parseInt(onHandCell.textContent, 10) || 0;
-      const newVal = currentVal + qty;
-      onHandCell.textContent = newVal;
-      if (newVal >= parseInt(row.children[3]?.textContent, 10) || 10) {
-        onHandCell.style.color = 'var(--color-success)';
-        onHandCell.style.fontWeight = '600';
-      }
-    }
-
-    closeRestockModal();
-    showToast(`Committed +${qty} units for SKU ${sku}.`);
   });
 
-  // --- 2. CATALOG SEARCH & CATEGORY FILTERING ---
   const searchInput = document.getElementById('input-catalog-search');
   const categoryTabs = document.querySelectorAll('.category-tab-btn');
 
-  // BUG-06 fix: use a live function to query product rows instead of a stale NodeList
   function getProductRows() {
-    return document.querySelectorAll('#products-tbody tr');
+    return document.querySelectorAll('#products-tbody tr[data-product-id]');
   }
 
   function applyProductFilters() {
     const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
     const activeTab = document.querySelector('.category-tab-btn.is-active');
     const category = activeTab ? activeTab.dataset.category : 'all';
-
-    const productRows = getProductRows();
     let matchCount = 0;
-    productRows.forEach((row) => {
-      const text = row.textContent.toLowerCase();
-      const rowCategory = row.dataset.category || '';
-      const rowStatus = row.dataset.status || '';
-
-      const matchesSearch = !query || text.includes(query);
-      let matchesCategory = true;
-      if (category === 'inactive') {
-        matchesCategory = rowStatus === 'inactive';
-      } else if (category !== 'all') {
-        matchesCategory = rowCategory === category;
-      }
-
-      if (matchesSearch && matchesCategory) {
-        row.style.display = '';
-        matchCount++;
-      } else {
-        row.style.display = 'none';
-      }
+    getProductRows().forEach((row) => {
+      const matchesSearch = !query || row.textContent.toLowerCase().includes(query);
+      const matchesCategory = category === 'all'
+        || (category === 'inactive' ? row.dataset.status === 'inactive' : row.dataset.category === category);
+      row.style.display = matchesSearch && matchesCategory ? '' : 'none';
+      if (matchesSearch && matchesCategory) matchCount += 1;
     });
 
-    // Update summary subhead with filtered count
     const subhead = document.getElementById('catalog-summary-subhead');
-    if (subhead && (query || category !== 'all')) {
-      subhead.textContent = `${matchCount} PRODUCT${matchCount !== 1 ? 'S' : ''} SHOWN · FILTERED`;
-    } else if (subhead && !query && category === 'all') {
-      const totalRows = getProductRows().length;
-      subhead.textContent = `${totalRows} ACTIVE PRODUCTS · 3 MAIN CATEGORIES · 9 SUBCATEGORIES`;
-    }
+    if (!subhead || !catalogProductsLoaded) return;
+    subhead.textContent = query || category !== 'all'
+      ? `${matchCount} PRODUCT${matchCount === 1 ? '' : 'S'} SHOWN · FILTERED`
+      : `${catalogProducts.length} PRODUCT${catalogProducts.length === 1 ? '' : 'S'} · LIVE CATALOG`;
   }
 
   searchInput?.addEventListener('input', applyProductFilters);
-
   categoryTabs.forEach((tab) => {
     tab.addEventListener('click', () => {
-      categoryTabs.forEach((t) => {
-        t.classList.remove('is-active');
-        t.setAttribute('aria-selected', 'false');
+      categoryTabs.forEach((item) => {
+        item.classList.remove('is-active');
+        item.setAttribute('aria-selected', 'false');
       });
       tab.classList.add('is-active');
       tab.setAttribute('aria-selected', 'true');
@@ -187,102 +502,224 @@
     });
   });
 
-  // --- 3. CUSTOMER REVIEWS: VIEW & REPLY (Figma 58:2 / 58:467) ---
+  function normalizeProduct(raw) {
+    return {
+      id: Number(raw.id),
+      name: String(raw.name || 'Unnamed product'),
+      category: String(raw.category || 'Uncategorized'),
+      variantsCount: Number(raw.variants_count ?? raw.variant_count ?? 1),
+      stock: Number(raw.stock ?? 0),
+      price: Number(raw.price ?? String(raw.price_formatted || '').replace(/[^0-9.-]/g, '') ?? 0),
+      sku: String(raw.sku || ''),
+      isActive: raw.is_active !== undefined ? Boolean(raw.is_active) : String(raw.status || 'Active').toLowerCase() === 'active',
+      description: String(raw.description || ''),
+    };
+  }
+
+  function renderProducts() {
+    const tbody = document.getElementById('products-tbody');
+    if (!tbody) return;
+    tbody.setAttribute('aria-busy', 'false');
+    if (!catalogProducts.length) {
+      setTableState('products-tbody', 8, 'empty', 'No products found', 'Products created through the merchant API will appear here.');
+      const subhead = document.getElementById('catalog-summary-subhead');
+      if (subhead) subhead.textContent = '0 PRODUCTS · LIVE CATALOG';
+      return;
+    }
+    tbody.innerHTML = catalogProducts.map((product) => {
+      const status = product.isActive ? 'active' : 'inactive';
+      return `
+        <tr data-product-id="${product.id}" data-category="${categoryKey(product.category)}" data-status="${status}">
+          <td><div class="product-thumb-letter" aria-hidden="true">${escapeHtml(product.name.charAt(0).toUpperCase() || 'P')}</div></td>
+          <td class="td-strong">${escapeHtml(product.name)}</td>
+          <td class="td-mono td-muted">${escapeHtml(product.category)}</td>
+          <td class="td-mono">${product.variantsCount.toLocaleString()}</td>
+          <td class="td-mono td-strong"${product.stock <= 5 ? ' style="color: var(--color-danger);"' : ''}>${product.stock.toLocaleString()}</td>
+          <td class="td-mono td-strong">${escapeHtml(money(product.price))}</td>
+          <td><span class="status-pill ${status}">${product.isActive ? 'Active' : 'Inactive'}</span></td>
+          <td><button type="button" class="btn btn-secondary btn-sm btn-edit-product" data-product-id="${product.id}">Edit</button></td>
+        </tr>`;
+    }).join('');
+    applyProductFilters();
+  }
+
+  function renderReviews(reviews) {
+    const tbody = document.getElementById('reviews-tbody');
+    if (!tbody) return;
+    tbody.setAttribute('aria-busy', 'false');
+    reviewCache.clear();
+    reviews.forEach((review) => reviewCache.set(String(review.id), review));
+    if (!reviews.length) {
+      setTableState('reviews-tbody', 4, 'empty', 'No customer reviews', 'Submitted customer reviews will appear here.');
+      return;
+    }
+    tbody.innerHTML = reviews.map((review) => `
+      <tr data-review-id="${escapeHtml(review.id)}">
+        <td class="td-strong">${escapeHtml(review.customer_name || review.customer || 'Customer not reported')}</td>
+        <td class="td-muted">${escapeHtml(review.product_review || `${review.product_name || 'Product not reported'} — ${review.body || ''}`)}</td>
+        <td class="review-stars">${escapeHtml(review.rating_stars || 'Rating not reported')}</td>
+        <td style="text-align: right;">
+          <div style="display: inline-flex; gap: 8px; justify-content: flex-end;">
+            <button type="button" class="btn-outline-pill btn-view-review" data-review-id="${escapeHtml(review.id)}">View</button>
+            <button type="button" class="btn-volt-pill btn-reply-review" data-review-id="${escapeHtml(review.id)}">${review.merchant_reply ? 'Edit reply' : 'Reply'}</button>
+          </div>
+        </td>
+      </tr>`).join('');
+  }
+
+  function renderMovements(movements) {
+    const tbody = document.getElementById('movements-tbody');
+    if (!tbody) return;
+    tbody.setAttribute('aria-busy', 'false');
+    if (!movements.length) {
+      setTableState('movements-tbody', 4, 'empty', 'No stock movements', 'Server-recorded stock changes will appear here.');
+      return;
+    }
+    tbody.innerHTML = movements.map((movement) => {
+      const positive = String(movement.delta || '').startsWith('+');
+      return `
+        <tr>
+          <td class="td-mono td-muted">${escapeHtml(movement.sku || 'SKU not reported')}</td>
+          <td class="td-mono td-strong" style="color: var(--color-${positive ? 'success' : 'danger'});">${escapeHtml(movement.delta ?? '—')}</td>
+          <td class="td-mono td-muted">${escapeHtml(movement.reason || 'Reason not reported')}</td>
+          <td class="td-mono td-muted">${escapeHtml(movement.when || 'Time not reported')}</td>
+        </tr>`;
+    }).join('');
+  }
+
+  function renderCategoryOptions() {
+    ['add-prod-category', 'edit-prod-category'].forEach((id) => {
+      const select = document.getElementById(id);
+      if (!select) return;
+      const currentValue = select.value;
+      select.innerHTML = catalogCategories.length
+        ? catalogCategories.map((category) => `<option value="${escapeHtml(category.name)}">${escapeHtml(category.name)}</option>`).join('')
+        : '<option value="" disabled selected>No categories available</option>';
+      if (catalogCategories.some((category) => category.name === currentValue)) select.value = currentValue;
+    });
+  }
+
+  async function loadCatalog() {
+    catalogProductsLoaded = false;
+    catalogProducts = [];
+    catalogCategories = [];
+    reviewCache.clear();
+    setConsoleMutationsEnabled(false);
+    setTableState('products-tbody', 8, 'loading', '', 'Loading products');
+    setTableState('reviews-tbody', 4, 'loading', '', 'Loading customer reviews');
+    setTableState('movements-tbody', 4, 'loading', '', 'Loading stock movements');
+    const subhead = document.getElementById('catalog-summary-subhead');
+    if (subhead) subhead.textContent = 'LOADING LIVE CATALOG…';
+    setPageState('loading', 'Loading live catalog data', 'Products, categories, reviews, and stock movements are being requested from the server.');
+
+    const results = await Promise.allSettled([
+      requestJson('/products/'),
+      requestJson('/categories/'),
+      requestJson('/reviews/'),
+      requestJson('/inventory/movements/'),
+    ]);
+    const [productsResult, categoriesResult, reviewsResult, movementsResult] = results;
+    const permissionFailure = results.find((result) => result.status === 'rejected' && [401, 403].includes(result.reason?.status));
+    if (permissionFailure) {
+      const error = permissionFailure.reason;
+      setTableState('products-tbody', 8, 'error', 'Merchant access required', error.message);
+      setTableState('reviews-tbody', 4, 'error', 'Merchant access required', error.message);
+      setTableState('movements-tbody', 4, 'error', 'Merchant access required', error.message);
+      if (subhead) subhead.textContent = 'LIVE CATALOG UNAVAILABLE';
+      setPageState('permission', 'Merchant access required', error.message, { signIn: true });
+      return;
+    }
+
+    if (productsResult.status === 'fulfilled') {
+      catalogProducts = Array.isArray(productsResult.value) ? productsResult.value.map(normalizeProduct) : [];
+      catalogProductsLoaded = true;
+      renderProducts();
+    } else {
+      setTableState('products-tbody', 8, 'error', 'Products unavailable', productsResult.reason.message);
+      if (subhead) subhead.textContent = 'PRODUCT DATA UNAVAILABLE';
+    }
+
+    if (categoriesResult.status === 'fulfilled') {
+      catalogCategories = Array.isArray(categoriesResult.value) ? categoriesResult.value : [];
+      renderCategoryOptions();
+    } else {
+      renderCategoryOptions();
+    }
+
+    if (reviewsResult.status === 'fulfilled') {
+      renderReviews(Array.isArray(reviewsResult.value) ? reviewsResult.value : []);
+    } else {
+      setTableState('reviews-tbody', 4, 'error', 'Reviews unavailable', reviewsResult.reason.message);
+    }
+
+    if (movementsResult.status === 'fulfilled') {
+      renderMovements(Array.isArray(movementsResult.value) ? movementsResult.value : []);
+    } else {
+      setTableState('movements-tbody', 4, 'error', 'Stock movements unavailable', movementsResult.reason.message);
+    }
+
+    setConsoleMutationsEnabled(Boolean(activeMerchantSession()));
+    const failures = results.filter((result) => result.status === 'rejected');
+    if (failures.length) {
+      setPageState('partial', 'Some catalog data is unavailable', 'Available sections show live API data. Failed sections are clearly marked and no sample records were substituted.', { retry: true });
+    } else {
+      setPageState('ready');
+    }
+  }
+
   const modalViewReview = document.getElementById('modal-view-review');
   const btnCloseViewReview = document.getElementById('btn-close-view-review');
   const btnCloseViewReviewFooter = document.getElementById('btn-close-view-review-footer');
   const btnReplyFromView = document.getElementById('btn-reply-from-view');
-
   const modalReplyReview = document.getElementById('modal-reply-review');
   const btnCloseReplyReview = document.getElementById('btn-close-reply-review');
   const btnCancelReplyReview = document.getElementById('btn-cancel-reply-review');
   const formReplyReview = document.getElementById('form-reply-review');
 
-  let currentViewingReview = null;
-
-  // Local review cache initialized with default seeded reviews
-  const reviewCache = {
-    '1': {
-      id: 1,
-      customer_name: 'Bea S.',
-      product_name: 'Drip Zip-Up Hoodie',
-      rating: 5,
-      rating_stars: '★★★★★',
-      body: 'Super lapad ng fit, ang angas ng tela! Perfect for streetwear layering.',
-      date: 'Verified Customer · Sep 19, 2026',
-      merchant_reply: '',
-      replied_at: null,
-    },
-    '2': {
-      id: 2,
-      customer_name: 'Marco L.',
-      product_name: 'Metro Snapback',
-      rating: 3,
-      rating_stars: '★★★☆☆',
-      body: 'Color is slightly off from photo. The cap is good quality though.',
-      date: 'Verified Customer · Sep 19, 2026',
-      merchant_reply: '',
-      replied_at: null,
-    },
-  };
-
-  async function openViewReviewModal(reviewId) {
-    if (!modalViewReview) return;
-    let review = reviewCache[reviewId];
-
-    try {
-      const res = await fetch(`${API_BASE}/reviews/${reviewId}/`);
-      if (res.ok) {
-        const data = await res.json();
-        review = {
-          ...review,
-          ...data,
-        };
-        reviewCache[reviewId] = review;
-      }
-    } catch {
-      // Use cached/seeded review
-    }
-
-    if (!review) return;
-    currentViewingReview = review;
-
-    const elAvatar = document.getElementById('view-review-avatar');
-    const elCustomer = document.getElementById('view-review-customer');
-    const elDate = document.getElementById('view-review-date');
-    const elStars = document.getElementById('view-review-stars');
-    const elProduct = document.getElementById('view-review-product');
-    const elBody = document.getElementById('view-review-body');
-    const replyContainer = document.getElementById('view-review-reply-container');
-    const replyText = document.getElementById('view-review-reply-text');
-    const replyDate = document.getElementById('view-review-reply-date');
-
-    const initials = (review.customer_name || 'C')
-      .split(' ')
-      .map((n) => n[0])
+  function populateReviewModal(review) {
+    const initials = String(review.customer_name || review.customer || 'C')
+      .split(/\s+/)
+      .map((part) => part[0])
       .join('')
       .slice(0, 2)
       .toUpperCase();
-
-    if (elAvatar) elAvatar.textContent = initials;
-    if (elCustomer) elCustomer.textContent = review.customer_name || review.customer;
-    if (elDate) elDate.textContent = review.created_at ? `Verified Customer · ${review.created_at}` : 'Verified Customer · Sep 19, 2026';
-    if (elStars) elStars.textContent = review.rating_stars || '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating);
-    if (elProduct) elProduct.textContent = review.product_name;
-    if (elBody) elBody.textContent = `“${review.body}”`;
-
+    document.getElementById('view-review-avatar').textContent = initials;
+    document.getElementById('view-review-customer').textContent = review.customer_name || review.customer || 'Customer not reported';
+    document.getElementById('view-review-date').textContent = review.created_at ? `Verified Customer · ${formatDate(review.created_at)}` : 'Verified customer · Date not reported';
+    document.getElementById('view-review-stars').textContent = review.rating_stars || 'Rating not reported';
+    document.getElementById('view-review-product').textContent = review.product_name || 'Product not reported';
+    document.getElementById('view-review-body').textContent = review.body || 'Review text not reported';
+    const replyContainer = document.getElementById('view-review-reply-container');
     if (review.merchant_reply) {
-      if (replyContainer) replyContainer.style.display = 'block';
-      if (replyText) replyText.textContent = review.merchant_reply;
-      if (replyDate) replyDate.textContent = review.replied_at ? `Replied ${review.replied_at}` : 'Replied recently';
-      if (btnReplyFromView) btnReplyFromView.textContent = 'Edit reply';
+      replyContainer.style.display = 'block';
+      document.getElementById('view-review-reply-text').textContent = review.merchant_reply;
+      document.getElementById('view-review-reply-date').textContent = review.replied_at ? `Replied ${formatDate(review.replied_at)}` : 'Reply date not reported';
+      btnReplyFromView.textContent = 'Edit reply';
     } else {
-      if (replyContainer) replyContainer.style.display = 'none';
-      if (btnReplyFromView) btnReplyFromView.textContent = 'Reply to review';
+      replyContainer.style.display = 'none';
+      btnReplyFromView.textContent = 'Reply to review';
     }
+  }
 
-    modalViewReview.hidden = false;
-    setActiveModal(modalViewReview);
+  async function fetchReview(reviewId) {
+    const review = await requestJson(`/reviews/${reviewId}/`);
+    reviewCache.set(String(reviewId), review);
+    return review;
+  }
+
+  async function openViewReviewModal(reviewId) {
+    if (!modalViewReview) return;
+    setPageState('loading', 'Loading review', 'The selected review is being requested from the server.');
+    try {
+      const review = await fetchReview(reviewId);
+      currentViewingReview = review;
+      populateReviewModal(review);
+      modalViewReview.hidden = false;
+      setActiveModal(modalViewReview);
+      setPageState('ready');
+    } catch (error) {
+      showActionError('Review could not be loaded', error);
+    }
   }
 
   function closeViewReviewModal() {
@@ -291,28 +728,28 @@
     clearActiveModal();
   }
 
-  function openReplyReviewModal(reviewId) {
+  async function openReplyReviewModal(reviewId) {
     if (!modalReplyReview) return;
-    const review = reviewCache[reviewId] || currentViewingReview;
-    if (!review) return;
-
-    // Close view modal if open
-    if (modalViewReview && !modalViewReview.hidden) {
-      modalViewReview.hidden = true;
+    let review = reviewCache.get(String(reviewId));
+    if (!review) {
+      setPageState('loading', 'Loading review', 'The review must be loaded before a reply can be written.');
+      try {
+        review = await fetchReview(reviewId);
+      } catch (error) {
+        showActionError('Review could not be loaded', error);
+        return;
+      }
     }
-
+    if (modalViewReview && !modalViewReview.hidden) modalViewReview.hidden = true;
     document.getElementById('reply-review-id').value = review.id;
-    document.getElementById('reply-customer-name').textContent = review.customer_name || review.customer;
-    document.getElementById('reply-product-name').textContent = review.product_name;
-
+    document.getElementById('reply-customer-name').textContent = review.customer_name || review.customer || 'Customer not reported';
+    document.getElementById('reply-product-name').textContent = review.product_name || 'Product not reported';
     const textarea = document.getElementById('reply-textarea');
-    if (textarea) {
-      textarea.value = review.merchant_reply || '';
-      setTimeout(() => textarea.focus(), 50);
-    }
-
+    textarea.value = review.merchant_reply || '';
     modalReplyReview.hidden = false;
     setActiveModal(modalReplyReview);
+    setPageState('ready');
+    setTimeout(() => textarea.focus(), 50);
   }
 
   function closeReplyReviewModal() {
@@ -323,654 +760,495 @@
 
   btnCloseViewReview?.addEventListener('click', closeViewReviewModal);
   btnCloseViewReviewFooter?.addEventListener('click', closeViewReviewModal);
-  modalViewReview?.addEventListener('click', (e) => {
-    if (e.target === modalViewReview) closeViewReviewModal();
+  modalViewReview?.addEventListener('click', (event) => {
+    if (event.target === modalViewReview) closeViewReviewModal();
   });
-
   btnReplyFromView?.addEventListener('click', () => {
-    if (currentViewingReview) {
-      openReplyReviewModal(currentViewingReview.id);
-    }
+    if (currentViewingReview) openReplyReviewModal(currentViewingReview.id);
   });
-
   btnCloseReplyReview?.addEventListener('click', closeReplyReviewModal);
   btnCancelReplyReview?.addEventListener('click', closeReplyReviewModal);
-  modalReplyReview?.addEventListener('click', (e) => {
-    if (e.target === modalReplyReview) closeReplyReviewModal();
+  modalReplyReview?.addEventListener('click', (event) => {
+    if (event.target === modalReplyReview) closeReplyReviewModal();
   });
 
-  // Event delegation for View and Reply buttons on the reviews table
-  document.addEventListener('click', (e) => {
-    const btnView = e.target.closest('.btn-view-review');
-    if (btnView) {
-      openViewReviewModal(btnView.dataset.reviewId);
+  document.addEventListener('click', (event) => {
+    const viewButton = event.target.closest('.btn-view-review');
+    if (viewButton) {
+      openViewReviewModal(viewButton.dataset.reviewId);
       return;
     }
-
-    const btnReply = e.target.closest('.btn-reply-review');
-    if (btnReply) {
-      openReplyReviewModal(btnReply.dataset.reviewId);
-      return;
-    }
+    const replyButton = event.target.closest('.btn-reply-review');
+    if (replyButton) openReplyReviewModal(replyButton.dataset.reviewId);
   });
 
-  // Handle Reply Form Submission
-  formReplyReview?.addEventListener('submit', async (e) => {
-    e.preventDefault();
+  formReplyReview?.addEventListener('submit', async (event) => {
+    event.preventDefault();
     const reviewId = document.getElementById('reply-review-id').value;
     const textarea = document.getElementById('reply-textarea');
     const reply = textarea.value.trim();
-
     if (!reply) {
       showToast('Reply text cannot be empty.', 'error');
       return;
     }
-
-    const review = reviewCache[reviewId] || {};
-    const customerName = review.customer_name || review.customer || 'Customer';
-
+    const submit = document.getElementById('btn-submit-reply-review');
+    if (submit) submit.disabled = true;
     try {
-      const res = await fetch(`${API_BASE}/reviews/${reviewId}/reply/`, {
+      const response = await requestJson(`/reviews/${reviewId}/reply/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reply }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        review.merchant_reply = data.merchant_reply || reply;
-        review.replied_at = data.replied_at || new Date().toISOString();
-      } else {
-        review.merchant_reply = reply;
-        review.replied_at = new Date().toISOString();
+      const review = reviewCache.get(String(reviewId));
+      if (review) {
+        review.merchant_reply = response.merchant_reply;
+        review.replied_at = response.replied_at;
+        reviewCache.set(String(reviewId), review);
       }
-    } catch {
-      // Offline fallback
-      review.merchant_reply = reply;
-      review.replied_at = new Date().toISOString();
+      const rowButton = document.querySelector(`tr[data-review-id="${CSS.escape(String(reviewId))}"] .btn-reply-review`);
+      if (rowButton) rowButton.textContent = 'Edit reply';
+      closeReplyReviewModal();
+      setPageState('ready');
+      showToast(response.message || 'Reply sent successfully.');
+    } catch (error) {
+      if (submit) submit.disabled = false;
+      showActionError('Reply was not sent', error);
     }
-
-    reviewCache[reviewId] = review;
-
-    // Update row button visually to show "Replied" state indicator
-    const row = document.querySelector(`tr[data-review-id="${reviewId}"]`);
-    if (row) {
-      const replyBtn = row.querySelector('.btn-reply-review');
-      if (replyBtn) {
-        replyBtn.textContent = 'Edit reply';
-      }
-    }
-
-    closeReplyReviewModal();
-    showToast(`Reply sent to ${customerName}.`);
   });
 
-  // --- 4. ADD PRODUCT MODAL ---
-  const modalAddProd = document.getElementById('modal-add-product');
-  const btnOpenAddProd = document.getElementById('btn-open-add-product') || document.getElementById('btn-merchant-add-product');
-  const btnCloseAddProd = document.getElementById('btn-close-product-modal');
-  const btnCancelAddProd = document.getElementById('btn-cancel-product-modal');
-  const formAddProd = document.getElementById('form-add-product');
-
-  // BUG-08 fix: Only one code path per button
-  if (btnOpenAddProd && !modalAddProd) {
-    // Dashboard page — no modal here, navigate to catalog
-    btnOpenAddProd.addEventListener('click', () => {
-      window.location.href = 'catalog.html#add-product';
-    });
-  } else if (btnOpenAddProd && modalAddProd) {
-    // Catalog page — open the modal
-    btnOpenAddProd.addEventListener('click', openAddProductModal);
-  }
+  const modalAddProduct = document.getElementById('modal-add-product');
+  const btnOpenAddProduct = document.getElementById('btn-open-add-product') || document.getElementById('btn-merchant-add-product');
+  const btnCloseAddProduct = document.getElementById('btn-close-product-modal');
+  const btnCancelAddProduct = document.getElementById('btn-cancel-product-modal');
+  const formAddProduct = document.getElementById('form-add-product');
 
   function openAddProductModal() {
-    if (modalAddProd) {
-      modalAddProd.hidden = false;
-      setActiveModal(modalAddProd);
-      document.getElementById('add-prod-name')?.focus();
+    if (!modalAddProduct) return;
+    if (!catalogCategories.length) {
+      showToast('Load or create a category before adding a product.', 'error');
+      return;
     }
+    modalAddProduct.hidden = false;
+    setActiveModal(modalAddProduct);
+    document.getElementById('add-prod-name')?.focus();
   }
 
   function closeAddProductModal() {
-    if (modalAddProd) modalAddProd.hidden = true;
-    formAddProd?.reset();
+    if (modalAddProduct) modalAddProduct.hidden = true;
+    formAddProduct?.reset();
     clearActiveModal();
-    // Return focus to trigger button
-    btnOpenAddProd?.focus();
+    btnOpenAddProduct?.focus();
   }
 
-  btnCloseAddProd?.addEventListener('click', closeAddProductModal);
-  btnCancelAddProd?.addEventListener('click', closeAddProductModal);
-  modalAddProd?.addEventListener('click', (e) => {
-    if (e.target === modalAddProd) closeAddProductModal();
+  if (btnOpenAddProduct && !modalAddProduct) {
+    btnOpenAddProduct.addEventListener('click', () => { window.location.href = 'catalog.html#add-product'; });
+  } else {
+    btnOpenAddProduct?.addEventListener('click', openAddProductModal);
+  }
+  btnCloseAddProduct?.addEventListener('click', closeAddProductModal);
+  btnCancelAddProduct?.addEventListener('click', closeAddProductModal);
+  modalAddProduct?.addEventListener('click', (event) => {
+    if (event.target === modalAddProduct) closeAddProductModal();
   });
 
-  formAddProd?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const formData = new FormData(formAddProd);
-    const name = formData.get('name').trim();
-    const category = formData.get('category');
-    const price = formData.get('price');
-    const stock = formData.get('stock');
-    const sku = formData.get('sku').trim();
-    const description = formData.get('description');
-
-    // Validation
-    if (!name) {
-      showToast('Product name is required.', 'error');
-      return;
-    }
-    if (!sku) {
-      showToast('SKU is required.', 'error');
-      return;
-    }
-    if (!price || parseInt(price, 10) <= 0) {
-      showToast('Price must be greater than zero.', 'error');
+  formAddProduct?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const formData = new FormData(formAddProduct);
+    const name = String(formData.get('name') || '').trim();
+    const category = String(formData.get('category') || '').trim();
+    const price = Number(formData.get('price'));
+    const stock = Number(formData.get('stock'));
+    const sku = String(formData.get('sku') || '').trim();
+    const description = String(formData.get('description') || '').trim();
+    if (!name || !sku || !category || !Number.isFinite(price) || price <= 0 || !Number.isInteger(stock) || stock < 0) {
+      showToast('Enter a name, category, SKU, positive price, and valid stock quantity.', 'error');
       return;
     }
 
+    const submit = document.getElementById('btn-submit-product');
+    if (submit) submit.disabled = true;
     try {
-      await fetch(`${API_BASE}/products/`, {
+      const created = await requestJson('/products/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, category, price, stock, sku, description }),
       });
-    } catch {
-      // Offline fallback
+      catalogProducts.unshift(normalizeProduct(created));
+      catalogProductsLoaded = true;
+      renderProducts();
+      closeAddProductModal();
+      setPageState('ready');
+      showToast(`Published product "${created.name}" (SKU: ${created.sku}).`);
+    } catch (error) {
+      if (submit) submit.disabled = false;
+      showActionError('Product was not created', error);
     }
-
-    const tbody = document.getElementById('products-tbody');
-    if (tbody) {
-      const tr = document.createElement('tr');
-      const catLower = category.toLowerCase().includes('tops') ? 'tops' : category.toLowerCase().includes('bottoms') ? 'bottoms' : 'accessories';
-      tr.dataset.category = catLower;
-      tr.dataset.status = 'active';
-      const safeName = escapeHtml(name);
-      const safeCat = escapeHtml(category);
-      const safeSku = escapeHtml(sku);
-      const initial = name.charAt(0).toUpperCase();
-      tr.innerHTML = `
-        <td><div class="product-thumb-letter" aria-hidden="true">${escapeHtml(initial)}</div></td>
-        <td class="td-strong">${safeName}</td>
-        <td class="td-mono td-muted">${safeCat}</td>
-        <td class="td-mono">1</td>
-        <td class="td-mono td-strong">${escapeHtml(stock)}</td>
-        <td class="td-mono td-strong">₱${parseInt(price, 10).toLocaleString()}</td>
-        <td><span class="status-pill active">Active</span></td>
-        <td><button type="button" class="btn btn-secondary btn-sm btn-edit-product" data-product-name="${safeName}">Edit</button></td>
-      `;
-      tbody.prepend(tr);
-    }
-
-    closeAddProductModal();
-    showToast(`Published product "${name}" (SKU: ${sku}).`);
   });
 
-  // Check URL hash for direct triggers (e.g. #add-product)
-  if (window.location.hash === '#add-product') {
-    // Slight delay so DOM is ready
-    setTimeout(() => openAddProductModal(), 100);
+  const modalEditProduct = document.getElementById('modal-edit-product');
+  const btnCloseEditProduct = document.getElementById('btn-close-edit-product');
+  const btnCancelEditProduct = document.getElementById('btn-cancel-edit-product');
+  const formEditProduct = document.getElementById('form-edit-product');
+
+  function setEditFormDisabled(disabled) {
+    formEditProduct?.querySelectorAll('input, select, textarea, button[type="submit"]').forEach((control) => {
+      control.disabled = disabled;
+    });
   }
 
-  // --- 5. EDIT PRODUCT MODAL & CONTROLLER ---
-  const modalEditProd = document.getElementById('modal-edit-product');
-  const btnCloseEditProd = document.getElementById('btn-close-edit-product');
-  const btnCancelEditProd = document.getElementById('btn-cancel-edit-product');
-  const formEditProd = document.getElementById('form-edit-product');
-  let currentEditingRow = null;
-
-  async function openEditProductModal(row) {
-    if (!modalEditProd) return;
-    currentEditingRow = row;
-    const productId = row.dataset.productId || row.getAttribute('data-product-id') || '1';
-    const cells = row.querySelectorAll('td');
-
-    const name = cells[1]?.textContent.trim() || '';
-    const category = cells[2]?.textContent.trim() || 'Tops › Hoodies';
-    const stock = cells[4]?.textContent.trim() || '20';
-    const priceRaw = cells[5]?.textContent.trim().replace(/[^0-9]/g, '') || '649';
-    const statusText = (cells[6]?.textContent.trim() || 'Active').toLowerCase();
-
-    document.getElementById('edit-prod-id').value = productId;
-    document.getElementById('edit-prod-name').value = name;
-    document.getElementById('edit-prod-category').value = category;
-    document.getElementById('edit-prod-price').value = priceRaw;
-    document.getElementById('edit-prod-stock').value = stock;
-    document.getElementById('edit-prod-sku').value = `MD-PRD-00${productId}`;
-    document.getElementById('edit-prod-status').value = statusText.includes('inactive') ? 'inactive' : 'active';
-
-    // Try fetching fresh data from backend if available
+  async function openEditProductModal(productId) {
+    if (!modalEditProduct || !productId) return;
+    formEditProduct.reset();
+    currentEditingProductId = null;
+    setEditFormDisabled(true);
+    modalEditProduct.hidden = false;
+    setActiveModal(modalEditProduct);
+    setPageState('loading', 'Loading product', 'Current product values are being requested from the server.');
     try {
-      const res = await fetch(`${API_BASE}/products/${productId}/`);
-      if (res.ok) {
-        const data = await res.json();
-        document.getElementById('edit-prod-name').value = data.name;
-        document.getElementById('edit-prod-price').value = data.price;
-        document.getElementById('edit-prod-stock').value = data.stock;
-        document.getElementById('edit-prod-sku').value = data.sku;
-        document.getElementById('edit-prod-status').value = data.is_active ? 'active' : 'inactive';
-        if (data.description) {
-          const descEl = document.getElementById('edit-prod-desc');
-          if (descEl) descEl.value = data.description;
-        }
+      const product = await requestJson(`/products/${productId}/`);
+      currentEditingProductId = Number(product.id);
+      if (!catalogCategories.some((category) => category.name === product.category)) {
+        catalogCategories.push({ id: product.category_id || `product-${product.id}`, name: product.category });
+        renderCategoryOptions();
       }
-    } catch {
-      // Offline fallback: seeded table values used
+      document.getElementById('edit-prod-id').value = product.id;
+      document.getElementById('edit-prod-name').value = product.name;
+      document.getElementById('edit-prod-category').value = product.category;
+      document.getElementById('edit-prod-price').value = product.price;
+      document.getElementById('edit-prod-stock').value = product.stock;
+      document.getElementById('edit-prod-sku').value = product.sku;
+      document.getElementById('edit-prod-status').value = product.is_active ? 'active' : 'inactive';
+      document.getElementById('edit-prod-desc').value = product.description || '';
+      setEditFormDisabled(false);
+      setPageState('ready');
+      document.getElementById('edit-prod-name')?.focus();
+    } catch (error) {
+      modalEditProduct.hidden = true;
+      clearActiveModal();
+      showActionError('Product could not be loaded', error);
     }
-
-    modalEditProd.hidden = false;
-    setActiveModal(modalEditProd);
-    document.getElementById('edit-prod-name')?.focus();
   }
 
   function closeEditProductModal() {
-    if (modalEditProd) modalEditProd.hidden = true;
-    formEditProd?.reset();
-    currentEditingRow = null;
+    if (modalEditProduct) modalEditProduct.hidden = true;
+    formEditProduct?.reset();
+    currentEditingProductId = null;
     clearActiveModal();
   }
 
-  btnCloseEditProd?.addEventListener('click', closeEditProductModal);
-  btnCancelEditProd?.addEventListener('click', closeEditProductModal);
-  modalEditProd?.addEventListener('click', (e) => {
-    if (e.target === modalEditProd) closeEditProductModal();
+  btnCloseEditProduct?.addEventListener('click', closeEditProductModal);
+  btnCancelEditProduct?.addEventListener('click', closeEditProductModal);
+  modalEditProduct?.addEventListener('click', (event) => {
+    if (event.target === modalEditProduct) closeEditProductModal();
+  });
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest('.btn-edit-product');
+    if (button) openEditProductModal(Number(button.dataset.productId));
   });
 
-  document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.btn-edit-product');
-    if (!btn) return;
-    const row = btn.closest('tr');
-    if (row) openEditProductModal(row);
-  });
-
-  formEditProd?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const productId = document.getElementById('edit-prod-id').value;
+  formEditProduct?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!currentEditingProductId) return;
     const name = document.getElementById('edit-prod-name').value.trim();
     const category = document.getElementById('edit-prod-category').value;
-    const price = parseInt(document.getElementById('edit-prod-price').value, 10);
-    const stock = parseInt(document.getElementById('edit-prod-stock').value, 10);
+    const price = Number(document.getElementById('edit-prod-price').value);
+    const stock = Number(document.getElementById('edit-prod-stock').value);
     const sku = document.getElementById('edit-prod-sku').value.trim();
-    const statusVal = document.getElementById('edit-prod-status').value;
-    const desc = document.getElementById('edit-prod-desc')?.value || '';
-
-    if (!name || isNaN(price) || price <= 0 || isNaN(stock) || stock < 0) {
-      showToast('Please enter valid product details.', 'error');
+    const isActive = document.getElementById('edit-prod-status').value === 'active';
+    const description = document.getElementById('edit-prod-desc').value.trim();
+    if (!name || !sku || !category || !Number.isFinite(price) || price <= 0 || !Number.isInteger(stock) || stock < 0) {
+      showToast('Enter valid product details before saving.', 'error');
       return;
     }
 
+    const submit = document.getElementById('btn-save-edit-product');
+    if (submit) submit.disabled = true;
     try {
-      await fetch(`${API_BASE}/products/${productId}/`, {
+      const updated = await requestJson(`/products/${currentEditingProductId}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          category,
-          price,
-          stock,
-          sku,
-          is_active: statusVal === 'active',
-          description: desc,
-        }),
+        body: JSON.stringify({ name, category, price, stock, sku, is_active: isActive, description }),
       });
-    } catch {
-      // Offline fallback
+      const normalized = normalizeProduct(updated);
+      catalogProducts = catalogProducts.map((product) => product.id === normalized.id ? normalized : product);
+      renderProducts();
+      closeEditProductModal();
+      setPageState('ready');
+      showToast(`Saved server-confirmed changes for "${normalized.name}".`);
+    } catch (error) {
+      if (submit) submit.disabled = false;
+      showActionError('Product changes were not saved', error);
     }
-
-    if (currentEditingRow) {
-      const cells = currentEditingRow.querySelectorAll('td');
-      if (cells[1]) cells[1].textContent = name;
-      if (cells[2]) cells[2].textContent = category;
-      if (cells[4]) {
-        cells[4].textContent = stock;
-        cells[4].style.color = stock <= 5 ? 'var(--color-danger)' : 'var(--color-ink)';
-      }
-      if (cells[5]) cells[5].textContent = `₱${price.toLocaleString()}`;
-      if (cells[6]) {
-        const isActive = statusVal === 'active';
-        cells[6].innerHTML = `<span class="status-pill ${isActive ? 'active' : 'inactive'}">${isActive ? 'Active' : 'Inactive'}</span>`;
-      }
-      currentEditingRow.dataset.status = statusVal;
-      const catKey = category.toLowerCase().includes('tops') ? 'tops' : category.toLowerCase().includes('bottoms') ? 'bottoms' : 'accessories';
-      currentEditingRow.dataset.category = catKey;
-    }
-
-    closeEditProductModal();
-    showToast(`Saved changes for "${name}".`);
   });
 
-  // --- 6. MANAGE CATEGORIES MODAL & CONTROLLER ---
-  const modalManageCats = document.getElementById('modal-manage-categories');
-  const btnManageCats = document.getElementById('btn-manage-categories');
-  const btnCloseCats = document.getElementById('btn-close-categories');
-  const btnCloseCatsFooter = document.getElementById('btn-close-categories-footer');
-  const formAddCat = document.getElementById('form-add-category');
-  const catListContainer = document.getElementById('categories-list-container');
+  const modalManageCategories = document.getElementById('modal-manage-categories');
+  const btnManageCategories = document.getElementById('btn-manage-categories');
+  const btnCloseCategories = document.getElementById('btn-close-categories');
+  const btnCloseCategoriesFooter = document.getElementById('btn-close-categories-footer');
+  const formAddCategory = document.getElementById('form-add-category');
+  const categoryList = document.getElementById('categories-list-container');
+
+  function renderCategoryList(categories, state = 'ready', message = '') {
+    if (!categoryList) return;
+    if (state === 'loading') {
+      categoryList.innerHTML = '<div class="skeleton-stack" aria-hidden="true"><span class="skeleton-line is-wide"></span><span class="skeleton-line"></span></div><span class="sr-only">Loading categories</span>';
+      return;
+    }
+    if (state === 'error') {
+      categoryList.innerHTML = `<div class="table-state"><strong>Categories unavailable</strong><span>${escapeHtml(message)}</span></div>`;
+      return;
+    }
+    if (!categories.length) {
+      categoryList.innerHTML = '<div class="table-state"><strong>No categories found</strong><span>Create a category below before adding products.</span></div>';
+      return;
+    }
+    categoryList.innerHTML = categories.map((category) => `
+      <div class="category-item-row" data-category-id="${escapeHtml(category.id)}">
+        <span class="category-item-name">${escapeHtml(category.name)}</span>
+        <span class="category-count-badge">${Number(category.product_count || 0).toLocaleString()} items</span>
+      </div>`).join('');
+  }
 
   async function openManageCategoriesModal() {
-    if (!modalManageCats) return;
-
+    if (!modalManageCategories) return;
+    renderCategoryList([], 'loading');
+    modalManageCategories.hidden = false;
+    setActiveModal(modalManageCategories);
     try {
-      const res = await fetch(`${API_BASE}/categories/`);
-      if (res.ok) {
-        const categories = await res.json();
-        if (catListContainer && categories.length > 0) {
-          catListContainer.innerHTML = categories.map((c) => `
-            <div class="category-item-row" data-category-id="${c.id}">
-              <span class="category-item-name">${escapeHtml(c.name)}</span>
-              <span class="category-count-badge">${c.product_count} items</span>
-            </div>
-          `).join('');
-        }
-      }
-    } catch {
-      // Offline fallback: retain pre-rendered categories
+      const categories = await requestJson('/categories/');
+      catalogCategories = Array.isArray(categories) ? categories : [];
+      renderCategoryList(catalogCategories);
+      renderCategoryOptions();
+      setPageState('ready');
+      document.getElementById('new-cat-name')?.focus();
+    } catch (error) {
+      renderCategoryList([], 'error', error.message);
+      showActionError('Categories could not be loaded', error);
     }
-
-    modalManageCats.hidden = false;
-    setActiveModal(modalManageCats);
-    document.getElementById('new-cat-name')?.focus();
   }
 
   function closeManageCategoriesModal() {
-    if (modalManageCats) modalManageCats.hidden = true;
-    formAddCat?.reset();
+    if (modalManageCategories) modalManageCategories.hidden = true;
+    formAddCategory?.reset();
     clearActiveModal();
   }
 
-  btnManageCats?.addEventListener('click', openManageCategoriesModal);
-  btnCloseCats?.addEventListener('click', closeManageCategoriesModal);
-  btnCloseCatsFooter?.addEventListener('click', closeManageCategoriesModal);
-  modalManageCats?.addEventListener('click', (e) => {
-    if (e.target === modalManageCats) closeManageCategoriesModal();
+  btnManageCategories?.addEventListener('click', openManageCategoriesModal);
+  btnCloseCategories?.addEventListener('click', closeManageCategoriesModal);
+  btnCloseCategoriesFooter?.addEventListener('click', closeManageCategoriesModal);
+  modalManageCategories?.addEventListener('click', (event) => {
+    if (event.target === modalManageCategories) closeManageCategoriesModal();
   });
 
-  formAddCat?.addEventListener('submit', async (e) => {
-    e.preventDefault();
+  formAddCategory?.addEventListener('submit', async (event) => {
+    event.preventDefault();
     const input = document.getElementById('new-cat-name');
     const name = input?.value.trim();
     if (!name) return;
-
-    let createdCategory = { id: Date.now(), name, product_count: 0 };
+    const submit = document.getElementById('btn-submit-category');
+    if (submit) submit.disabled = true;
     try {
-      const res = await fetch(`${API_BASE}/categories/`, {
+      const created = await requestJson('/categories/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
       });
-      if (res.ok) {
-        createdCategory = await res.json();
-      }
-    } catch {
-      // Offline fallback
+      const index = catalogCategories.findIndex((category) => Number(category.id) === Number(created.id));
+      if (index >= 0) catalogCategories[index] = created;
+      else catalogCategories.push(created);
+      renderCategoryList(catalogCategories);
+      renderCategoryOptions();
+      input.value = '';
+      if (submit) submit.disabled = false;
+      setPageState('ready');
+      showToast(`Created category "${created.name}".`);
+    } catch (error) {
+      if (submit) submit.disabled = false;
+      showActionError('Category was not created', error);
     }
-
-    if (catListContainer) {
-      const row = document.createElement('div');
-      row.className = 'category-item-row';
-      row.dataset.categoryId = createdCategory.id;
-      row.innerHTML = `
-        <span class="category-item-name">${escapeHtml(createdCategory.name)}</span>
-        <span class="category-count-badge">${createdCategory.product_count || 0} items</span>
-      `;
-      catListContainer.appendChild(row);
-      row.scrollIntoView({ behavior: 'smooth' });
-    }
-
-    // Add to category select dropdowns
-    ['add-prod-category', 'edit-prod-category'].forEach((selId) => {
-      const selectEl = document.getElementById(selId);
-      if (selectEl) {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        selectEl.appendChild(opt);
-      }
-    });
-
-    input.value = '';
-    showToast(`Created category "${name}".`);
   });
 
-  // --- 7. RECENT ORDERS & FULFILLMENT MODAL ---
   const modalOrderDetail = document.getElementById('modal-order-detail');
   const btnCloseOrderDetail = document.getElementById('btn-close-order-detail');
   const btnCloseOrderFooter = document.getElementById('btn-close-order-footer');
   const btnOrderMarkPacked = document.getElementById('btn-order-mark-packed');
   const btnOrderMarkShipped = document.getElementById('btn-order-mark-shipped');
-  let currentActiveOrderId = null;
 
-  async function openOrderDetailModal(orderId) {
-    if (!modalOrderDetail) return;
-    currentActiveOrderId = orderId;
-
-    let orderData = null;
-    try {
-      const res = await fetch(`${API_BASE}/orders/${orderId}/`);
-      if (res.ok) {
-        orderData = await res.json();
-      }
-    } catch {
-      // Offline fallback
+  function resetOrderDetailForLoading() {
+    ['order-detail-no', 'order-customer-name', 'order-shipping-line1', 'order-shipping-city', 'order-customer-phone', 'order-payment-method', 'order-created-date', 'order-subtotal', 'order-shipping', 'order-total']
+      .forEach((id) => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = '—';
+      });
+    const pill = document.getElementById('order-detail-status-pill');
+    if (pill) {
+      pill.className = 'status-pill pending';
+      pill.textContent = 'Loading';
     }
-
-    if (!orderData) {
-      // Default fallback demo data
-      const demoOrders = {
-        318: { order_no: 'MD-2026-00318', customer: 'Juan Dela Cruz', phone: '+63 917 555 1234', addr: 'Unit 12B Tower 2, One Serendra, Taguig', status: 'Paid', raw_status: 'paid', total: 2632, subtotal: 2547, shipping: 85, pay: 'GCASH' },
-        317: { order_no: 'MD-2026-00317', customer: 'Bea Santos', phone: '+63 918 222 3456', addr: '45 Commonwealth Ave, Quezon City', status: 'Packed', raw_status: 'packed', total: 1249, subtotal: 1164, shipping: 85, pay: 'MAYA' },
-        316: { order_no: 'MD-2026-00316', customer: 'Miguel Reyes', phone: '+63 920 444 8899', addr: '88 Session Road, Baguio City', status: 'Shipped', raw_status: 'shipped', total: 3447, subtotal: 3327, shipping: 120, pay: 'CARD' },
-        315: { order_no: 'MD-2026-00315', customer: 'Aliyah Cruz', phone: '+63 927 888 1122', addr: '24 Real St, Cebu City', status: 'Pending', raw_status: 'pending', total: 849, subtotal: 699, shipping: 150, pay: 'GCASH' },
-        314: { order_no: 'MD-2026-00314', customer: 'Marco Lim', phone: '+63 915 777 4433', addr: '77 Abreeza Mall Road, Davao City', status: 'Paid', raw_status: 'paid', total: 1798, subtotal: 1648, shipping: 150, pay: 'GCASH' },
-      };
-      const demo = demoOrders[orderId] || demoOrders[318];
-      orderData = {
-        id: orderId,
-        order_no: demo.order_no,
-        status: demo.status,
-        raw_status: demo.raw_status,
-        subtotal: demo.subtotal,
-        shipping: demo.shipping,
-        total: demo.total,
-        payment_method: demo.pay,
-        created_at: 'Sep 19, 2026 15:42',
-        shipping_address: {
-          name: demo.customer,
-          line1: demo.addr,
-          city: 'Metro Manila',
-          phone: demo.phone,
-        },
-        lines: [
-          { product_name: 'Drip Zip-Up Hoodie', variant_desc: 'BLK · M · OVS', quantity: 1, unit_price: 1249, total_price: 1249 },
-          { product_name: 'Metro Core Boxy Tee', variant_desc: 'WHT · XL · REG', quantity: 2, unit_price: 649, total_price: 1298 },
-        ],
-      };
-    }
-
-    // Populate Modal UI
-    document.getElementById('order-detail-no').textContent = orderData.order_no;
-    document.getElementById('order-customer-name').textContent = orderData.shipping_address?.name || 'Customer';
-    document.getElementById('order-shipping-line1').textContent = orderData.shipping_address?.line1 || 'Delivery address';
-    document.getElementById('order-shipping-city').textContent = `${orderData.shipping_address?.city || 'Metro Manila'}, ${orderData.shipping_address?.postal_code || ''}`;
-    document.getElementById('order-customer-phone').textContent = orderData.shipping_address?.phone || '';
-    document.getElementById('order-payment-method').textContent = orderData.payment_method || 'GCASH';
-    document.getElementById('order-created-date').textContent = orderData.created_at || 'Sep 19, 2026';
-
-    const pillEl = document.getElementById('order-detail-status-pill');
-    if (pillEl) {
-      const statusClass = (orderData.raw_status || orderData.status.toLowerCase());
-      pillEl.className = `status-pill ${statusClass}`;
-      pillEl.textContent = orderData.status;
-    }
-
-    document.getElementById('order-subtotal').textContent = `₱${orderData.subtotal.toLocaleString()}`;
-    document.getElementById('order-shipping').textContent = `₱${orderData.shipping.toLocaleString()}`;
-    document.getElementById('order-total').textContent = `₱${orderData.total.toLocaleString()}`;
-
-    // Populate line items
-    const tbody = document.getElementById('order-items-tbody');
-    if (tbody && orderData.lines) {
-      tbody.innerHTML = orderData.lines.map((item) => `
-        <tr>
-          <td class="td-strong">${escapeHtml(item.product_name)}</td>
-          <td class="td-mono td-muted">${escapeHtml(item.variant_desc)}</td>
-          <td class="td-mono" style="text-align: center;">${item.quantity}</td>
-          <td class="td-mono" style="text-align: right;">₱${item.unit_price.toLocaleString()}</td>
-          <td class="td-mono td-strong" style="text-align: right;">₱${item.total_price.toLocaleString()}</td>
-        </tr>
-      `).join('');
-    }
-
-    updateFulfillmentButtonStates(orderData.raw_status || orderData.status.toLowerCase());
-
-    modalOrderDetail.hidden = false;
-    setActiveModal(modalOrderDetail);
+    setTableState('order-items-tbody', 5, 'loading', '', 'Loading order items');
+    if (btnOrderMarkPacked) btnOrderMarkPacked.disabled = true;
+    if (btnOrderMarkShipped) btnOrderMarkShipped.disabled = true;
   }
 
   function updateFulfillmentButtonStates(rawStatus) {
     if (!btnOrderMarkPacked || !btnOrderMarkShipped) return;
-    if (rawStatus === 'paid') {
-      btnOrderMarkPacked.disabled = false;
-      btnOrderMarkPacked.textContent = 'Mark as Packed';
-      btnOrderMarkShipped.disabled = false;
-      btnOrderMarkShipped.textContent = 'Mark as Shipped';
-    } else if (rawStatus === 'packed') {
-      btnOrderMarkPacked.disabled = true;
-      btnOrderMarkPacked.textContent = '✓ Packed';
-      btnOrderMarkShipped.disabled = false;
-      btnOrderMarkShipped.textContent = 'Mark as Shipped';
-    } else if (rawStatus === 'shipped') {
-      btnOrderMarkPacked.disabled = true;
-      btnOrderMarkPacked.textContent = '✓ Packed';
-      btnOrderMarkShipped.disabled = true;
-      btnOrderMarkShipped.textContent = '✓ Shipped';
+    const status = String(rawStatus || '').toLowerCase();
+    const canPack = ['placed', 'paid', 'processing'].includes(status);
+    const canShip = status === 'packed';
+    btnOrderMarkPacked.disabled = !canPack;
+    btnOrderMarkShipped.disabled = !canShip;
+    btnOrderMarkPacked.textContent = ['packed', 'shipped', 'out_for_delivery', 'delivered'].includes(status) ? '✓ Packed' : 'Mark as Packed';
+    btnOrderMarkShipped.textContent = ['shipped', 'out_for_delivery', 'delivered'].includes(status) ? '✓ Shipped' : 'Mark as Shipped';
+  }
+
+  function populateOrderDetail(order) {
+    const address = order.shipping_address || {};
+    const addressLine = [address.address_line1 || address.line1, address.address_line2 || address.line2].filter(Boolean).join(', ') || 'Address not reported';
+    const cityLine = [address.city, address.state, address.postal_code].filter(Boolean).join(', ') || 'City not reported';
+    document.getElementById('order-detail-no').textContent = order.order_no || 'Order number not reported';
+    document.getElementById('order-customer-name').textContent = address.name || order.customer || 'Customer not reported';
+    document.getElementById('order-shipping-line1').textContent = addressLine;
+    document.getElementById('order-shipping-city').textContent = cityLine;
+    document.getElementById('order-customer-phone').textContent = address.phone || 'Phone not reported';
+    document.getElementById('order-payment-method').textContent = String(order.payment_method || 'Not reported').toUpperCase();
+    document.getElementById('order-created-date').textContent = formatDate(order.created_at);
+    const rawStatus = order.raw_status || statusKey(order.status);
+    currentActiveOrderStatus = rawStatus;
+    const statusPill = document.getElementById('order-detail-status-pill');
+    statusPill.className = `status-pill ${statusKey(rawStatus)}`;
+    statusPill.textContent = order.status || 'Not reported';
+    document.getElementById('order-subtotal').textContent = money(order.subtotal);
+    document.getElementById('order-shipping').textContent = money(order.shipping);
+    document.getElementById('order-total').textContent = money(order.total);
+
+    const lines = Array.isArray(order.lines) ? order.lines : [];
+    const tbody = document.getElementById('order-items-tbody');
+    if (!lines.length) {
+      setTableState('order-items-tbody', 5, 'empty', 'No order items returned', 'The order exists, but its line items were not included in the response.');
     } else {
-      btnOrderMarkPacked.disabled = false;
-      btnOrderMarkShipped.disabled = false;
+      tbody.setAttribute('aria-busy', 'false');
+      tbody.innerHTML = lines.map((item) => `
+        <tr>
+          <td class="td-strong">${escapeHtml(item.product_name || 'Product not reported')}</td>
+          <td class="td-mono td-muted">${escapeHtml(item.variant_desc || 'Variant not reported')}</td>
+          <td class="td-mono" style="text-align: center;">${escapeHtml(item.quantity)}</td>
+          <td class="td-mono" style="text-align: right;">${escapeHtml(money(item.unit_price))}</td>
+          <td class="td-mono td-strong" style="text-align: right;">${escapeHtml(money(item.total_price))}</td>
+        </tr>`).join('');
+    }
+    updateFulfillmentButtonStates(rawStatus);
+  }
+
+  async function openOrderDetailModal(orderId) {
+    if (!modalOrderDetail || !orderId) return;
+    currentActiveOrderId = orderId;
+    resetOrderDetailForLoading();
+    modalOrderDetail.hidden = false;
+    setActiveModal(modalOrderDetail);
+    setPageState('loading', 'Loading order details', 'The selected order is being requested from the server.');
+    try {
+      const order = await requestJson(`/orders/${orderId}/`);
+      populateOrderDetail(order);
+      setPageState('ready');
+    } catch (error) {
+      setTableState('order-items-tbody', 5, 'error', 'Order details unavailable', error.message);
+      showActionError('Order could not be loaded', error);
     }
   }
 
   async function updateOrderStatus(newStatus) {
     if (!currentActiveOrderId) return;
-
+    if (btnOrderMarkPacked) btnOrderMarkPacked.disabled = true;
+    if (btnOrderMarkShipped) btnOrderMarkShipped.disabled = true;
     try {
-      await fetch(`${API_BASE}/orders/${currentActiveOrderId}/status/`, {
+      const updated = await requestJson(`/orders/${currentActiveOrderId}/status/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
       });
-    } catch {
-      // Offline fallback
+      const rawStatus = updated.raw_status || newStatus;
+      currentActiveOrderStatus = rawStatus;
+      const pill = document.getElementById('order-detail-status-pill');
+      pill.className = `status-pill ${statusKey(rawStatus)}`;
+      pill.textContent = updated.status || rawStatus;
+      updateFulfillmentButtonStates(rawStatus);
+      const row = document.querySelector(`tr[data-order-id="${CSS.escape(String(currentActiveOrderId))}"]`);
+      const statusCell = row?.children[4];
+      if (statusCell) statusCell.innerHTML = `<span class="status-pill ${statusKey(rawStatus)}">${escapeHtml(updated.status || rawStatus)}</span>`;
+      setPageState('ready');
+      showToast(updated.message || `Order status updated to ${rawStatus}.`);
+    } catch (error) {
+      updateFulfillmentButtonStates(currentActiveOrderStatus);
+      showActionError('Order status was not changed', error);
     }
-
-    const pillEl = document.getElementById('order-detail-status-pill');
-    if (pillEl) {
-      pillEl.className = `status-pill ${newStatus}`;
-      pillEl.textContent = newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
-    }
-    updateFulfillmentButtonStates(newStatus);
-
-    // Update table row in Dashboard
-    const row = document.querySelector(`tr[data-order-id="${currentActiveOrderId}"]`);
-    if (row) {
-      const statusCell = row.children[4];
-      if (statusCell) {
-        statusCell.innerHTML = `<span class="status-pill ${newStatus}">${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}</span>`;
-      }
-    }
-
-    showToast(`Order #${currentActiveOrderId} status updated to ${newStatus.toUpperCase()}.`);
   }
-
-  btnOrderMarkPacked?.addEventListener('click', () => updateOrderStatus('packed'));
-  btnOrderMarkShipped?.addEventListener('click', () => updateOrderStatus('shipped'));
 
   function closeOrderDetailModal() {
     if (modalOrderDetail) modalOrderDetail.hidden = true;
     currentActiveOrderId = null;
+    currentActiveOrderStatus = null;
     clearActiveModal();
   }
 
+  btnOrderMarkPacked?.addEventListener('click', () => updateOrderStatus('packed'));
+  btnOrderMarkShipped?.addEventListener('click', () => updateOrderStatus('shipped'));
   btnCloseOrderDetail?.addEventListener('click', closeOrderDetailModal);
   btnCloseOrderFooter?.addEventListener('click', closeOrderDetailModal);
-  modalOrderDetail?.addEventListener('click', (e) => {
-    if (e.target === modalOrderDetail) closeOrderDetailModal();
+  modalOrderDetail?.addEventListener('click', (event) => {
+    if (event.target === modalOrderDetail) closeOrderDetailModal();
   });
-
-  // Event delegation for Dashboard recent orders table
-  document.getElementById('orders-tbody')?.addEventListener('click', (e) => {
-    const row = e.target.closest('tr[data-order-id]');
+  document.getElementById('orders-tbody')?.addEventListener('click', (event) => {
+    const row = event.target.closest('tr[data-order-id]');
+    if (row) openOrderDetailModal(Number(row.dataset.orderId));
+  });
+  document.getElementById('orders-tbody')?.addEventListener('keydown', (event) => {
+    if (!['Enter', ' '].includes(event.key)) return;
+    const row = event.target.closest('tr[data-order-id]');
     if (!row) return;
-    const orderId = parseInt(row.dataset.orderId, 10);
-    if (orderId) openOrderDetailModal(orderId);
+    event.preventDefault();
+    openOrderDetailModal(Number(row.dataset.orderId));
   });
 
-  // --- 8. EXPORT CSV (Merchant Dashboard & Catalog) ---
-  const btnExport = document.getElementById('btn-merchant-export-csv');
-  btnExport?.addEventListener('click', async () => {
-    // On catalog page, export product table data
-    const productsTbody = document.getElementById('products-tbody');
-    if (productsTbody) {
-      const rows = Array.from(productsTbody.querySelectorAll('tr'))
-        .filter((r) => r.style.display !== 'none')
-        .map((r) => {
-          const cells = r.querySelectorAll('td');
-          return [
-            `"${cells[1]?.textContent.trim() || ''}"`,
-            `"${cells[2]?.textContent.trim() || ''}"`,
-            cells[3]?.textContent.trim() || '',
-            cells[4]?.textContent.trim() || '',
-            `"${cells[5]?.textContent.trim() || ''}"`,
-            `"${cells[6]?.textContent.trim() || ''}"`,
-          ].join(',');
-        });
-      const csvContent = ['Product,Category,Variants,Stock,Price,Status', ...rows].join('\n');
-      downloadCsv(csvContent, 'metrodrip_products');
-      showToast('Exported product catalog to CSV.');
+  document.getElementById('btn-merchant-export-csv')?.addEventListener('click', async () => {
+    if (!dashboardLoaded) {
+      showToast('Load live dashboard data before exporting orders.', 'error');
       return;
     }
-
-    // On dashboard page, try backend export first
+    const button = document.getElementById('btn-merchant-export-csv');
+    button.disabled = true;
     try {
-      const res = await fetch(`${API_BASE}/orders/export/`);
-      if (res.ok) {
-        const text = await res.text();
-        downloadCsv(text, 'metrodrip_merchant_orders');
-        showToast('Exported recent orders to CSV.');
-        return;
-      }
-    } catch {
-      // Offline fallback
+      const response = await authorizedFetch('/orders/export/', { headers: { Accept: 'text/csv' } });
+      const csv = await response.text();
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `metrodrip_merchant_orders_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setPageState('ready');
+      showToast('Exported live merchant orders to CSV.');
+    } catch (error) {
+      showActionError('Orders were not exported', error);
+    } finally {
+      button.disabled = !dashboardLoaded;
     }
-
-    const ordersData = [
-      ['Order ID', 'Customer', 'Total', 'Payment', 'Status'],
-      ['MD-2026-00318', 'Juan Dela Cruz', '2632', 'GCASH', 'Paid'],
-      ['MD-2026-00317', 'Bea Santos', '1249', 'MAYA', 'Packed'],
-      ['MD-2026-00316', 'Miguel Reyes', '3447', 'CARD', 'Shipped'],
-      ['MD-2026-00315', 'Aliyah Cruz', '849', 'GCASH', 'Pending'],
-      ['MD-2026-00314', 'Marco Lim', '1798', 'GCASH', 'Paid'],
-    ];
-    const csvContent = ordersData.map((r) => r.map((c) => `"${c}"`).join(',')).join('\n');
-    downloadCsv(csvContent, 'metrodrip_merchant_orders');
-    showToast('Exported recent orders to CSV.');
   });
 
-  function downloadCsv(csvContent, filenamePrefix) {
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${filenamePrefix}_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  }
-
-  // --- 9. NAVIGATION ACTIVE STATE ---
   document.querySelectorAll('.nav-item[data-nav]').forEach((item) => {
-    item.addEventListener('click', (e) => {
+    item.addEventListener('click', () => {
       document.querySelectorAll('.nav-item').forEach((nav) => nav.classList.remove('is-active'));
       item.classList.add('is-active');
     });
   });
-})();
 
+  async function initializePage() {
+    if (document.getElementById('low-stock-tbody')) await loadDashboard();
+    if (document.getElementById('products-tbody')) {
+      await loadCatalog();
+      if (window.location.hash === '#add-product' && catalogCategories.length) openAddProductModal();
+    }
+  }
+
+  initializePage();
+})();

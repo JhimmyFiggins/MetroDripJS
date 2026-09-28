@@ -1,12 +1,76 @@
 # Verification and Evaluation
 
-> Current authority: [QA Report 2026-09-28](QA%20Report%202026-09-28.md), with the [previous QA report](QA%20Report%202026-09-27.md) retaining its unresolved coverage matrix. Release is **HOLD**, not fully verified. The sections below are historical migration notes and their readiness, security, concurrency and E2E claims are not current evidence.
+**Status:** Release HOLD; implementation present, final local rerun pending, external/native/PostgreSQL/Render verification outstanding
 
-**Status:** Fully Verified & Executed Test Evidence  
-**Project:** MetroDripJS Urban Streetwear E-Commerce Platform  
-**Test Suite:** 46 Unit/Contract Tests + 5-Phase End-to-End Integration Saga Suite  
-**Date of Execution:** 2026-09-27  
-**Pass Rate:** 100% (46/46 unit tests passing; 5/5 E2E integration phases passing)  
+**Current authority:** This matrix plus [QA Report 2026-09-28](QA%20Report%202026-09-28.md) and its unresolved [2026-09-27 coverage matrix](QA%20Report%202026-09-27.md)
+
+**Evidence rule:** An executed unit/mock/SQLite/static check is labeled separately from PostgreSQL, native-device, PayMongo, and Render evidence.
+
+## Current implementation verification matrix
+
+| ID | Requirement / risk | Required check and positive result | Negative/failure case | Status |
+|---|---|---|---|---|
+| PAY-01 | COD compatibility | COD creates one order from server totals, commits inventory once, returns `payment_action: null`, and replays the same key/payload | Changed owner/payload with the key returns `409 idempotency_conflict` | Implemented; final local rerun pending |
+| PAY-02 | Hosted method mapping | GCash, Maya, and card serialize a single selected method with server totals; `maya` maps only in the adapter to `paymaya` | Unknown method and missing/rejected provider configuration fail closed; no COD fallback | Implemented with mocked adapter; PayMongo sandbox/live UNVERIFIED |
+| PAY-03 | No raw credentials | Runtime/source inspection contains no MetroDrip PAN/CVV/wallet login/PIN/OTP form or persistence | Nested credential keys are rejected with `raw_payment_credentials_rejected` | Implemented; final source/test rerun pending |
+| PAY-04 | Redirect safety | Client/server accept only the exact HTTPS PayMongo hosted-checkout origin and retain the cart while pending | Non-HTTPS, credentials-in-URL, alternate host/port, and redirect-only paid claims are blocked | Implemented in source tests; native handoff UNVERIFIED |
+| PAY-05 | Webhook authenticity | Exact raw bytes, timestamp, correct test/live digest, event shape, reference/fingerprint, amount, currency, and supplied mode are verified | Bad/missing/stale signature, mismatched supplied mode, malformed event, amount/currency/reference mismatch cannot mark paid | Local signed fixtures implemented; official sandbox delivery UNVERIFIED |
+| PAY-06 | Webhook idempotency/order | Duplicate event ID/body is one effect; changed body under the same ID is a `409` collision; paid state is not reapplied | Concurrent duplicate delivery cannot double-commit stock/payment | Implemented in SQLite tests; PostgreSQL concurrency UNVERIFIED |
+| PAY-07 | Lost create response | A signed paid event can bind an unbound `cs_…` session only when order ID, MetroDrip reference, fingerprint, amount, currency, and paid status match | Wrong amount or identity cannot claim an unbound payment; retry does not clear cart early | Implemented; final local rerun pending; live uncertainty UNVERIFIED |
+| PAY-08 | Reconciliation/expiry | Referenced eligible owned reads skip provider calls for 30 seconds after a successful lookup, and checkout triggers one stale expiry | Provider failure returns durable state plus `deferred` and starts no cooldown; no fake failure/success | Implemented without lease/GET throttle; concurrent failure fan-out remains open |
+| DB-01 | Target migrations | Fresh and legacy-shaped disposable PostgreSQL migrate forward; data invariants/counts/totals pass | Rollback before contract step preserves paid/audit evidence and prior compatible app can run | PostgreSQL UNVERIFIED |
+| DB-02 | Checkout concurrency | Concurrent stock/idempotency/payment transitions cannot oversell or double-create | Lock/deadlock retry is bounded and idempotent | PostgreSQL UNVERIFIED |
+| SEC-01 | Authentication and coarse RBAC | Opaque hashed tokens, revocation/expiry, owner filters, `admin` admin APIs, and `merchant|admin` merchant APIs work | Numeric/short/invalid token, inactive account, cross-customer order, nonstaff, and wrong role fail | Implemented; final local rerun pending |
+| SEC-02 | Missing fine-grained controls | Store membership/permission ABAC, MFA, and recent-auth cannot be represented as active controls | UI does not claim 2FA; MFA endpoint returns `501`; high-impact production use remains blocked | Explicit release gap |
+| SEC-03 | Production settings | Django deploy check reports configuration warnings/errors without exposing secrets | Missing Django production secret prevents boot; missing PayMongo/webhook secret fails only the affected capability closed | Local check rerun pending; Render environment UNVERIFIED |
+| CAP-01 | Fail-closed unavailable features | Reset delivery, MFA, analytics, courier, eligibility, custom-role persistence, settings persistence, and account switching return documented `501`/`503`/`410` responses | No sample metrics, token, waybill, quote, role, setting, or switched identity is fabricated | Implemented; final console/backend rerun pending |
+| PERF-01 | Warm/cold behavior | Load test reports p50/p95/p99, error rate, query count, and cold-start separately against production-like PostgreSQL | Provider latency/timeouts and sleeping service do not cause duplicate orders/payments | UNVERIFIED |
+| UI-01 | State coverage | Figma nodes `708:4544`, `709:5008`, `710:4846`, `711:4544/4545`, and `720:4544/4545` plus runtime source cover default/loading/empty/error/partial states | Session/permission/API/write/payment failures stay truthful and recoverable | Figma additions and 2FA-label cleanup completed; code/browser final rerun pending |
+| NATIVE-01 | Mobile return flow | Physical Android/iOS external browser/deep-link and foreground refresh return to the owned order | App kill, cancelled payment, offline return, stale session, and repeated link remain recoverable | UNVERIFIED |
+| RENDER-01 | Free-tier topology | Static parse confirms previews/auto-deploy off, one free web service, and one free PostgreSQL database | No worker, cron, Key Value/Redis, disk, autoscaling, HA, replica, or paid plan; stop if payment is requested | Static rerun pending; connected/live mutation not authorized |
+| RENDER-02 | Durable production database | Retention/backup/restore can satisfy approved RPO/RTO without an unauthorized paid change | Current free PostgreSQL expiry/no-managed-backup lifecycle is not represented as production durable | Release HOLD/blocker |
+| OPS-01 | Recovery/restore | Logical export restores to disposable PostgreSQL with integrity checks and a redacted incident/reconciliation procedure | No secret/payment/address leakage; restored ownership/money/payment invariants hold | UNVERIFIED; structured correlation logging also incomplete |
+| DATA-01 | Demo notification cleanup | Migration removes only the five exact `0002` demo rows and preserves nonmatching legitimate records | Reverse migration does not reintroduce fabricated notifications | Implemented migration; final migration/test rerun pending |
+
+### Required execution order
+
+1. Static/source-contract and focused unit tests.
+2. Django checks plus migration drift checks.
+3. Disposable PostgreSQL forward migration, rollback rehearsal, constraints, concurrency, and query plans.
+4. Integration tests with PayMongo sandbox delivery, signature replay, failure injection, lost-create-response recovery, and bounded reconciliation.
+5. Customer/merchant/admin browser accessibility and responsive tests; Expo compile plus physical-device return flows.
+6. Render free-tier configuration validation and authorized staging deployment without applying a paid change.
+7. Separately approved live-provider capability verification. Do not make a real charge/refund unless explicitly authorized.
+
+### Evidence record format
+
+For every command or manual check record the date, git commit/worktree state, exact command/environment, fixtures/account mode, result, relevant artifact path, limitations, and cleanup. Redact secrets and personal/payment data. Do not upgrade a `PASS` from mocks/SQLite into provider/PostgreSQL/native/production proof.
+
+### Current rerun ledger — results pending
+
+The root delivery agent will replace `RERUN PENDING` with observed results after the implementation stops changing. Until then, no count below is a completion claim.
+
+| Check | Command/environment | Current status |
+|---|---|---|
+| Active Django suite | `cd metrodrip_backend; python manage.py test` | RERUN PENDING |
+| Django production diagnostics | `python manage.py check --deploy` | RERUN PENDING |
+| Migration drift/plan | `python manage.py makemigrations --check`; `python manage.py migrate --plan` | RERUN PENDING |
+| Client/source contracts | `npm run test:client` | RERUN PENDING |
+| TypeScript | `npx tsc --noEmit` | RERUN PENDING |
+| Console browser harness | local `npm run dev` + `npm run test:browser` | RERUN PENDING; mocked APIs even when passing |
+| Modified JavaScript syntax | `node --check` on changed web files | RERUN PENDING |
+| Free-only Blueprint parse/policy | parse `render.yaml` and assert all plans/resources | RERUN PENDING; no Render apply |
+| Worktree whitespace | `git diff --check` | RERUN PENDING |
+
+The Figma completion record is in [Design Prototype](Design%20Prototype.md). Native Android/iOS rendering, real browser-to-Django console flows, PayMongo sandbox/live delivery, disposable PostgreSQL, and connected Render remain **UNVERIFIED** regardless of the local rerun.
+
+## Historical five-service evidence — 2026-09-27
+
+The material below is retained exactly as migration/regression evidence for the earlier distributed baseline. Its readiness, security, concurrency, and E2E claims are not evidence for the approved modular-monolith, Hosted Checkout, PostgreSQL, or Render target.
+
+**Historical test suite:** 46 unit/contract tests + 5-phase end-to-end integration saga suite
+
+**Historical result:** 46/46 unit tests and 5/5 isolated phases passed on the documented environment
 
 ---
 

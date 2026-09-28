@@ -3,8 +3,8 @@
 // difference between a working screen and a 404/405 in QA.
 //
 // Reference sources:
-//   services/orders/orders/urls.py       /api/orders/checkout/, /api/orders/<pk>/
-//   services/orders/orders/views.py      OrdersListCreateAPIView
+//   metrodrip_backend/orders/urls.py     /api/orders/checkout/, /orders/<pk>/
+//   metrodrip_backend/orders/views.py    checkout and owner-scoped order detail
 //   services/identity/identity/urls.py   /login/ /signup/ /profile/
 import './helpers/loader.mjs';
 import test from 'node:test';
@@ -79,7 +79,7 @@ test('order reads use the trailing-slash routes the service declares', async () 
 });
 
 test('createOrder posts to the saga checkout route, not the legacy orders collection', async () => {
-  // services/orders/orders/urls.py: api/orders/checkout/ -> OrdersListCreateAPIView.post
+  // metrodrip_backend/orders/urls.py exposes the canonical checkout endpoint.
   const payload = { items: [{ variant_id: 42, quantity: 1 }] };
   await orders.createOrder(payload);
   assert.equal(pathOf(fetch.last), '/api/orders/checkout/');
@@ -93,7 +93,7 @@ test('createOrder forwards the caller body untouched so the builder stays in cha
   const payload = {
     items: [{ variant_id: 42, quantity: 2 }],
     delivery_zone: 'Metro Manila (NCR)',
-    payment_method: 'COD',
+    payment_method: 'gcash',
     idempotency_key: 'md-abc',
     shipping_address: { name: 'Juan R. Dela Cruz' },
   };

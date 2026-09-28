@@ -1,119 +1,109 @@
 # Plan and Goals
 
-**Status:** Completed & Verified Baseline  
-**Project:** MetroDripJS Urban Streetwear E-Commerce Platform  
-**Target Architecture:** Five Independently Deployable Microservices + API Gateway  
-**Date:** 2026-09-27  
-**Owner:** Core Engineering & Architecture Team  
+**Status:** Approved scope; local code/Figma slice implemented; final and external verification pending
 
----
+**Project:** MetroDripJS urban streetwear commerce platform
 
-## 1. Outcome and Scope
+**Target architecture:** Secured modular Django monolith on one Render Free web service and one Render Free PostgreSQL database
 
-### Users and Problem
-- **Users**:
-  - *Mobile Shoppers*: Urban streetwear consumers browsing catalogs, selecting garment sizes/colors, placing Cash-on-Delivery (COD) orders via iOS/Android Expo mobile app.
-  - *Merchants & Operations Staff*: Inventory managers and store administrators updating stock, publishing collections, monitoring real-time orders, and dispatching deliveries via web consoles.
-- **Problem Statement**:
-  - The legacy MetroDrip backend operated as a tightly coupled Django monolith with cross-app ORM imports, plaintext legacy password storage, cross-boundary database foreign keys, and absence of transactional stock hold semantics during high-concurrency drops.
-- **Target Outcome**:
-  - Fully deconstruct the backend into **five independently deployable Django microservices** (`identity`, `catalog`, `orders`, `fulfillment`, `content`) fronted by an API Gateway (`gateway/`).
-  - Enforce data isolation with dedicated databases, zero cross-service ORM coupling, PBKDF2 password security, atomic expiring stock holds (600s TTL), whole-peso integer currency, and a resilient compensating COD checkout saga.
+**Decision date:** 2026-09-28
 
-### Measurable Success and Baseline
-- **Baseline Monolith**: Single SQLite database (`metrodrip_backend/db.sqlite3`), shared foreign keys between orders and catalog products, non-hashed passwords, no correlation tracking.
-- **Target Metrics & Results**:
-  - **Service Independence**: 5 microservices running on isolated ports (`8001`–`8005`) with 5 separate database schemas (`db_identity`, `db_catalog`, `db_orders`, `db_fulfillment`, `db_content`).
-  - **Test Pass Rate**: 100% automated test coverage across all services (46/46 unit tests passing; 5/5 E2E integration test phases passing).
-  - **Zero Data Leakage / Isolation**: Zero cross-app ORM foreign keys; pure historical purchase snapshots in order line items.
-  - **Financial Correctness**: 100% whole Philippine Peso (`₱`) integer arithmetic across all quotes, orders, and fulfillment calculations.
-  - **Security Baseline**: 100% elimination of plaintext passwords via PBKDF2 hashing, verified Bearer tokens (`AuthToken`), and internal service tokens (`X-Internal-Token`).
+**Release status:** HOLD until the verification gates in [Verification and Evaluation](Verification%20and%20Evaluation.md) pass
 
-### In Scope / Out of Scope
-- **In Scope**:
-  - Deconstruction into 5 independent Django services:
-    - [Identity Service](../services/identity/) (Port `8001`, `db_identity`)
-    - [Catalog Service](../services/catalog/) (Port `8002`, `db_catalog`)
-    - [Orders Service](../services/orders/) (Port `8003`, `db_orders`)
-    - [Fulfillment Service](../services/fulfillment/) (Port `8004`, `db_fulfillment`)
-    - [Content Service](../services/content/) (Port `8005`, `db_content`)
-  - [API Gateway](../gateway/) (Port `8000`) reverse proxy with correlation ID injection (`X-Correlation-ID`).
-  - Expiring stock reservations (600-second TTL) with atomic `select_for_update()` locking and background hold sweeper command.
-  - COD Checkout Saga orchestrator with automatic stock release compensation upon downstream failure.
-  - Immutable purchase line item snapshots (`sku_snapshot`, `product_name_snapshot`, `variant_desc_snapshot`, `unit_price`).
-  - Docker Compose multi-database PostgreSQL 16 containerization specification ([docker-compose.microservices.yml](../docker-compose.microservices.yml)).
-  - End-to-end integration test harness ([scripts/verify_microservices_e2e.py](../scripts/verify_microservices_e2e.py)).
-  - Merchant Web Console integration ([web/merchant/orders.js](../web/merchant/orders.js)) wired dynamically to `GET /api/merchant/orders/`.
-- **Out of Scope**:
-  - Live third-party card/ewallet payment gateways (Stripe/PayMongo live processing - interface is isolated for COD saga with mock tokenization).
-  - External Kubernetes or cloud multi-region deployment.
-  - Rewriting the React Native mobile app UI components (interface bindings preserved).
+## 1. Outcome and scope
 
-### Constraints, Assumptions, and Dependencies
-- **Constraint C-01**: Must maintain backwards compatibility with existing Expo mobile endpoints (`/api/v1/auth/`, `/api/v1/catalog/`, `/api/v1/orders/`, `/api/v1/fulfillment/`, `/api/v1/content/`).
-- **Constraint C-02**: All monetary values must be stored and computed as integer Philippine Pesos (`PHP`).
-- **Assumption A-01**: Cash-on-Delivery (COD) represents the primary checkout transaction flow for MetroDrip urban streetwear drops.
-- **Assumption A-02**: Local microservice instances communicate over loopback IPv4 (`127.0.0.1`) in development to prevent Windows dual-stack IPv6 DNS resolution latency.
-- **Dependency D-01**: Python 3.11+, Django 5.x, Django REST Framework.
-- **Dependency D-02**: PostgreSQL 16 for production containerized deployment; SQLite per-service files for lightweight local development.
+MetroDrip must support customer shopping, merchant operations, and administration without requiring paid infrastructure. The approved target consolidates the repository's Django capabilities into one deployable process while retaining explicit internal app boundaries for identity, catalog, orders, payments, fulfillment, content, and staff administration.
 
----
+The earlier five-service topology remains useful as a local reference and migration source, but it is not the approved Render production topology. The active implementation is now the `metrodrip_backend/` modular monolith. Local development defaults to SQLite; PostgreSQL and the unapplied free-only Render Blueprint remain verification targets. The controlling decisions are recorded in [Decisions and Handover](Decisions%20and%20Handover.md#active-architecture-decisions--2026-09-28).
 
-## 2. Requirements and Milestones
+### Users
 
-| ID | Functional / Nonfunctional Requirement | Acceptance and Failure Check | Owner | Status | Evidence |
-|---|---|---|---|---|---|
-| **FR-01** | PBKDF2 Password Hashing & Verifiable Tokens | Passwords hashed using PBKDF2; legacy plaintexts auto-upgraded upon login. Opaque `AuthToken` issued. | Identity Lead | **Completed** | [services/identity/identity/tests/](../services/identity/identity/tests/) (11/11 tests pass) |
-| **FR-02** | Catalog Quote Contracts & Atomic Stock Holds | Authoritative price quotes; atomic stock reservation with 600s TTL using row locks. | Catalog Lead | **Completed** | [services/catalog/catalog/tests/test_catalog.py](../services/catalog/catalog/tests/test_catalog.py) (8/8 tests pass) |
-| **FR-03** | COD Checkout Saga & Pure Purchase Snapshots | Multi-step saga orchestrating quote, stock hold, local order persistence, and commit. Snapshot line items isolate product changes. | Orders Lead | **Completed** | [services/orders/orders/tests/test_orders.py](../services/orders/orders/tests/test_orders.py) (11/11 tests pass) |
-| **FR-04** | Fulfillment Quotes, Shipments & Event Consumption | Shipping calculation by zone; idempotent `OrderPlaced` event consumption generating shipment waybills. | Fulfillment Lead | **Completed** | [services/fulfillment/fulfillment/tests/test_fulfillment.py](../services/fulfillment/fulfillment/tests/test_fulfillment.py) (5/5 tests pass) |
-| **FR-05** | Content CMS & Merchant Banner Management | Public active banner queries and authenticated merchant banner CRUD endpoints. | Content Lead | **Completed** | [services/content/content/tests/test_content.py](../services/content/content/tests/test_content.py) (5/5 tests pass) |
-| **FR-06** | Merchant Console Parity & Dynamic Orders | `web/merchant/orders.html` wired to live `GET /api/merchant/orders/`; fake mock arrays eliminated. | Frontend Lead | **Completed** | [web/merchant/orders.js](../web/merchant/orders.js) & Phase 5 E2E script verification |
-| **NFR-01** | Microservice Database Isolation | 5 independent databases with zero cross-app foreign keys or shared ORM models. | Architecture Lead | **Completed** | [database/init_microservices_postgresql.sql](../database/init_microservices_postgresql.sql) |
-| **NFR-02** | Whole-Peso Money Integrity | All prices, fees, and totals represented as integers; fractional/floating point rejected. | Architecture Lead | **Completed** | Saga verification & catalog price validation |
-| **NFR-03** | Edge Routing & Distributed Tracing | Gateway injects `X-Correlation-ID` header; routes path prefixes to backend ports 8001–8005. | DevOps Lead | **Completed** | [gateway/gateway.py](../gateway/gateway.py) & [gateway/test_gateway_routing.py](../gateway/test_gateway_routing.py) (6/6 tests pass) |
-| **NFR-04** | Containerized Multi-Service Deployment | Docker Compose orchestrating PostgreSQL 16 (5 databases), 5 microservice containers, and Nginx. | DevOps Lead | **Completed** | [docker-compose.microservices.yml](../docker-compose.microservices.yml) |
+- **Customers:** browse products, manage a cart, check out with COD or an available PayMongo-hosted payment method, and recover from pending or interrupted payments.
+- **Merchants:** manage products, inventory, orders, fulfillment, and operational exceptions from a responsive web console.
+- **Administrators:** currently manage users, shipping zones, and audit history through coarse admin RBAC. Custom role/settings persistence, permissions, and stores are target capabilities and presently fail closed or remain unmodeled.
 
----
+### Approved outcomes
 
-## 3. Milestone Delivery Breakdown
+1. Deploy one Django web service and one PostgreSQL database using Render's free-tier resources only.
+2. Preserve domain boundaries inside the Django project rather than operating five separately deployed services and an API gateway.
+3. Keep COD and add PayMongo Hosted Checkout for GCash, Maya, and cards. The current client lists all four methods; server/provider rejection fails closed. Provider-account capability discovery and conditional method display remain open work.
+4. Never collect, log, persist, or proxy card PAN, CVV, wallet credentials, OTPs, or provider authentication data through MetroDrip forms or APIs.
+5. Treat PayMongo webhooks, not browser redirects, as the authoritative online-payment confirmation signal.
+6. Preserve idempotency, authoritative server pricing, inventory protection, checkout price snapshots, and auditable provider-event outcomes. Full descriptive order-line snapshots, a payment-transition ledger, and versioned API aliases remain future work.
+7. Define default, loading, empty, error, and partial-failure states for customer, merchant, and admin workflows.
 
-```
-[M1: Architecture & Isolation] ──► [M2: Service Extraction] ──► [M3: Saga & Event Flow] ──► [M4: Edge & Deployment] ──► [M5: E2E Verification]
-        (Complete)                       (Complete)                     (Complete)                    (Complete)                  (Complete)
-```
+### In scope
 
-1. **Milestone 1: Architecture & Isolation (Completed)**
-   - Created standalone Django projects and app configurations in `services/identity`, `services/catalog`, `services/orders`, `services/fulfillment`, `services/content`.
-   - Scripted multi-database PostgreSQL 16 schema initialization ([database/init_microservices_postgresql.sql](../database/init_microservices_postgresql.sql)).
-   - Backed up monolithic database to `metrodrip_backend/db.sqlite3.baseline.bak`.
+- Modular-monolith consolidation and compatibility routing.
+- Authentication, token lifecycle, coarse persisted-role RBAC, and a planned path to store-scoped ABAC/MFA/recent-auth controls.
+- COD plus PayMongo-hosted GCash, Maya (`paymaya` at the provider boundary), and card checkout.
+- Signed webhook ingestion, event deduplication, payment reconciliation, and provider-event evidence. Refund and payment-transition models are not yet implemented.
+- Single-database normalization, indexes, constraints, and zero-downtime migration sequencing.
+- Responsive customer, merchant, and admin states, including payment return and uncertain-outcome recovery.
+- Free-tier deployment, health checks, redacted observability, backup/restore guidance, and rollback.
 
-2. **Milestone 2: Service Logic & Security Extraction (Completed)**
-   - Migrated identity authentication to PBKDF2 password hashing with legacy upgrade on login.
-   - Built catalog quotes, variant inventory management, and atomic stock hold logic.
-   - Built fulfillment shipping zones and quotes calculation.
-   - Built content banner and contact inquiry endpoints.
+### Explicit constraints and non-goals
 
-3. **Milestone 3: COD Checkout Saga & Event Outbox (Completed)**
-   - Implemented `orders/saga.py` orchestrating quote retrieval, 600s expiring stock holds, local order/line snapshot persistence, and atomic commit.
-   - Implemented compensation rollback logic releasing holds if persistence fails.
-   - Added Outbox event dispatching and fulfillment consumer command (`consume_order_placed`).
+- **No paid Render resources.** Do not provision or upgrade to a paid web service, database, worker, cron job, Key Value/Redis instance, disk, autoscaling plan, or high-availability add-on.
+- Do not apply a live Render change when it would require payment. Record it as a blocked future option instead.
+- Do not introduce a background-worker platform solely for payment processing. Webhook writes are short, synchronous database operations; bounded reconciliation and expiry currently run only on relevant requests. No monolith reconciliation/expiry management command exists yet.
+- Do not build direct card-entry or wallet-credential forms. Hosted Checkout owns payment-data entry.
+- Do not treat a success URL, app deep link, client callback, or screenshot as payment proof.
+- Do not claim production readiness from unit tests, mocks, SQLite, static inspection, or provider sandbox behavior.
 
-4. **Milestone 4: Gateway & Containerization (Completed)**
-   - Implemented dev API Gateway in Python ([gateway/gateway.py](../gateway/gateway.py)) and production Nginx configuration ([gateway/nginx.conf](../gateway/nginx.conf)).
-   - Formulated Docker Compose multi-service deployment ([docker-compose.microservices.yml](../docker-compose.microservices.yml)).
+## 2. Requirements
 
-5. **Milestone 5: End-to-End Verification & Parity (Completed)**
-   - Wrote automated 46-test unit and contract test suites across all 5 services and gateway.
-   - Created automated 5-phase E2E integration test script ([scripts/verify_microservices_e2e.py](../scripts/verify_microservices_e2e.py)) verifying full live checkout, inventory decrement, merchant console parity, and stock release sweeper.
+| ID | Requirement | Acceptance and negative case | Status |
+|---|---|---|---|
+| FR-01 | A customer can choose COD, GCash, Maya, or card. | COD returns no redirect action. Online methods return an HTTPS PayMongo Hosted Checkout action when configured/accepted; they never silently fall back to COD. | Implemented locally; provider capability/live flow UNVERIFIED |
+| FR-02 | Checkout is idempotent. | Replaying the same key and normalized payload returns the same order/payment; another owner or changed payload returns `409`. | Implemented; final rerun pending |
+| FR-03 | The server owns price, shipping, discounts, and stock calculations. | Client totals are ignored; inactive catalog, currency, or stock conflicts fail before payment confirmation. | Implemented; PostgreSQL concurrency UNVERIFIED |
+| FR-04 | Online payment confirmation is provider-authoritative. | A redirect leaves the order pending. A verified, deduplicated paid event or bounded provider lookup must match session/reference/fingerprint/amount/currency. | Implemented locally; sandbox/live delivery UNVERIFIED |
+| FR-05 | A customer can recover an interrupted payment. | Owned status reads report durable state and may reconcile eligible payments once per 30 seconds; lost create responses can be bound only by a strictly matching signed paid event. | Implemented without reconciliation lease; final rerun pending |
+| FR-06 | Staff access rejects caller-selected identity. | Opaque bearer auth and persisted coarse roles protect staff APIs. Store-level ownership, permission ABAC, MFA, and recent-auth gates are required before production maturity. | Coarse RBAC implemented; fine-grained controls open |
+| FR-07 | Provider-event outcomes are auditable. | Webhook ID/type/reference/digest/result timestamps persist without credentials. A full actor/source/prior/new-state transition ledger is still required. | Partially implemented |
+| NFR-01 | Free-tier topology only. | Unapplied Blueprint contains one free web service and one free PostgreSQL database, previews/auto-deploy off, and no paid resource. | Configured, not applied; free database causes production HOLD |
+| NFR-02 | One relational source of truth. | Active Django apps use one configured database and local ACID transactions. | Implemented locally; PostgreSQL migration/restore UNVERIFIED |
+| NFR-03 | Money is exact. | Application amounts use two-decimal `Decimal`; the adapter emits integer centavos and verifies exact `PHP` amount/currency. | Implemented; provider verification pending |
+| NFR-04 | Recovery is safe under cold starts and duplicate delivery. | Webhook processing is deduplicated and request-driven recovery preserves pending state without an always-running worker. | Implemented with request-driven backlog limitations |
+| NFR-05 | Sensitive data is minimized. | Secrets come from environment variables and raw PAN/CVV/wallet secrets are rejected. Comprehensive structured-log redaction still needs verification. | Partially implemented |
+| NFR-06 | Compatibility is explicit. | `/api/orders/checkout/` remains the active route and the unsafe legacy `POST /orders/` returns `410`; no undocumented `/api/v1` alias is claimed. | Implemented; client-version telemetry absent |
 
----
+## 3. Delivery roadmap
 
-## 4. Risk Register
+1. **Discovery and contracts**
+   - Baseline active endpoints, models, migrations, auth behavior, and the unapplied Render Blueprint.
+   - Freeze the checkout/payment state machine and compatibility response fields.
+   - Record provider, free-tier, security, and data-migration decisions.
 
-| ID | Risk | Likelihood | Impact | Early Signal | Mitigation | Owner | Status |
+2. **Design additions — completed in Figma/source**
+   - Removed raw credential entry from payment views and specified the hosted-checkout handoff.
+   - Added pending verification, failed/expired, retry, uncertain submission, stock/catalog conflict, offline, permission-denied, session-expired, and partial-failure states.
+   - Added customer `708:4544`, merchant `709:5008`, admin `710:4846`, ERD/topology `711:4544/4545`, and state matrix `720:4544/4545`; replaced misleading `2FA ON` labels with `VERIFIED SESSION`.
+
+3. **Implementation**
+   - Payment persistence, Hosted Checkout adapter, webhook verification, idempotency, owned status, token auth, coarse staff RBAC, fail-closed stubs, and additive migrations are implemented locally.
+   - Merchant/admin consoles now require an authenticated session and explicit API states; runtime demo fallbacks are removed from targeted operational flows.
+   - Remaining implementation includes ABAC/MFA/recent-auth, capability discovery, reconciliation lease/maintenance tooling, comprehensive logging/redaction, refund/transition modeling, and immutable descriptive line snapshots.
+
+4. **Verification and controlled release**
+   - Run migrations and rollback rehearsal against disposable PostgreSQL.
+   - Run unit, contract, integration, concurrency, security, accessibility, and load checks.
+   - Verify PayMongo sandbox flows and signed webhook retries; then separately verify approved live capabilities without charging real customers.
+   - Validate the Render Blueprint/configuration without applying paid changes. Deploy only after explicit production authorization.
+
+## 4. Risks
+
+| ID | Risk | Likelihood | Impact | Early signal | Mitigation | Owner | Status |
 |---|---|---|---|---|---|---|---|
-| **R-01** | Inventory overselling during concurrent drop events | Medium | High | Hold failures, race conditions on stock decrements | Implement atomic `select_for_update()` row-level locks on stock holds; enforce strict 600s TTL holds | Catalog Lead | **Mitigated / Closed** |
-| **R-02** | Partial failure during distributed checkout leaving orphaned holds | Medium | Medium | Abandoned checkouts keeping inventory unavailable | Built compensating release in saga exception handlers; created automated hold sweeper command | Orders Lead | **Mitigated / Closed** |
-| **R-03** | Windows local dev IPv6 connection latency (2000ms delay) | High | Medium | Slow test execution or inter-service HTTP timeouts | Explicitly bind all dev servers and inter-service HTTP requests to IPv4 loopback `127.0.0.1` | DevOps Lead | **Mitigated / Closed** |
-| **R-04** | Client-side price tampering during order placement | Low | High | Orders submitted with modified unit prices or totals | Orders service unconditionally ignores client prices; fetches authoritative versioned quotes from Catalog and Fulfillment | Orders Lead | **Mitigated / Closed** |
+| R-01 | Render Free cold start delays checkout or webhook delivery. | High | Medium | Long first-request latency, provider webhook retries | Fast health path, bounded provider timeouts, idempotent webhook handling, clear pending UI, retry-safe status reads | Platform | Open |
+| R-02 | Provider activation differs between test and live accounts. | Medium | High | Method absent or rejected in live mode | Current server fails closed; implement capability discovery/conditional display and verify each live method before exposure | Payments | UNVERIFIED |
+| R-03 | Duplicate or out-of-order webhooks regress payment state. | Medium | High | Repeated event IDs or terminal-to-nonterminal transition attempts | Event-ID/body-digest dedupe, row locking, invariant checks, and persisted webhook outcome; add a full transition ledger later | Backend | Open |
+| R-04 | Inventory is held while an online payment remains pending. | Medium | High | Growing stale-pending/hold count | Thirty-minute expiry, one stale cleanup per new checkout, owned read repair, and an operational query; add lease/maintenance tooling before scale | Orders | Open |
+| R-05 | Consolidation changes legacy API behavior. | Medium | High | Mobile contract or merchant console regressions | Preserve the active `/api/orders/checkout/` contract, retire unsafe `/orders/` with explicit `410`, and use contract fixtures plus staged schema migration | Architecture | Open |
+| R-06 | Render Free PostgreSQL expires and lacks managed backup/pooling needed for durable commerce storage. | High | High | Thirty-day lifecycle or restore requirement cannot be met | Keep production release on HOLD; rehearse logical export/restore for non-production; do not buy an upgrade without new approval | Platform | Open release blocker |
+| R-07 | A requested improvement requires a paid resource. | Medium | Medium | Blueprint validation or dashboard prompts for billing | Stop the change, retain free configuration, and record the paid option separately for explicit future approval | Platform | Controlled |
+
+## 5. Definition of done
+
+This enhancement is complete only when code, Figma, database migrations, and documentation agree; all required automated checks pass; PostgreSQL migration/rollback and concurrent checkout behavior are exercised; sandbox online-payment paths and webhook retries are observed; no raw payment credentials appear in the client or server; Render configuration remains free-tier-only; and every unavailable external/native/live check is explicitly labeled **UNVERIFIED**. Release remains **HOLD** until those conditions are met.

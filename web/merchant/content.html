@@ -66,7 +66,7 @@
           <div class="user-avatar" aria-hidden="true">MD</div>
           <div class="user-meta">
             <p class="user-name">Store Merchant</p>
-            <p class="user-role-badge">MERCHANT · 2FA ON</p>
+            <p class="user-role-badge">MERCHANT</p>
           </div>
         </div>
 
@@ -88,7 +88,6 @@
         <span>MERCHANT CONSOLE</span>
         <span>/</span>
         <span>CONTENT & BANNERS</span>
-        <span class="sample-data">SAMPLE DATA</span>
       </div>
 
       <!-- Header -->
@@ -104,21 +103,23 @@
         </div>
       </header>
 
+      <div id="content-page-state" role="status" aria-live="polite" hidden style="margin-bottom:16px;"></div>
+
       <!-- 3 Stat Metric Cards -->
       <section class="stat-cards-grid" style="grid-template-columns: repeat(3, 1fr);" aria-label="Banner placements summary">
         <article class="stat-card">
           <p class="stat-label">LIVE BANNERS</p>
-          <p class="stat-value" id="metric-live-banners">2</p>
+          <p class="stat-value" id="metric-live-banners">—</p>
           <p class="stat-subtext">Visible on the storefront</p>
         </article>
         <article class="stat-card">
           <p class="stat-label">SCHEDULED</p>
-          <p class="stat-value" id="metric-scheduled-banners">1</p>
+          <p class="stat-value" id="metric-scheduled-banners">—</p>
           <p class="stat-subtext">Next campaign ready</p>
         </article>
         <article class="stat-card">
           <p class="stat-label">DRAFTS</p>
-          <p class="stat-value" id="metric-draft-banners">2</p>
+          <p class="stat-value" id="metric-draft-banners">—</p>
           <p class="stat-subtext">Not published</p>
         </article>
       </section>
@@ -156,22 +157,22 @@
           <form id="form-banner-editor" style="padding: 18px; display: flex; flex-direction: column; gap: 14px;">
             <div class="form-group">
               <label class="form-label" for="input-banner-headline">Headline</label>
-              <input type="text" class="form-input" id="input-banner-headline" value="Urban Style Redefined" required maxlength="60">
+              <input type="text" class="form-input" id="input-banner-headline" placeholder="Display headline" required maxlength="200">
             </div>
 
             <div class="form-group">
               <label class="form-label" for="input-banner-subtext">Supporting text</label>
-              <input type="text" class="form-input" id="input-banner-subtext" value="Designed for the City" required maxlength="120">
+              <input type="text" class="form-input" id="input-banner-subtext" placeholder="Supporting storefront copy" maxlength="255">
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div class="form-group">
                 <label class="form-label" for="input-banner-button-label">Button label</label>
-                <input type="text" class="form-input" id="input-banner-button-label" value="Shop Now" required maxlength="30">
+                <input type="text" class="form-input" id="input-banner-button-label" placeholder="Shop Now" maxlength="50">
               </div>
               <div class="form-group">
                 <label class="form-label" for="input-banner-destination">Link destination</label>
-                <input type="text" class="form-input" id="input-banner-destination" value="/shop" required>
+                <input type="text" class="form-input" id="input-banner-destination" placeholder="/shop" required maxlength="200">
               </div>
             </div>
 
@@ -182,6 +183,17 @@
                 <option value="scheduled">Scheduled window</option>
                 <option value="draft">Draft (hidden)</option>
               </select>
+            </div>
+
+            <div id="banner-schedule-fields" hidden style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div class="form-group">
+                <label class="form-label" for="input-banner-starts-at">Starts at</label>
+                <input type="datetime-local" class="form-input" id="input-banner-starts-at" data-schedule-start>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="input-banner-ends-at">Ends at (optional)</label>
+                <input type="datetime-local" class="form-input" id="input-banner-ends-at">
+              </div>
             </div>
 
             <div style="display: flex; gap: 10px; margin-top: 6px;">
@@ -199,9 +211,9 @@
           <div style="padding: 18px;">
             <div class="banner-preview-box" id="banner-preview-card">
               <p class="banner-preview-brand">METRODRIP</p>
-              <h3 class="banner-preview-headline" id="preview-headline">URBAN STYLE<br>REDEFINED</h3>
-              <p class="banner-preview-sub" id="preview-subtext">Designed for the City</p>
-              <a href="#" class="banner-preview-cta" id="preview-cta-button">Shop Now</a>
+              <h3 class="banner-preview-headline" id="preview-headline">SELECT A BANNER</h3>
+              <p class="banner-preview-sub" id="preview-subtext">No supporting text</p>
+              <span class="banner-preview-cta" id="preview-cta-button">No CTA</span>
             </div>
             <div style="margin-top: 14px; font-size: 11px; color: var(--color-muted); line-height: 1.5;">
               <p style="margin: 0; font-weight: 600;">Homepage hero · Typography banner</p>
@@ -260,6 +272,16 @@
             <option value="Live">Live immediately</option>
             <option value="Scheduled">Scheduled</option>
           </select>
+        </div>
+        <div id="new-banner-schedule-fields" hidden style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="form-group">
+            <label class="form-label" for="new-banner-starts-at">Starts at</label>
+            <input type="datetime-local" class="form-input" id="new-banner-starts-at" data-schedule-start>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="new-banner-ends-at">Ends at (optional)</label>
+            <input type="datetime-local" class="form-input" id="new-banner-ends-at">
+          </div>
         </div>
         <div class="modal-footer" style="padding: 12px 0 0 0; margin-top: 8px;">
           <button type="button" class="btn btn-secondary" id="btn-cancel-new-banner">Cancel</button>

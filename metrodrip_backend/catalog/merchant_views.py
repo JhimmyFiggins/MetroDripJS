@@ -1,10 +1,16 @@
 import csv
+from decimal import Decimal, InvalidOperation
+from urllib.parse import urlsplit
 from django.http import HttpResponse
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
+from django.db import transaction
 from django.db.models import Sum
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from identity.authentication import CustomerTokenAuthentication
+from identity.permissions import IsMerchantOrAdminRole
 from catalog.models import (
     CatalogProduct,
     CatalogProductVariant,
@@ -24,7 +30,18 @@ from content.models import CmsHomepageBanner
 
 
 
-class MerchantDashboardAPIView(APIView):
+class MerchantAPIView(APIView):
+    authentication_classes = [CustomerTokenAuthentication]
+    permission_classes = [IsMerchantOrAdminRole]
+
+
+def _parse_boolean(value):
+    if isinstance(value, bool):
+        return value
+    raise ValueError('must be a boolean')
+
+
+class MerchantDashboardAPIView(MerchantAPIView):
     def get(self, request):
         now = timezone.now()
         start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -32,20 +49,21 @@ class MerchantDashboardAPIView(APIView):
         # Orders metrics
         orders_today_qs = OrdersOrder.objects.filter(created_at__gte=start_of_day)
         orders_count = orders_today_qs.count()
-        paid_orders_count = orders_today_qs.filter(status='paid').count()
-        pending_orders_count = orders_today_qs.filter(status='pending').count()
+        paid_orders_count = orders_today_qs.filter(payments__status='paid').distinct().count()
+        pending_orders_count = orders_today_qs.filter(payments__status__in=['awaiting_payment', 'setup_failed']).distinct().count()
 
-        sales_sum = orders_today_qs.filter(status='paid').aggregate(total=Sum('total'))['total'] or 18540
+        sales_sum = orders_today_qs.filter(payments__status='paid').distinct().aggregate(total=Sum('total'))['total'] or 0
 
         # Low stock SKUs: items with stock <= 5
         low_stock_entries = InventoryStockEntry.objects.filter(quantity__lte=5).select_related('product', 'variant')
-        low_stock_count = low_stock_entries.count() or 6
+        low_stock_count = low_stock_entries.count()
 
         low_stock_alerts = []
         for entry in low_stock_entries[:6]:
-            prod_name = entry.product.name if entry.product else 'Metro Apparel'
-            sku = entry.variant.sku if entry.variant else (entry.product.sku if entry.product else 'MD-SKU')
-            variant_desc = f"{entry.variant.attributes.get('size', 'M')} · {entry.variant.attributes.get('color', 'BLK')}" if entry.variant and isinstance(entry.variant.attributes, dict) else 'Standard'
+            prod_name = entry.product.name
+            sku = entry.variant.sku if entry.variant else entry.product.sku
+            attributes = entry.variant.attributes if entry.variant and isinstance(entry.variant.attributes, dict) else {}
+            variant_desc = ' · '.join(str(value).upper() for value in attributes.values() if value) or None
             low_stock_alerts.append({
                 'product': prod_name,
                 'variant': variant_desc,
@@ -54,44 +72,33 @@ class MerchantDashboardAPIView(APIView):
                 'sku': sku,
             })
 
-        # Fallback to Figma sample data if no stock entries exist yet
-        if not low_stock_alerts:
-            low_stock_alerts = [
-                {'product': 'Drip Zip-Up Hoodie', 'variant': 'BLK · M · OVS', 'on_hand': 3, 'min': 10, 'sku': 'MD-HD-002-BLK-M-OVS'},
-                {'product': 'Metro Snapback', 'variant': 'BLK · ONE SIZE', 'on_hand': 3, 'min': 8, 'sku': 'MD-CP-001-BLK-OS'},
-                {'product': 'Skyline Pullover', 'variant': 'ASH · L · REG', 'on_hand': 2, 'min': 10, 'sku': 'MD-PO-001-ASH-L-REG'},
-                {'product': 'Metro Core Boxy Tee', 'variant': 'WHT · XL · REG', 'on_hand': 4, 'min': 12, 'sku': 'MD-TS-001-WHT-XL-REG'},
-            ]
-
         # Recent orders
-        recent_orders_qs = OrdersOrder.objects.all().order_by('-created_at')[:6]
+        recent_orders_qs = (
+            OrdersOrder.objects.select_related('shipping_address')
+            .prefetch_related('payments')
+            .order_by('-created_at')[:6]
+        )
         recent_orders = []
-        for o in recent_orders_qs:
+        for order in recent_orders_qs:
+            address = getattr(order, 'shipping_address', None)
+            payment = _latest_payment(order)
             recent_orders.append({
-                'order_no': f"MD-2026-00{o.id:03d}",
-                'customer': 'Metro Customer',
-                'total': f"₱{int(o.total):,}",
-                'pay': 'GCASH',
-                'status': o.status.capitalize(),
+                'order_no': _order_number(order),
+                'customer': address.name if address else None,
+                'total': str(order.total),
+                'payment_method': payment.method if payment else None,
+                'payment_status': payment.status if payment else None,
+                'status': order.status.replace('_', ' ').title(),
             })
 
-        if not recent_orders:
-            recent_orders = [
-                {'order_no': 'MD-2026-00318', 'customer': 'Juan Dela Cruz', 'total': '₱2,632', 'pay': 'GCASH', 'status': 'Paid'},
-                {'order_no': 'MD-2026-00317', 'customer': 'Bea Santos', 'total': '₱1,249', 'pay': 'MAYA', 'status': 'Packed'},
-                {'order_no': 'MD-2026-00316', 'customer': 'Miguel Reyes', 'total': '₱3,447', 'pay': 'CARD', 'status': 'Shipped'},
-                {'order_no': 'MD-2026-00315', 'customer': 'Aliyah Cruz', 'total': '₱849', 'pay': 'GCASH', 'status': 'Pending'},
-                {'order_no': 'MD-2026-00314', 'customer': 'Marco Lim', 'total': '₱1,798', 'pay': 'GCASH', 'status': 'Paid'},
-            ]
-
-        to_ship_count = OrdersOrder.objects.filter(status__in=['paid', 'packed']).count() or 5
+        to_ship_count = OrdersOrder.objects.filter(status__in=['placed', 'paid', 'processing', 'packed']).count()
 
         return Response({
             'metrics': {
                 'today_sales': f"₱{int(sales_sum):,}",
-                'today_sales_trend': "▲ 12% vs last Sat",
-                'orders_today': orders_count if orders_count > 0 else 14,
-                'orders_today_breakdown': f"{paid_orders_count if paid_orders_count > 0 else 11} paid · {pending_orders_count if pending_orders_count > 0 else 3} pending",
+                'today_sales_trend': None,
+                'orders_today': orders_count,
+                'orders_today_breakdown': f"{paid_orders_count} paid · {pending_orders_count} awaiting payment",
                 'low_stock_skus': low_stock_count,
                 'to_ship': to_ship_count,
             },
@@ -100,17 +107,17 @@ class MerchantDashboardAPIView(APIView):
         })
 
 
-class MerchantProductsAPIView(APIView):
+class MerchantProductsAPIView(MerchantAPIView):
     def get(self, request):
         products = CatalogProduct.objects.all().select_related('category').prefetch_related('variants', 'stock_entries')
         data = []
         for p in products:
             total_stock = sum(e.quantity for e in p.stock_entries.all())
-            variant_count = p.variants.count() or 1
+            variant_count = p.variants.count()
             data.append({
                 'id': p.id,
                 'name': p.name,
-                'category': p.category.name if p.category else 'Tops',
+                'category': p.category.name if p.category else None,
                 'sku': p.sku,
                 'variants_count': variant_count,
                 'stock': total_stock,
@@ -123,61 +130,95 @@ class MerchantProductsAPIView(APIView):
 
     def post(self, request):
         data = request.data
-        name = data.get('name', '').strip()
-        cat_name = data.get('category', 'Tops › Hoodies').strip()
-        price = float(data.get('price', 649))
-        stock_qty = int(data.get('stock', 20))
-        sku = data.get('sku', f"MD-{int(timezone.now().timestamp())}").strip()
+        raw_name = data.get('name')
+        raw_category = data.get('category')
+        raw_sku = data.get('sku')
         description = data.get('description', '')
+        if not all(isinstance(value, str) and value.strip() for value in (raw_name, raw_category, raw_sku)):
+            return Response(
+                {'error': 'Product name, category, and SKU are required.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not isinstance(description, str):
+            return Response({'error': 'description must be text.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not name or not sku:
-            return Response({'error': 'Product name and SKU are required.'}, status=status.HTTP_400_BAD_REQUEST)
+        name = raw_name.strip()
+        cat_name = raw_category.strip()
+        sku = raw_sku.strip()
+        try:
+            price = Decimal(str(data.get('price'))).quantize(Decimal('0.01'))
+        except (InvalidOperation, TypeError, ValueError):
+            return Response({'error': 'price must be a positive amount.'}, status=status.HTTP_400_BAD_REQUEST)
+        stock_value = data.get('stock')
+        if isinstance(stock_value, bool):
+            return Response({'error': 'stock must be a non-negative integer.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            parsed_stock_value = Decimal(str(stock_value))
+            if not parsed_stock_value.is_finite() or parsed_stock_value != parsed_stock_value.to_integral_value():
+                raise ValueError
+            stock_qty = int(parsed_stock_value)
+        except (InvalidOperation, TypeError, ValueError):
+            return Response({'error': 'stock must be a non-negative integer.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not price.is_finite() or price <= 0 or stock_qty < 0:
+            return Response(
+                {'error': 'price must be positive and stock must be a non-negative integer.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if CatalogProduct.objects.filter(sku__iexact=sku).exists() or CatalogProductVariant.objects.filter(sku__iexact=sku).exists():
+            return Response({'error': 'SKU is already in use.'}, status=status.HTTP_409_CONFLICT)
 
-        category, _ = CatalogCategory.objects.get_or_create(
-            name=cat_name,
-            defaults={'slug': cat_name.lower().replace(' › ', '-').replace(' ', '-'), 'description': cat_name, 'is_active': True, 'created_at': timezone.now(), 'updated_at': timezone.now()}
-        )
-
-        product = CatalogProduct.objects.create(
-            name=name,
-            sku=sku,
-            description=description,
-            category=category,
-            base_price=price,
-            currency='PHP',
-            is_active=True,
-            is_featured=False,
-            created_at=timezone.now(),
-            updated_at=timezone.now(),
-        )
-
-        variant = CatalogProductVariant.objects.create(
-            product=product,
-            sku=f"{sku}-M",
-            attributes={'size': 'M', 'color': 'BLK', 'fit': 'regular'},
-            price_adjustment=0,
-            is_active=True,
-            created_at=timezone.now(),
-            updated_at=timezone.now(),
-        )
-
-        InventoryStockEntry.objects.create(
-            product=product,
-            variant=variant,
-            warehouse_id=1,
-            quantity=stock_qty,
-            reserved_quantity=0,
-            last_counted_at=timezone.now(),
-            created_at=timezone.now(),
-            updated_at=timezone.now(),
-        )
-
-        InventoryStockMovement.objects.create(
-            variant=variant,
-            sku=variant.sku,
-            delta=stock_qty,
-            reason='restock',
-        )
+        now = timezone.now()
+        with transaction.atomic():
+            category, _ = CatalogCategory.objects.get_or_create(
+                name=cat_name,
+                defaults={
+                    'slug': cat_name.lower().replace(' › ', '-').replace(' ', '-'),
+                    'description': cat_name,
+                    'is_active': True,
+                    'created_at': now,
+                    'updated_at': now,
+                },
+            )
+            product = CatalogProduct.objects.create(
+                name=name,
+                sku=sku,
+                description=description.strip(),
+                category=category,
+                base_price=price,
+                currency='PHP',
+                is_active=True,
+                is_featured=False,
+                created_at=now,
+                updated_at=now,
+            )
+            # The form captures a primary SKU but no size/color attributes.
+            # Persist an attribute-free variant instead of inventing metadata.
+            variant = CatalogProductVariant.objects.create(
+                product=product,
+                sku=sku,
+                attributes={},
+                price_adjustment=Decimal('0.00'),
+                is_active=True,
+                created_at=now,
+                updated_at=now,
+            )
+            InventoryStockEntry.objects.create(
+                product=product,
+                variant=variant,
+                warehouse_id=1,
+                quantity=stock_qty,
+                reserved_quantity=0,
+                last_counted_at=now,
+                created_at=now,
+                updated_at=now,
+            )
+            if stock_qty:
+                InventoryStockMovement.objects.create(
+                    variant=variant,
+                    sku=variant.sku,
+                    delta=stock_qty,
+                    reason='restock',
+                )
 
         return Response({
             'id': product.id,
@@ -190,7 +231,7 @@ class MerchantProductsAPIView(APIView):
         }, status=status.HTTP_201_CREATED)
 
 
-class MerchantProductDetailAPIView(APIView):
+class MerchantProductDetailAPIView(MerchantAPIView):
     def get(self, request, pk):
         try:
             product = CatalogProduct.objects.select_related('category').prefetch_related('variants', 'stock_entries').get(pk=pk)
@@ -202,7 +243,7 @@ class MerchantProductDetailAPIView(APIView):
             'id': product.id,
             'name': product.name,
             'sku': product.sku,
-            'category': product.category.name if product.category else 'Tops',
+            'category': product.category.name if product.category else None,
             'category_id': product.category.id if product.category else None,
             'price': int(product.base_price),
             'price_formatted': f"₱{int(product.base_price):,}",
@@ -219,73 +260,139 @@ class MerchantProductDetailAPIView(APIView):
             return Response({'error': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         data = request.data
-        if 'name' in data and str(data['name']).strip():
-            product.name = str(data['name']).strip()
+        if 'name' in data and (not isinstance(data['name'], str) or not data['name'].strip()):
+            return Response({'error': 'name must be non-empty text.'}, status=status.HTTP_400_BAD_REQUEST)
+        if 'sku' in data and (not isinstance(data['sku'], str) or not data['sku'].strip()):
+            return Response({'error': 'sku must be non-empty text.'}, status=status.HTTP_400_BAD_REQUEST)
+        if 'description' in data and not isinstance(data['description'], str):
+            return Response({'error': 'description must be text.'}, status=status.HTTP_400_BAD_REQUEST)
+        if 'category' in data and (not isinstance(data['category'], str) or not data['category'].strip()):
+            return Response({'error': 'category must be non-empty text.'}, status=status.HTTP_400_BAD_REQUEST)
+        if 'is_active' in data and not isinstance(data['is_active'], bool):
+            return Response({'error': 'is_active must be a boolean.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        parsed_price = None
         if 'price' in data:
-            product.base_price = float(data['price'])
-        if 'sku' in data and str(data['sku']).strip():
-            product.sku = str(data['sku']).strip()
-        if 'is_active' in data:
-            product.is_active = bool(data['is_active'])
-        if 'description' in data:
-            product.description = data['description']
-        if 'category' in data and str(data['category']).strip():
-            cat_name = str(data['category']).strip()
-            cat, _ = CatalogCategory.objects.get_or_create(
-                name=cat_name,
-                defaults={'slug': cat_name.lower().replace(' › ', '-').replace(' ', '-'), 'description': cat_name, 'is_active': True, 'created_at': timezone.now(), 'updated_at': timezone.now()}
-            )
-            product.category = cat
+            try:
+                parsed_price = Decimal(str(data['price'])).quantize(Decimal('0.01'))
+            except (InvalidOperation, TypeError, ValueError):
+                return Response({'error': 'price must be a positive amount.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not parsed_price.is_finite() or parsed_price <= 0:
+                return Response({'error': 'price must be a positive amount.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        product.updated_at = timezone.now()
-        product.save()
-
-        # Handle stock adjustment if provided
+        parsed_stock = None
         if 'stock' in data:
-            new_stock = int(data['stock'])
-            variant = product.variants.first()
-            if not variant:
-                variant = CatalogProductVariant.objects.create(
-                    product=product,
-                    sku=f"{product.sku}-OS",
-                    attributes={'size': 'OS'},
-                    price_adjustment=0,
-                    is_active=True,
-                    created_at=timezone.now(),
-                    updated_at=timezone.now(),
+            if isinstance(data['stock'], bool):
+                return Response({'error': 'stock must be a non-negative integer.'}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                parsed_stock_value = Decimal(str(data['stock']))
+                if not parsed_stock_value.is_finite() or parsed_stock_value != parsed_stock_value.to_integral_value():
+                    raise ValueError
+                parsed_stock = int(parsed_stock_value)
+            except (InvalidOperation, TypeError, ValueError):
+                return Response({'error': 'stock must be a non-negative integer.'}, status=status.HTTP_400_BAD_REQUEST)
+            if parsed_stock < 0:
+                return Response({'error': 'stock must be a non-negative integer.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        proposed_sku = data['sku'].strip() if 'sku' in data else product.sku
+        if CatalogProduct.objects.filter(sku__iexact=proposed_sku).exclude(pk=product.pk).exists():
+            return Response({'error': 'SKU is already in use.'}, status=status.HTTP_409_CONFLICT)
+        if CatalogProductVariant.objects.filter(sku__iexact=proposed_sku).exclude(product=product).exists():
+            return Response({'error': 'SKU is already in use.'}, status=status.HTTP_409_CONFLICT)
+
+        with transaction.atomic():
+            product = CatalogProduct.objects.select_for_update().get(pk=pk)
+            previous_sku = product.sku
+            stock_entries = []
+            if parsed_stock is not None:
+                stock_entries = list(
+                    InventoryStockEntry.objects.select_for_update().filter(product=product).order_by('id')
                 )
-            stock_entry = InventoryStockEntry.objects.filter(product=product).first()
-            old_stock = stock_entry.quantity if stock_entry else 0
-            delta = new_stock - old_stock
-            if stock_entry:
-                stock_entry.quantity = new_stock
-                stock_entry.updated_at = timezone.now()
-                stock_entry.save()
-            else:
-                stock_entry = InventoryStockEntry.objects.create(
-                    product=product,
-                    variant=variant,
-                    warehouse_id=1,
-                    quantity=new_stock,
-                    reserved_quantity=0,
-                    last_counted_at=timezone.now(),
-                    created_at=timezone.now(),
-                    updated_at=timezone.now(),
+                if len(stock_entries) > 1:
+                    return Response(
+                        {
+                            'error': 'This product has multiple warehouse stock rows. Adjust a specific SKU instead.',
+                            'code': 'warehouse_stock_ambiguous',
+                        },
+                        status=status.HTTP_409_CONFLICT,
+                    )
+                if stock_entries and parsed_stock < stock_entries[0].reserved_quantity:
+                    return Response(
+                        {'error': 'Stock cannot be lower than the reserved quantity.', 'code': 'stock_reserved'},
+                        status=status.HTTP_409_CONFLICT,
+                    )
+                if not stock_entries and not product.variants.exists():
+                    return Response(
+                        {'error': 'A product variant is required before setting stock.', 'code': 'variant_required'},
+                        status=status.HTTP_409_CONFLICT,
+                    )
+
+            if 'name' in data:
+                product.name = data['name'].strip()
+            if parsed_price is not None:
+                product.base_price = parsed_price
+            product.sku = proposed_sku
+            if 'is_active' in data:
+                product.is_active = data['is_active']
+            if 'description' in data:
+                product.description = data['description'].strip()
+            if 'category' in data:
+                cat_name = data['category'].strip()
+                category, _ = CatalogCategory.objects.get_or_create(
+                    name=cat_name,
+                    defaults={
+                        'slug': cat_name.lower().replace(' › ', '-').replace(' ', '-'),
+                        'description': cat_name,
+                        'is_active': True,
+                        'created_at': timezone.now(),
+                        'updated_at': timezone.now(),
+                    },
                 )
-            if delta != 0:
-                InventoryStockMovement.objects.create(
-                    variant=variant,
-                    sku=variant.sku,
-                    delta=delta,
-                    reason='manual_adjustment',
-                )
+                product.category = category
+
+            product.updated_at = timezone.now()
+            product.save()
+
+            primary_variant = product.variants.order_by('id').first()
+            if proposed_sku != previous_sku and primary_variant and primary_variant.sku == previous_sku:
+                primary_variant.sku = proposed_sku
+                primary_variant.updated_at = timezone.now()
+                primary_variant.save(update_fields=['sku', 'updated_at'])
+
+            if parsed_stock is not None:
+                stock_entry = stock_entries[0] if stock_entries else None
+                variant = stock_entry.variant if stock_entry else product.variants.order_by('id').first()
+                old_stock = stock_entry.quantity if stock_entry else 0
+                delta = parsed_stock - old_stock
+                if stock_entry:
+                    stock_entry.quantity = parsed_stock
+                    stock_entry.updated_at = timezone.now()
+                    stock_entry.save(update_fields=['quantity', 'updated_at'])
+                else:
+                    InventoryStockEntry.objects.create(
+                        product=product,
+                        variant=variant,
+                        warehouse_id=1,
+                        quantity=parsed_stock,
+                        reserved_quantity=0,
+                        last_counted_at=timezone.now(),
+                        created_at=timezone.now(),
+                        updated_at=timezone.now(),
+                    )
+                if delta:
+                    InventoryStockMovement.objects.create(
+                        variant=variant,
+                        sku=variant.sku,
+                        delta=delta,
+                        reason='manual_adjustment',
+                    )
 
         total_stock = sum(e.quantity for e in InventoryStockEntry.objects.filter(product=product))
         return Response({
             'id': product.id,
             'name': product.name,
             'sku': product.sku,
-            'category': product.category.name if product.category else 'Tops',
+            'category': product.category.name if product.category else None,
             'price': int(product.base_price),
             'price_formatted': f"₱{int(product.base_price):,}",
             'stock': total_stock,
@@ -304,27 +411,9 @@ class MerchantProductDetailAPIView(APIView):
             return Response({'error': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
 
 
-class MerchantCategoriesAPIView(APIView):
+class MerchantCategoriesAPIView(MerchantAPIView):
     def get(self, request):
         categories = CatalogCategory.objects.all().order_by('name')
-        if not categories.exists():
-            defaults = [
-                'Tops › Hoodies',
-                'Tops › T-Shirts',
-                'Bottoms › Denim',
-                'Accessories › Caps',
-                'Accessories › Socks',
-            ]
-            for cat_name in defaults:
-                CatalogCategory.objects.create(
-                    name=cat_name,
-                    slug=cat_name.lower().replace(' › ', '-').replace(' ', '-'),
-                    description=cat_name,
-                    is_active=True,
-                    created_at=timezone.now(),
-                    updated_at=timezone.now(),
-                )
-            categories = CatalogCategory.objects.all().order_by('name')
 
         data = []
         for c in categories:
@@ -340,12 +429,23 @@ class MerchantCategoriesAPIView(APIView):
         return Response(data)
 
     def post(self, request):
-        name = request.data.get('name', '').strip()
-        description = request.data.get('description', '').strip()
+        raw_name = request.data.get('name', '')
+        raw_description = request.data.get('description', '')
+        raw_slug = request.data.get('slug')
+        if not isinstance(raw_name, str) or not isinstance(raw_description, str):
+            return Response(
+                {'error': 'name and description must be text.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if raw_slug is not None and not isinstance(raw_slug, str):
+            return Response({'error': 'slug must be text.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        name = raw_name.strip()
+        description = raw_description.strip()
         if not name:
             return Response({'error': 'Category name is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        slug = request.data.get('slug') or name.lower().replace(' › ', '-').replace(' ', '-')
+        slug = raw_slug.strip() if raw_slug else name.lower().replace(' › ', '-').replace(' ', '-')
         category, created = CatalogCategory.objects.get_or_create(
             name=name,
             defaults={
@@ -367,22 +467,39 @@ class MerchantCategoriesAPIView(APIView):
         }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
 
-class MerchantRestockAPIView(APIView):
+class MerchantRestockAPIView(MerchantAPIView):
     def post(self, request):
-        sku = request.data.get('sku')
-        qty = int(request.data.get('quantity', 25))
-        reason = request.data.get('reason', 'restock')
+        sku = str(request.data.get('sku') or '').strip()
+        reason = str(request.data.get('reason') or 'restock').strip().lower()
 
         if not sku:
             return Response({'error': 'SKU is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        try:
+            raw_quantity = request.data.get('quantity')
+            if isinstance(raw_quantity, bool):
+                raise ValueError
+            parsed_quantity = Decimal(str(raw_quantity))
+            if not parsed_quantity.is_finite() or parsed_quantity != parsed_quantity.to_integral_value():
+                raise ValueError
+            qty = int(parsed_quantity)
+        except (InvalidOperation, TypeError, ValueError):
+            return Response({'error': 'quantity must be a positive integer.'}, status=status.HTTP_400_BAD_REQUEST)
+        if qty <= 0:
+            return Response({'error': 'quantity must be a positive integer.'}, status=status.HTTP_400_BAD_REQUEST)
+        if reason not in {'restock', 'return', 'adjustment'}:
+            return Response({'error': 'Select a supported restock reason.'}, status=status.HTTP_400_BAD_REQUEST)
+
         variant = CatalogProductVariant.objects.filter(sku=sku).first()
-        if variant:
-            stock_entry = InventoryStockEntry.objects.filter(variant=variant).first()
+        if not variant:
+            return Response({'error': 'Product variant not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        with transaction.atomic():
+            stock_entry = InventoryStockEntry.objects.select_for_update().filter(variant=variant).first()
             if stock_entry:
                 stock_entry.quantity += qty
                 stock_entry.updated_at = timezone.now()
-                stock_entry.save()
+                stock_entry.save(update_fields=['quantity', 'updated_at'])
             else:
                 InventoryStockEntry.objects.create(
                     product=variant.product,
@@ -410,30 +527,23 @@ class MerchantRestockAPIView(APIView):
         })
 
 
-class MerchantStockMovementsAPIView(APIView):
+class MerchantStockMovementsAPIView(MerchantAPIView):
     def get(self, request):
         movements = InventoryStockMovement.objects.all().order_by('-created_at')[:20]
         data = [
             {
                 'id': m.id,
-                'sku': m.sku or (m.variant.sku if m.variant else 'MD-SKU'),
+                'sku': m.sku or (m.variant.sku if m.variant else None),
                 'delta': f"+{m.delta}" if m.delta > 0 else str(m.delta),
                 'reason': m.reason,
-                'when': m.created_at.strftime('%H:%M') if m.created_at else '00:00',
+                'when': m.created_at.strftime('%H:%M') if m.created_at else None,
             }
             for m in movements
         ]
-        if not data:
-            data = [
-                {'id': 1, 'sku': 'MD-HD-002-BLK-M-OVS', 'delta': '+25', 'reason': 'restock', 'when': '09:20'},
-                {'id': 2, 'sku': 'MD-TS-001-WHT-L-REG', 'delta': '−2', 'reason': 'sale', 'when': '09:04'},
-                {'id': 3, 'sku': 'MD-CP-001-BLK-OS', 'delta': '−1', 'reason': 'sale', 'when': '08:47'},
-                {'id': 4, 'sku': 'MD-DN-001-IND-32-STR', 'delta': '+1', 'reason': 'return', 'when': '08:15'},
-            ]
         return Response(data)
 
 
-class MerchantReviewsAPIView(APIView):
+class MerchantReviewsAPIView(MerchantAPIView):
     def get(self, request):
         reviews = ReviewsReview.objects.all().order_by('-created_at')[:20]
         data = [
@@ -453,41 +563,10 @@ class MerchantReviewsAPIView(APIView):
             }
             for r in reviews
         ]
-        if not data:
-            data = [
-                {
-                    'id': 1,
-                    'customer': 'Bea S.',
-                    'customer_name': 'Bea S.',
-                    'product_name': 'Drip Zip-Up Hoodie',
-                    'body': 'Super lapad ng fit, ang angas ng tela! Perfect for streetwear layering.',
-                    'product_review': 'Drip Zip-Up Hoodie — “Super lapad ng fit…”',
-                    'rating_stars': '★★★★★',
-                    'rating': 5,
-                    'status': 'published',
-                    'merchant_reply': '',
-                    'replied_at': None,
-                    'created_at': '2026-09-19 14:30',
-                },
-                {
-                    'id': 2,
-                    'customer': 'Marco L.',
-                    'customer_name': 'Marco L.',
-                    'product_name': 'Metro Snapback',
-                    'body': 'Color is slightly off from photo. The cap is good quality though.',
-                    'product_review': 'Metro Snapback — “Color is slightly off.”',
-                    'rating_stars': '★★★☆☆',
-                    'rating': 3,
-                    'status': 'published',
-                    'merchant_reply': '',
-                    'replied_at': None,
-                    'created_at': '2026-09-19 12:15',
-                },
-            ]
         return Response(data)
 
 
-class MerchantReviewDetailAPIView(APIView):
+class MerchantReviewDetailAPIView(MerchantAPIView):
     def get(self, request, pk):
         try:
             review = ReviewsReview.objects.get(pk=pk)
@@ -507,9 +586,12 @@ class MerchantReviewDetailAPIView(APIView):
             return Response({'error': 'Review not found.'}, status=status.HTTP_404_NOT_FOUND)
 
 
-class MerchantReviewReplyAPIView(APIView):
+class MerchantReviewReplyAPIView(MerchantAPIView):
     def post(self, request, pk):
-        reply_text = request.data.get('reply', '').strip()
+        raw_reply = request.data.get('reply', '')
+        if not isinstance(raw_reply, str):
+            return Response({'error': 'Reply text must be text.'}, status=status.HTTP_400_BAD_REQUEST)
+        reply_text = raw_reply.strip()
         if not reply_text:
             return Response({'error': 'Reply text cannot be empty.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -531,16 +613,21 @@ class MerchantReviewReplyAPIView(APIView):
             return Response({'error': 'Review not found.'}, status=status.HTTP_404_NOT_FOUND)
 
 
-class MerchantReviewModerateAPIView(APIView):
+class MerchantReviewModerateAPIView(MerchantAPIView):
     """Deprecated: Retained for backwards compatibility."""
     def post(self, request, pk):
-        new_status = request.data.get('status', 'approved')
+        new_status = str(request.data.get('status') or '').strip().lower()
+        if new_status not in {'pending', 'approved', 'rejected'}:
+            return Response(
+                {'error': 'status must be pending, approved, or rejected.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         try:
             review = ReviewsReview.objects.get(pk=pk)
             review.status = new_status
-            review.save()
+            review.save(update_fields=['status'])
         except ReviewsReview.DoesNotExist:
-            pass
+            return Response({'error': 'Review not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         return Response({
             'id': pk,
@@ -549,424 +636,260 @@ class MerchantReviewModerateAPIView(APIView):
         })
 
 
-class MerchantOrdersAPIView(APIView):
+FULFILLMENT_TRANSITIONS = {
+    'placed': {'packed'},
+    'paid': {'packed'},
+    'processing': {'packed'},
+    'packed': {'shipped'},
+    'shipped': {'out_for_delivery'},
+    'out_for_delivery': {'delivered'},
+}
+
+
+def _order_number(order):
+    return f"MD-{order.created_at.year}-{order.id:05d}"
+
+
+def _latest_payment(order):
+    return max(order.payments.all(), key=lambda payment: payment.created_at, default=None)
+
+
+def _csv_cell(value):
+    text = '' if value is None else str(value)
+    return "'" + text if text.startswith(('=', '+', '-', '@', '\t', '\r')) else text
+
+
+def _merchant_order_summary(order):
+    payment = _latest_payment(order)
+    address = getattr(order, 'shipping_address', None)
+    return {
+        'id': order.id,
+        'order_no': _order_number(order),
+        'customer': address.name if address else None,
+        'total': str(order.total),
+        'payment_method': payment.method if payment else None,
+        'payment_status': payment.status if payment else None,
+        'status': order.status.replace('_', ' ').title(),
+        'raw_status': order.status.lower(),
+        'created_at': order.created_at.isoformat() if order.created_at else None,
+    }
+
+
+class MerchantOrdersAPIView(MerchantAPIView):
     def get(self, request, pk=None):
         if pk is not None:
-            # Single order detail
-            order = OrdersOrder.objects.filter(pk=pk).first()
-            if order:
-                lines = []
-                for l in order.lines.select_related('product', 'variant').all():
-                    lines.append({
-                        'product_name': l.product.name if l.product else 'Metro Apparel',
-                        'variant_desc': f"{l.variant.attributes.get('size', 'M')} · {l.variant.attributes.get('color', 'BLK')}" if l.variant and isinstance(l.variant.attributes, dict) else 'Standard',
-                        'quantity': l.quantity,
-                        'unit_price': int(l.unit_price),
-                        'total_price': int(l.total_price),
-                    })
-                addr = getattr(order, 'shipping_address', None)
-                addr_data = {
-                    'name': addr.name if addr else 'Customer',
-                    'line1': addr.address_line1 if addr else '123 Ayala Ave',
-                    'city': addr.city if addr else 'Makati',
-                    'state': addr.state if addr else 'Metro Manila',
-                    'postal_code': addr.postal_code if addr else '1200',
-                    'phone': addr.phone if addr else '+63 917 123 4567',
-                } if addr else {
-                    'name': 'Juan Dela Cruz',
-                    'line1': 'Unit 12B Tower 2, One Serendra',
-                    'city': 'Taguig',
-                    'state': 'Metro Manila',
-                    'postal_code': '1634',
-                    'phone': '+63 917 555 1234',
-                }
-                pm = order.payments.first()
-                pay_method = pm.method.upper() if pm else 'GCASH'
-                return Response({
-                    'id': order.id,
-                    'order_no': f"MD-2026-00{order.id:03d}",
-                    'status': order.status.capitalize(),
-                    'raw_status': order.status.lower(),
-                    'subtotal': int(order.subtotal),
-                    'shipping': int(order.shipping),
-                    'tax': int(order.tax),
-                    'total': int(order.total),
-                    'payment_method': pay_method,
-                    'created_at': order.created_at.strftime('%Y-%m-%d %H:%M') if order.created_at else None,
-                    'shipping_address': addr_data,
-                    'lines': lines if lines else [
-                        {'product_name': 'Drip Zip-Up Hoodie', 'variant_desc': 'BLK · M · OVS', 'quantity': 1, 'unit_price': 1249, 'total_price': 1249},
-                        {'product_name': 'Metro Core Boxy Tee', 'variant_desc': 'WHT · XL · REG', 'quantity': 2, 'unit_price': 649, 'total_price': 1298},
-                    ],
-                })
-            else:
-                demo_orders = {
-                    318: {'customer': 'Juan Dela Cruz', 'phone': '+63 917 555 1234', 'addr': 'Unit 12B Tower 2, One Serendra, Taguig', 'total': 2632, 'subtotal': 2547, 'shipping': 85, 'pay': 'GCASH', 'status': 'Paid'},
-                    317: {'customer': 'Bea Santos', 'phone': '+63 918 222 3456', 'addr': '45 Commonwealth Ave, Quezon City', 'total': 1249, 'subtotal': 1164, 'shipping': 85, 'pay': 'MAYA', 'status': 'Packed'},
-                    316: {'customer': 'Miguel Reyes', 'phone': '+63 920 444 8899', 'addr': '88 Session Road, Baguio City', 'total': 3447, 'subtotal': 3327, 'shipping': 120, 'pay': 'CARD', 'status': 'Shipped'},
-                    315: {'customer': 'Aliyah Cruz', 'phone': '+63 927 888 1122', 'addr': '24 Real St, Cebu City', 'total': 849, 'subtotal': 699, 'shipping': 150, 'pay': 'GCASH', 'status': 'Pending'},
-                    314: {'customer': 'Marco Lim', 'phone': '+63 915 777 4433', 'addr': '77 Abreeza Mall Road, Davao City', 'total': 1798, 'subtotal': 1648, 'shipping': 150, 'pay': 'GCASH', 'status': 'Paid'},
-                }
-                demo = demo_orders.get(pk, {'customer': 'Metro Customer', 'phone': '+63 917 000 0000', 'addr': 'Metro Manila', 'total': 2632, 'subtotal': 2547, 'shipping': 85, 'pay': 'GCASH', 'status': 'Paid'})
-                return Response({
-                    'id': pk,
-                    'order_no': f"MD-2026-00{pk:03d}",
-                    'status': demo['status'],
-                    'raw_status': demo['status'].lower(),
-                    'subtotal': demo['subtotal'],
-                    'shipping': demo['shipping'],
-                    'tax': 0,
-                    'total': demo['total'],
-                    'payment_method': demo['pay'],
-                    'created_at': '2026-09-19 15:42',
-                    'shipping_address': {
-                        'name': demo['customer'],
-                        'line1': demo['addr'],
-                        'city': 'Taguig',
-                        'state': 'Metro Manila',
-                        'postal_code': '1634',
-                        'phone': demo['phone'],
-                    },
-                    'lines': [
-                        {'product_name': 'Drip Zip-Up Hoodie', 'variant_desc': 'BLK · M · OVS', 'quantity': 1, 'unit_price': 1249, 'total_price': 1249},
-                        {'product_name': 'Metro Core Boxy Tee', 'variant_desc': 'WHT · XL · REG', 'quantity': 2, 'unit_price': 649, 'total_price': 1298},
-                    ],
+            order = OrdersOrder.objects.select_related('shipping_address').prefetch_related('payments').filter(pk=pk).first()
+            if not order:
+                return Response({'error': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+            lines = []
+            for line in order.lines.select_related('product', 'variant', 'variant__color').all():
+                attributes = line.variant.attributes if line.variant and isinstance(line.variant.attributes, dict) else {}
+                color = attributes.get('color') or (line.variant.color.name if line.variant and line.variant.color else None)
+                variant_parts = [attributes.get('size'), color, attributes.get('fit')]
+                lines.append({
+                    'product_name': line.product.name,
+                    'variant_desc': ' · '.join(str(part).upper() for part in variant_parts if part) or None,
+                    'quantity': line.quantity,
+                    'unit_price': str(line.unit_price),
+                    'total_price': str(line.total_price),
                 })
 
-        orders_qs = OrdersOrder.objects.all().order_by('-created_at')[:20]
-        data = []
-        for o in orders_qs:
-            pm = o.payments.first()
-            pay_method = pm.method.upper() if pm else 'GCASH'
-            addr = getattr(o, 'shipping_address', None)
-            cust_name = addr.name if addr else 'Metro Customer'
-            data.append({
-                'id': o.id,
-                'order_no': f"MD-2026-00{o.id:03d}",
-                'customer': cust_name,
-                'total': f"₱{int(o.total):,}",
-                'pay': pay_method,
-                'status': o.status.capitalize(),
-                'raw_status': o.status.lower(),
-                'created_at': o.created_at.strftime('%Y-%m-%d %H:%M') if o.created_at else None,
+            address = getattr(order, 'shipping_address', None)
+            payment = _latest_payment(order)
+            response = _merchant_order_summary(order)
+            response.update({
+                'subtotal': str(order.subtotal),
+                'shipping': str(order.shipping),
+                'tax': str(order.tax),
+                'discount': str(order.discount),
+                'currency': order.currency,
+                'payment_method': payment.method if payment else None,
+                'payment_status': payment.status if payment else None,
+                'shipping_address': {
+                    'name': address.name,
+                    'address_line1': address.address_line1,
+                    'address_line2': address.address_line2 or '',
+                    'city': address.city,
+                    'state': address.state,
+                    'postal_code': address.postal_code or '',
+                    'country': address.country,
+                    'phone': address.phone,
+                } if address else None,
+                'lines': lines,
             })
-        if not data:
-            data = [
-                {'id': 318, 'order_no': 'MD-2026-00318', 'customer': 'Juan Dela Cruz', 'total': '₱2,632', 'pay': 'GCASH', 'status': 'Paid', 'raw_status': 'paid'},
-                {'id': 317, 'order_no': 'MD-2026-00317', 'customer': 'Bea Santos', 'total': '₱1,249', 'pay': 'MAYA', 'status': 'Packed', 'raw_status': 'packed'},
-                {'id': 316, 'order_no': 'MD-2026-00316', 'customer': 'Miguel Reyes', 'total': '₱3,447', 'pay': 'CARD', 'status': 'Shipped', 'raw_status': 'shipped'},
-                {'id': 315, 'order_no': 'MD-2026-00315', 'customer': 'Aliyah Cruz', 'total': '₱849', 'pay': 'GCASH', 'status': 'Pending', 'raw_status': 'pending'},
-                {'id': 314, 'order_no': 'MD-2026-00314', 'customer': 'Marco Lim', 'total': '₱1,798', 'pay': 'GCASH', 'status': 'Paid', 'raw_status': 'paid'},
-            ]
-        return Response(data)
+            return Response(response)
+
+        orders = (
+            OrdersOrder.objects.select_related('shipping_address')
+            .prefetch_related('payments')
+            .order_by('-created_at')[:50]
+        )
+        return Response([_merchant_order_summary(order) for order in orders])
 
     def patch(self, request, pk):
-        new_status = request.data.get('status', '').strip().lower()
+        new_status = str(request.data.get('status') or '').strip().lower()
         if not new_status:
             return Response({'error': 'Status is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        order = OrdersOrder.objects.filter(pk=pk).first()
-        if order:
-            order.status = new_status
-            order.updated_at = timezone.now()
-            order.save()
+        with transaction.atomic():
+            order = OrdersOrder.objects.select_for_update().filter(pk=pk).first()
+            if not order:
+                return Response({'error': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
+            current_status = order.status.lower()
+            if new_status != current_status and new_status not in FULFILLMENT_TRANSITIONS.get(current_status, set()):
+                return Response(
+                    {
+                        'error': f'Order cannot move from {current_status} to {new_status}.',
+                        'code': 'invalid_status_transition',
+                    },
+                    status=status.HTTP_409_CONFLICT,
+                )
+            if new_status != current_status:
+                order.status = new_status
+                order.updated_at = timezone.now()
+                order.save(update_fields=['status', 'updated_at'])
 
         return Response({
-            'id': pk,
-            'order_no': f"MD-2026-00{pk:03d}",
-            'status': new_status.capitalize(),
-            'raw_status': new_status,
-            'message': f"Order #{pk} status successfully updated to {new_status.capitalize()}.",
+            'id': order.id,
+            'order_no': _order_number(order),
+            'status': order.status.replace('_', ' ').title(),
+            'raw_status': order.status,
+            'message': f"Order {_order_number(order)} is now {order.status.replace('_', ' ')}.",
         })
 
 
-class MerchantOrdersExportAPIView(APIView):
+class MerchantOrdersExportAPIView(MerchantAPIView):
     def get(self, request):
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="metrodrip_merchant_orders_{timezone.now().strftime("%Y%m%d")}.csv"'
         writer = csv.writer(response)
         writer.writerow(['Order ID', 'Customer', 'Total', 'Payment', 'Status', 'Date'])
 
-        orders_qs = OrdersOrder.objects.all().order_by('-created_at')
-        if orders_qs.exists():
-            for o in orders_qs:
-                addr = getattr(o, 'shipping_address', None)
-                cust_name = addr.name if addr else 'Metro Customer'
-                pm = o.payments.first()
-                pay_method = pm.method.upper() if pm else 'GCASH'
-                writer.writerow([
-                    f"MD-2026-00{o.id:03d}",
-                    cust_name,
-                    int(o.total),
-                    pay_method,
-                    o.status.capitalize(),
-                    o.created_at.strftime('%Y-%m-%d %H:%M') if o.created_at else '',
-                ])
-        else:
-            writer.writerow(['MD-2026-00318', 'Juan Dela Cruz', 2632, 'GCASH', 'Paid', '2026-09-19 15:42'])
-            writer.writerow(['MD-2026-00317', 'Bea Santos', 1249, 'MAYA', 'Packed', '2026-09-19 14:10'])
-            writer.writerow(['MD-2026-00316', 'Miguel Reyes', 3447, 'CARD', 'Shipped', '2026-09-19 11:25'])
-            writer.writerow(['MD-2026-00315', 'Aliyah Cruz', 849, 'GCASH', 'Pending', '2026-09-19 09:30'])
-            writer.writerow(['MD-2026-00314', 'Marco Lim', 1798, 'GCASH', 'Paid', '2026-09-19 08:15'])
+        orders = OrdersOrder.objects.select_related('shipping_address').prefetch_related('payments').order_by('-created_at')
+        for order in orders:
+            address = getattr(order, 'shipping_address', None)
+            payment = _latest_payment(order)
+            writer.writerow([
+                _order_number(order),
+                _csv_cell(address.name if address else ''),
+                str(order.total),
+                _csv_cell(payment.method if payment else ''),
+                _csv_cell(order.status),
+                order.created_at.isoformat() if order.created_at else '',
+            ])
 
         return response
 
 
-class MerchantAnalyticsAPIView(APIView):
+class MerchantAnalyticsAPIView(MerchantAPIView):
     def get(self, request):
-        category_filter = request.query_params.get('category', 'all').lower()
-
-        raw_products = [
-            {'name': 'Drip Zip-Up Hoodie', 'category': 'tops', 'net_units': 80, 'net_sales': 96000, 'formatted_sales': '₱96,000', 'views': 2400, 'added_to_cart': 300, 'growth': '+33.3%', 'growth_direction': 'up'},
-            {'name': 'Metro Core Boxy Tee', 'category': 'tops', 'net_units': 120, 'net_sales': 74000, 'formatted_sales': '₱74,000', 'views': 3800, 'added_to_cart': 420, 'growth': '+20.0%', 'growth_direction': 'up'},
-            {'name': 'Metro Straight-Cut Jeans', 'category': 'bottoms', 'net_units': 45, 'net_sales': 45000, 'formatted_sales': '₱45,000', 'views': 1600, 'added_to_cart': 160, 'growth': '-10.0%', 'growth_direction': 'down'},
-            {'name': 'Metro Snapback', 'category': 'accessories', 'net_units': 50, 'net_sales': 24600, 'formatted_sales': '₱24,600', 'views': 1800, 'added_to_cart': 210, 'growth': '+100.0%', 'growth_direction': 'up'},
-            {'name': 'Drip Crew Socks 3-Pack', 'category': 'accessories', 'net_units': 25, 'net_sales': 9000, 'formatted_sales': '₱9,000', 'views': 800, 'added_to_cart': 110, 'growth': '-44.4%', 'growth_direction': 'down'},
-        ]
-
-        if category_filter and category_filter != 'all':
-            filtered_products = [p for p in raw_products if p['category'] == category_filter]
-        else:
-            filtered_products = raw_products
-
-        total_units = sum(p['net_units'] for p in filtered_products)
-        total_sales = sum(p['net_sales'] for p in filtered_products)
-        total_views = sum(p['views'] for p in filtered_products)
-        total_cart = sum(p['added_to_cart'] for p in filtered_products)
-
-        data = {
-            'period': 'Sep 13–19, 2026',
-            'comparison_period': 'previous 7 days',
-            'currency': 'PHP',
-            'timezone': 'Asia/Manila',
-            'kpis': {
-                'net_sales': {
-                    'value': total_sales,
-                    'formatted': f"₱{total_sales:,}",
-                    'growth': '+18.0%',
-                    'growth_direction': 'up',
-                    'prior_formatted': '₱210,678',
-                },
-                'orders': {
-                    'value': 200,
-                    'growth': '+11.1%',
-                    'growth_direction': 'up',
-                },
-                'net_units_sold': {
-                    'value': total_units,
-                    'growth': '+14.3%',
-                    'growth_direction': 'up',
-                },
-                'purchase_session_rate': {
-                    'value': '2.50%',
-                    'growth': '+0.25 pp',
-                    'growth_direction': 'up',
-                },
+        # Order revenue can be queried, but views, sessions, carts, attribution,
+        # and comparison cohorts are not modeled. Returning the old design
+        # fixture would present invented business metrics as production facts.
+        return Response(
+            {
+                'error': 'Analytics instrumentation is not configured. No sample metrics were returned.',
+                'code': 'analytics_unconfigured',
+                'available_sources': ['orders', 'order_lines', 'payments'],
+                'missing_sources': ['sessions', 'product_views', 'cart_events', 'attribution'],
             },
-            'sales_over_time': {
-                'labels': ['13 Sep', '14 Sep', '15 Sep', '16 Sep', '17 Sep', '18 Sep', '19 Sep'],
-                'current_period': [26000, 29000, 28000, 36000, 33000, 41000, 48000],
-                'previous_period': [23000, 25000, 27000, 29000, 31000, 33000, 35000],
-                'summary': '₱248,600 net sales  ·  ↑ 18.0% vs ₱210,678',
-            },
-            'best_sellers': [
-                {'name': 'Drip Zip-Up Hoodie', 'net_sales': 96000, 'formatted_sales': '₱96,000', 'bar_percentage': 100},
-                {'name': 'Metro Core Boxy Tee', 'net_sales': 74000, 'formatted_sales': '₱74,000', 'bar_percentage': 77.1},
-                {'name': 'Metro Straight-Cut Jeans', 'net_sales': 45000, 'formatted_sales': '₱45,000', 'bar_percentage': 46.9},
-            ],
-            'product_sales_report': filtered_products,
-            'totals': {
-                'name': 'TOTAL',
-                'net_units': total_units,
-                'net_sales': total_sales,
-                'formatted_sales': f"₱{total_sales:,}",
-                'views': total_views,
-                'added_to_cart': total_cart,
-                'growth': '+14.3%',
-                'growth_direction': 'up',
-            },
-            'trending_products': [
-                {'name': 'Metro Snapback', 'prior_units': 25, 'current_units': 50, 'growth': '+100.0%', 'growth_direction': 'up'},
-                {'name': 'Drip Zip-Up Hoodie', 'prior_units': 60, 'current_units': 80, 'growth': '+33.3%', 'growth_direction': 'up'},
-                {'name': 'Metro Core Boxy Tee', 'prior_units': 100, 'current_units': 120, 'growth': '+20.0%', 'growth_direction': 'up'},
-            ],
-            'user_interactions': {
-                'total_sessions': 8000,
-                'funnel': [
-                    {'action': 'Product viewed', 'count': 6000, 'percentage': 75.0, 'bar_width': 75},
-                    {'action': 'Added to cart', 'count': 800, 'percentage': 10.0, 'bar_width': 10},
-                    {'action': 'Checkout started', 'count': 400, 'percentage': 5.0, 'bar_width': 5},
-                    {'action': 'Purchased', 'count': 200, 'percentage': 2.5, 'bar_width': 2.5},
-                ],
-            },
+            status=status.HTTP_501_NOT_IMPLEMENTED,
+        )
+
+class MerchantShipmentsAPIView(MerchantAPIView):
+    def get(self, request):
+        shipments_qs = list(ShippingShipment.objects.all().order_by('-id'))
+        order_map = {
+            order.id: order
+            for order in OrdersOrder.objects.filter(id__in=[shipment.order_ref for shipment in shipments_qs])
         }
-        return Response(data)
-
-
-class MerchantShipmentsAPIView(APIView):
-    def get(self, request):
-        shipments_qs = ShippingShipment.objects.all().order_by('-id')
         data = []
-        for s in shipments_qs:
+        for shipment in shipments_qs:
+            order = order_map.get(shipment.order_ref)
             data.append({
-                'id': s.id,
-                'order_ref': s.order_ref,
-                'order_no': f"MD-2026-00{s.order_ref:03d}",
-                'waybill_no': s.waybill_no,
-                'tracking_no': s.tracking_no,
-                'carrier': 'NinjaVan Express' if 'NV' in s.tracking_no else 'J&T Express',
-                'status': s.status.capitalize(),
-                'booked_at': s.booked_at.isoformat() if s.booked_at else None,
+                'id': shipment.id,
+                'order_ref': shipment.order_ref,
+                'order_no': _order_number(order) if order else None,
+                'waybill_no': shipment.waybill_no,
+                'tracking_no': shipment.tracking_no,
+                'carrier': None,
+                'carrier_source': 'unavailable',
+                'status': shipment.status.replace('_', ' ').title(),
+                'booked_at': shipment.booked_at.isoformat() if shipment.booked_at else None,
             })
-
-        if not data:
-            data = [
-                {
-                    'id': 1,
-                    'order_ref': 318,
-                    'order_no': 'MD-2026-00318',
-                    'recipient': 'Juan Dela Cruz · Makati City',
-                    'carrier': 'NinjaVan Express',
-                    'waybill_no': 'NV-PH-8849102',
-                    'tracking_no': 'NV8849102PH',
-                    'status': 'In transit',
-                    'booked_at': '2026-09-19T14:30:00Z',
-                    'checkpoints': [
-                        {'time': 'Today, 10:45 AM', 'desc': 'Out for delivery in Makati Hub', 'done': True},
-                        {'time': 'Yesterday, 06:12 PM', 'desc': 'Departed Metro Manila Sort Facility', 'done': True},
-                        {'time': '18 Sep, 02:30 PM', 'desc': 'Parcel received at NinjaVan Drop Point', 'done': True},
-                    ]
-                },
-                {
-                    'id': 2,
-                    'order_ref': 317,
-                    'order_no': 'MD-2026-00317',
-                    'recipient': 'Bea Santos · Quezon City',
-                    'carrier': 'J&T Express',
-                    'waybill_no': 'JT-PH-9920114',
-                    'tracking_no': 'JT9920114PH',
-                    'status': 'Packed',
-                    'booked_at': '2026-09-19T15:00:00Z',
-                    'checkpoints': [
-                        {'time': 'Today, 02:15 PM', 'desc': 'Parcel packed and shipping label printed', 'done': True},
-                        {'time': 'Pending', 'desc': 'Courier pickup scheduled for 5:00 PM', 'done': False},
-                    ]
-                },
-                {
-                    'id': 3,
-                    'order_ref': 315,
-                    'order_no': 'MD-2026-00315',
-                    'recipient': 'Aliyah Cruz · Taguig City',
-                    'carrier': 'Lalamove Same-Day',
-                    'waybill_no': 'LLM-MNL-40192',
-                    'tracking_no': 'LLM40192',
-                    'status': 'Exception',
-                    'booked_at': '2026-09-18T16:00:00Z',
-                    'checkpoints': [
-                        {'time': '18 Sep, 05:20 PM', 'desc': 'Failed delivery attempt: Buyer unreachable at gate', 'done': True},
-                        {'time': 'Action needed', 'desc': 'Contact customer or re-schedule redelivery', 'done': False},
-                    ]
-                }
-            ]
-
         return Response(data)
 
     def post(self, request):
         order_ref = request.data.get('order_ref')
-        carrier = request.data.get('carrier', 'NinjaVan Express')
         if not order_ref:
             return Response({'error': 'order_ref is required.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        order_ref_int = int(order_ref)
-        count = ShippingShipment.objects.count() + 1
-        waybill = f"NV-PH-{7000000 + count}"
-        tracking = f"NV{7000000 + count}PH"
-
-        shipment = ShippingShipment.objects.create(
-            order_ref=order_ref_int,
-            counter=count,
-            waybill_no=waybill,
-            tracking_no=tracking,
-            status='booked',
-            booked_at=timezone.now(),
+        try:
+            order_ref_int = int(order_ref)
+        except (TypeError, ValueError):
+            return Response({'error': 'order_ref must be a valid order ID.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not OrdersOrder.objects.filter(pk=order_ref_int).exists():
+            return Response({'error': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(
+            {
+                'error': 'Courier booking is not configured. No waybill or tracking number was generated.',
+                'code': 'carrier_integration_unconfigured',
+            },
+            status=status.HTTP_501_NOT_IMPLEMENTED,
         )
 
-        # Update order status if exists
-        OrdersOrder.objects.filter(id=order_ref_int).update(status='shipped')
 
+class MerchantShipmentDetailAPIView(MerchantAPIView):
+    def get(self, request, pk):
+        shipment = ShippingShipment.objects.filter(pk=pk).first()
+        if not shipment:
+            return Response({'error': 'Shipment not found.'}, status=status.HTTP_404_NOT_FOUND)
+        order = OrdersOrder.objects.filter(pk=shipment.order_ref).first()
         return Response({
             'id': shipment.id,
             'order_ref': shipment.order_ref,
+            'order_no': _order_number(order) if order else None,
             'waybill_no': shipment.waybill_no,
             'tracking_no': shipment.tracking_no,
-            'carrier': carrier,
-            'status': 'Booked',
-            'message': f"Shipment booked successfully. Waybill #{waybill}.",
-        }, status=status.HTTP_201_CREATED)
-
-
-class MerchantShipmentDetailAPIView(APIView):
-    def get(self, request, pk):
-        try:
-            shipment = ShippingShipment.objects.get(pk=pk)
-            data = {
-                'id': shipment.id,
-                'order_ref': shipment.order_ref,
-                'order_no': f"MD-2026-00{shipment.order_ref:03d}",
-                'waybill_no': shipment.waybill_no,
-                'tracking_no': shipment.tracking_no,
-                'status': shipment.status.capitalize(),
-                'booked_at': shipment.booked_at.isoformat() if shipment.booked_at else None,
-            }
-        except ShippingShipment.DoesNotExist:
-            data = {
-                'id': pk,
-                'order_ref': 318,
-                'order_no': 'MD-2026-00318',
-                'waybill_no': 'NV-PH-8849102',
-                'tracking_no': 'NV8849102PH',
-                'carrier': 'NinjaVan Express',
-                'status': 'In transit',
-                'checkpoints': [
-                    {'time': 'Today, 10:45 AM', 'desc': 'Out for delivery in Makati Hub', 'done': True},
-                    {'time': 'Yesterday, 06:12 PM', 'desc': 'Departed Metro Manila Sort Facility', 'done': True},
-                    {'time': '18 Sep, 02:30 PM', 'desc': 'Parcel received at Drop Point', 'done': True},
-                ]
-            }
-        return Response(data)
+            'carrier': None,
+            'carrier_source': 'unavailable',
+            'status': shipment.status.replace('_', ' ').title(),
+            'booked_at': shipment.booked_at.isoformat() if shipment.booked_at else None,
+        })
 
     def patch(self, request, pk):
-        try:
-            shipment = ShippingShipment.objects.get(pk=pk)
-            new_status = request.data.get('status')
-            if new_status:
-                shipment.status = new_status.lower()
-                shipment.save()
-            return Response({
-                'id': shipment.id,
-                'status': shipment.status.capitalize(),
-                'message': f"Shipment #{shipment.id} updated to {shipment.status}."
-            })
-        except ShippingShipment.DoesNotExist:
-            return Response({
-                'id': pk,
-                'status': request.data.get('status', 'Delivered').capitalize(),
-                'message': 'Shipment status updated.'
-            })
+        shipment = ShippingShipment.objects.filter(pk=pk).first()
+        if not shipment:
+            return Response({'error': 'Shipment not found.'}, status=status.HTTP_404_NOT_FOUND)
+        new_status = str(request.data.get('status') or '').strip().lower()
+        transitions = {
+            'booked': {'picked_up', 'cancelled'},
+            'picked_up': {'in_transit', 'exception'},
+            'in_transit': {'out_for_delivery', 'exception'},
+            'out_for_delivery': {'delivered', 'exception'},
+            'exception': {'in_transit', 'out_for_delivery', 'cancelled'},
+        }
+        current_status = shipment.status.lower()
+        if not new_status:
+            return Response({'error': 'Status is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if new_status != current_status and new_status not in transitions.get(current_status, set()):
+            return Response(
+                {'error': f'Shipment cannot move from {current_status} to {new_status}.', 'code': 'invalid_status_transition'},
+                status=status.HTTP_409_CONFLICT,
+            )
+        if new_status != current_status:
+            shipment.status = new_status
+            shipment.save(update_fields=['status'])
+        return Response({
+            'id': shipment.id,
+            'status': shipment.status.replace('_', ' ').title(),
+            'message': f"Shipment #{shipment.id} is now {shipment.status.replace('_', ' ')}.",
+        })
 
 
-class MerchantShippingZonesAPIView(APIView):
+class MerchantShippingZonesAPIView(MerchantAPIView):
     def get(self, request):
         zones = ShippingShippingZone.objects.all().order_by('id')
-        if not zones.exists():
-            default_zones = [
-                {'name': 'NCR (Metro Manila)', 'fee': 85, 'is_active': True},
-                {'name': 'North & South Luzon', 'fee': 120, 'is_active': True},
-                {'name': 'Visayas & Mindanao (VisMin)', 'fee': 150, 'is_active': True},
-            ]
-            for z in default_zones:
-                ShippingShippingZone.objects.create(**z)
-            zones = ShippingShippingZone.objects.all().order_by('id')
 
         data = [
             {
@@ -988,10 +911,23 @@ class MerchantShippingZonesAPIView(APIView):
 
         fee = request.data.get('fee')
         is_active = request.data.get('is_active')
-        if fee is not None:
-            zone.fee = int(fee)
+
+        if fee is None and is_active is None:
+            return Response({'error': 'Provide fee or is_active.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            parsed_fee = int(fee) if fee is not None else None
+        except (TypeError, ValueError):
+            return Response({'error': 'fee must be a non-negative integer.'}, status=status.HTTP_400_BAD_REQUEST)
+        if parsed_fee is not None and parsed_fee < 0:
+            return Response({'error': 'fee must be a non-negative integer.'}, status=status.HTTP_400_BAD_REQUEST)
+        if is_active is not None and not isinstance(is_active, bool):
+            return Response({'error': 'is_active must be a boolean.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if parsed_fee is not None:
+            zone.fee = parsed_fee
         if is_active is not None:
-            zone.is_active = bool(is_active)
+            zone.is_active = is_active
         zone.save()
 
         return Response({
@@ -1003,143 +939,248 @@ class MerchantShippingZonesAPIView(APIView):
         })
 
 
-class MerchantShippingEligibilityAPIView(APIView):
+class MerchantShippingEligibilityAPIView(MerchantAPIView):
     def post(self, request):
-        address = request.data.get('address', '').strip()
-        subtotal = float(request.data.get('subtotal', 0))
+        address = str(request.data.get('address') or '').strip()
 
         if not address:
             return Response({'error': 'Address string is required.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        address_lower = address.lower()
-        if any(c in address_lower for c in ['manila', 'makati', 'quezon', 'taguig', 'pasig', 'mandaluyong', 'ncr']):
-            zone_name = 'NCR (Metro Manila)'
-            base_fee = 85
-            eligible = True
-            delivery_estimate = '1–2 business days'
-        elif any(c in address_lower for c in ['cavite', 'laguna', 'batangas', 'bulacan', 'pampanga', 'luzon']):
-            zone_name = 'North & South Luzon'
-            base_fee = 120
-            eligible = True
-            delivery_estimate = '2–3 business days'
-        elif any(c in address_lower for c in ['cebu', 'davao', 'iloilo', 'visayas', 'mindanao']):
-            zone_name = 'Visayas & Mindanao (VisMin)'
-            base_fee = 150
-            eligible = True
-            delivery_estimate = '4–6 business days'
-        else:
-            zone_name = 'Unserviceable or Remote Area'
-            base_fee = 0
-            eligible = False
-            delivery_estimate = 'N/A'
-
-        free_shipping = False
-        final_fee = base_fee
-        if eligible and subtotal >= 2500:
-            free_shipping = True
-            final_fee = 0
-
-        return Response({
-            'address': address,
-            'eligible': eligible,
-            'zone': zone_name,
-            'base_fee': base_fee,
-            'final_fee': final_fee,
-            'formatted_fee': f"₱{final_fee:,}" if not free_shipping else 'FREE (₱0)',
-            'free_shipping_applied': free_shipping,
-            'delivery_estimate': delivery_estimate,
-        })
+        return Response(
+            {
+                'error': 'Address-to-zone eligibility is not configured. No shipping quote was produced.',
+                'code': 'shipping_eligibility_unconfigured',
+            },
+            status=status.HTTP_501_NOT_IMPLEMENTED,
+        )
 
 
-class MerchantBannersAPIView(APIView):
+BANNER_PLACEMENT_ALIASES = {
+    'homepage hero': 'homepage_hero',
+    'homepage secondary': 'homepage_secondary',
+    'announcement bar': 'announcement_bar',
+    'category banner': 'category_banner',
+    'checkout footer': 'checkout_footer',
+}
+BANNER_PLACEMENTS = {value for value, _ in CmsHomepageBanner.PLACEMENT_CHOICES}
+
+
+def _clean_banner_text(value, field, max_length, required=False):
+    if not isinstance(value, str):
+        raise ValueError(f'{field} must be text.')
+    cleaned = value.strip()
+    if required and not cleaned:
+        raise ValueError(f'{field} is required.')
+    if len(cleaned) > max_length:
+        raise ValueError(f'{field} is too long.')
+    return cleaned
+
+
+def _clean_banner_url(value, field, max_length, allow_blank=False):
+    cleaned = _clean_banner_text(value, field, max_length, required=not allow_blank)
+    if not cleaned and allow_blank:
+        return ''
+    try:
+        parsed = urlsplit(cleaned)
+    except ValueError as error:
+        raise ValueError(f'{field} must be an internal path or HTTPS URL.') from error
+    is_internal = cleaned.startswith('/') and not cleaned.startswith('//')
+    is_https = parsed.scheme == 'https' and bool(parsed.hostname) and not parsed.username and not parsed.password
+    if not (is_internal or is_https):
+        raise ValueError(f'{field} must be an internal path or HTTPS URL.')
+    return cleaned
+
+
+def _parse_banner_datetime(value, field):
+    if value in (None, ''):
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f'{field} must be an ISO-8601 date and time.')
+    parsed = parse_datetime(value.strip())
+    if parsed is None:
+        raise ValueError(f'{field} must be an ISO-8601 date and time.')
+    if timezone.is_naive(parsed):
+        parsed = timezone.make_aware(parsed)
+    return parsed
+
+
+def _normalize_banner_placement(value):
+    cleaned = _clean_banner_text(value, 'placement', 64, required=True).lower()
+    normalized = BANNER_PLACEMENT_ALIASES.get(cleaned, cleaned.replace('-', '_').replace(' ', '_'))
+    if normalized not in BANNER_PLACEMENTS:
+        raise ValueError('Select a supported banner placement.')
+    return normalized
+
+
+def _banner_status(banner, now=None):
+    now = now or timezone.now()
+    if not banner.is_active:
+        return 'Draft'
+    if banner.starts_at and banner.starts_at > now:
+        return 'Scheduled'
+    if banner.ends_at and banner.ends_at <= now:
+        return 'Ended'
+    return 'Live'
+
+
+def _serialize_banner(banner):
+    state = _banner_status(banner)
+    if state == 'Scheduled':
+        schedule = banner.starts_at.isoformat()
+    elif state == 'Live' and banner.ends_at:
+        schedule = f'Until {banner.ends_at.isoformat()}'
+    elif state == 'Live':
+        schedule = 'Always on'
+    elif state == 'Ended':
+        schedule = f'Ended {banner.ends_at.isoformat()}'
+    else:
+        schedule = 'Not scheduled'
+    return {
+        'id': banner.id,
+        'title': banner.title,
+        'headline': banner.headline or banner.title,
+        'subtext': banner.subtext,
+        'button_label': banner.button_label,
+        'placement': banner.placement,
+        'placement_label': banner.get_placement_display(),
+        'placement_source': 'persisted',
+        'image_url': banner.image_url,
+        'link_url': banner.link_url,
+        'is_active': banner.is_active,
+        'status': state,
+        'schedule': schedule,
+        'starts_at': banner.starts_at.isoformat() if banner.starts_at else None,
+        'ends_at': banner.ends_at.isoformat() if banner.ends_at else None,
+        'order': banner.order,
+    }
+
+
+class MerchantBannersAPIView(MerchantAPIView):
     def get(self, request):
         banners = CmsHomepageBanner.objects.all().order_by('order')
-        if not banners.exists():
-            default_banners = [
-                {'title': 'Urban Style Redefined', 'image_url': '/assets/banners/hero.jpg', 'link_url': '/shop', 'is_active': True, 'order': 1},
-                {'title': 'Free shipping over ₱2,500', 'image_url': '/assets/banners/shipping.jpg', 'link_url': '/shipping', 'is_active': True, 'order': 2},
-                {'title': 'Weekend drop', 'image_url': '/assets/banners/weekend.jpg', 'link_url': '/drops/weekend', 'is_active': False, 'order': 3},
-                {'title': 'New season collection', 'image_url': '/assets/banners/fw26.jpg', 'link_url': '/collections/fw26', 'is_active': False, 'order': 4},
-                {'title': 'Member early access', 'image_url': '/assets/banners/vip.jpg', 'link_url': '/vip', 'is_active': False, 'order': 5},
-            ]
-            for b in default_banners:
-                CmsHomepageBanner.objects.create(**b)
-            banners = CmsHomepageBanner.objects.all().order_by('order')
 
-        data = [
-            {
-                'id': b.id,
-                'title': b.title,
-                'placement': 'Homepage hero' if b.order == 1 else ('Announcement bar' if b.order == 2 else 'Homepage secondary'),
-                'link_url': b.link_url,
-                'is_active': b.is_active,
-                'status': 'Live' if b.is_active else 'Draft',
-                'schedule': 'Always on' if b.is_active else 'Not scheduled',
-                'order': b.order,
-            }
-            for b in banners
-        ]
-        return Response(data)
+        return Response([_serialize_banner(banner) for banner in banners])
 
     def post(self, request):
-        title = request.data.get('title', '').strip()
-        link_url = request.data.get('link_url', '/shop').strip()
-        is_active = bool(request.data.get('is_active', False))
-        order = int(request.data.get('order', 1))
-
-        if not title:
-            return Response({'error': 'Banner title is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            title = _clean_banner_text(request.data.get('title', ''), 'title', 200, required=True)
+            headline = _clean_banner_text(request.data.get('headline', title), 'headline', 200, required=True)
+            subtext = _clean_banner_text(request.data.get('subtext', ''), 'subtext', 255)
+            button_label = _clean_banner_text(request.data.get('button_label', 'Shop Now'), 'button_label', 50)
+            placement = _normalize_banner_placement(request.data.get('placement', 'homepage_hero'))
+            link_url = _clean_banner_url(request.data.get('link_url', '/shop'), 'link_url', 200)
+            image_url = _clean_banner_url(request.data.get('image_url', ''), 'image_url', 254, allow_blank=True)
+            raw_order = request.data.get('order', 1)
+            if isinstance(raw_order, bool):
+                raise ValueError('order must be an integer from 0 to 32767.')
+            order = int(raw_order)
+            if order < 0 or order > 32767:
+                raise ValueError('order must be an integer from 0 to 32767.')
+            starts_at = _parse_banner_datetime(request.data.get('starts_at'), 'starts_at')
+            ends_at = _parse_banner_datetime(request.data.get('ends_at'), 'ends_at')
+            raw_state = request.data.get('status')
+            if raw_state is None:
+                is_active = _parse_boolean(request.data.get('is_active', False))
+                publication_state = 'live' if is_active else 'draft'
+            elif isinstance(raw_state, str) and raw_state.strip().lower() in {'draft', 'live', 'scheduled'}:
+                publication_state = raw_state.strip().lower()
+                is_active = publication_state != 'draft'
+            else:
+                raise ValueError('status must be Draft, Live, or Scheduled.')
+            if publication_state == 'scheduled' and (not starts_at or starts_at <= timezone.now()):
+                raise ValueError('A scheduled banner requires a future starts_at date and time.')
+            if publication_state == 'live':
+                starts_at = None
+            if publication_state == 'draft':
+                starts_at = None
+                ends_at = None
+            if ends_at and ends_at <= (starts_at or timezone.now()):
+                raise ValueError('ends_at must be later than the publication start.')
+        except (TypeError, ValueError) as error:
+            return Response({'error': str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
         banner = CmsHomepageBanner.objects.create(
             title=title,
-            image_url='/assets/banners/default.jpg',
+            headline=headline,
+            subtext=subtext,
+            button_label=button_label,
+            placement=placement,
+            image_url=image_url,
             link_url=link_url,
             is_active=is_active,
+            starts_at=starts_at,
+            ends_at=ends_at,
             order=order,
         )
-
-        return Response({
-            'id': banner.id,
-            'title': banner.title,
-            'link_url': banner.link_url,
-            'is_active': banner.is_active,
-            'status': 'Live' if banner.is_active else 'Draft',
-            'order': banner.order,
-        }, status=status.HTTP_201_CREATED)
+        return Response(_serialize_banner(banner), status=status.HTTP_201_CREATED)
 
 
-class MerchantBannerDetailAPIView(APIView):
+class MerchantBannerDetailAPIView(MerchantAPIView):
     def patch(self, request, pk):
         try:
             banner = CmsHomepageBanner.objects.get(pk=pk)
         except CmsHomepageBanner.DoesNotExist:
             return Response({'error': 'Banner not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        title = request.data.get('title')
-        link_url = request.data.get('link_url')
-        is_active = request.data.get('is_active')
-        order = request.data.get('order')
+        try:
+            data = request.data
+            if 'title' in data:
+                banner.title = _clean_banner_text(data['title'], 'title', 200, required=True)
+            if 'headline' in data:
+                banner.headline = _clean_banner_text(data['headline'], 'headline', 200, required=True)
+            if 'subtext' in data:
+                banner.subtext = _clean_banner_text(data['subtext'], 'subtext', 255)
+            if 'button_label' in data:
+                banner.button_label = _clean_banner_text(data['button_label'], 'button_label', 50)
+            if 'placement' in data:
+                banner.placement = _normalize_banner_placement(data['placement'])
+            if 'link_url' in data:
+                banner.link_url = _clean_banner_url(data['link_url'], 'link_url', 200)
+            if 'image_url' in data:
+                banner.image_url = _clean_banner_url(data['image_url'], 'image_url', 254, allow_blank=True)
+            if 'order' in data:
+                if isinstance(data['order'], bool):
+                    raise ValueError('order must be an integer from 0 to 32767.')
+                banner.order = int(data['order'])
+                if banner.order < 0 or banner.order > 32767:
+                    raise ValueError('order must be an integer from 0 to 32767.')
+            if 'starts_at' in data:
+                banner.starts_at = _parse_banner_datetime(data['starts_at'], 'starts_at')
+            if 'ends_at' in data:
+                banner.ends_at = _parse_banner_datetime(data['ends_at'], 'ends_at')
 
-        if title is not None:
-            banner.title = title.strip()
-        if link_url is not None:
-            banner.link_url = link_url.strip()
-        if is_active is not None:
-            banner.is_active = bool(is_active)
-        if order is not None:
-            banner.order = int(order)
+            raw_state = data.get('status')
+            if raw_state is not None:
+                if not isinstance(raw_state, str) or raw_state.strip().lower() not in {'draft', 'live', 'scheduled'}:
+                    raise ValueError('status must be Draft, Live, or Scheduled.')
+                publication_state = raw_state.strip().lower()
+                banner.is_active = publication_state != 'draft'
+                if publication_state == 'draft':
+                    banner.starts_at = None
+                    banner.ends_at = None
+                elif publication_state == 'live':
+                    banner.starts_at = None
+            elif 'is_active' in data:
+                banner.is_active = _parse_boolean(data['is_active'])
+                if not banner.is_active:
+                    banner.starts_at = None
+                    banner.ends_at = None
+
+            effective_state = _banner_status(banner)
+            if raw_state is not None and raw_state.strip().lower() == 'scheduled':
+                if not banner.starts_at or banner.starts_at <= timezone.now():
+                    raise ValueError('A scheduled banner requires a future starts_at date and time.')
+            schedule_changed = bool({'status', 'is_active', 'starts_at', 'ends_at'} & set(data))
+            if schedule_changed and banner.ends_at and banner.ends_at <= (banner.starts_at or timezone.now()):
+                raise ValueError('ends_at must be later than the publication start.')
+            if schedule_changed and effective_state == 'Ended' and raw_state is not None:
+                raise ValueError('A published banner cannot end in the past.')
+        except (TypeError, ValueError) as error:
+            return Response({'error': str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
         banner.save()
-
-        return Response({
-            'id': banner.id,
-            'title': banner.title,
-            'link_url': banner.link_url,
-            'is_active': banner.is_active,
-            'status': 'Live' if banner.is_active else 'Draft',
-            'order': banner.order,
-            'message': f'Banner "{banner.title}" updated successfully.',
-        })
+        response = _serialize_banner(banner)
+        response['message'] = f'Banner "{banner.title}" updated successfully.'
+        return Response(response)
 
     def delete(self, request, pk):
         try:
@@ -1148,4 +1189,3 @@ class MerchantBannerDetailAPIView(APIView):
             return Response({'message': 'Banner deleted successfully.'})
         except CmsHomepageBanner.DoesNotExist:
             return Response({'error': 'Banner not found.'}, status=status.HTTP_404_NOT_FOUND)
-

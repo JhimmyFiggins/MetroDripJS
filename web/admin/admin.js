@@ -1,32 +1,74 @@
-// Administrator Console Controller
-// Interacts with /api/admin/ endpoints with graceful fallback to seeded Figma state.
+// Administrator dashboard: authenticated API data with explicit loading, empty, and failure states.
 (() => {
   const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://127.0.0.1:8000/api/admin'
     : '/api/admin';
+  const SESSION_KEY = 'metrodrip_active_user';
+  const ADMIN_LOGIN_URL = '../Registration/screens/AdminLoginScreen.html';
 
-  // --- Utility: HTML-safe text helper (XSS prevention) ---
-  function escapeHtml(str) {
+  let users = [];
+  let auditEvents = [];
+  let dashboardLoaded = false;
+  let loadGeneration = 0;
+
+  function escapeHtml(value) {
     const div = document.createElement('div');
-    div.appendChild(document.createTextNode(str));
+    div.appendChild(document.createTextNode(String(value ?? '')));
     return div.innerHTML;
   }
 
-  // State
-  let users = [
-    { id: 1, email: 'juan@email.com', name: 'Juan Dela Cruz', role: 'customer', status: 'Active' },
-    { id: 2, email: 'bea@email.com', name: 'Bea Santos', role: 'customer', status: 'Active' },
-    { id: 3, email: 'merch@metrodrip.ph', name: 'Store Merchant', role: 'merchant', status: 'Active' },
-    { id: 4, email: 'spam@x.com', name: 'Flagged User', role: 'customer', status: 'Suspended' },
-  ];
+  function activeAdminSession() {
+    try {
+      const session = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null');
+      const role = String(session?.role || '').toLowerCase();
+      const token = session?.access_token || session?.token || '';
+      return token && session?.is_staff === true && ['admin', 'administrator'].includes(role)
+        ? { ...session, token }
+        : null;
+    } catch {
+      return null;
+    }
+  }
 
-  let auditEvents = [
-    { id: 1, when: '09:41', actor: 'Admin User', action: 'Suspended customer #1042' },
-    { id: 2, when: '09:12', actor: 'Admin User', action: 'Updated NCR shipping fee → ₱85' },
-    { id: 3, when: '08:55', actor: 'Store Merchant', action: 'Approved review #318' },
-    { id: 4, when: '08:30', actor: 'Admin User', action: 'Granted merchant role → R. Carlos' },
-    { id: 5, when: '08:02', actor: 'System', action: 'Nightly backup verified' },
-  ];
+  async function responseError(response, fallback) {
+    let message = fallback;
+    try {
+      const data = await response.json();
+      message = data?.error?.message || data?.error || data?.detail || fallback;
+    } catch {
+      // Use the status-specific fallback when the server did not return JSON.
+    }
+    const error = new Error(message);
+    error.status = response.status;
+    return error;
+  }
+
+  async function authorizedFetch(path, options = {}) {
+    const session = activeAdminSession();
+    if (!session) {
+      const error = new Error('Sign in with an administrator account to use this console.');
+      error.status = 401;
+      throw error;
+    }
+
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${session.token}`,
+        ...(options.headers || {}),
+      },
+    });
+    if (!response.ok) {
+      throw await responseError(response, `Request failed with status ${response.status}.`);
+    }
+    return response;
+  }
+
+  async function requestJson(path, options = {}) {
+    const response = await authorizedFetch(path, options);
+    return response.status === 204 ? null : response.json();
+  }
 
   function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');
@@ -41,104 +83,253 @@
     }, 3500);
   }
 
+  function ensureStateBanner() {
+    let banner = document.getElementById('admin-dashboard-state');
+    if (banner) return banner;
+
+    banner = document.createElement('section');
+    banner.id = 'admin-dashboard-state';
+    banner.className = 'console-state-banner is-info';
+    banner.hidden = true;
+    banner.innerHTML = `
+      <div class="console-state-copy">
+        <p class="console-state-eyebrow" data-state-eyebrow>STATUS</p>
+        <strong class="console-state-title" data-state-title></strong>
+        <p class="console-state-message" data-state-message></p>
+      </div>
+      <div class="console-state-actions">
+        <button type="button" class="btn btn-secondary btn-sm" data-state-retry hidden>Try again</button>
+        <a class="btn btn-primary btn-sm" data-state-signin href="${ADMIN_LOGIN_URL}" hidden>Administrator sign in</a>
+      </div>`;
+
+    const main = document.querySelector('.console-main');
+    const header = main?.querySelector('.console-header');
+    if (main && header) header.insertAdjacentElement('afterend', banner);
+    banner.querySelector('[data-state-retry]')?.addEventListener('click', loadInitialData);
+    return banner;
+  }
+
+  function setPageState(kind, title = '', message = '', options = {}) {
+    const banner = ensureStateBanner();
+    if (kind === 'ready') {
+      banner.hidden = true;
+      return;
+    }
+
+    const tone = kind === 'permission' ? 'warning' : kind;
+    banner.hidden = false;
+    banner.className = `console-state-banner is-${tone === 'loading' ? 'info' : tone}`;
+    banner.setAttribute('role', kind === 'error' || kind === 'permission' ? 'alert' : 'status');
+    banner.querySelector('[data-state-eyebrow]').textContent = options.eyebrow || (kind === 'permission' ? 'ACCESS REQUIRED' : kind.toUpperCase());
+    banner.querySelector('[data-state-title]').textContent = title;
+    banner.querySelector('[data-state-message]').textContent = message;
+    banner.querySelector('[data-state-retry]').hidden = !options.retry;
+    banner.querySelector('[data-state-signin]').hidden = !options.signIn;
+  }
+
+  function setTableState(tbodyId, columns, kind, title, message) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+    tbody.setAttribute('aria-busy', kind === 'loading' ? 'true' : 'false');
+    if (kind === 'loading') {
+      tbody.innerHTML = `
+        <tr class="table-state-row table-loading-row">
+          <td colspan="${columns}">
+            <div class="skeleton-stack" aria-hidden="true">
+              <span class="skeleton-line is-wide"></span>
+              <span class="skeleton-line"></span>
+              <span class="skeleton-line is-wide"></span>
+            </div>
+            <span class="sr-only">${escapeHtml(message)}</span>
+          </td>
+        </tr>`;
+      return;
+    }
+    tbody.innerHTML = `
+      <tr class="table-state-row">
+        <td colspan="${columns}">
+          <div class="table-state">
+            <strong>${escapeHtml(title)}</strong>
+            <span>${escapeHtml(message)}</span>
+          </div>
+        </td>
+      </tr>`;
+  }
+
+  function setMutationEnabled(enabled) {
+    ['btn-open-add-user', 'btn-submit-add-user', 'btn-export-csv', 'btn-save-shipping-zones']
+      .forEach((id) => {
+        const control = document.getElementById(id);
+        if (control) control.disabled = !enabled;
+      });
+    document.querySelectorAll('.btn-toggle-status').forEach((button) => {
+      button.disabled = !enabled;
+    });
+  }
+
+  function setMetric(id, value, detail) {
+    const valueEl = document.getElementById(id);
+    if (!valueEl) return;
+    valueEl.textContent = value;
+    const detailEl = valueEl.closest('.stat-card')?.querySelector('.stat-subtext');
+    if (detailEl && detail !== undefined) detailEl.textContent = detail;
+  }
+
+  function resetMetrics() {
+    setMetric('metric-total-customers', '—', 'Waiting for live data');
+    setMetric('metric-staff-accounts', '—', 'Waiting for live data');
+    setMetric('metric-suspended-count', '—', 'Waiting for live data');
+    setMetric('metric-audit-events', '—', 'Waiting for live data');
+    const usersWorkspace = document.getElementById('workspace-metric-users');
+    const auditWorkspace = document.getElementById('workspace-metric-audit');
+    if (usersWorkspace) usersWorkspace.textContent = 'Live data unavailable';
+    if (auditWorkspace) auditWorkspace.textContent = 'Live data unavailable';
+    const auditBadge = document.getElementById('sidebar-audit-count');
+    if (auditBadge) auditBadge.textContent = '—';
+  }
+
+  function renderMetrics(metrics = {}) {
+    const total = Number(metrics.total_customers ?? 0);
+    const staff = Number(metrics.staff_accounts ?? 0);
+    const suspended = Number(metrics.suspended_count ?? 0);
+    const audit = Number(metrics.audit_events_24h ?? 0);
+    setMetric('metric-total-customers', total.toLocaleString(), metrics.weekly_delta || 'No weekly change reported');
+    setMetric('metric-staff-accounts', staff.toLocaleString(), metrics.staff_breakdown || 'Staff breakdown unavailable');
+    setMetric('metric-suspended-count', suspended.toLocaleString(), suspended ? 'Requires review' : 'No suspended accounts');
+    setMetric('metric-audit-events', audit.toLocaleString(), 'Recorded in the last 24 hours');
+    const usersWorkspace = document.getElementById('workspace-metric-users');
+    const auditWorkspace = document.getElementById('workspace-metric-audit');
+    const auditBadge = document.getElementById('sidebar-audit-count');
+    if (usersWorkspace) usersWorkspace.textContent = `${total.toLocaleString()} customer${total === 1 ? '' : 's'}`;
+    if (auditWorkspace) auditWorkspace.textContent = `${audit.toLocaleString()} event${audit === 1 ? '' : 's'} today`;
+    if (auditBadge) auditBadge.textContent = audit.toLocaleString();
+  }
+
+  function normalizeUser(raw) {
+    return {
+      id: Number(raw.id),
+      email: String(raw.email || 'Email not reported'),
+      name: String(raw.name || 'Unnamed account'),
+      role: String(raw.role || 'customer'),
+      status: String(raw.status || (raw.is_active === false ? 'Suspended' : 'Active')),
+    };
+  }
+
   function renderUsers() {
     const tbody = document.getElementById('users-tbody');
     if (!tbody) return;
-    tbody.innerHTML = users.map((u) => `
-      <tr data-user-id="${u.id}">
-        <td class="td-mono">${escapeHtml(u.email)}</td>
-        <td class="td-strong">${escapeHtml(u.name)}</td>
-        <td class="td-mono td-muted">${escapeHtml(u.role)}</td>
-        <td>
-          <span class="status-pill ${u.status.toLowerCase()}">${u.status}</span>
-        </td>
-        <td>
-          <button type="button" class="btn btn-secondary btn-sm btn-toggle-status" data-user-id="${u.id}" data-action="${u.status === 'Active' ? 'suspend' : 'activate'}">
-            ${u.status === 'Active' ? 'Suspend' : 'Activate'}
-          </button>
-        </td>
-      </tr>
-    `).join('');
-
-    // Rebind toggle events via delegation is handled below
-    updateMetrics();
-  }
-
-  function updateMetrics() {
-    const suspendedCount = users.filter((u) => u.status === 'Suspended').length;
-    const activeCount = users.filter((u) => u.status === 'Active').length;
-    const suspendedEl = document.getElementById('metric-suspended-count');
-    const totalEl = document.getElementById('metric-total-customers');
-    const staffEl = document.getElementById('metric-staff-accounts');
-    if (suspendedEl) suspendedEl.textContent = suspendedCount;
-    // Update total count if new users added
-    if (totalEl && totalEl.dataset.baseSet !== 'api') {
-      totalEl.textContent = users.length.toLocaleString();
+    tbody.setAttribute('aria-busy', 'false');
+    if (!users.length) {
+      setTableState('users-tbody', 5, 'empty', 'No accounts found', 'Accounts created through the administrator API will appear here.');
+      return;
     }
+    tbody.innerHTML = users.map((user) => {
+      const active = user.status.toLowerCase() === 'active';
+      return `
+        <tr data-user-id="${user.id}">
+          <td class="td-mono">${escapeHtml(user.email)}</td>
+          <td class="td-strong">${escapeHtml(user.name)}</td>
+          <td class="td-mono td-muted">${escapeHtml(user.role)}</td>
+          <td><span class="status-pill ${active ? 'active' : 'suspended'}">${escapeHtml(user.status)}</span></td>
+          <td>
+            <button type="button" class="btn btn-secondary btn-sm btn-toggle-status" data-user-id="${user.id}">
+              ${active ? 'Suspend' : 'Activate'}
+            </button>
+          </td>
+        </tr>`;
+    }).join('');
   }
 
   function renderAuditTrail() {
     const tbody = document.getElementById('audit-tbody');
     if (!tbody) return;
-    tbody.innerHTML = auditEvents.map((ev) => `
+    tbody.setAttribute('aria-busy', 'false');
+    if (!auditEvents.length) {
+      setTableState('audit-tbody', 3, 'empty', 'No audit events', 'Server-recorded administrative actions will appear here.');
+      return;
+    }
+    tbody.innerHTML = auditEvents.map((event) => `
       <tr>
-        <td class="td-mono td-muted">${escapeHtml(ev.when)}</td>
-        <td class="td-strong">${escapeHtml(ev.actor)}</td>
-        <td>${escapeHtml(ev.action)}</td>
-      </tr>
-    `).join('');
-
-    const auditBadge = document.getElementById('sidebar-audit-count');
-    const auditMetric = document.getElementById('metric-audit-events');
-    if (auditBadge) auditBadge.textContent = auditEvents.length;
-    if (auditMetric) auditMetric.textContent = auditEvents.length;
+        <td class="td-mono td-muted">${escapeHtml(event.when || 'Time not reported')}</td>
+        <td class="td-strong">${escapeHtml(event.actor || 'Actor not reported')}</td>
+        <td>${escapeHtml(event.action || 'Action not reported')}</td>
+      </tr>`).join('');
   }
 
-  function logAuditEvent(action, actor = 'Admin User') {
-    const now = new Date();
-    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    auditEvents.unshift({
-      id: Date.now(),
-      when: timeStr,
-      actor,
-      action,
-    });
-    renderAuditTrail();
+  function showDashboardFailure(error) {
+    dashboardLoaded = false;
+    users = [];
+    auditEvents = [];
+    resetMetrics();
+    setMutationEnabled(false);
+    const permissionFailure = error?.status === 401 || error?.status === 403;
+    setTableState('users-tbody', 5, 'error', permissionFailure ? 'Administrator access required' : 'Accounts unavailable', error.message);
+    setTableState('audit-tbody', 3, 'error', permissionFailure ? 'Administrator access required' : 'Audit trail unavailable', error.message);
+    setPageState(
+      permissionFailure ? 'permission' : 'error',
+      permissionFailure ? 'Administrator access required' : 'Live administration data could not be loaded',
+      error.message,
+      { retry: !permissionFailure, signIn: permissionFailure },
+    );
   }
 
-  async function toggleUserStatus(userId) {
-    const user = users.find((u) => u.id === userId);
-    if (!user) return;
+  async function loadInitialData() {
+    const generation = ++loadGeneration;
+    dashboardLoaded = false;
+    users = [];
+    auditEvents = [];
+    resetMetrics();
+    setMutationEnabled(false);
+    setTableState('users-tbody', 5, 'loading', '', 'Loading user accounts');
+    setTableState('audit-tbody', 3, 'loading', '', 'Loading audit trail');
+    setPageState('loading', 'Loading live administration data', 'Metrics, accounts, and audit events are being requested from the server.');
 
-    const newStatus = user.status === 'Active' ? 'Suspended' : 'Active';
-    user.status = newStatus;
-
-    // Try backend PATCH if available
     try {
-      await fetch(`${API_BASE}/users/${userId}/`, {
+      const data = await requestJson('/dashboard/');
+      if (generation !== loadGeneration) return;
+      users = Array.isArray(data?.users) ? data.users.map(normalizeUser) : [];
+      auditEvents = Array.isArray(data?.audit_trail) ? data.audit_trail : [];
+      renderMetrics(data?.metrics || {});
+      renderUsers();
+      renderAuditTrail();
+      dashboardLoaded = true;
+      setMutationEnabled(true);
+      setPageState('ready');
+    } catch (error) {
+      if (generation !== loadGeneration) return;
+      showDashboardFailure(error);
+    }
+  }
+
+  async function toggleUserStatus(userId, button) {
+    const user = users.find((item) => item.id === userId);
+    if (!user || !dashboardLoaded) return;
+    const isActive = user.status.toLowerCase() === 'active';
+    button.disabled = true;
+    try {
+      await requestJson(`/users/${userId}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: newStatus === 'Active' }),
+        body: JSON.stringify({ is_active: !isActive }),
       });
-    } catch {
-      // Offline fallback
+      await loadInitialData();
+      showToast(`Account ${user.name} is now ${isActive ? 'suspended' : 'active'}.`);
+    } catch (error) {
+      button.disabled = false;
+      setPageState(error.status === 401 || error.status === 403 ? 'permission' : 'error', 'Account status was not changed', error.message, {
+        signIn: error.status === 401 || error.status === 403,
+      });
+      showToast(error.message, 'error');
     }
-
-    logAuditEvent(`${newStatus === 'Suspended' ? 'Suspended' : 'Reactivated'} account ${user.email}`);
-    renderUsers();
-    showToast(`Account ${user.name} is now ${newStatus.toLowerCase()}.`);
   }
 
-  // --- Event Delegation for User Table (avoids re-binding on render) ---
   const usersTable = document.getElementById('users-tbody');
-  usersTable?.addEventListener('click', (e) => {
-    const btn = e.target.closest('.btn-toggle-status');
-    if (!btn) return;
-    const id = parseInt(btn.dataset.userId, 10);
-    toggleUserStatus(id);
+  usersTable?.addEventListener('click', (event) => {
+    const button = event.target.closest('.btn-toggle-status');
+    if (!button) return;
+    toggleUserStatus(Number(button.dataset.userId), button);
   });
 
-  // --- Modal setup ---
   const modal = document.getElementById('modal-add-user');
   const btnOpenModal = document.getElementById('btn-open-add-user');
   const btnCloseModal = document.getElementById('btn-close-modal');
@@ -146,217 +337,190 @@
   const formAddUser = document.getElementById('form-add-user');
 
   function openModal() {
-    if (modal) {
-      modal.hidden = false;
-      document.getElementById('add-user-name')?.focus();
-    }
+    if (!modal || !dashboardLoaded) return;
+    modal.hidden = false;
+    document.getElementById('add-user-name')?.focus();
   }
 
   function closeModal() {
-    if (modal) {
-      modal.hidden = true;
-      formAddUser?.reset();
-      // Return focus to the trigger button
-      btnOpenModal?.focus();
-    }
+    if (!modal) return;
+    modal.hidden = true;
+    formAddUser?.reset();
+    btnOpenModal?.focus();
   }
 
   btnOpenModal?.addEventListener('click', openModal);
   btnCloseModal?.addEventListener('click', closeModal);
   btnCancelModal?.addEventListener('click', closeModal);
-  modal?.addEventListener('click', (e) => {
-    if (e.target === modal) closeModal();
+  modal?.addEventListener('click', (event) => {
+    if (event.target === modal) closeModal();
   });
 
-  formAddUser?.addEventListener('submit', async (e) => {
-    e.preventDefault();
+  formAddUser?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!dashboardLoaded) return;
     const formData = new FormData(formAddUser);
-    const newUser = {
-      id: Date.now(),
-      name: formData.get('name').trim(),
-      email: formData.get('email').trim(),
-      role: formData.get('role'),
-      status: 'Active',
-    };
+    const name = String(formData.get('name') || '').trim();
+    const email = String(formData.get('email') || '').trim();
+    const role = String(formData.get('role') || 'customer');
+    const phone = String(formData.get('phone') || '').trim();
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    if (!newUser.name || !newUser.email) {
+    if (!name || !email) {
       showToast('Name and email are required.', 'error');
       return;
     }
-
-    // Basic email format validation
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailPattern.test(newUser.email)) {
+    if (!emailPattern.test(email)) {
       showToast('Please enter a valid email address.', 'error');
       return;
     }
-
-    // Duplicate email check
-    if (users.some((u) => u.email.toLowerCase() === newUser.email.toLowerCase())) {
+    if (users.some((user) => user.email.toLowerCase() === email.toLowerCase())) {
       showToast('An account with this email already exists.', 'error');
       return;
     }
 
+    const submit = document.getElementById('btn-submit-add-user');
+    if (submit) submit.disabled = true;
     try {
-      const res = await fetch(`${API_BASE}/users/`, {
+      await requestJson('/users/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newUser.name,
-          email: newUser.email,
-          role: newUser.role,
-          phone: formData.get('phone') || '',
-        }),
+        body: JSON.stringify({ name, email, role, phone }),
       });
-      if (res.ok) {
-        const created = await res.json();
-        newUser.id = created.id;
-      }
-    } catch {
-      // Offline fallback
+      closeModal();
+      await loadInitialData();
+      showToast(`Successfully created the ${role} account for ${name}.`);
+    } catch (error) {
+      if (submit) submit.disabled = false;
+      setPageState(error.status === 401 || error.status === 403 ? 'permission' : 'error', 'Account was not created', error.message, {
+        signIn: error.status === 401 || error.status === 403,
+      });
+      showToast(error.message, 'error');
     }
-
-    users.unshift(newUser);
-    logAuditEvent(`Created ${newUser.role} account → ${newUser.name}`);
-    renderUsers();
-    closeModal();
-    showToast(`Successfully created ${newUser.role} account for ${newUser.name}.`);
   });
 
-  // --- Export CSV ---
-  const btnExport = document.getElementById('btn-export-csv');
-  btnExport?.addEventListener('click', () => {
-    const headers = ['ID', 'Email', 'Name', 'Role', 'Status'];
-    const rows = users.map((u) => [u.id, `"${u.email}"`, `"${u.name}"`, u.role, u.status]);
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `metrodrip_users_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-    showToast('Exported users to CSV.');
-    logAuditEvent('Exported customer & staff directory to CSV');
+  document.getElementById('btn-export-csv')?.addEventListener('click', async () => {
+    if (!dashboardLoaded) {
+      showToast('Load live administration data before exporting users.', 'error');
+      return;
+    }
+    const button = document.getElementById('btn-export-csv');
+    button.disabled = true;
+    try {
+      const response = await authorizedFetch('/export-users/', { headers: { Accept: 'text/csv' } });
+      const csvContent = await response.text();
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `metrodrip_users_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      await loadInitialData();
+      showToast('Exported the live user directory to CSV.');
+    } catch (error) {
+      button.disabled = false;
+      setPageState(error.status === 401 || error.status === 403 ? 'permission' : 'error', 'Users were not exported', error.message, {
+        signIn: error.status === 401 || error.status === 403,
+      });
+      showToast(error.message, 'error');
+    }
   });
 
-  // --- Shipping Zones Manager Modal ---
   const modalShipping = document.getElementById('modal-shipping-zones');
   const btnCloseShipping = document.getElementById('btn-close-shipping-zones');
   const btnCancelShipping = document.getElementById('btn-cancel-shipping-zones');
   const formShipping = document.getElementById('form-shipping-zones');
 
-  async function openShippingZonesModal() {
-    if (!modalShipping) return;
-
-    try {
-      const res = await fetch(`${API_BASE}/shipping-zones/`);
-      if (res.ok) {
-        const zones = await res.json();
-        zones.forEach((z) => {
-          const input = document.getElementById(`fee-zone-${z.id}`) || document.querySelector(`input[name="zone_${z.id}"]`);
-          if (input) input.value = z.fee;
-        });
-      }
-    } catch {
-      // Offline fallback
-    }
-
-    modalShipping.hidden = false;
-    document.getElementById('fee-zone-1')?.focus();
-  }
-
   function closeShippingZonesModal() {
     if (modalShipping) modalShipping.hidden = true;
   }
 
-  btnCloseShipping?.addEventListener('click', closeShippingZonesModal);
-  btnCancelShipping?.addEventListener('click', closeShippingZonesModal);
-  modalShipping?.addEventListener('click', (e) => {
-    if (e.target === modalShipping) closeShippingZonesModal();
-  });
-
-  formShipping?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const fee1 = parseInt(document.getElementById('fee-zone-1')?.value || '85', 10);
-    const fee2 = parseInt(document.getElementById('fee-zone-2')?.value || '120', 10);
-    const fee3 = parseInt(document.getElementById('fee-zone-3')?.value || '150', 10);
-
-    const updates = [
-      { id: 1, name: 'NCR', fee: fee1 },
-      { id: 2, name: 'Luzon', fee: fee2 },
-      { id: 3, name: 'VisMin', fee: fee3 },
-    ];
-
-    for (const u of updates) {
-      try {
-        await fetch(`${API_BASE}/shipping-zones/${u.id}/`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fee: u.fee }),
-        });
-      } catch {
-        // Offline fallback
-      }
-    }
-
-    logAuditEvent(`Updated shipping fees → NCR: ₱${fee1}, Luzon: ₱${fee2}, VisMin: ₱${fee3}`);
-    closeShippingZonesModal();
-    showToast('Regional shipping rates successfully updated.');
-  });
-
-  // --- Escape key handler ---
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      if (modal && !modal.hidden) closeModal();
-      if (modalShipping && !modalShipping.hidden) closeShippingZonesModal();
-    }
-  });
-
-  // --- Navigation Links ---
-  document.querySelectorAll('.nav-item').forEach((item) => {
-    item.addEventListener('click', (e) => {
-      document.querySelectorAll('.nav-item').forEach((nav) => nav.classList.remove('is-active'));
-      item.classList.add('is-active');
-
-      const tab = item.dataset.tab || item.getAttribute('href')?.replace('#', '');
-      if (tab === 'shipping') {
-        openShippingZonesModal();
-      }
+  async function openShippingZonesModal() {
+    if (!modalShipping) return;
+    const inputs = Array.from(formShipping?.querySelectorAll('input[type="number"]') || []);
+    inputs.forEach((input) => {
+      input.value = '';
+      input.disabled = true;
     });
-  });
+    const saveButton = document.getElementById('btn-save-shipping-zones');
+    if (saveButton) saveButton.disabled = true;
+    modalShipping.hidden = false;
+    setPageState('loading', 'Loading shipping rates', 'Current rates are being requested from the server.');
 
-  // --- Initial fetch from backend if running ---
-  async function loadInitialData() {
     try {
-      const res = await fetch(`${API_BASE}/dashboard/`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.metrics) {
-          const totalEl = document.getElementById('metric-total-customers');
-          if (totalEl) {
-            totalEl.textContent = data.metrics.total_customers.toLocaleString();
-            totalEl.dataset.baseSet = 'api';
-          }
-          document.getElementById('metric-staff-accounts').textContent = data.metrics.staff_accounts;
-          document.getElementById('metric-suspended-count').textContent = data.metrics.suspended_count;
-          document.getElementById('metric-audit-events').textContent = data.metrics.audit_events_24h;
-        }
-        if (data.users && data.users.length) {
-          users = data.users;
-          renderUsers();
-        }
-        if (data.audit_trail && data.audit_trail.length) {
-          auditEvents = data.audit_trail;
-          renderAuditTrail();
-        }
+      const zones = await requestJson('/shipping-zones/');
+      if (!Array.isArray(zones) || !zones.length) {
+        throw new Error('No shipping zones were returned by the server.');
       }
-    } catch {
-      // Backend not running yet or offline; fallback to pre-seeded Figma data
-      renderUsers();
-      renderAuditTrail();
+      zones.forEach((zone) => {
+        const input = document.getElementById(`fee-zone-${zone.id}`) || document.querySelector(`input[name="zone_${zone.id}"]`);
+        if (input) input.value = zone.fee;
+      });
+      inputs.forEach((input) => { input.disabled = false; });
+      if (saveButton) saveButton.disabled = false;
+      setPageState('ready');
+      inputs[0]?.focus();
+    } catch (error) {
+      closeShippingZonesModal();
+      setPageState(error.status === 401 || error.status === 403 ? 'permission' : 'error', 'Shipping rates could not be loaded', error.message, {
+        signIn: error.status === 401 || error.status === 403,
+      });
+      showToast(error.message, 'error');
     }
   }
+
+  btnCloseShipping?.addEventListener('click', closeShippingZonesModal);
+  btnCancelShipping?.addEventListener('click', closeShippingZonesModal);
+  modalShipping?.addEventListener('click', (event) => {
+    if (event.target === modalShipping) closeShippingZonesModal();
+  });
+
+  formShipping?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const updates = [1, 2, 3].map((id) => ({
+      id,
+      fee: Number(document.getElementById(`fee-zone-${id}`)?.value),
+    }));
+    if (updates.some((update) => !Number.isFinite(update.fee) || update.fee < 0)) {
+      showToast('Enter a valid non-negative fee for every shipping zone.', 'error');
+      return;
+    }
+
+    const saveButton = document.getElementById('btn-save-shipping-zones');
+    if (saveButton) saveButton.disabled = true;
+    try {
+      await Promise.all(updates.map((update) => requestJson(`/shipping-zones/${update.id}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fee: update.fee }),
+      })));
+      closeShippingZonesModal();
+      await loadInitialData();
+      showToast('Regional shipping rates were updated by the server.');
+    } catch (error) {
+      if (saveButton) saveButton.disabled = false;
+      setPageState(error.status === 401 || error.status === 403 ? 'permission' : 'error', 'Shipping rates were not fully updated', error.message, {
+        signIn: error.status === 401 || error.status === 403,
+      });
+      showToast(error.message, 'error');
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (modal && !modal.hidden) closeModal();
+    if (modalShipping && !modalShipping.hidden) closeShippingZonesModal();
+  });
+
+  document.querySelectorAll('.nav-item').forEach((item) => {
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.nav-item').forEach((nav) => nav.classList.remove('is-active'));
+      item.classList.add('is-active');
+      const tab = item.dataset.tab || item.getAttribute('href')?.replace('#', '');
+      if (tab === 'shipping') openShippingZonesModal();
+    });
+  });
 
   loadInitialData();
 })();

@@ -5,6 +5,18 @@
     ? 'http://127.0.0.1:8000/api/merchant'
     : '/api/merchant';
 
+  function requestHeaders() {
+    try {
+      const session = JSON.parse(sessionStorage.getItem('metrodrip_active_user') || 'null');
+      return {
+        Accept: 'application/json',
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      };
+    } catch {
+      return { Accept: 'application/json' };
+    }
+  }
+
   // --- Utility: HTML-safe text escaping (XSS prevention) ---
   function escapeHtml(str) {
     if (str === null || str === undefined) return '';
@@ -26,70 +38,6 @@
       setTimeout(() => toast.remove(), 250);
     }, 3800);
   }
-
-  // --- Offline / Figma Seed Data ---
-  const SEED_DATA = {
-    period: 'Sep 13–19, 2026',
-    comparison_period: 'previous 7 days',
-    currency: 'PHP',
-    timezone: 'Asia/Manila',
-    kpis: {
-      net_sales: {
-        value: 248600,
-        formatted: '₱248,600',
-        growth: '+18.0%',
-        growth_direction: 'up',
-        prior_formatted: '₱210,678'
-      },
-      orders: {
-        value: 200,
-        growth: '+11.1%',
-        growth_direction: 'up'
-      },
-      net_units_sold: {
-        value: 320,
-        growth: '+14.3%',
-        growth_direction: 'up'
-      },
-      purchase_session_rate: {
-        value: '2.50%',
-        growth: '+0.25 pp',
-        growth_direction: 'up'
-      }
-    },
-    sales_over_time: {
-      labels: ['13 Sep', '14 Sep', '15 Sep', '16 Sep', '17 Sep', '18 Sep', '19 Sep'],
-      current_period: [26000, 29000, 28000, 36000, 33000, 41000, 48000],
-      previous_period: [23000, 25000, 27000, 29000, 31000, 33000, 35000],
-      summary: '₱248,600 net sales · ↑ 18.0% vs ₱210,678'
-    },
-    best_sellers: [
-      { name: 'Drip Zip-Up Hoodie', net_sales: 96000, formatted_sales: '₱96,000', bar_percentage: 100 },
-      { name: 'Metro Core Boxy Tee', net_sales: 74000, formatted_sales: '₱74,000', bar_percentage: 77.1 },
-      { name: 'Metro Straight-Cut Jeans', net_sales: 45000, formatted_sales: '₱45,000', bar_percentage: 46.9 }
-    ],
-    raw_products: [
-      { name: 'Drip Zip-Up Hoodie', category: 'tops', net_units: 80, net_sales: 96000, formatted_sales: '₱96,000', views: 2400, added_to_cart: 300, growth: '+33.3%', growth_direction: 'up' },
-      { name: 'Metro Core Boxy Tee', category: 'tops', net_units: 120, net_sales: 74000, formatted_sales: '₱74,000', views: 3800, added_to_cart: 420, growth: '+20.0%', growth_direction: 'up' },
-      { name: 'Metro Straight-Cut Jeans', category: 'bottoms', net_units: 45, net_sales: 45000, formatted_sales: '₱45,000', views: 1600, added_to_cart: 160, growth: '-10.0%', growth_direction: 'down' },
-      { name: 'Metro Snapback', category: 'accessories', net_units: 50, net_sales: 24600, formatted_sales: '₱24,600', views: 1800, added_to_cart: 210, growth: '+100.0%', growth_direction: 'up' },
-      { name: 'Drip Crew Socks 3-Pack', category: 'accessories', net_units: 25, net_sales: 9000, formatted_sales: '₱9,000', views: 800, added_to_cart: 110, growth: '-44.4%', growth_direction: 'down' }
-    ],
-    trending_products: [
-      { name: 'Metro Snapback', prior_units: 25, current_units: 50, growth: '+100.0%', growth_direction: 'up' },
-      { name: 'Drip Zip-Up Hoodie', prior_units: 60, current_units: 80, growth: '+33.3%', growth_direction: 'up' },
-      { name: 'Metro Core Boxy Tee', prior_units: 100, current_units: 120, growth: '+20.0%', growth_direction: 'up' }
-    ],
-    user_interactions: {
-      total_sessions: 8000,
-      funnel: [
-        { action: 'Product viewed', count: 6000, percentage: 75.0, bar_width: 75 },
-        { action: 'Added to cart', count: 800, percentage: 10.0, bar_width: 10 },
-        { action: 'Checkout started', count: 400, percentage: 5.0, bar_width: 5 },
-        { action: 'Purchased', count: 200, percentage: 2.5, bar_width: 2.5 }
-      ]
-    }
-  };
 
   // State
   let currentAnalytics = null;
@@ -287,7 +235,9 @@
   async function fetchAnalytics(category = 'all') {
     activeCategory = category;
     try {
-      const response = await fetch(`${API_BASE}/analytics/?category=${encodeURIComponent(category)}`);
+      const response = await fetch(`${API_BASE}/analytics/?category=${encodeURIComponent(category)}`, {
+        headers: requestHeaders(),
+      });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -295,32 +245,25 @@
       currentAnalytics = data;
       renderAll(data);
     } catch (err) {
-      console.warn('Analytics API unavailable or network failed, using offline seed data:', err);
-      // Filter offline seed data
-      const filtered = (category === 'all')
-        ? SEED_DATA.raw_products
-        : SEED_DATA.raw_products.filter(p => p.category === category);
-
-      const totalUnits = filtered.reduce((s, p) => s + p.net_units, 0);
-      const totalSales = filtered.reduce((s, p) => s + p.net_sales, 0);
-      const totalViews = filtered.reduce((s, p) => s + p.views, 0);
-      const totalCart = filtered.reduce((s, p) => s + p.added_to_cart, 0);
-
-      currentAnalytics = {
-        ...SEED_DATA,
-        product_sales_report: filtered,
-        totals: {
-          name: 'TOTAL',
-          net_units: totalUnits,
-          net_sales: totalSales,
-          formatted_sales: `₱${totalSales.toLocaleString()}`,
-          views: totalViews,
-          added_to_cart: totalCart,
-          growth: '+14.3%',
-          growth_direction: 'up'
-        }
-      };
-      renderAll(currentAnalytics);
+      console.warn('Analytics API unavailable:', err);
+      currentAnalytics = null;
+      ['kpi-net-sales', 'kpi-orders', 'kpi-units-sold', 'kpi-session-rate'].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = '—';
+      });
+      ['kpi-net-sales-growth', 'kpi-orders-growth', 'kpi-units-growth', 'kpi-session-growth'].forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.textContent = 'Unavailable';
+      });
+      const report = document.getElementById('tbody-sales-report');
+      if (report) report.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;">Analytics instrumentation is not configured.</td></tr>';
+      const best = document.getElementById('best-sellers-container');
+      const trending = document.getElementById('trending-list-container');
+      const interactions = document.getElementById('interaction-list-container');
+      if (best) best.textContent = 'Best-seller metrics unavailable.';
+      if (trending) trending.textContent = 'Trend metrics unavailable.';
+      if (interactions) interactions.textContent = 'Interaction funnel unavailable.';
+      showToast('Analytics instrumentation is not configured.', 'error');
     }
   }
 

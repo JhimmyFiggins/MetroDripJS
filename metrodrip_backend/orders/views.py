@@ -1,103 +1,186 @@
-from datetime import timedelta
-
+from django.conf import settings
+from django.http import HttpResponse
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.renderers import JSONRenderer
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.throttling import ScopedRateThrottle
 
 from .models import OrdersOrder, OrdersPayment
-from .serializers import OrderSerializer
 from fulfillment.models import ShippingShipment
-from identity.authentication import CustomerAuthentication
+from identity.authentication import CustomerTokenAuthentication
+from .checkout import (
+    CheckoutError,
+    cancel_checkout,
+    execute_checkout,
+    expire_one_stale_checkout,
+    reconcile_payment,
+    serialize_checkout,
+)
+from .paymongo import PayMongoError
+from .webhooks import WebhookError, process_paymongo_webhook, verify_paymongo_signature
 
 
-def _resolve_customer_id(request):
-    if hasattr(request, 'user') and request.user and getattr(request.user, 'is_authenticated', False) and hasattr(request.user, 'id'):
-        return request.user.id
-
-    cid = (
-        request.headers.get('X-Customer-ID')
-        or request.headers.get('x-customer-id')
-        or request.META.get('HTTP_X_CUSTOMER_ID')
-        or (request.query_params.get('customer_id') if hasattr(request, 'query_params') else None)
-        or (request.GET.get('customer_id') if hasattr(request, 'GET') else None)
-    )
-    if cid is not None:
-        try:
-            return int(cid)
-        except (ValueError, TypeError):
-            pass
-    return None
-
-class CreateOrderAPIView(APIView):
-    authentication_classes = [CustomerAuthentication]
+class HealthAPIView(APIView):
+    authentication_classes = []
+    permission_classes = []
     renderer_classes = [JSONRenderer]
 
-    def _resolve_customer_id(self, request):
-        if hasattr(request, 'user') and request.user and getattr(request.user, 'is_authenticated', False) and hasattr(request.user, 'id'):
-            return request.user.id
+    def get(self, request):
+        return Response({'status': 'ok'}, status=status.HTTP_200_OK)
 
-        cid = (
-            request.headers.get('X-Customer-ID')
-            or request.headers.get('x-customer-id')
-            or request.META.get('HTTP_X_CUSTOMER_ID')
-            or (request.query_params.get('customer_id') if hasattr(request, 'query_params') else None)
-            or (request.GET.get('customer_id') if hasattr(request, 'GET') else None)
-            or (request.data.get('customer_id') if hasattr(request, 'data') and isinstance(request.data, dict) else None)
-        )
-        if cid is not None:
-            try:
-                return int(cid)
-            except (ValueError, TypeError):
-                pass
-        return None
+
+class CreateOrderAPIView(APIView):
+    authentication_classes = [CustomerTokenAuthentication]
+    permission_classes = [IsAuthenticated]
+    renderer_classes = [JSONRenderer]
 
     def get(self, request):
-        cid = self._resolve_customer_id(request)
-        if cid is not None:
-            orders = OrdersOrder.objects.filter(customer_id=cid).order_by('-created_at')
-        else:
-            if hasattr(request, 'user') and request.user and getattr(request.user, 'is_staff', False):
-                orders = OrdersOrder.objects.all().order_by('-created_at')
-            else:
-                orders = OrdersOrder.objects.none()
-
-        serializer = OrderSerializer(orders, many=True)
-        return Response(serializer.data)
+        orders = OrdersOrder.objects.filter(customer_id=request.user.id).order_by('-created_at')[:50]
+        response = []
+        for order in orders:
+            payment = order.payments.order_by('-created_at').first()
+            if payment:
+                response.append(serialize_checkout(order, payment))
+        return Response(response)
 
     def post(self, request):
-        cid = self._resolve_customer_id(request)
-
-        data = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
-        if cid is not None and ('customer_id' not in data or data['customer_id'] is None):
-            data['customer_id'] = cid
-
-        serializer = OrderSerializer(data=data)
-
-        if serializer.is_valid():
-            order = serializer.save(customer_id=cid)
-            return Response(
-                OrderSerializer(order).data,
-                status=status.HTTP_201_CREATED
-            )
-
         return Response(
-            serializer.errors,
-            status=status.HTTP_400_BAD_REQUEST
+            {
+                'error': 'This order-creation route has been retired because it accepted client prices. Use /api/orders/checkout/.',
+                'code': 'legacy_checkout_retired',
+            },
+            status=status.HTTP_410_GONE,
+        )
+
+
+class CheckoutAPIView(APIView):
+    authentication_classes = [CustomerTokenAuthentication]
+    permission_classes = [IsAuthenticated]
+    renderer_classes = [JSONRenderer]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'checkout'
+
+    def post(self, request):
+        try:
+            # One bounded cleanup per checkout avoids a paid worker/cron while
+            # keeping the free-tier deployment from accumulating stale holds.
+            expire_one_stale_checkout()
+            order, payment, is_replay = execute_checkout(request.user, request.data)
+        except CheckoutError as error:
+            return Response(
+                {'error': error.message, 'code': error.code},
+                status=error.status_code,
+            )
+        return Response(
+            serialize_checkout(order, payment, is_replay=is_replay),
+            status=status.HTTP_200_OK if is_replay else status.HTTP_201_CREATED,
         )
 
 
 class OrderDetailAPIView(APIView):
-    authentication_classes = [CustomerAuthentication]
+    authentication_classes = [CustomerTokenAuthentication]
+    permission_classes = [IsAuthenticated]
     renderer_classes = [JSONRenderer]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'payment_status'
 
     def get(self, request, order_id):
-        order = OrdersOrder.objects.filter(id=order_id).first()
+        order = OrdersOrder.objects.filter(id=order_id, customer_id=request.user.id).first()
         if not order:
             return Response({'error': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        serializer = OrderSerializer(order)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        payment = order.payments.order_by('-created_at').first()
+        if not payment:
+            return Response({'error': 'Order payment not found.'}, status=status.HTTP_409_CONFLICT)
+        reconciliation = 'not_required'
+        if payment.status in {'awaiting_payment', 'setup_failed'}:
+            try:
+                reconciliation = reconcile_payment(payment)
+                order.refresh_from_db()
+                payment.refresh_from_db()
+            except PayMongoError:
+                reconciliation = 'deferred'
+        response = serialize_checkout(order, payment)
+        response['reconciliation_status'] = reconciliation
+        return Response(response, status=status.HTTP_200_OK)
+
+
+class CancelCheckoutAPIView(APIView):
+    authentication_classes = [CustomerTokenAuthentication]
+    permission_classes = [IsAuthenticated]
+    renderer_classes = [JSONRenderer]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'payment_status'
+
+    def post(self, request, order_id):
+        order = OrdersOrder.objects.filter(id=order_id, customer_id=request.user.id).first()
+        if not order:
+            return Response({'error': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            order, payment = cancel_checkout(order)
+        except CheckoutError as error:
+            return Response({'error': error.message, 'code': error.code}, status=error.status_code)
+        except PayMongoError:
+            return Response(
+                {
+                    'error': 'Cancellation could not be confirmed. The checkout remains pending.',
+                    'code': 'provider_unavailable',
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        return Response(serialize_checkout(order, payment), status=status.HTTP_200_OK)
+
+
+class PayMongoWebhookAPIView(APIView):
+    authentication_classes = []
+    permission_classes = []
+    renderer_classes = [JSONRenderer]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'payment_webhook'
+
+    def post(self, request):
+        raw_body = request.body
+        if len(raw_body) > settings.PAYMONGO_WEBHOOK_MAX_BYTES:
+            return Response(
+                {'error': 'Webhook payload is too large.', 'code': 'payload_too_large'},
+                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            )
+        signature = (
+            request.headers.get('Paymongo-Signature')
+            or request.headers.get('X-Paymongo-Signature')
+            or ''
+        )
+        try:
+            verify_paymongo_signature(raw_body, signature)
+            result = process_paymongo_webhook(raw_body)
+        except WebhookError as error:
+            return Response({'error': error.message, 'code': error.code}, status=error.status_code)
+        return Response({'received': True, 'result': result}, status=status.HTTP_200_OK)
+
+
+class PaymentReturnAPIView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request):
+        cancelled = request.query_params.get('result') == 'cancelled'
+        heading = 'Checkout not completed' if cancelled else 'We are checking your payment'
+        message = (
+            'No charge confirmation was received from this redirect.'
+            if cancelled
+            else 'Return to MetroDrip. Your order will update after secure provider confirmation.'
+        )
+        response = HttpResponse(
+            '<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1">'
+            f'<title>MetroDrip payment</title><body><main><h1>{heading}</h1><p>{message}</p>'
+            '<p>You can safely close this tab.</p></main></body></html>',
+            content_type='text/html; charset=utf-8',
+        )
+        response['Cache-Control'] = 'no-store'
+        response['Content-Security-Policy'] = "default-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+        return response
 
 
 TRACKING_STAGES = [
@@ -134,25 +217,13 @@ SHIPMENT_STATUS_STAGE = {
     'delivered': 5,
 }
 
-# Derived fallback timestamps relative to order placement when no real
-# timestamp is stored for a stage.
-DERIVED_STAGE_OFFSETS = [
-    timedelta(minutes=0),
-    timedelta(minutes=1),
-    timedelta(hours=2),
-    timedelta(hours=6),
-    timedelta(days=1),
-    timedelta(days=2),
-]
-
-
 class OrderTrackingAPIView(APIView):
-    authentication_classes = [CustomerAuthentication]
+    authentication_classes = [CustomerTokenAuthentication]
+    permission_classes = [IsAuthenticated]
     renderer_classes = [JSONRenderer]
 
     def get(self, request, order_id):
-        cid = _resolve_customer_id(request)
-        order = OrdersOrder.objects.filter(id=order_id, customer_id=cid).first()
+        order = OrdersOrder.objects.filter(id=order_id, customer_id=request.user.id).first()
         if not order:
             return Response({'error': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -191,20 +262,19 @@ class OrderTrackingAPIView(APIView):
         if shipment:
             furthest = max(furthest, SHIPMENT_STATUS_STAGE.get((shipment.status or '').lower(), 2))
 
-        real_timestamps = {0: placed_at}
-        if payment:
-            real_timestamps[1] = payment.created_at
-        if shipment and shipment.booked_at:
-            real_timestamps[3] = shipment.booked_at
+        observed_timestamps = {0: (placed_at, 'orders_order.created_at')}
+        if payment and payment.paid_at:
+            observed_timestamps[1] = (payment.paid_at, 'orders_payment.paid_at')
 
         events = []
         for index, (key, title) in enumerate(TRACKING_STAGES):
             if index <= furthest:
-                timestamp = real_timestamps.get(index) or (placed_at + DERIVED_STAGE_OFFSETS[index])
+                observed = observed_timestamps.get(index)
                 events.append({
                     'key': key,
                     'title': title,
-                    'timestamp': timestamp.isoformat(),
+                    'timestamp': observed[0].isoformat() if observed else None,
+                    'timestamp_source': observed[1] if observed else 'unavailable',
                     'state': 'done',
                 })
             else:
@@ -212,24 +282,20 @@ class OrderTrackingAPIView(APIView):
                     'key': key,
                     'title': title,
                     'timestamp': None,
+                    'timestamp_source': 'unavailable',
                     'state': 'pending',
                 })
 
         shipment_data = None
         if shipment:
-            shipment_status = (shipment.status or '').lower()
-            if shipment_status == 'delivered':
-                eta_label = 'Delivered'
-            elif shipment.booked_at:
-                eta_date = shipment.booked_at + timedelta(days=2)
-                eta_label = eta_date.strftime('%b %-d') + ', 2–5 PM'
-            else:
-                eta_label = None
             shipment_data = {
-                'courier': 'J&T Express',
+                'courier': None,
+                'courier_source': 'unavailable',
                 'tracking_number': shipment.tracking_no,
-                'eta_label': eta_label,
+                'eta_label': None,
+                'eta_source': 'unavailable',
                 'status': shipment.status,
+                'booked_at': shipment.booked_at.isoformat() if shipment.booked_at else None,
             }
 
         return Response({

@@ -1,14 +1,44 @@
 # Decisions and Handover
 
-**Status:** Release HOLD; QA remediation and outstanding verification documented below
-**Project:** MetroDripJS Urban Streetwear E-Commerce Platform  
-**Architecture:** Five Microservices + API Gateway + Isolated Multi-Database  
-**Date:** 2026-09-27  
+**Status:** Release HOLD; active modular-monolith/payment implementation handover
+
+**Project:** MetroDripJS urban streetwear commerce platform
+
+**Current target:** One secured modular Django monolith + one Render Free PostgreSQL database
+
+**Decision updated:** 2026-09-28
+
 **Owner:** Core Engineering & Architecture Team  
 
 ---
 
-## 1. Architecture Decision Records (ADRs)
+## Active architecture decisions — 2026-09-28
+
+These decisions supersede conflicting production-topology and payment-exclusion statements elsewhere in older repository material. The previous five-service implementation remains historical evidence and a migration source; it is not the approved Render production topology.
+
+| ADR | Context and alternatives | Decision | Consequences and controls | Status |
+|---|---|---|---|---|
+| **ADR-07: Free-tier modular monolith** | The five-service/gateway/database-per-service design exceeds the approved Render footprint and creates operational dependencies that do not fit a single free web service and database. Alternatives were keeping the distributed topology, adding paid private services/databases, or consolidating. | Deploy the `metrodrip_backend/` Django modular monolith with identity, catalog, orders/payments, fulfillment, content, and staff/audit boundaries to one web service and one database. | The monolith path is implemented locally; SQLite is the default developer engine. PostgreSQL migration/locking/restore and the Render deployment remain UNVERIFIED. **Supersedes ADR-01, ADR-02, and ADR-06 for production.** | Implemented locally; deployment HOLD |
+| **ADR-08: Free Render resources only** | Workers, cron, Redis/Key Value, disks, autoscaling, HA, and additional services may require payment. | Configure no paid Render resources. Do not apply any change that prompts for billing. `render.yaml` keeps previews and auto-deploy off and declares one free web service plus one free PostgreSQL database. | The Blueprint is unapplied. Render's current free PostgreSQL lifecycle and missing managed backups/pooling do not satisfy durable production storage, so production is HOLD. No paid workaround is authorized. | Approved; live configuration UNVERIFIED |
+| **ADR-09: COD plus PayMongo Hosted Checkout** | COD-only conflicts with approved product requirements. Direct card/wallet entry increases PCI/privacy risk; a custom payment UI also adds client/provider complexity. | Retain COD and use PayMongo Hosted Checkout for GCash, Maya, and card. Domain `maya` maps to provider `paymaya`. | MetroDrip rejects PAN, CVV, wallet login/PIN, and OTP fields. The current client lists all methods; provider capability discovery is not implemented. Provider activation, sandbox/live payment, and refunds remain UNVERIFIED. **Supersedes the prior online-payment exclusion and expands ADR-04.** | Implemented locally; external flow UNVERIFIED |
+| **ADR-10: Provider-authoritative payment state** | Browser redirects/deep links can be forged, lost, repeated, or arrive before provider settlement. | A valid, deduplicated PayMongo paid webhook or an exact verified provider result from an owned status read may confirm payment; a redirect never marks paid. | Raw-body HMAC/timestamp verification, event ID/body-digest dedupe, amount/currency/mode/reference/fingerprint checks, row locking, and pending/recovery UX are implemented. PostgreSQL concurrency and real provider delivery remain UNVERIFIED. | Implemented locally; external concurrency UNVERIFIED |
+| **ADR-11: No-worker recovery** | The free-tier constraint prevents a reliable always-on worker or scheduled cron. Alternatives were paid workers/cron, external scheduler, or request-driven recovery. | Keep webhook transitions synchronous. Use webhook inbox/idempotency, owned read reconciliation, one stale-expiry attempt per new checkout, and explicit operational inspection. | There is no monolith reconciliation/expiry management command or lease. Recovery can lag while idle and concurrent GETs can fan out. Add free-compatible maintenance tooling only after review; do not provision paid infrastructure. | Implemented with documented gaps |
+| **ADR-12: Exact money boundary** | Django models use two-decimal values; PayMongo expects integer minor units. Binary floats risk rounding errors. | Keep application amounts as `Decimal`, normalize to two decimals, convert to integer centavos only in the provider adapter, and verify paid amount plus `PHP` currency exactly. | Existing `DecimalField(10,2)` remains compatible. Any multi-currency or greater-precision change requires a new migration/ADR. This supersedes integer-only interpretations of ADR-03 for the active monolith. | Implemented locally |
+| **ADR-13: Expand/backfill/cutover/contract** | Consolidating multiple service schemas and a legacy monolith in one destructive migration would be hard to validate and roll back. | Use additive schema changes, resumable provenance-backed backfill, compatibility reads/routes, explicit validation, staged cutover, and later contract cleanup. | Temporary schema/code complexity is accepted to preserve rollback and legacy clients. Destructive cleanup needs separate authorization. | Approved |
+
+### Payment/provider rationale
+
+Hosted Checkout is the approved integration surface because PayMongo owns the sensitive payment-entry UI and returns a hosted HTTPS action while MetroDrip retains authoritative orders, totals, idempotency, and payment state. The server stores provider references, the hosted action, and minimal event evidence, not payment credentials. The current UI exposes all approved methods; an unavailable provider method fails closed and is not silently changed to COD. Capability-driven display remains open work.
+
+### Protected actions
+
+- No live Render deployment, plan upgrade, paid resource, real charge/refund, secret change, database deletion, destructive migration, or shared-history rewrite is authorized by these decisions.
+- Stop before applying a Render change if it requires payment.
+- Secret values must remain in environment configuration and must not be printed, committed, copied into Figma, or placed in handover notes.
+
+## Historical architecture decision records — 2026-09-27
+
+The following records describe the earlier distributed baseline. ADR-01, ADR-02, ADR-04's COD-only/sweeper assumptions, and ADR-06 are superseded for the approved production target by ADR-07 through ADR-13 above. They are retained for provenance and to interpret existing `services/*`, `gateway/`, Compose, tests, and QA evidence.
 
 | ADR / Date | Context and Alternatives Considered | Decision and Rationale | Dissents and Risks | Owner | Revisit Trigger |
 |---|---|---|---|---|---|
@@ -21,10 +51,39 @@
 
 ---
 
-## 2. Resume Snapshot
+## Active resume snapshot
+
+- **Current objective:** finish the final local rerun and hand over the implemented monolith/payment/design slice without creating paid Render resources.
+- **Current code reality:** `metrodrip_backend/` is the active one-process implementation. Opaque token auth, persisted-role staff guards, Hosted Checkout, signed webhook processing, request-driven expiry/reconciliation, strict lost-create-response recovery, additive migrations, and truthful console/API states are present. Store-scoped ABAC, MFA, recent-auth, refunds/transition ledger, provider capability discovery, and reconciliation lease/command are not.
+- **Figma reality:** customer gaps `708:4544`, merchant gaps `709:5008`, admin gaps `710:4846`, ERD/topology `711:4544` with root `711:4545`, and customer state matrix `720:4544` with root `720:4545` were added. Merchant/admin `2FA ON` badges were changed to role-specific `VERIFIED SESSION`; stale label count was zero after validation.
+- **Payment decision:** COD plus PayMongo Hosted Checkout for GCash, Maya, and cards. Browser return is informational; a signed webhook or exact provider reconciliation establishes durable paid state.
+- **Data cleanup:** `fulfillment/0004_remove_seeded_demo_notifications.py` removes only the five exact notifications seeded by `0002`; reverse is intentionally a no-op.
+- **Infrastructure boundary:** the unapplied Blueprint declares one free web service and one free PostgreSQL database, with previews/auto-deploy off and no worker, cron, Redis/Key Value, disk, autoscaling, or paid plan. Free PostgreSQL durability/lifecycle is an explicit production release blocker.
+- **Release status:** HOLD. Final local test counts are rerun-pending in [Verification and Evaluation](Verification%20and%20Evaluation.md). PostgreSQL, PayMongo sandbox/live, native-device, and connected Render checks remain **UNVERIFIED**.
+
+### Required handover sequence
+
+1. Inspect the working tree and preserve unrelated changes, especially `.kilo/kilo.jsonc`.
+2. Read the controlling ADRs above plus [Plan and Goals](Plan%20and%20Goals.md), [Backend Functionalities](Backend%20Functionalities.md), [Database Structure](Database%20Structure.md), and [Architecture and Operations](Architecture%20and%20Operations.md).
+3. Inspect the implemented slice before changing it: payment contract/models → provider adapter/webhook → client hosted handoff/recovery → staff auth/RBAC → console states → Blueprint.
+4. Use additive migrations and run `makemigrations --check`, Django checks/tests, client/type checks, mocked browser checks, Blueprint validation, and `git diff --check`.
+5. Before release, execute disposable PostgreSQL migration/rollback and concurrency tests, PayMongo sandbox/webhook delivery tests, native external-browser/deep-link checks, and connected free-tier Render validation. The free database durability blocker must remain visible.
+6. Mark any provider, native, PostgreSQL, or Render step not actually observed as **UNVERIFIED**. Do not deploy or charge/refund without explicit authority.
+
+### Resolved decisions and remaining gaps
+
+| Conflict | Controlling direction |
+|---|---|
+| Active checkout route | Exactly `/api/orders/checkout/`; no `/api/v1` alias is currently registered. Unsafe legacy `POST /orders/` returns `410`. |
+| Payment methods | COD and hosted GCash/Maya/card are implemented; raw credential keys are rejected. Provider capability discovery remains open. |
+| Active backend | `metrodrip_backend/` is the modular-monolith path; `services/*` and `gateway/` are historical comparison assets. |
+| Recovery | Synchronous idempotent webhook, owned read repair, and one-per-checkout stale cleanup are implemented; lease/maintenance command remains open. |
+| Database | One configured database path and additive migrations exist; PostgreSQL migration/rollback/concurrency/restore remain UNVERIFIED. |
+
+## Historical resume snapshot
 
 - **Date & Environment**: 2026-09-27 | Local Development (`Windows 11`, Python 3.11 Virtual Environment, SQLite per service) & Production Docker Compose (`PostgreSQL 16`, Nginx).
-- **Current Status**: Release HOLD. [Current QA report](QA%20Report%202026-09-28.md) and its [predecessor](QA%20Report%202026-09-27.md) supersede historical test counts and zero-blocker claims in this document. Add User keyboard dismissal is fixed, but staff sessions, demo-on-error state, and event/reconciliation automation remain incomplete; native and PostgreSQL verification are blocked.
+- **Status at this historical snapshot**: Release HOLD. Its then-open staff-session and demo-fallback findings were addressed by the newer implementation snapshot above; no such resolution should be backdated into the dated QA reports. Native, PostgreSQL, live-provider, and Render verification remain open.
 - **Repository Location**: `A:\Users\Archim Pameroyan\Documents\GitHub\MetroDripJS`
 
 ### Completed Deliverables and Exact File Paths
@@ -81,7 +140,9 @@ MetroDripJS/
 
 ---
 
-## 3. Verified Checks and Results Summary
+## Historical verified checks and results summary
+
+The checks below verify the 2026-09-27 five-service baseline only. They do not verify the current modular-monolith, online-payment, PostgreSQL, or Render target.
 
 1. **Unit & Contract Test Execution**:
    - `services/identity`: 11/11 passed (0.42s)
@@ -101,7 +162,9 @@ MetroDripJS/
 
 ---
 
-## 4. Cold-Start Resume Instructions for Future Engineers
+## Historical five-service runbook
+
+The commands below reproduce the earlier distributed test topology. Use them for regression/migration comparison, not as production-deployment instructions.
 
 To resume development, spin up the environment, or run verification tests from a cold start:
 
@@ -112,7 +175,7 @@ To resume development, spin up the environment, or run verification tests from a
    ```
 2. **Start Services for Active Development**:
    Follow [Architecture and Operations.md](Architecture%20and%20Operations.md#4-operational-runbooks) Runbook 2 to launch services on ports `8000`–`8005`.
-3. **Launch Production Containerized Stack**:
+3. **Launch the historical containerized comparison stack locally**:
    ```sh
    docker compose -f docker-compose.microservices.yml up --build -d
    curl -i http://localhost:8000/health/

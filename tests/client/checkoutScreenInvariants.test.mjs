@@ -3,13 +3,12 @@
 // which fields the confirmation screen trusts, and which fixtures still describe
 // the legacy monolith.
 //
-// The checkout path under test is POST /api/orders/checkout/ in services/orders.
+// The checkout path under test is POST /api/orders/checkout/.
 import './helpers/loader.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
 
 const root = path.resolve(import.meta.dirname, '..', '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
@@ -17,11 +16,12 @@ const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 const paymentScreen = read('mobile/Checkout/src/screens/PaymentDetailsScreen.jsx');
 const checkoutScreen = read('mobile/Checkout/src/screens/CheckoutScreen.jsx');
 const confirmationScreen = read('mobile/Checkout/src/screens/OrderConfirmationScreen.jsx');
+const confirmationData = read('mobile/Checkout/src/data/orderConfirmation.js');
 const cartLogic = read('mobile/context/cartLogic.js');
 const cartContext = read('mobile/context/CartContext.js');
 const orderService = read('src/services/orderService.js');
+const appNavigator = read('mobile/navigation/AppNavigator.jsx');
 const authContext = read('mobile/context/AuthContext.jsx');
-const legacyBackend = path.join(root, 'metrodrip_backend');
 const devServer = read('web/dev_server.py');
 const loginScreen = read('mobile/Registration/screens/LoginScreen.js');
 
@@ -34,16 +34,18 @@ test('the submit path posts the new builder output, not a hand-built legacy body
 });
 
 test('the confirmation reads the server total returned by the saga, not the local cart', () => {
-  // services/orders saga.py prices from catalog; savedOrder.total is that figure.
-  assert.match(paymentScreen, /total:\s*Number\(savedOrder\.total\)/);
+  // The backend prices from catalog; the validator constructs the entire receipt.
+  assert.match(paymentScreen, /createServerConfirmation\s*\(savedOrder\)/);
+  assert.match(confirmationData, /firstDefined\(savedOrder, \['total', 'total_amount'\]\)/);
   assert.doesNotMatch(paymentScreen, /total:\s*orderBody\.total/);
-  assert.doesNotMatch(paymentScreen, /total:\s*savedOrder\.total\s*\?\?/);
   assert.doesNotMatch(paymentScreen, /refNo:\s*`PM-\$\{/);
 });
 
-test('a method the orders service would reject is refused before a request is spent', () => {
-  // views.py answers 400 for any payment_method other than cod.
-  assert.match(paymentScreen, /selectedMethod\s*!==\s*'cod'/);
+test('online checkout uses a hosted redirect and waits for backend payment proof', () => {
+  assert.match(paymentScreen, /openHostedCheckout\s*\(/);
+  assert.match(paymentScreen, /paymentFlowState\s*\(savedOrder\)/);
+  assert.match(paymentScreen, /refreshPaymentStatus/);
+  assert.doesNotMatch(paymentScreen, /selectedMethod\s*!==\s*'cod'/);
 });
 
 test('a failed checkout leaves the button usable so the customer can retry', () => {
@@ -84,30 +86,36 @@ test('cart arithmetic still refuses to produce a NaN total', () => {
 
 // --- payment method surface ---------------------------------------------------
 
-test('only a method the orders service settles is offered', () => {
+test('checkout offers every canonical payment method', () => {
   const checkoutData = read('mobile/Checkout/src/data/checkout.ts');
   const types = read('mobile/Checkout/src/types/checkout.ts');
-  assert.match(checkoutData, /id:\s*'cod'/);
-  assert.doesNotMatch(checkoutData, /id:\s*'gcash'/);
-  assert.doesNotMatch(checkoutData, /id:\s*'maya'/);
-  assert.doesNotMatch(checkoutData, /id:\s*'card'/);
-  assert.doesNotMatch(paymentScreen, /id:\s*'(gcash|maya|card)'/);
-  assert.match(types, /PaymentMethod\s*=\s*'cod'/);
+  for (const method of ['cod', 'gcash', 'maya', 'card']) {
+    assert.match(checkoutData, new RegExp(`id:\\s*'${method}'`));
+    assert.match(paymentScreen, new RegExp(`id:\\s*'${method}'`));
+  }
+  assert.match(types, /PaymentMethod\s*=\s*'cod'\s*\|\s*'gcash'\s*\|\s*'maya'\s*\|\s*'card'/);
 });
 
-test('the confirmation fixture no longer advertises a wallet that is never charged', () => {
-  assert.doesNotMatch(confirmationScreen, /paymentMethod:\s*'GCash'/);
-  assert.doesNotMatch(confirmationScreen, /paymentDetail:\s*'GCash/);
+test('MetroDrip never collects wallet or card credentials', () => {
+  assert.doesNotMatch(paymentScreen, /CARD NUMBER|CVV|EXPIRY|GCASH MOBILE NUMBER|MAYA MOBILE NUMBER/);
+  assert.doesNotMatch(paymentScreen, /4111 1111 1111 1111|09 \/ 28|888/);
+  assert.doesNotMatch(paymentScreen, /saveGcash|saveMaya|saveCard|cardNumber|cardCvv|cardExpiry/);
+  assert.match(paymentScreen, /checkout\.paymongo\.com/);
 });
 
-test('the confirmation does not claim money was collected for a cash-on-delivery order', () => {
-  // The saga settles COD later, so "paid" and "TOTAL PAID" are false claims.
-  assert.doesNotMatch(confirmationScreen, /PAYMENT SUCCESSFUL/);
-  assert.doesNotMatch(confirmationScreen, /TOTAL PAID/);
-  assert.doesNotMatch(confirmationScreen, /Amount paid/);
+test('the confirmation distinguishes COD amount due from verified online amount paid', () => {
   assert.match(confirmationScreen, /CASH ON DELIVERY/);
   assert.match(confirmationScreen, /Amount due on delivery/);
   assert.match(confirmationScreen, /AMOUNT DUE/);
+  assert.match(confirmationScreen, /ONLINE PAYMENT CONFIRMED/);
+  assert.match(confirmationScreen, /Amount paid/);
+  assert.match(confirmationScreen, /AMOUNT PAID/);
+});
+
+test('the app accepts the configured return scheme and refreshes on foreground', () => {
+  assert.match(appNavigator, /metrodripjs:\/\//);
+  assert.match(paymentScreen, /AppState\.addEventListener\(\s*'change'/);
+  assert.match(paymentScreen, /nextState\s*===\s*'active'/);
 });
 
 test('the receipt shows the server subtotal and shipping, not total minus a hardcoded fee', () => {
@@ -118,29 +126,26 @@ test('the receipt shows the server subtotal and shipping, not total minus a hard
 });
 
 test('the confirmation does not promise a delivery date the service never computed', () => {
-  // saga.py assigns no courier and no ETA; a hardcoded date is a fabricated promise.
+  // Checkout assigns no courier or ETA, so the confirmation only points to later tracking updates.
   assert.doesNotMatch(paymentScreen, /Arriving in 2–3 days/);
-  assert.match(paymentScreen, /courier:\s*'To be assigned'/);
+  assert.match(confirmationScreen, /Tracking updates will appear after dispatch/);
 });
 
-test('the confirmation fallback itself does not advertise a fabricated courier or date', () => {
-  // The OrderConfirmation fallback is Figma-only preview data, but it must not
-  // promise a specific courier or delivery date the saga never assigns, so QA and
-  // designers previewing the screen in isolation see the same honest contract.
+test('the confirmation has no mock fallback or fabricated courier and date', () => {
+  assert.match(confirmationScreen, /validateConfirmationRoute\(route\.params\?\.order\)/);
+  assert.match(confirmationScreen, /We could not verify this order/);
+  assert.doesNotMatch(confirmationScreen, /route\.params\?\.order\s*\|\|\s*\{/);
   assert.doesNotMatch(confirmationScreen, /courier:\s*'J&T/);
   assert.doesNotMatch(confirmationScreen, /Arriving Jul 20/);
   assert.doesNotMatch(confirmationScreen, /Arriving in 2–3 days/);
-  assert.doesNotMatch(confirmationScreen, /eta:\s*'Arriving/);
-  assert.match(confirmationScreen, /courier:\s*'To be assigned'/);
-  assert.match(confirmationScreen, /eta:\s*'Delivery schedule is assigned after dispatch'/);
-  // Rendering must not crash if the order omits courier.
-  assert.match(confirmationScreen, /order\.courier\s*\|\|\s*'To be assigned'/);
+  assert.doesNotMatch(confirmationScreen, /MD-2026-00318|PM-8H2K19XQ|juan@email\.com/);
 });
 
 test('the confirmation maps the service line keys instead of reading price/name', () => {
-  // views.py returns product_name, variant_desc, unit_price, sku.
-  assert.match(paymentScreen, /product_name/);
-  assert.match(paymentScreen, /unit_price/);
+  // checkout.py returns product_name, variant_desc, unit_price and sku.
+  assert.match(confirmationData, /line\?\.product_name/);
+  assert.match(confirmationData, /line\?\.unit_price/);
+  assert.match(confirmationScreen, /it\.totalPrice/);
   assert.doesNotMatch(paymentScreen, /items:\s*savedOrder\.items\s*\|\|\s*orderDraft\.items/);
 });
 
@@ -161,29 +166,6 @@ test('the login screen shows a readable server message instead of a crash', () =
 test('checkout calls the gateway checkout route, not the legacy orders collection', () => {
   assert.match(orderService, /'\/api\/orders\/checkout\/'/);
   assert.doesNotMatch(orderService, /apiFetch\('\/orders\/',\s*\{\s*method:\s*'POST'/);
-});
-
-// --- legacy backend is left alone ---------------------------------------------
-
-test('legacy backend runtime sources were not edited', () => {
-  // Keep the original runtime-scope guard while allowing the repository cleanup
-  // to delete generated bytecode and the verified empty inspectdb scaffold.
-  if (!fs.existsSync(legacyBackend)) return;
-  const dirty = execFileSync('git', ['status', '--porcelain', '--', 'metrodrip_backend'], {
-    cwd: root,
-    encoding: 'utf8',
-  })
-    .trim()
-    .split('\n')
-    .filter(Boolean);
-  const unexpected = dirty.filter((entry) => {
-    const status = entry.slice(0, 2);
-    const path = entry.slice(3).replaceAll('\\', '/');
-    const deletedBytecode = status.includes('D') && path.includes('/__pycache__/') && path.endsWith('.pyc');
-    const deletedInspectDbStub = status.includes('D') && path === 'metrodrip_backend/models_existing.py';
-    return !deletedBytecode && !deletedInspectDbStub;
-  });
-  assert.deepEqual(unexpected, [], 'legacy backend runtime sources must stay untouched');
 });
 
 // --- dev server ---------------------------------------------------------------

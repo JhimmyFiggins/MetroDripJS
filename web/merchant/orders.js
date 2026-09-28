@@ -1,11 +1,47 @@
-// Merchant Console: Orders Controller
-// Figma: 550:65 (Light) & 554:431 (Dark)
-// Fully wired to Orders Microservice (/api/merchant/orders/) - zero fake fallback orders
+// Merchant orders workspace: live API states, keyboard selection, and truthful write feedback.
 (() => {
-  function escapeHtml(str) {
+  const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://127.0.0.1:8000/api/merchant'
+    : '/api/merchant';
+
+  let orders = [];
+  let selectedOrderId = null;
+  let isLoading = true;
+  let loadGeneration = 0;
+  let detailGeneration = 0;
+  const detailCache = new Map();
+
+  function escapeHtml(value) {
     const div = document.createElement('div');
-    div.appendChild(document.createTextNode(str || ''));
+    div.appendChild(document.createTextNode(String(value ?? '')));
     return div.innerHTML;
+  }
+
+  function sessionToken() {
+    try {
+      const session = JSON.parse(sessionStorage.getItem('metrodrip_active_user') || 'null');
+      return session?.token || session?.access_token || '';
+    } catch {
+      return '';
+    }
+  }
+
+  function requestHeaders(extra = {}) {
+    const token = sessionToken();
+    return {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...extra,
+    };
+  }
+
+  async function responseError(response, fallback) {
+    try {
+      const data = await response.json();
+      return new Error(data?.error?.message || data?.error || data?.detail || fallback);
+    } catch {
+      return new Error(fallback);
+    }
   }
 
   function showToast(message, type = 'success') {
@@ -21,233 +57,467 @@
     }, 3500);
   }
 
-  // Dynamic real orders from database
-  let orders = [];
-  let selectedOrderId = null;
-  let isLoading = false;
+  function setSourceStatus(label, tone = '') {
+    const badge = document.getElementById('orders-source-status');
+    if (!badge) return;
+    badge.textContent = label;
+    badge.className = `data-source-badge ${tone}`.trim();
+  }
+
+  function setPageState(kind, title = '', message = '', retry = false) {
+    const banner = document.getElementById('orders-state-banner');
+    const eyebrow = document.getElementById('orders-state-eyebrow');
+    const titleEl = document.getElementById('orders-state-title');
+    const messageEl = document.getElementById('orders-state-message');
+    const retryBtn = document.getElementById('btn-retry-orders');
+    if (!banner || !eyebrow || !titleEl || !messageEl || !retryBtn) return;
+
+    if (kind === 'ready') {
+      banner.hidden = true;
+      retryBtn.hidden = true;
+      return;
+    }
+
+    banner.hidden = false;
+    banner.className = `console-state-banner is-${kind}`;
+    banner.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+    eyebrow.textContent = kind === 'warning' ? 'PARTIAL DATA' : kind.toUpperCase();
+    titleEl.textContent = title;
+    messageEl.textContent = message;
+    retryBtn.hidden = !retry;
+  }
+
+  function money(value) {
+    if (typeof value === 'string' && value.trim().startsWith('₱')) return value.trim();
+    const numeric = Number(String(value ?? '').replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(numeric) ? `₱${Math.round(numeric).toLocaleString('en-PH')}` : '—';
+  }
+
+  function numericMoney(value) {
+    const numeric = Number(String(value ?? '').replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(numeric) ? numeric : 0;
+  }
+
+  function normalizedMethod(value) {
+    const method = String(value || '').toLowerCase();
+    if (method === 'paymaya') return 'maya';
+    if (method.includes('card')) return 'card';
+    if (method.includes('gcash')) return 'gcash';
+    if (method.includes('maya')) return 'maya';
+    if (method.includes('cod') || method.includes('cash')) return 'cod';
+    return method || 'unknown';
+  }
+
+  function normalizeOrder(raw) {
+    const recordId = raw.order_id ?? raw.id;
+    const id = String(raw.order_no || raw.order_number || raw.id || 'Unknown order');
+    const method = raw.payment_method || raw.pay || raw.payment || 'Not reported';
+    const paymentStatus = String(raw.payment_status || '').toLowerCase();
+    const fulfillment = String(raw.fulfillment || raw.status || 'Not reported');
+    const fulfillmentKey = String(raw.fulfillmentKey || raw.raw_status || raw.status || '').toLowerCase();
+    return {
+      recordId,
+      id,
+      customer: String(raw.customer || raw.customer_name || 'Customer not reported'),
+      total: money(raw.total ?? raw.total_amount),
+      totalNumeric: numericMoney(raw.total ?? raw.total_amount),
+      payment: String(method),
+      paymentKey: normalizedMethod(method),
+      paymentStatus,
+      fulfillment,
+      fulfillmentKey,
+      placed: String(raw.placed || raw.created_at || 'Not reported'),
+    };
+  }
+
+  function normalizeDetail(raw, summary) {
+    const address = raw.shipping_address || {};
+    const addressParts = [address.line1 || address.address_line1, address.line2 || address.address_line2, address.city, address.state, address.postal_code]
+      .filter(Boolean);
+    const lines = Array.isArray(raw.lines) ? raw.lines : (Array.isArray(raw.items) ? raw.items : []);
+    return {
+      ...summary,
+      subtotal: money(raw.subtotal),
+      shipping: money(raw.shipping ?? raw.shipping_fee),
+      total: money(raw.total ?? raw.total_amount ?? summary.total),
+      customer: String(address.name || raw.customer || summary.customer),
+      address: addressParts.join(', ') || 'Delivery address not reported.',
+      speed: String(raw.delivery_estimate || 'Delivery estimate not reported.'),
+      items: lines.map(item => ({
+        name: [item.product_name || item.name || 'Unnamed item', item.variant_desc].filter(Boolean).join(' · '),
+        price: `${Number(item.quantity || 1)} × ${money(item.unit_price ?? item.price)}`,
+      })),
+      activity: Array.isArray(raw.activity) ? raw.activity : [],
+    };
+  }
+
+  function setTableLoading() {
+    const tbody = document.getElementById('all-orders-tbody');
+    if (!tbody) return;
+    tbody.setAttribute('aria-busy', 'true');
+    tbody.innerHTML = `
+      <tr class="table-state-row table-loading-row">
+        <td colspan="5">
+          <div class="skeleton-stack" aria-hidden="true">
+            <span class="skeleton-line is-wide"></span>
+            <span class="skeleton-line"></span>
+            <span class="skeleton-line is-wide"></span>
+          </div>
+          <span class="sr-only">Loading orders</span>
+        </td>
+      </tr>`;
+  }
+
+  function renderTableState(title, message, action = '') {
+    const tbody = document.getElementById('all-orders-tbody');
+    if (!tbody) return;
+    tbody.setAttribute('aria-busy', 'false');
+    tbody.innerHTML = `
+      <tr class="table-state-row">
+        <td colspan="5">
+          <div class="table-state">
+            <strong>${escapeHtml(title)}</strong>
+            <span>${escapeHtml(message)}</span>
+            ${action ? `<button type="button" class="btn btn-secondary btn-sm" data-table-action="${escapeHtml(action)}">${action === 'clear' ? 'Clear filters' : 'Try again'}</button>` : ''}
+          </div>
+        </td>
+      </tr>`;
+  }
+
+  function filteredOrders() {
+    const searchTerm = (document.getElementById('search-orders-input')?.value || '').toLowerCase().trim();
+    const payFilter = document.getElementById('filter-payment-select')?.value || 'all';
+    const fulfillFilter = document.getElementById('filter-fulfillment-select')?.value || 'all';
+    return orders.filter(order => {
+      const matchSearch = !searchTerm || `${order.id} ${order.customer}`.toLowerCase().includes(searchTerm);
+      const matchPay = payFilter === 'all' || order.paymentKey === payFilter;
+      const matchFulfill = fulfillFilter === 'all' || order.fulfillmentKey === fulfillFilter;
+      return matchSearch && matchPay && matchFulfill;
+    });
+  }
 
   function renderTable() {
     const tbody = document.getElementById('all-orders-tbody');
     if (!tbody) return;
-
-    if (isLoading) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 24px; color: var(--color-muted);">Loading real-time orders...</td></tr>`;
+    if (isLoading && orders.length === 0) {
+      setTableLoading();
       return;
     }
 
-    const searchTerm = (document.getElementById('search-orders-input')?.value || '').toLowerCase().trim();
-    const payFilter = document.getElementById('filter-payment-select')?.value || 'all';
-    const fulfillFilter = document.getElementById('filter-fulfillment-select')?.value || 'all';
-
-    const filtered = orders.filter(o => {
-      const matchSearch = !searchTerm ||
-        o.id.toLowerCase().includes(searchTerm) ||
-        o.customer.toLowerCase().includes(searchTerm);
-      const matchPay = payFilter === 'all' || o.paymentKey === payFilter;
-      const matchFulfill = fulfillFilter === 'all' || o.fulfillmentKey === fulfillFilter;
-      return matchSearch && matchPay && matchFulfill;
-    });
-
+    const filtered = filteredOrders();
     if (filtered.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 24px; color: var(--color-muted);">No orders matching filter criteria.</td></tr>`;
-      return;
+      const hasFilters = Boolean((document.getElementById('search-orders-input')?.value || '').trim()) ||
+        document.getElementById('filter-payment-select')?.value !== 'all' ||
+        document.getElementById('filter-fulfillment-select')?.value !== 'all';
+      renderTableState(
+        hasFilters ? 'No matching orders' : 'No orders yet',
+        hasFilters ? 'Try a different search or clear the active filters.' : 'New orders will appear here after checkout.',
+        hasFilters ? 'clear' : 'retry',
+      );
+    } else {
+      tbody.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+      tbody.innerHTML = filtered.map(order => {
+        const selected = order.id === selectedOrderId;
+        const paymentTone = order.paymentStatus === 'paid' ? 'paid' : order.paymentStatus ? 'pending' : 'neutral';
+        const paymentLabel = order.paymentStatus ? `${order.payment} · ${order.paymentStatus.replaceAll('_', ' ')}` : order.payment;
+        return `
+          <tr data-order-id="${escapeHtml(order.id)}" class="clickable-row ${selected ? 'selected-row' : ''}" tabindex="0" aria-selected="${selected}">
+            <td data-label="Order / customer"><span class="td-strong">${escapeHtml(order.id)}</span><span class="responsive-secondary">${escapeHtml(order.customer)}</span></td>
+            <td data-label="Total" class="td-mono td-strong">${escapeHtml(order.total)}</td>
+            <td data-label="Payment"><span class="status-pill ${paymentTone}">${escapeHtml(paymentLabel)}</span></td>
+            <td data-label="Fulfillment"><span class="td-mono">${escapeHtml(order.fulfillment)}</span></td>
+            <td data-label="Placed" class="td-mono td-muted">${escapeHtml(order.placed)}</td>
+          </tr>`;
+      }).join('');
     }
 
-    tbody.innerHTML = filtered.map(o => {
-      const isSelected = o.id === selectedOrderId;
-      const isPending = (o.payment || '').toLowerCase().includes('pending');
-      return `
-        <tr data-order-id="${escapeHtml(o.id)}" style="cursor: pointer; ${isSelected ? 'background-color: var(--color-info-bg);' : ''}">
-          <td>
-            <div style="display: flex; flex-direction: column;">
-              <span class="td-strong">${escapeHtml(o.id)} · ${escapeHtml(o.customer)}</span>
-            </div>
-          </td>
-          <td class="td-mono" style="font-weight: 700;">${escapeHtml(o.total)}</td>
-          <td>
-            <span class="status-pill ${isPending ? 'pending' : 'paid'}">${escapeHtml(o.payment)}</span>
-          </td>
-          <td>
-            <span class="td-mono" style="font-weight: 500;">${escapeHtml(o.fulfillment)}</span>
-          </td>
-          <td class="td-mono td-muted">${escapeHtml(o.placed)}</td>
-        </tr>
-      `;
-    }).join('');
+    const info = document.getElementById('orders-pagination-info');
+    if (info) info.textContent = filtered.length === orders.length
+      ? `Showing ${filtered.length} order${filtered.length === 1 ? '' : 's'}`
+      : `Showing ${filtered.length} of ${orders.length} orders`;
+  }
 
-    tbody.querySelectorAll('tr[data-order-id]').forEach(row => {
-      row.addEventListener('click', () => {
-        const id = row.getAttribute('data-order-id');
-        selectOrder(id);
-      });
+  function setMetricsUnavailable() {
+    ['metric-orders-count', 'metric-to-ship', 'metric-sales'].forEach(id => {
+      const element = document.getElementById(id);
+      if (element) element.textContent = '—';
     });
+    const detail = document.getElementById('metric-orders-detail');
+    const shipDetail = document.getElementById('metric-to-ship-detail');
+    if (detail) detail.textContent = 'Order data unavailable';
+    if (shipDetail) shipDetail.textContent = 'Order data unavailable';
   }
 
-  function renderEmptyDetails() {
-    const numberEl = document.getElementById('detail-order-number');
-    const subEl = document.getElementById('detail-order-sub');
-    const lineItemsEl = document.getElementById('detail-line-items');
-    const subtotalEl = document.getElementById('detail-subtotal-row');
-    const totalEl = document.getElementById('detail-total-amount');
-    const packBtn = document.getElementById('btn-mark-packed');
-
-    const custEl = document.getElementById('delivery-customer-name');
-    const addrEl = document.getElementById('delivery-address-text');
-    const speedEl = document.getElementById('delivery-speed-text');
-    const activityEl = document.getElementById('order-activity-list');
-
-    if (numberEl) numberEl.textContent = 'No Order Selected';
-    if (subEl) subEl.textContent = 'Awaiting orders';
-    if (lineItemsEl) lineItemsEl.innerHTML = '<p style="color: var(--color-muted); font-size: 13px; padding: 12px 0;">No items to display.</p>';
-    if (subtotalEl) subtotalEl.innerHTML = '<span>Subtotal ₱0</span><span>-</span>';
-    if (totalEl) totalEl.textContent = 'Total ₱0';
-    if (packBtn) packBtn.disabled = true;
-
-    if (custEl) custEl.textContent = '-';
-    if (addrEl) addrEl.textContent = '-';
-    if (speedEl) speedEl.textContent = '-';
-    if (activityEl) activityEl.innerHTML = '<p style="color: var(--color-muted); font-size: 13px;">No activity recorded.</p>';
+  function updateMetrics() {
+    const paid = orders.filter(order => order.paymentStatus === 'paid' || order.fulfillmentKey === 'paid');
+    const pending = orders.filter(order => order.paymentStatus && order.paymentStatus !== 'paid').length;
+    const toShip = orders.filter(order => ['paid', 'placed', 'confirmed', 'processing', 'unfulfilled'].includes(order.fulfillmentKey)).length;
+    const sales = paid.reduce((sum, order) => sum + order.totalNumeric, 0);
+    const countEl = document.getElementById('metric-orders-count');
+    const detailEl = document.getElementById('metric-orders-detail');
+    const shipEl = document.getElementById('metric-to-ship');
+    const shipDetailEl = document.getElementById('metric-to-ship-detail');
+    const salesEl = document.getElementById('metric-sales');
+    if (countEl) countEl.textContent = String(orders.length);
+    if (detailEl) detailEl.textContent = `${paid.length} paid · ${pending} awaiting payment`;
+    if (shipEl) shipEl.textContent = String(toShip);
+    if (shipDetailEl) shipDetailEl.textContent = 'Loaded orders ready for action';
+    if (salesEl) salesEl.textContent = money(sales);
+    const badge = document.getElementById('badge-orders');
+    if (badge) badge.textContent = String(orders.length);
   }
 
-  function selectOrder(id) {
+  function renderEmptyDetails(message = 'Select an order after the directory loads.') {
+    selectedOrderId = null;
+    const values = {
+      'detail-order-number': 'No order selected',
+      'detail-order-sub': message,
+      'detail-total-amount': 'Total —',
+      'delivery-customer-name': '—',
+      'delivery-address-text': 'Delivery address unavailable.',
+      'delivery-speed-text': 'Delivery estimate unavailable.',
+    };
+    Object.entries(values).forEach(([id, text]) => {
+      const element = document.getElementById(id);
+      if (element) element.textContent = text;
+    });
+    const items = document.getElementById('detail-line-items');
+    const subtotal = document.getElementById('detail-subtotal-row');
+    const activity = document.getElementById('order-activity-list');
+    if (items) items.innerHTML = '<p class="td-muted">No items to display.</p>';
+    if (subtotal) subtotal.innerHTML = '<span>Subtotal —</span><span>Shipping —</span>';
+    if (activity) activity.innerHTML = '<p class="td-muted">No activity recorded.</p>';
+    setDetailActions(false);
+  }
+
+  function setDetailActions(enabled, packed = false) {
+    const packButton = document.getElementById('btn-mark-packed');
+    const shipmentLink = document.getElementById('btn-create-shipment-link');
+    if (packButton) {
+      packButton.disabled = !enabled || packed;
+      packButton.textContent = packed ? 'Already packed ✓' : 'Mark as packed';
+    }
+    if (shipmentLink) {
+      shipmentLink.classList.toggle('is-disabled', !enabled);
+      shipmentLink.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+      shipmentLink.tabIndex = enabled ? 0 : -1;
+    }
+  }
+
+  function renderDetailLoading(order) {
+    const number = document.getElementById('detail-order-number');
+    const sub = document.getElementById('detail-order-sub');
+    const items = document.getElementById('detail-line-items');
+    if (number) number.textContent = `Order ${order.id}`;
+    if (sub) sub.textContent = 'Loading order details…';
+    if (items) items.innerHTML = '<span class="skeleton-line is-wide" aria-hidden="true"></span><span class="sr-only">Loading order details</span>';
+    setDetailActions(false);
+  }
+
+  function renderDetail(order) {
+    const values = {
+      'detail-order-number': `Order ${order.id}`,
+      'detail-order-sub': `${order.customer} · ${order.payment} · ${order.fulfillment}`,
+      'detail-total-amount': `Total ${order.total}`,
+      'delivery-customer-name': order.customer,
+      'delivery-address-text': order.address,
+      'delivery-speed-text': order.speed,
+    };
+    Object.entries(values).forEach(([id, text]) => {
+      const element = document.getElementById(id);
+      if (element) element.textContent = text;
+    });
+    const items = document.getElementById('detail-line-items');
+    const subtotal = document.getElementById('detail-subtotal-row');
+    const activity = document.getElementById('order-activity-list');
+    if (items) items.innerHTML = order.items.length
+      ? order.items.map(item => `<div class="detail-line"><span>${escapeHtml(item.name)}</span><span class="td-mono">${escapeHtml(item.price)}</span></div>`).join('')
+      : '<p class="td-muted">The API did not report line items.</p>';
+    if (subtotal) subtotal.innerHTML = `<span>Subtotal ${escapeHtml(order.subtotal)}</span><span>Shipping ${escapeHtml(order.shipping)}</span>`;
+    if (activity) activity.innerHTML = order.activity.length
+      ? order.activity.map(item => `<p><span class="td-mono td-muted">${escapeHtml(item.time || '')}</span> ${escapeHtml(item.desc || '')}</p>`).join('')
+      : '<p class="td-muted">No activity timeline was reported.</p>';
+    setDetailActions(true, ['packed', 'shipped', 'delivered'].includes(order.fulfillmentKey));
+  }
+
+  async function selectOrder(id) {
     selectedOrderId = id;
-    const order = orders.find(o => o.id === id);
-    if (!order) {
+    renderTable();
+    const summary = orders.find(order => order.id === id);
+    if (!summary) {
       renderEmptyDetails();
-      renderTable();
+      return;
+    }
+    const cached = detailCache.get(id);
+    if (cached) {
+      renderDetail(cached);
       return;
     }
 
-    const numberEl = document.getElementById('detail-order-number');
-    const subEl = document.getElementById('detail-order-sub');
-    const lineItemsEl = document.getElementById('detail-line-items');
-    const subtotalEl = document.getElementById('detail-subtotal-row');
-    const totalEl = document.getElementById('detail-total-amount');
-    const packBtn = document.getElementById('btn-mark-packed');
-
-    const custEl = document.getElementById('delivery-customer-name');
-    const addrEl = document.getElementById('delivery-address-text');
-    const speedEl = document.getElementById('delivery-speed-text');
-    const activityEl = document.getElementById('order-activity-list');
-
-    if (numberEl) numberEl.textContent = `Order ${order.id}`;
-    if (subEl) subEl.textContent = `${order.customer} · ${order.payment} · ${order.fulfillment}`;
-
-    if (lineItemsEl) {
-      lineItemsEl.innerHTML = (order.items || []).map(item => `
-        <div style="display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0;">
-          <span>${escapeHtml(item.name)}</span>
-          <span class="td-mono">${escapeHtml(item.price)}</span>
-        </div>
-      `).join('');
+    renderDetailLoading(summary);
+    const generation = ++detailGeneration;
+    try {
+      const response = await fetch(`${API_BASE}/orders/${encodeURIComponent(summary.recordId)}/`, {
+        headers: requestHeaders(),
+      });
+      if (!response.ok) throw await responseError(response, `Order detail returned HTTP ${response.status}.`);
+      const detail = normalizeDetail(await response.json(), summary);
+      if (generation !== detailGeneration || selectedOrderId !== id) return;
+      detailCache.set(id, detail);
+      renderDetail(detail);
+    } catch (error) {
+      if (generation !== detailGeneration || selectedOrderId !== id) return;
+      renderDetail({ ...summary, subtotal: '—', shipping: '—', address: 'Delivery address unavailable.', speed: 'Delivery estimate unavailable.', items: [], activity: [] });
+      setPageState('warning', 'Order list loaded with missing details', error.message, true);
+      setSourceStatus('PARTIAL DATA', 'is-warning');
     }
-
-    if (subtotalEl) {
-      subtotalEl.innerHTML = `<span>Subtotal ${order.subtotal}</span><span>${order.shipping}</span>`;
-    }
-    if (totalEl) totalEl.textContent = `Total ${order.total}`;
-
-    if (packBtn) {
-      if (order.fulfillmentKey === 'packed' || order.fulfillmentKey === 'shipped' || order.fulfillmentKey === 'delivered') {
-        packBtn.textContent = 'Already packed ✓';
-        packBtn.disabled = true;
-      } else {
-        packBtn.textContent = 'Mark as packed';
-        packBtn.disabled = false;
-      }
-    }
-
-    if (custEl) custEl.textContent = order.customer;
-    if (addrEl) addrEl.innerHTML = escapeHtml(order.address).replace(/\n/g, '<br>');
-    if (speedEl) speedEl.textContent = order.speed;
-
-    if (activityEl) {
-      activityEl.innerHTML = (order.activity || []).map(a => `
-        <p><span class="td-mono td-muted">${escapeHtml(a.time)}</span> ${escapeHtml(a.desc)}</p>
-      `).join('');
-    }
-
-    renderTable();
   }
 
   async function loadOrders() {
+    const generation = ++loadGeneration;
+    const hadData = orders.length > 0;
     isLoading = true;
-    renderTable();
+    setSourceStatus(hadData ? 'REFRESHING' : 'CONNECTING');
+    setPageState('info', hadData ? 'Refreshing orders' : 'Loading orders', hadData
+      ? 'Current rows remain visible while the latest order data is requested.'
+      : 'Connecting to the order service. Existing order actions stay unavailable until the response is verified.');
+    if (!hadData) {
+      setTableLoading();
+      setMetricsUnavailable();
+      renderEmptyDetails('Order actions are unavailable while loading.');
+    } else {
+      renderTable();
+    }
+
     try {
-      const response = await fetch('/api/merchant/orders/', {
-        headers: { 'Accept': 'application/json' },
-      });
-      if (!response.ok) {
-        throw new Error(`Server returned HTTP ${response.status}`);
-      }
-      orders = await response.json();
+      const response = await fetch(`${API_BASE}/orders/`, { headers: requestHeaders() });
+      if (!response.ok) throw await responseError(response, `Order service returned HTTP ${response.status}.`);
+      const payload = await response.json();
+      if (!Array.isArray(payload)) throw new Error('Order service returned an unexpected response.');
+      if (generation !== loadGeneration) return;
+      orders = payload.map(normalizeOrder);
+      detailCache.clear();
       isLoading = false;
-      if (orders.length > 0) {
-        const stillExists = orders.some(o => o.id === selectedOrderId);
-        selectOrder(stillExists ? selectedOrderId : orders[0].id);
+      updateMetrics();
+      setSourceStatus('API CONNECTED', 'is-success');
+      setPageState('ready');
+      if (orders.length) {
+        const next = orders.some(order => order.id === selectedOrderId) ? selectedOrderId : orders[0].id;
+        await selectOrder(next);
       } else {
-        selectedOrderId = null;
-        renderEmptyDetails();
+        renderEmptyDetails('No orders are available yet.');
         renderTable();
       }
-    } catch (err) {
+    } catch (error) {
+      if (generation !== loadGeneration) return;
       isLoading = false;
-      orders = [];
-      selectedOrderId = null;
-      renderEmptyDetails();
-      renderTable();
-      showToast(`Unable to load orders: ${err.message}`, 'error');
+      if (hadData) {
+        setSourceStatus('STALE DATA', 'is-warning');
+        setPageState('warning', 'Could not refresh every order', `${error.message} The previously loaded data remains visible and may be stale.`, true);
+        setDetailActions(false);
+        renderTable();
+      } else {
+        orders = [];
+        setSourceStatus('UNAVAILABLE', 'is-error');
+        setPageState('error', 'Orders are unavailable', error.message, true);
+        renderTableState('Orders could not be loaded', 'Check the connection or your merchant access, then try again.', 'retry');
+        setMetricsUnavailable();
+        renderEmptyDetails('Order data is unavailable.');
+      }
     }
   }
 
+  function clearFilters() {
+    const search = document.getElementById('search-orders-input');
+    const payment = document.getElementById('filter-payment-select');
+    const fulfillment = document.getElementById('filter-fulfillment-select');
+    if (search) search.value = '';
+    if (payment) payment.value = 'all';
+    if (fulfillment) fulfillment.value = 'all';
+    renderTable();
+    search?.focus();
+  }
+
+  async function markPacked() {
+    const summary = orders.find(order => order.id === selectedOrderId);
+    const button = document.getElementById('btn-mark-packed');
+    if (!summary || !button) return;
+    const priorLabel = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Saving…';
+    try {
+      const response = await fetch(`${API_BASE}/orders/${encodeURIComponent(summary.recordId)}/`, {
+        method: 'PATCH',
+        headers: requestHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ status: 'packed' }),
+      });
+      if (!response.ok) throw await responseError(response, `Status update returned HTTP ${response.status}.`);
+      const result = await response.json();
+      summary.fulfillment = String(result.status || 'Packed');
+      summary.fulfillmentKey = String(result.raw_status || result.status || 'packed').toLowerCase();
+      const cached = detailCache.get(summary.id);
+      if (cached) {
+        cached.fulfillment = summary.fulfillment;
+        cached.fulfillmentKey = summary.fulfillmentKey;
+      }
+      showToast(`Order ${summary.id} is marked as packed.`);
+      setPageState('ready');
+      setSourceStatus('API CONNECTED', 'is-success');
+      renderTable();
+      if (cached) renderDetail(cached);
+      else await selectOrder(summary.id);
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = priorLabel;
+      setPageState('warning', 'Order was not updated', `${error.message} The displayed fulfillment state has not been changed.`, true);
+      setSourceStatus('PARTIAL DATA', 'is-warning');
+      showToast(`Order was not updated: ${error.message}`, 'error');
+    }
+  }
+
+  function exportOrders() {
+    if (!orders.length) {
+      showToast('No loaded orders to export.', 'error');
+      return;
+    }
+    const csv = 'OrderID,Customer,Total,Payment,Fulfillment,Placed\n' + orders
+      .map(order => [order.id, order.customer, order.total, order.payment, order.fulfillment, order.placed]
+        .map(value => `"${String(value).replaceAll('"', '""')}"`).join(','))
+      .join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `orders-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    showToast('Exported the currently loaded orders.');
+  }
+
   function initHandlers() {
-    document.getElementById('search-orders-input')?.addEventListener('input', renderTable);
-    document.getElementById('filter-payment-select')?.addEventListener('change', renderTable);
-    document.getElementById('filter-fulfillment-select')?.addEventListener('change', renderTable);
-
-    document.getElementById('btn-mark-packed')?.addEventListener('click', async () => {
-      const order = orders.find(o => o.id === selectedOrderId);
-      if (!order) return;
-      const targetId = order.order_id || order.id;
-
-      try {
-        const res = await fetch(`/api/merchant/orders/${targetId}/`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'packed' }),
-        });
-        if (!res.ok) throw new Error('Status update failed on server');
-
-        order.fulfillment = 'Packed';
-        order.fulfillmentKey = 'packed';
-        if (!order.activity) order.activity = [];
-        order.activity.unshift({
-          time: new Date().toTimeString().slice(0, 5),
-          desc: 'Marked as packed by Store Merchant'
-        });
-        showToast(`Order ${order.id} marked as packed and ready for carrier pickup.`);
-        selectOrder(order.id);
-      } catch (e) {
-        showToast(`Failed to update order: ${e.message}`, 'error');
-      }
+    ['search-orders-input', 'filter-payment-select', 'filter-fulfillment-select'].forEach(id => {
+      const element = document.getElementById(id);
+      element?.addEventListener(id === 'search-orders-input' ? 'input' : 'change', renderTable);
     });
+    document.getElementById('btn-refresh-orders')?.addEventListener('click', loadOrders);
+    document.getElementById('btn-retry-orders')?.addEventListener('click', loadOrders);
+    document.getElementById('btn-mark-packed')?.addEventListener('click', markPacked);
+    document.getElementById('btn-export-orders')?.addEventListener('click', exportOrders);
 
-    document.getElementById('btn-export-orders')?.addEventListener('click', () => {
-      if (orders.length === 0) {
-        showToast('No orders to export.', 'error');
-        return;
-      }
-      const csv = 'OrderID,Customer,Total,Payment,Fulfillment,Placed\n' +
-        orders.map(o => `"${o.id}","${o.customer}","${o.total}","${o.payment}","${o.fulfillment}","${o.placed}"`).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `orders-export-${new Date().toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      showToast('Exported orders CSV.');
+    const tbody = document.getElementById('all-orders-tbody');
+    tbody?.addEventListener('click', event => {
+      const action = event.target.closest('[data-table-action]')?.dataset.tableAction;
+      if (action === 'clear') return clearFilters();
+      if (action === 'retry') return loadOrders();
+      const row = event.target.closest('tr[data-order-id]');
+      if (row) selectOrder(row.dataset.orderId);
+    });
+    tbody?.addEventListener('keydown', event => {
+      const row = event.target.closest('tr[data-order-id]');
+      if (!row || !['Enter', ' '].includes(event.key)) return;
+      event.preventDefault();
+      selectOrder(row.dataset.orderId);
     });
   }
 

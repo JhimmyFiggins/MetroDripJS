@@ -158,23 +158,10 @@ class ProductReviewsAPIView(APIView):
         if not product:
             return Response({'error': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Determine author
-        customer_ref = None
-        if hasattr(request, 'user') and request.user and getattr(request.user, 'is_authenticated', False) and isinstance(request.user, AccountsCustomer):
-            customer_name = request.user.name
-            customer_ref = request.user.id
-        else:
-            customer_name = (
-                request.data.get('author')
-                or request.data.get('customer_name')
-                or 'Verified Buyer'
-            ).strip()
-            raw_cid = request.data.get('customer_id') or request.data.get('customer_ref')
-            if raw_cid:
-                try:
-                    customer_ref = int(raw_cid)
-                except (ValueError, TypeError):
-                    pass
+        if not isinstance(request.user, AccountsCustomer) or not request.user.is_authenticated:
+            return Response({'error': 'Authentication required.'}, status=status.HTTP_401_UNAUTHORIZED)
+        customer_name = request.user.name
+        customer_ref = request.user.id
 
         try:
             rating = int(request.data.get('rating', 5))

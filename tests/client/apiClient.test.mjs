@@ -166,14 +166,14 @@ test('the single {"error": "..."} shape the services return is used verbatim', a
   });
 });
 
-test('the payment-method rejection is shown to the user, not swallowed', async () => {
+test('a provider checkout error is shown to the user, not swallowed', async () => {
   installFetch().reply(
-    { error: 'Payment method gcash is currently unavailable. Real provider integration pending; please use COD.' },
+    { error: 'Secure checkout could not be created. Please try again.' },
     400
   );
 
   await assert.rejects(apiFetch('/api/orders/checkout/', { method: 'POST', body: {} }), (err) => {
-    assert.match(err.message, /please use COD/);
+    assert.match(err.message, /Secure checkout could not be created/);
     return true;
   });
 });

@@ -1,191 +1,159 @@
 # Architecture and Operations
 
-**Status:** Verified Operational Topology & Infrastructure Plan  
-**Project:** MetroDripJS Urban Streetwear E-Commerce Platform  
-**Target Environment:** Docker Compose / Containerized Microservices & Local Dev Runbook  
-**Date:** 2026-09-27  
+**Status:** Local modular-monolith/payment implementation present; external and deployment verification pending
 
----
+**Production target:** One Render Free Django web service + one Render Free PostgreSQL database
 
-## 1. System Topology and Container Architecture
+**Release status:** HOLD
 
-MetroDripJS follows a decoupled, asynchronous microservices architecture. All external traffic from mobile clients and web consoles enters through a single **API Gateway** on Port `8000`, which handles reverse proxying, distributed tracing header injection, and path-based routing to private service containers on an isolated internal network.
+**Controlling decisions:** [Decisions and Handover](Decisions%20and%20Handover.md#active-architecture-decisions--2026-09-28)
 
-```
-                              ┌───────────────────────────────────┐
-                              │        Client Applications        │
-                              │ Expo Mobile App / Web Consoles    │
-                              └─────────────────┬─────────────────┘
-                                                │ HTTP / Port 8000
-                                                ▼
-                              ┌───────────────────────────────────┐
-                              │        API Gateway (Edge)         │
-                              │ Nginx / Python Dev Proxy (:8000)  │
-                              └─────────────────┬─────────────────┘
-                                                │ Injects X-Correlation-ID
-             ┌──────────────────┬───────────────┼───────────────┬──────────────────┐
-             │ :8001            │ :8002         │ :8003         │ :8004            │ :8005
-             ▼                  ▼               ▼               ▼                  ▼
-      ┌─────────────┐    ┌─────────────┐ ┌─────────────┐ ┌─────────────┐    ┌─────────────┐
-      │  Identity   │    │   Catalog   │ │   Orders    │ │ Fulfillment │    │   Content   │
-      │   Service   │    │   Service   │ │   Service   │ │   Service   │    │   Service   │
-      └──────┬──────┘    └──────┬──────┘ └──────┬──────┘ └──────┬──────┘    └──────┬──────┘
-             │                  │               │               │                  │
-             ▼                  ▼               ▼               ▼                  ▼
-      ┌─────────────┐    ┌─────────────┐ ┌─────────────┐ ┌─────────────┐    ┌─────────────┐
-      │ db_identity │    │ db_catalog  │ │  db_orders  │ │db_fulfillmnt│    │ db_content  │
-      └─────────────┘    └─────────────┘ └─────────────┘ └─────────────┘    └─────────────┘
+## 1. System context
+
+MetroDrip uses an Expo/React Native customer application and responsive merchant/admin web consoles. The active implementation path is the Django project in `metrodrip_backend/`: identity, catalog, orders/payments, fulfillment, content, and staff APIs deploy in one process. Local development defaults to SQLite. One PostgreSQL database is the approved Render target, but PostgreSQL migration, locking, restore, and live connectivity are still **UNVERIFIED**.
+
+```text
+Customer app ─────────────┐
+Merchant console ─────────┼── HTTPS ──> Render Free web service
+Admin console ────────────┘               Django + DRF
+                                              │
+                                   one transaction boundary
+                                              │
+                                   Render Free PostgreSQL
+
+PayMongo Hosted Checkout <── HTTPS ── Payments adapter
+PayMongo signed webhook  ── HTTPS ──> /api/payments/paymongo/webhook/
 ```
 
----
+The historical `gateway/`, `services/*`, and `docker-compose.microservices.yml` assets remain migration references and local verification fixtures. They do not define the approved production deployment. The active monolith removes those network hops, five-database overhead, internal mesh tokens, and gateway process from the intended Render path.
 
-## 2. Port Allocations & Gateway Routing Matrix
+## 2. Implemented and planned internal boundaries
 
-| Container / Service | Host Port | Internal Port | Target Database | Directory / Config | Path Routing Rules |
-|---|---|---|---|---|---|
-| **API Gateway** | `8000` | `8000` | N/A (Stateless) | [gateway/](../gateway/) | Proxies all `/api/` prefixes; aggregates `/health/` |
-| **Identity Service** | `8001` | `8001` | `db_identity` | [services/identity/](../services/identity/) | `/api/v1/auth/` |
-| **Catalog Service** | `8002` | `8002` | `db_catalog` | [services/catalog/](../services/catalog/) | `/api/v1/catalog/` |
-| **Orders Service** | `8003` | `8003` | `db_orders` | [services/orders/](../services/orders/) | `/api/v1/orders/`, `/api/merchant/orders/` |
-| **Fulfillment Service** | `8004` | `8004` | `db_fulfillment` | [services/fulfillment/](../services/fulfillment/) | `/api/v1/fulfillment/` |
-| **Content Service** | `8005` | `8005` | `db_content` | [services/content/](../services/content/) | `/api/v1/content/`, `/api/merchant/banners/` |
-| **PostgreSQL 16** | `5432` | `5432` | 5 Databases | [database/](../database/) | Private database container on Docker internal bridge |
+The current implementation has Django app boundaries, but not every logical target entity below exists. In particular, payment code and tables currently live in the `orders` app; there are no store-membership, permission, refund, payment-transition, MFA-challenge, or reconciliation-lease models.
 
----
+| Module | Owns | May call | Must not do |
+|---|---|---|---|
+| Identity | accounts, hashed credentials, opaque token digests, coarse persisted roles, audit rows | authenticates customer/admin/merchant API views | grant access from a client-supplied role or numeric ID |
+| Catalog | products, variants, categories, inventory, reservations and movements | is queried/locked directly by checkout and staff views | trust a client price or fabricate stock/category defaults |
+| Orders/payments | checkouts, orders, line/address snapshots, idempotency fields, payments, provider references, webhook inbox, bounded reconciliation | catalog/fulfillment models and the PayMongo adapter | persist PAN, CVV, wallet login, OTP, or infer paid state from a redirect |
+| Fulfillment | shipping zones, shipments, notifications and device tokens | is queried by checkout/tracking/staff views using stable references | expose another customer's address or fabricate courier/ETA data |
+| Content | banners, collections/pages and contact inquiries | is exposed through public/staff views | accept unpublished content from public clients |
+| Staff/Audit | identity permission classes, admin/merchant views, and audit rows | coordinates existing domain models | represent current role checks as store-scoped ABAC, permissions, or MFA |
 
-## 3. Technology Stack & Design Decisions
+Checkout currently coordinates the monolith's existing models directly. Multi-table state changes use `transaction.atomic()` and row locks around local inventory/order/payment transitions. Hosted Checkout creation occurs after the local order transaction commits. Further service-interface cleanup is a maintainability target, not a completed abstraction.
 
-### Stack Rationale
-- **Core Framework**: Python 3.11+ with Django 5.x & Django REST Framework (DRF). Provides proven ORM capabilities, robust database migrations, and mature security primitives.
-- **Relational Database**: PostgreSQL 16. Multi-database setup (`db_identity`, `db_catalog`, etc.) provides physical schema isolation and supports ACID transactions with `select_for_update` row locking for stock holds.
-- **Edge Reverse Proxy**: Nginx (Production) and Python HTTP Gateway ([gateway/gateway.py](../gateway/gateway.py)) for local development. Injects distributed tracing headers (`X-Correlation-ID`) across all requests.
-- **Mobile Frontend**: React Native & Expo SDK 52. Cross-platform native mobile experience with adaptive web fallbacks for review.
-- **Web Consoles**: Vanilla HTML5, CSS3, and ES6 JavaScript. Zero heavy build tools required for merchant operations; fast loading and zero bundle vulnerabilities.
+## 3. Free-tier deployment contract
 
-### Windows Dev Resolution: IPv4 Explicit Binding
-In local Windows environments, requests to `localhost` can incur an initial 2000ms delay due to dual-stack IPv6 DNS resolution fallback (`::1` failing before `127.0.0.1`). All local run scripts, gateway routes, and inter-service HTTP configurations explicitly bind to `http://127.0.0.1:<port>`.
+The repository contains an **unapplied** [`render.yaml`](../render.yaml) with:
 
----
+1. **One web service** with `plan: free`, binding the platform-provided `PORT`, a `/health/` health check, preview generation off, and `autoDeployTrigger: off`.
+2. **One PostgreSQL database** with `plan: free`, exposed to the web service through `DATABASE_URL` and no public IP allowlist.
 
-## 4. Operational Runbooks
+It must not add a background worker, cron job, Key Value/Redis instance, persistent disk, private service, autoscaling, high-availability database, read replica, or paid instance type. If Render no longer offers a required free resource or a configuration change prompts for billing, stop before applying it and record the deployment as blocked. Plan availability and limits must be checked against [Render's current free-tier documentation](https://render.com/docs/free) at deployment time.
 
-### Runbook 1: Automated Local Verification
-To execute the complete end-to-end integration suite verifying all 5 services, the gateway, COD saga checkout, stock decrements, and merchant UI parity:
+### Free-tier consequences
 
-```powershell
-metrodrip_backend\.venv\Scripts\python.exe scripts\verify_microservices_e2e.py
-```
+- The web service may sleep and cold-start. Clients must use bounded timeouts and show retry-safe pending states rather than claim a payment failed solely because a request timed out.
+- There is no always-on worker or scheduler. Correctness cannot depend on a polling daemon, Celery, BullMQ, cron, Redis, or in-memory queues.
+- In-memory cache and process-local locks are optimizations only and cannot be sources of truth because the process can restart.
+- Render's current free PostgreSQL documentation describes a 1 GB limit, expiry after 30 days, a 14-day grace period, and no managed backups or connection pooling. Those constraints do not satisfy durable production storage/recovery requirements, so production release is **HOLD**. The Blueprint must remain unapplied unless an authorized reviewer accepts a non-production use; no paid upgrade may be applied without new approval.
 
-### Runbook 2: Starting Local Microservices Individually
+## 4. Payment data flow
 
-```powershell
-# Service 1: Identity (Port 8001)
-cd services\identity
-..\..\metrodrip_backend\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8001 --noreload
+### Hosted online checkout
 
-# Service 2: Catalog (Port 8002)
-cd services\catalog
-..\..\metrodrip_backend\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8002 --noreload
+1. An authenticated customer submits checkout with `payment_method` equal to `gcash`, `maya`, or `card` and `idempotency_key` in the JSON body.
+2. Django validates ownership, calculates authoritative item/shipping totals, reserves inventory, persists the order and a pending payment attempt, and commits.
+3. The PayMongo adapter maps `maya` to the provider identifier `paymaya`, converts exact decimal PHP to integer centavos, and creates a Hosted Checkout session with server-controlled line items and return URLs.
+4. Django stores the provider checkout-session/payment references, hosted checkout URL, amount, currency, failure/status timestamps, and reconciliation timestamp. Reservation expiry is stored on the order. It returns an HTTPS redirect action to the client.
+5. The app opens the allowlisted `checkout.paymongo.com` URL. MetroDrip never renders a field for PAN, expiry, CVV, wallet password, wallet PIN, or OTP.
+6. A return/deep link prompts the app to retrieve the owned order. The redirect itself does not change payment or order state.
+7. PayMongo posts a signed webhook. Django verifies the raw body signature and timestamp, records/deduplicates the event, checks session/order/amount/currency and supplied mode, and applies the paid transition under row locks. If session creation succeeded remotely but its response was lost, a webhook may bind the unbound local payment only after exact reference, fingerprint, amount, currency, and status checks.
+8. The next owned status read shows paid, pending, setup-failed, cancelled, or expired. Reads for `awaiting_payment`/`setup_failed` may perform a provider lookup when a reference exists and the last successful lookup is at least 30 seconds old. Failures do not start the cooldown. The current code has no reconciliation lease or explicit GET throttle, so concurrent provider fan-out is still a release risk.
 
-# Service 3: Orders (Port 8003)
-cd services\orders
-..\..\metrodrip_backend\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8003 --noreload
+### COD checkout
 
-# Service 4: Fulfillment (Port 8004)
-cd services\fulfillment
-..\..\metrodrip_backend\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8004 --noreload
+COD follows the same authoritative pricing, stock, idempotency, address, and order persistence rules but creates no hosted session and returns `payment_action: null`. Its payment remains `pending_collection`; a collection-settlement transition is not implemented in this checkout slice.
 
-# Service 5: Content (Port 8005)
-cd services\content
-..\..\metrodrip_backend\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8005 --noreload
+### No-worker recovery
 
-# Service 6: API Gateway (Port 8000)
-python gateway\gateway.py
-```
+- **Webhook path:** short synchronous verify → inbox insert/dedupe → invariant check → locked paid transition → inbox outcome. Duplicate delivery returns success for the stored event. There is no separate payment-transition audit table yet.
+- **Read repair:** an authenticated owned-order request may reconcile an eligible referenced payment when the last successful lookup is at least 30 seconds old. Provider timeouts leave local state unchanged, do not start the cooldown, and return `reconciliation_status: deferred`.
+- **Request-triggered expiry:** each new checkout attempts to expire at most one stale pending checkout; an owned status read also expires its viewed checkout when due. There is no active monolith reconciliation/expiry management command, worker, lease, or cron.
+- **Observability:** queryable database payment/inbox/reservation states provide the current durable evidence. Comprehensive structured logs and alerts are not yet implemented; any paid observability option remains outside the approved deployment.
 
-### Runbook 3: Production Docker Compose Deployment
-The root repository includes [docker-compose.microservices.yml](../docker-compose.microservices.yml) orchestrating the complete stack:
+## 5. Security architecture
 
-```sh
-# Build and launch all 5 microservices, PostgreSQL 16, and Nginx gateway
-docker compose -f docker-compose.microservices.yml up --build -d
+### Trust boundaries
 
-# Verify aggregated health
-curl -i http://localhost:8000/health/
-```
+- Treat every mobile/web value, deep link, redirect query, header, and provider payload as untrusted.
+- Authenticate customer and staff principals with opaque server-verified bearer tokens. Customer order reads/writes filter by owner; staff endpoints require active `is_staff` plus a persisted coarse role.
+- Current RBAC is `admin` for administrator APIs and `merchant|admin` for merchant APIs. Store membership/ABAC, explicit permissions, MFA, and recent-authentication gates are **not implemented** and remain release gaps.
+- Provider secret and webhook secret stay in environment variables. Never expose them through Expo public variables, source maps, API responses, logs, fixtures, or Figma.
+- Enforce HTTPS in production, secure cookies where sessions are used, CSRF protection for cookie-authenticated browser mutations, a strict CORS origin allowlist, host validation, HSTS after domain verification, and secure proxy headers.
+- Enforce the configured webhook byte limit before parsing. Current scoped throttles are login `10/min`, signup `5/hour`, reset `5/hour`, checkout `30/min`, cancellation under `payment_status` `120/min`, and webhook `300/min`. The owned reconciliation GET and most staff mutations do not yet have dedicated throttles.
 
-### Runbook 4: Expired Stock Holds Sweeper
-Abandoned reservations are freed automatically via the catalog hold sweeper. To manually trigger the cleanup:
+### Webhook verification
 
-```powershell
-# Catalog management command
-cd services\catalog
-..\..\metrodrip_backend\.venv\Scripts\python.exe manage.py release_expired_holds
-```
+Use the exact raw request bytes. Parse the PayMongo signature fields, validate the timestamp against a bounded tolerance, calculate HMAC-SHA256 over the provider-specified signed payload, and use constant-time comparison against the correct test or live signature. Reject malformed, stale, unknown-mode, mismatched-currency, mismatched-amount, and unknown-session events. A unique provider event ID prevents duplicate application. Store only the minimal redacted payload needed for audit and replay diagnosis.
 
----
+### Log and telemetry policy
 
-## 5. Observability, Health Checks, and Incident Response
+Correlation-ID middleware and comprehensive structured/redacted logging are not implemented in the active monolith. They remain targets. Existing code must still avoid logging authorization headers, cookies, webhook signatures/secrets, hosted URLs, contact details, addresses, and raw authentication/checkout/webhook bodies.
 
-### Gateway Health Check Aggregator
-The API Gateway exposes an aggregated health check endpoint at `GET /health/`:
-```json
-{
-  "status": "healthy",
-  "gateway": "online",
-  "services": {
-    "identity": {"status": "healthy", "port": 8001},
-    "catalog": {"status": "healthy", "port": 8002},
-    "orders": {"status": "healthy", "port": 8003},
-    "fulfillment": {"status": "healthy", "port": 8004},
-    "content": {"status": "healthy", "port": 8005}
-  }
-}
-```
-If any downstream microservice fails, the gateway returns `503 Service Unavailable` with details on the offending container.
+## 6. Performance and resilience budgets
 
-### Distributed Tracing with Correlation IDs
-Every incoming request through the Gateway receives a unique correlation header:
-```http
-X-Correlation-ID: c5e4b2d1-9f8a-4c3e-b1a2-8d7e6f5a4b3c
-```
-This header is propagated across inter-service calls (Orders → Catalog, Orders → Fulfillment), allowing unified log correlation in central log collectors (Grafana Loki, ELK, Datadog).
+These are target budgets to validate, not measured claims:
 
----
+| Path | Target | Failure behavior |
+|---|---|---|
+| Cached/public catalog read | p95 ≤ 500 ms after warm start | Return bounded error/empty state; use conditional requests and client cache |
+| Authenticated order status | p95 ≤ 750 ms without provider reconciliation | Return last durable state with `reconciliation_status: deferred` when provider lookup fails |
+| Checkout excluding provider call | p95 ≤ 1,000 ms after warm start | Idempotent retry; never double-create order/hold |
+| Hosted Checkout creation | provider timeout ≤ 8 s | Preserve the order/reservation, mark setup failure truthfully, and allow same-key retry |
+| Webhook handler | acknowledge within 2 s after warm start | Provider retries; duplicate processing remains harmless |
 
-## 6. Disaster Recovery & Rollback Procedures
+Use PostgreSQL indexes and bounded querysets first. Cache public immutable assets through normal HTTP cache headers and the clients' caches. Do not introduce Redis. Process-local caching may be used only for non-sensitive, reconstructible reads with a short TTL and explicit invalidation trade-off.
 
-1. **Service Container Failure**:
-   - Docker Compose declares `restart: unless-stopped`. Crashed containers automatically reboot.
-   - If a specific service deployment is defective, rollback that single container image without redeploying the remaining 4 services.
-2. **Database Backup & Recovery**:
-   - Baseline monolithic backup preserved at `metrodrip_backend/db.sqlite3.baseline.bak`.
-   - PostgreSQL volume `pgdata` can be backed up via standard `pg_dump`:
-     ```sh
-     docker exec -t metrodrip_postgres pg_dump -U postgres db_orders > backup_orders_$(date +%Y%m%d).sql
-     ```
-3. **Rollback Window**:
-   - Service releases are zero-downtime using rolling updates.
-   - If schema rollback is needed, each service maintains an independent Django migration timeline (`python manage.py migrate <app_name> <target_migration>`).
+## 7. Database migration and rollback
 
----
+Use expand → deploy → backfill → validate → cut over → contract:
 
-## 7. Repository Layout and Ownership
+1. Add nullable/new tables, constraints that can be introduced safely, and indexes without removing old columns.
+2. Deploy code that can read legacy and target records while writing the target representation.
+3. Backfill in bounded, resumable batches; record counts and rejected rows without logging personal/payment data.
+4. Validate row counts, totals, ownership links, uniqueness, and state-machine invariants against a disposable PostgreSQL copy.
+5. Switch reads only after metrics and contract tests pass. Keep compatibility aliases for the agreed window.
+6. Remove old structures in a later release only after rollback and legacy-consumer evidence shows they are unused.
 
-| Path | Ownership and allowed contents |
-| --- | --- |
-| `App.js`, `index.js`, `app.json`, `package.json` | Expo application entry points and root runtime configuration. Keep the repository root free of alternate app copies and generated exports. |
-| `mobile/` | Active React Native screens, navigation, contexts, components, data, and mobile assets. Route reachability starts at `mobile/navigation/AppNavigator.jsx`. |
-| `src/` | Shared client services and theme code consumed by the mobile application. |
-| `web/` | Source HTML/CSS/JS for merchant/admin consoles and their runtime assets. Generated Expo `_expo` output is ignored and is not part of this source tree. |
-| `gateway/` | Local Python gateway, Nginx production routing, and gateway tests. |
-| `services/<bounded-context>/` | Current independently deployable Django services, migrations, requirements, Dockerfiles, and local development databases. |
-| `metrodrip_backend/` | Retained legacy monolith, baseline database, and ignored local Python environment. Treat as compatibility/reference code until a separate retirement decision is approved. |
-| `database/` | Database provisioning and initialization assets. |
-| `scripts/` | Repository-level verification and operational scripts. |
-| `tests/` | Cross-cutting client, browser, and safety tests. Service-local tests remain beside each service. |
-| `Project Guidelines/` | Canonical project documentation, compact retrieval index, setup guide, QA evidence, and interactive setup companion. |
-| `AI Skills/`, `AIO.md`, `AGENTS.md`, `Project-Operating-Directives.md` | Repository governance and specialist contracts; not application runtime code. |
-| `.idea/`, `.vscode/`, `.claude/`, `.kilo/` | Tool-specific project configuration. Machine caches and nested local worktrees remain ignored. |
+Rollback before the contract step is a code rollback plus continued use of expanded schema. A payment migration must never downgrade a terminal paid/refunded state or delete provider references/event evidence. Destructive rollback requires a reviewed data-recovery plan and explicit authorization.
 
-The 2026-09-28 cleanup removed generated bytecode, orphaned Expo bundles, obsolete source copies, and redundant archives without moving runtime modules. The exact deletion and recovery manifest is in [Decisions and Handover](Decisions%20and%20Handover.md#5-repository-cleanup-record--2026-09-28).
+## 8. Operations and incident handling
+
+### Required environment variables
+
+- Django secret key and production security flags.
+- Internal `DATABASE_URL` supplied by Render.
+- PayMongo secret key, webhook secret, and explicit test/live mode for online methods/webhooks. Missing secrets fail the affected operation closed; they do not prevent COD-only local startup.
+- Public app/web return URLs and strict allowed hosts/origins.
+- Optional operational thresholds such as webhook timestamp tolerance and reconciliation minimum age.
+
+Do not commit values. Production startup requires the Django secret. Online checkout returns a typed unavailable response when its provider secret is absent; the webhook returns `503 webhook_not_configured` when its signing secret is absent.
+
+### Health checks
+
+- **Implemented liveness:** `GET /health/` returns `{"status":"ok"}` without querying the database or external providers.
+- **Not implemented:** a distinct readiness/database probe and provider-capability health surface.
+- Payment provider degradation does not block liveness or COD; an online attempt fails closed through its typed checkout error.
+
+### Payment incident sequence
+
+1. Stop exposing the affected online method through a reviewed client/server configuration or code change; dynamic provider capability configuration is not implemented. Do not alter already-paid orders.
+2. Preserve webhook inbox rows, provider references, payment/order state, and available audit data.
+3. Query pending/ambiguous attempts using redacted database/operator tooling and compare them with PayMongo under an explicitly authorized procedure. No reconciliation command exists yet.
+4. Apply fixes through idempotent transitions; never mark paid from a customer receipt alone.
+5. Record impact, timeline, and reconciliation evidence. Refund handling is not implemented; any future refund or secret rotation requires explicit authority and provider coordination.
+
+## 9. Unverified external checks
+
+The following are **UNVERIFIED** until executed against the intended environment: current Render free-plan availability/limits, Blueprint application, production server boot, PostgreSQL migration and rollback, database retention/restore, custom-domain TLS, cold-start timings, PayMongo account activation for GCash/Maya/card, signed sandbox/live webhook delivery, real refunds, native deep-link behavior, and end-to-end payment on physical Android/iOS devices. No payment or infrastructure spend is authorized by this document.

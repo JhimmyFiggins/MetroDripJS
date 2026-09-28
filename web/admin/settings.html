@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="../css/console.css">
   <script src="../Registration/theme.js"></script>
 </head>
-<body>
+<body class="console-page--stateful">
   <!-- Figma: Admin Console / Platform Settings / Light 550:318 & Dark 554:1236 -->
   <div class="console-layout">
     <!-- Left Navigation Sidebar -->
@@ -42,7 +42,7 @@
           </a>
           <a class="nav-item" href="audit.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Audit Trail</span>
-            <span class="nav-badge volt" id="sidebar-audit-count">12</span>
+            <span class="nav-badge volt" id="sidebar-audit-count">—</span>
           </a>
         </nav>
       </div>
@@ -52,7 +52,7 @@
           <div class="user-avatar" aria-hidden="true">AD</div>
           <div class="user-meta">
             <p class="user-name">Admin User</p>
-            <p class="user-role-badge">ADMINISTRATOR · 2FA ON</p>
+            <p class="user-role-badge">ADMINISTRATOR</p>
           </div>
         </div>
 
@@ -74,7 +74,7 @@
         <span>ADMIN CONSOLE</span>
         <span>/</span>
         <span>PLATFORM SETTINGS</span>
-        <span class="sample-data">SAMPLE DATA</span>
+        <span class="data-source-badge" id="settings-source-status" aria-live="polite">CONNECTING</span>
       </div>
 
       <!-- Header -->
@@ -84,11 +84,26 @@
           <p class="page-subhead">Configure shared platform preferences and safeguards.</p>
         </div>
         <div class="header-actions">
+          <button type="button" class="btn btn-secondary" id="btn-refresh-settings">
+            Refresh
+          </button>
           <button type="button" class="btn btn-primary btn-save-settings">
             Save changes
           </button>
         </div>
       </header>
+
+      <section class="console-state-banner is-info" id="settings-state-banner" role="status" aria-live="polite" aria-atomic="true">
+        <div class="console-state-copy">
+          <p class="console-state-eyebrow" id="settings-state-eyebrow">LOADING</p>
+          <h2 class="console-state-title" id="settings-state-title">Loading platform settings</h2>
+          <p class="console-state-message" id="settings-state-message">Controls remain read-only until persisted settings are returned by the administrator API.</p>
+        </div>
+        <div class="console-state-actions">
+          <button type="button" class="btn btn-secondary" id="btn-retry-settings" hidden>Try again</button>
+          <a class="btn btn-secondary" id="settings-state-signin" href="../Registration/screens/AdminLoginScreen.html" hidden>Return to sign in</a>
+        </div>
+      </section>
 
       <form id="form-platform-settings">
         <!-- Card 1: General Preferences -->
@@ -99,37 +114,41 @@
           <div style="padding: 20px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px;">
             <div>
               <label class="form-label" for="setting-platform-name">Platform name</label>
-              <input type="text" class="form-input" id="setting-platform-name" value="MetroDrip" required>
+              <input type="text" class="form-input" id="setting-platform-name" value="" placeholder="Unavailable" required>
             </div>
             <div>
               <label class="form-label" for="setting-support-email">Support email</label>
-              <input type="email" class="form-input" id="setting-support-email" value="support@metrodrip.ph" required>
+              <input type="email" class="form-input" id="setting-support-email" value="" placeholder="Unavailable" required>
             </div>
             <div>
               <label class="form-label" for="setting-currency">Currency</label>
               <select class="toolbar-select" id="setting-currency" style="width: 100%;">
-                <option value="PHP" selected>PHP — Philippine Peso ▾</option>
+                <option value="" selected disabled>Unavailable</option>
+                <option value="PHP">PHP — Philippine Peso ▾</option>
                 <option value="USD">USD — US Dollar ▾</option>
               </select>
             </div>
             <div>
               <label class="form-label" for="setting-timezone">Time zone</label>
               <select class="toolbar-select" id="setting-timezone" style="width: 100%;">
-                <option value="Asia/Manila" selected>Asia/Manila (UTC+08:00) ▾</option>
+                <option value="" selected disabled>Unavailable</option>
+                <option value="Asia/Manila">Asia/Manila (UTC+08:00) ▾</option>
                 <option value="UTC">UTC (UTC+00:00) ▾</option>
               </select>
             </div>
             <div>
               <label class="form-label" for="setting-language">Default language</label>
               <select class="toolbar-select" id="setting-language" style="width: 100%;">
-                <option value="en" selected>English ▾</option>
+                <option value="" selected disabled>Unavailable</option>
+                <option value="en">English ▾</option>
                 <option value="tl">Filipino ▾</option>
               </select>
             </div>
             <div>
               <label class="form-label" for="setting-date-format">Date format</label>
               <select class="toolbar-select" id="setting-date-format" style="width: 100%;">
-                <option value="DD MMM YYYY" selected>DD MMM YYYY ▾</option>
+                <option value="" selected disabled>Unavailable</option>
+                <option value="DD MMM YYYY">DD MMM YYYY ▾</option>
                 <option value="YYYY-MM-DD">YYYY-MM-DD ▾</option>
                 <option value="MM/DD/YYYY">MM/DD/YYYY ▾</option>
               </select>
@@ -148,15 +167,17 @@
               <div>
                 <label class="form-label" for="setting-2fa">Staff two-factor authentication</label>
                 <select class="toolbar-select" id="setting-2fa" style="width: 100%;">
-                  <option value="required" selected>Required ▾</option>
+                  <option value="" selected disabled>Unavailable</option>
+                  <option value="required">Required ▾</option>
                   <option value="optional">Optional ▾</option>
                 </select>
               </div>
               <div>
                 <label class="form-label" for="setting-session-timeout">Session timeout</label>
                 <select class="toolbar-select" id="setting-session-timeout" style="width: 100%;">
+                  <option value="" selected disabled>Unavailable</option>
                   <option value="15">15 minutes ▾</option>
-                  <option value="30" selected>30 minutes ▾</option>
+                  <option value="30">30 minutes ▾</option>
                   <option value="60">60 minutes ▾</option>
                   <option value="120">2 hours ▾</option>
                 </select>
@@ -164,14 +185,16 @@
               <div>
                 <label class="form-label" for="setting-registration">New customer registration</label>
                 <select class="toolbar-select" id="setting-registration" style="width: 100%;">
-                  <option value="enabled" selected>Enabled ▾</option>
+                  <option value="" selected disabled>Unavailable</option>
+                  <option value="enabled">Enabled ▾</option>
                   <option value="disabled">Disabled ▾</option>
                 </select>
               </div>
               <div>
                 <label class="form-label" for="setting-maintenance">Maintenance mode</label>
                 <select class="toolbar-select" id="setting-maintenance" style="width: 100%;">
-                  <option value="off" selected>Off ▾</option>
+                  <option value="" selected disabled>Unavailable</option>
+                  <option value="off">Off ▾</option>
                   <option value="on">On (Storefront paused) ▾</option>
                 </select>
               </div>
@@ -187,19 +210,20 @@
             <div style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
               <div>
                 <label class="form-label" for="setting-payments">Payment methods</label>
-                <input type="text" class="form-input" id="setting-payments" value="GCash · Maya · Card" readonly style="background-color: var(--color-surface); cursor: default;">
-                <p class="td-muted" style="font-size: 11px; margin-top: 4px;">Payment provider: Test mode</p>
+                <input type="text" class="form-input" id="setting-payments" value="" placeholder="Unavailable" readonly style="background-color: var(--color-surface); cursor: default;">
+                <p class="td-muted" id="setting-payment-status" style="font-size: 11px; margin-top: 4px;">Payment configuration is unavailable.</p>
               </div>
               <div>
                 <label class="form-label" for="setting-order-emails">Order confirmation emails</label>
                 <select class="toolbar-select" id="setting-order-emails" style="width: 100%;">
-                  <option value="enabled" selected>Enabled ▾</option>
+                  <option value="" selected disabled>Unavailable</option>
+                  <option value="enabled">Enabled ▾</option>
                   <option value="disabled">Disabled ▾</option>
                 </select>
               </div>
               <div>
                 <label class="form-label" for="setting-sender-name">Default sender name</label>
-                <input type="text" class="form-input" id="setting-sender-name" value="MetroDrip" required>
+                <input type="text" class="form-input" id="setting-sender-name" value="" placeholder="Unavailable" required>
               </div>
               <p class="td-muted" style="font-size: 11px; line-height: 1.4;">
                 Shipping coverage and rates are managed in <strong>Merchant Console &rarr; Shipping Zones</strong>.
@@ -218,7 +242,7 @@
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container" aria-live="polite"></div>
 
-  <script src="settings.js"></script>
   <script src="../js/user-session.js"></script>
+  <script src="settings.js"></script>
 </body>
 </html>

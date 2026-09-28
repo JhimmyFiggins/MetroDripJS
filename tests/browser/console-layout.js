@@ -2,7 +2,7 @@
 // API responses are fixtures; this is not backend or native-device verification.
 async (page) => {
   const base = 'http://127.0.0.1:3000';
-  const profile = { id: 999999, name: 'QA Fixture', email: 'qa@example.invalid', role: 'admin', token: 'qa-browser-fixture' };
+  const profile = { id: 999999, name: 'QA Fixture', email: 'qa@example.invalid', role: 'admin', is_staff: true, access_token: 'qa-browser-fixture' };
   const paths = [
     'admin/', 'admin/users.html', 'admin/roles.html', 'admin/settings.html',
     'admin/audit.html', 'admin/account-settings.html', 'merchant/',
@@ -27,7 +27,7 @@ async (page) => {
   });
   await page.goto(base);
   await page.evaluate(profile => {
-    localStorage.setItem('metrodrip_active_user', JSON.stringify(profile));
+    sessionStorage.setItem('metrodrip_active_user', JSON.stringify(profile));
   }, profile);
   const results = [];
   for (const width of [320, 390, 768, 1280]) {

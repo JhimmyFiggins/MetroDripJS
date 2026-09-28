@@ -19,6 +19,16 @@ class OrdersOrder(models.Model):
     currency = models.CharField(max_length=3, default='USD')
     notes = models.TextField(null=True, blank=True)
 
+    checkout_idempotency_key = models.CharField(
+        max_length=128,
+        unique=True,
+        null=True,
+        blank=True,
+    )
+    checkout_fingerprint = models.CharField(max_length=64, blank=True, default='')
+    reservation_expires_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
 
@@ -28,6 +38,10 @@ class OrdersOrder(models.Model):
             models.Index(fields=['customer_id']),
             models.Index(fields=['status']),
             models.Index(fields=['created_at']),
+            models.Index(
+                fields=['customer_id', 'checkout_fingerprint', 'status'],
+                name='order_customer_checkout_idx',
+            ),
         ]
 
 
@@ -185,9 +199,17 @@ class OrdersPayment(models.Model):
 
     provider_ref = models.CharField(
         max_length=100,
+        unique=True,
         null=True,
         blank=True
     )
+
+    provider = models.CharField(max_length=20, default='paymongo')
+    checkout_url = models.TextField(null=True, blank=True)
+    provider_payment_ref = models.CharField(max_length=100, null=True, blank=True)
+    failure_code = models.CharField(max_length=80, null=True, blank=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+    last_reconciled_at = models.DateTimeField(null=True, blank=True)
 
     metadata = models.JSONField()
 
@@ -198,6 +220,24 @@ class OrdersPayment(models.Model):
         db_table = 'orders_payment'
         indexes = [
             models.Index(fields=['order', 'status']),
+            models.Index(fields=['provider', 'status']),
+        ]
+
+
+class PaymentWebhookEvent(models.Model):
+    event_id = models.CharField(max_length=100, primary_key=True)
+    event_type = models.CharField(max_length=100)
+    provider_ref = models.CharField(max_length=100, blank=True, default='', db_index=True)
+    payload_digest = models.CharField(max_length=64)
+    status = models.CharField(max_length=20, default='received')
+    error_code = models.CharField(max_length=80, blank=True, default='')
+    received_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'orders_paymentwebhookevent'
+        indexes = [
+            models.Index(fields=['status', 'received_at']),
         ]
 
 

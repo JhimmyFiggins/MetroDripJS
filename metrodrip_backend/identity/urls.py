@@ -6,6 +6,7 @@ from .views import (
     CheckCustomerAPIView,
     SignupAPIView,
     ForgotPasswordAPIView,
+    CustomerLogoutAPIView,
     UserMeAPIView,
     UserPasswordAPIView,
     UserMfaAPIView,
@@ -15,6 +16,7 @@ from .views import (
 urlpatterns = [
     path('signup/', SignupAPIView.as_view(), name='customer-signup'),
     path('login/', LoginAPIView.as_view(), name='customer-login'),
+    path('logout/', CustomerLogoutAPIView.as_view(), name='customer-logout'),
     path('forgot-password/', ForgotPasswordAPIView.as_view(), name='customer-forgot-password'),
     path('password-reset/', ForgotPasswordAPIView.as_view(), name='customer-password-reset'),
     path('check-customer/', CheckCustomerAPIView.as_view(), name='check-customer'),

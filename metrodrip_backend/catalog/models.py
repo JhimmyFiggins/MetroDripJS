@@ -206,13 +206,24 @@ class InventoryReservation(models.Model):
     )
 
     quantity = models.PositiveIntegerField()
+    warehouse_id = models.BigIntegerField(default=1)
+    status = models.CharField(max_length=16, default='active', db_index=True)
     expires_at = models.DateTimeField()
     created_at = models.DateTimeField()
+    committed_at = models.DateTimeField(null=True, blank=True)
+    released_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'inventory_reservation'
         indexes = [
             models.Index(fields=['expires_at']),
+            models.Index(fields=['order_id', 'status']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['order_id', 'product', 'variant'],
+                name='uniq_reservation_order_product_variant',
+            ),
         ]
 
 
