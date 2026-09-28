@@ -36,11 +36,11 @@
           </a>
           <a class="nav-item" href="inventory.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Inventory</span>
-            <span class="nav-badge volt" id="badge-inventory">6</span>
+            <span class="nav-badge volt" id="badge-inventory">—</span>
           </a>
           <a class="nav-item" href="orders.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Orders</span>
-            <span class="nav-badge" id="badge-orders">5</span>
+            <span class="nav-badge" id="badge-orders">—</span>
           </a>
           <a class="nav-item" href="shipments.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Shipments</span>
@@ -50,7 +50,7 @@
           </a>
           <a class="nav-item is-active" href="reviews.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Reviews</span>
-            <span class="nav-badge volt" id="sidebar-reviews-count">2</span>
+            <span class="nav-badge volt" id="sidebar-reviews-count">—</span>
           </a>
           <a class="nav-item" href="content.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Content & Banners</span>
@@ -66,7 +66,7 @@
           <div class="user-avatar" aria-hidden="true">MD</div>
           <div class="user-meta">
             <p class="user-name">Store Merchant</p>
-            <p class="user-role-badge">MERCHANT · 2FA ON</p>
+            <p class="user-role-badge">MERCHANT</p>
           </div>
         </div>
 
@@ -88,7 +88,6 @@
         <span>MERCHANT CONSOLE</span>
         <span>/</span>
         <span>REVIEWS</span>
-        <span class="sample-data">SAMPLE DATA</span>
       </div>
 
       <!-- Header -->
@@ -108,17 +107,17 @@
       <section class="stat-cards-grid" style="grid-template-columns: repeat(3, 1fr);" aria-label="Customer review metrics">
         <article class="stat-card">
           <p class="stat-label">NEEDS A REPLY</p>
-          <p class="stat-value" id="metric-needs-reply">2</p>
+          <p class="stat-value" id="metric-needs-reply">—</p>
           <p class="stat-subtext">Keep the conversation going</p>
         </article>
         <article class="stat-card">
           <p class="stat-label">AVERAGE RATING</p>
-          <p class="stat-value">4.7 / 5</p>
-          <p class="stat-subtext">Across 86 reviews</p>
+          <p class="stat-value" id="metric-average-rating">—</p>
+          <p class="stat-subtext" id="metric-review-cohort">Waiting for live data</p>
         </article>
         <article class="stat-card">
           <p class="stat-label">REPLIED</p>
-          <p class="stat-value" id="metric-replied-count">84</p>
+          <p class="stat-value" id="metric-replied-count">—</p>
           <p class="stat-subtext">Public merchant responses</p>
         </article>
       </section>
@@ -129,14 +128,16 @@
           <span class="search-glyph" aria-hidden="true">🔍</span>
           <input type="text" id="search-reviews-input" placeholder="Product, customer or review text" aria-label="Search reviews">
         </div>
-        <button type="button" class="toolbar-pill-btn is-active" id="btn-filter-needs-reply">
-          Needs a reply · <span id="chip-reply-count">2</span>
+        <button type="button" class="toolbar-pill-btn is-active" id="btn-filter-needs-reply" aria-pressed="true">
+          Needs a reply · <span id="chip-reply-count">—</span>
         </button>
         <select class="toolbar-select" id="filter-rating-select" aria-label="Filter by star rating">
           <option value="all">Rating: All ▾</option>
           <option value="5">5 stars ★★★★★</option>
           <option value="4">4 stars ★★★★☆</option>
           <option value="3">3 stars ★★★☆☆</option>
+          <option value="2">2 stars ★★☆☆☆</option>
+          <option value="1">1 star ★☆☆☆☆</option>
         </select>
       </div>
 
@@ -147,7 +148,7 @@
         </div>
         <div style="padding: 16px;">
           <div class="reviews-container" id="reviews-list-container">
-            <!-- Populated dynamically matching Figma 550:143 -->
+            <div class="table-state"><strong>Loading reviews</strong><span>Waiting for the review service.</span></div>
           </div>
         </div>
       </section>
@@ -156,21 +157,21 @@
       <section class="panel-card" id="card-reply-composer" style="margin-top: 24px;" aria-labelledby="heading-reply-composer">
         <div class="panel-header">
           <div>
-            <h2 class="panel-title" id="heading-reply-composer">Reply to Marco L.</h2>
+            <h2 class="panel-title" id="heading-reply-composer">Select a review to reply</h2>
             <p class="td-muted" style="font-size: 11px; margin-top: 2px;">Your response will be public and shown beneath this review.</p>
           </div>
         </div>
         <form id="form-reply-composer" style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
           <div>
             <label class="form-label" for="reply-composer-textarea">Merchant reply</label>
-            <textarea class="form-input" id="reply-composer-textarea" rows="4" style="width: 100%; resize: vertical;" maxlength="1000">Thanks for your feedback, Marco. Please contact our support team so we can help with the color difference.</textarea>
+            <textarea class="form-input" id="reply-composer-textarea" rows="4" style="width: 100%; resize: vertical;" maxlength="1000" placeholder="Write a public merchant response" disabled></textarea>
             <div style="display: flex; justify-content: flex-end; font-size: 11px; color: var(--color-muted); margin-top: 4px;">
-              <span id="composer-char-count">106 / 1,000 characters</span>
+              <span id="composer-char-count">0 / 1,000 characters</span>
             </div>
           </div>
           <div style="display: flex; gap: 10px;">
-            <button type="submit" class="btn btn-primary" id="btn-post-reply">Post reply</button>
-            <button type="button" class="btn btn-secondary" id="btn-cancel-reply">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btn-post-reply" disabled>Post reply</button>
+            <button type="button" class="btn btn-secondary" id="btn-cancel-reply" disabled>Cancel</button>
           </div>
         </form>
       </section>
@@ -186,14 +187,11 @@
       </div>
       <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px;">
         <div style="display: flex; justify-content: space-between; align-items: baseline;">
-          <h4 id="view-customer-name" style="font-size: 14px; font-weight: 700; color: var(--color-ink);">Bea S.</h4>
-          <span id="view-star-rating" class="td-mono" style="font-size: 13px;">5 of 5 stars</span>
+          <h4 id="view-customer-name" style="font-size: 14px; font-weight: 700; color: var(--color-ink);">Customer</h4>
+          <span id="view-star-rating" class="td-mono" style="font-size: 13px;">Rating unavailable</span>
         </div>
-        <p class="td-muted" style="font-size: 12px;" id="view-product-name">Drip Zip-Up Hoodie</p>
-        <blockquote id="view-review-body" style="font-size: 14px; line-height: 1.5; color: var(--color-ink); font-style: italic; border-left: 3px solid var(--color-border); padding-left: 12px; margin: 4px 0;">
-          &ldquo;Super lapad ng fit...&rdquo;
-        </blockquote>
-        <p class="td-muted" style="font-size: 11px;">Preview from the existing design. Load the complete review in production.</p>
+        <p class="td-muted" style="font-size: 12px;" id="view-product-name">Product unavailable</p>
+        <blockquote id="view-review-body" style="font-size: 14px; line-height: 1.5; color: var(--color-ink); font-style: italic; border-left: 3px solid var(--color-border); padding-left: 12px; margin: 4px 0;"></blockquote>
         <div id="view-reply-status" class="td-muted" style="font-size: 12px; font-weight: 500;">
           No merchant reply yet
         </div>

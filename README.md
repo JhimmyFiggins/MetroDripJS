@@ -1,12 +1,73 @@
-# MetroDripJS: Microservices Architecture & Engineering Handbook
+# MetroDripJS
 
-> **Release status: HOLD.** The [current QA report](Project%20Guidelines/QA%20Report%202026-09-27.md), finalized 2026-09-28, supersedes historical completion claims and test counts below. Staff authentication and event/recovery automation remain incomplete; native and PostgreSQL verification are blocked.
+> **Release status: HOLD.** The approved target is one secured modular Django monolith on **one Render Free web service and one Render Free PostgreSQL database**, with no paid worker, cron, Redis/Key Value, disk, autoscaling, or plan upgrade. Checkout retains COD and adds PayMongo Hosted Checkout for available GCash, Maya, and card methods. See the controlling [plan](Project%20Guidelines/Plan%20and%20Goals.md), [architecture](Project%20Guidelines/Architecture%20and%20Operations.md), [backend contract](Project%20Guidelines/Backend%20Functionalities.md), [database plan](Project%20Guidelines/Database%20Structure.md), and [ADRs](Project%20Guidelines/Decisions%20and%20Handover.md#active-architecture-decisions--2026-09-28).
 
-MetroDripJS is an urban streetwear e-commerce platform built with React Native/Expo (mobile client), vanilla HTML/JS merchant/admin consoles, and a distributed backend consisting of **five independently deployable Django microservices** routed through an **API Gateway**.
+MetroDripJS is an urban streetwear e-commerce platform with an Expo/React Native customer app and responsive merchant/admin web consoles. The active implementation path is `metrodrip_backend/`: one Django/DRF process containing identity, catalog, orders/payments, fulfillment, content, and staff-console APIs. Local development defaults to SQLite; the unapplied Render Blueprint wires that same application to one free PostgreSQL database.
+
+## Current modular-monolith setup
+
+### Backend
+
+```powershell
+cd metrodrip_backend
+python -m pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver 127.0.0.1:8000
+```
+
+The health endpoint is `GET http://127.0.0.1:8000/health/`. Local SQLite is convenient for development and focused tests, but it does not verify PostgreSQL row locking, query plans, migration rollback, or production concurrency.
+
+### Staff accounts and consoles
+
+Create staff accounts through the interactive command; do not use browser-selected roles or seeded identities as access control:
+
+```powershell
+cd metrodrip_backend
+python manage.py provision_staff --email admin@example.com --name "MetroDrip Admin" --role admin
+python manage.py provision_staff --email merchant@example.com --name "MetroDrip Merchant" --role merchant
+```
+
+In another terminal, serve the consoles:
+
+```powershell
+npm ci
+npm run dev
+```
+
+Open the merchant or administrator login under `http://127.0.0.1:3000/Registration/screens/`. Both post credentials to `POST /login/`. Successful staff login returns an opaque bearer token plus the persisted `role` and `is_staff` values. The browser keeps the current account only in `sessionStorage`, sends `Authorization: Bearer <token>` to console APIs, and calls the role-specific logout endpoint to revoke the token. Server permissions currently enforce a coarse persisted-role boundary: `admin` for administrator APIs and `merchant` or `admin` for merchant APIs. Store-scoped ABAC, MFA challenges, and recent-authentication gates are not implemented and remain release work.
+
+### Checkout and online payments
+
+Authenticated customers submit `POST /api/orders/checkout/` with `idempotency_key` in JSON, cart variant IDs/quantities, a Philippine shipping address, a delivery zone, and `payment_method` set to `cod`, `gcash`, `maya`, or `card`. Prices, shipping, currency, and stock are calculated by the server. Online methods create a PayMongo Hosted Checkout action; MetroDrip does not collect PAN, CVV, wallet credentials, PINs, or OTPs. A return page is informational only—payment becomes paid only after a verified provider result is applied by the signed webhook or bounded owned-order reconciliation.
+
+PayMongo secrets are optional for COD-only local work and must stay in environment variables. Live provider capability, native browser/deep-link return, and real charges/refunds are **UNVERIFIED** and are not authorized by this repository setup.
+
+### Current verification commands
+
+```powershell
+cd metrodrip_backend
+python manage.py test
+python manage.py check --deploy
+python manage.py makemigrations --check
+
+cd ..
+npm run test:client
+npx tsc --noEmit
+```
+
+For the mocked Chromium console harness, first start `npm run dev`, then run `npm run test:browser` in another terminal. It checks responsive layouts and representative loading, default, empty, partial-failure, failed-write/retry, development-fixture, permission, Escape, focus-return, and Tab-containment behavior. APIs are mocked; this is not browser-to-Django integration evidence. Final rerun results belong in [Verification and Evaluation](Project%20Guidelines/Verification%20and%20Evaluation.md).
+
+### Free-tier deployment boundary
+
+[`render.yaml`](render.yaml) is a review-only, unapplied Blueprint: previews are off, automatic deploys are off, and it declares exactly one free web service plus one free PostgreSQL database. No paid Render change is authorized. Render's free PostgreSQL lifecycle and missing managed backup guarantees make durable production storage a release **HOLD**; do not apply a paid upgrade as a workaround without new approval.
+
+## Historical five-service reference
+
+The repository also retains a separately tested five-service/gateway baseline under `services/`, `gateway/`, and `docker-compose.microservices.yml`. It is migration and regression evidence only. Conflicting production-topology, payment-exclusion, worker/cron, and five-database statements below are superseded by the linked 2026-09-28 ADRs.
 
 ---
 
-## 1. Architecture Overview
+### Historical architecture overview
 
 MetroDripJS decomposes its monolithic backend into five bounded contexts with private databases, dedicated migrations, zero cross-app ORM imports, and snapshot-based contracts:
 
@@ -37,7 +98,7 @@ MetroDripJS decomposes its monolithic backend into five bounded contexts with pr
 
 ---
 
-## 2. Service Matrix & Responsibilities
+### Historical service matrix and responsibilities
 
 | Service | Port | Database | Primary Responsibility | Directory |
 | --- | --- | --- | --- | --- |
@@ -50,7 +111,7 @@ MetroDripJS decomposes its monolithic backend into five bounded contexts with pr
 
 ---
 
-## 3. Core Architectural Decisions
+### Historical architectural decisions
 
 ### Data Isolation & Snapshots
 - **No Shared ORM Models**: No service imports models from another service.
@@ -75,7 +136,7 @@ MetroDripJS decomposes its monolithic backend into five bounded contexts with pr
 
 ---
 
-## 4. Getting Started
+### Historical environment startup
 
 ### Prerequisites
 - Python 3.11+
@@ -128,9 +189,9 @@ curl -i http://localhost:8000/health/
 
 ---
 
-## 5. Test Evidence & Quality Assurance
+### Historical test evidence and quality assurance
 
-All microservices and gateway route specifications are verified with 100% pass rates:
+The following dated results cover the historical five-service baseline only and do not verify the active monolith, PostgreSQL, PayMongo, native clients, or Render:
 
 | Test Suite | Location | Tests | Status |
 | --- | --- | --- | --- |
@@ -145,7 +206,7 @@ All microservices and gateway route specifications are verified with 100% pass r
 
 ---
 
-## 6. Runbook & Disaster Recovery
+### Historical runbook and disaster recovery
 
 ### Expired Holds Sweeper
 If reservations are abandoned before checkout completion, run the catalog hold sweeper:
@@ -165,16 +226,16 @@ cd services\catalog
 
 ---
 
-## 7. Project Guidelines Documentation
+## Project Guidelines documentation
 
-Detailed, verified technical specifications based on [AGENTS.md](AGENTS.md) are maintained in the [`Project Guidelines/`](Project%20Guidelines/) directory:
+Authoritative project specifications and evidence statuses based on [AGENTS.md](AGENTS.md) are maintained in the [`Project Guidelines/`](Project%20Guidelines/) directory:
 
 1. [Plan and Goals](Project%20Guidelines/Plan%20and%20Goals.md) — Scope, personas, non-goals, functional/non-functional requirements, milestones, and risk register.
 2. [Design Prototype](Project%20Guidelines/Design%20Prototype.md) — User journeys (M01–M08), Figma canvas bindings, design tokens (Volt/Ink/Paper), adaptive responsive layouts, and WCAG standards.
-3. [Database Structure](Project%20Guidelines/Database%20Structure.md) — 5 isolated database schemas (`db_identity`, `db_catalog`, `db_orders`, `db_fulfillment`, `db_content`), elimination of cross-boundary foreign keys, immutable purchase snapshots, and PostgreSQL 16 configs.
-4. [Backend Functionalities](Project%20Guidelines/Backend%20Functionalities.md) — Full API contract matrix, PBKDF2 authentication, orchestrated COD Checkout Saga, expiring stock holds (600s TTL), and outbox event streaming.
-5. [Architecture and Operations](Project%20Guidelines/Architecture%20and%20Operations.md) — Container topology, port allocations (8000–8005), Docker Compose deployment, Nginx edge routing, and operational runbooks.
-6. [Verification and Evaluation](Project%20Guidelines/Verification%20and%20Evaluation.md) — Test execution commands, 46/46 unit tests passing matrix, 5-phase E2E saga verification, and negative test evidence.
-7. [Decisions and Handover](Project%20Guidelines/Decisions%20and%20Handover.md) — Architecture Decision Records (ADR-01 to ADR-06), resume snapshot, exact file paths, and cold-start continuation instructions.
+3. [Database Structure](Project%20Guidelines/Database%20Structure.md) — Current additive checkout/payment/inventory migrations, target PostgreSQL validation, indexes, lifecycle, and recovery gaps.
+4. [Backend Functionalities](Project%20Guidelines/Backend%20Functionalities.md) — Current endpoint shapes, opaque bearer authentication, staff role boundary, Hosted Checkout, webhook verification, expiry, and reconciliation behavior.
+5. [Architecture and Operations](Project%20Guidelines/Architecture%20and%20Operations.md) — Current modular-monolith topology, free-only Blueprint, security limits, operations, and rollback.
+6. [Verification and Evaluation](Project%20Guidelines/Verification%20and%20Evaluation.md) — Current rerun matrix separated from historical tests and external/native/live gaps.
+7. [Decisions and Handover](Project%20Guidelines/Decisions%20and%20Handover.md) — Active ADRs, implementation snapshot, exact paths, blockers, and cold-start continuation instructions.
 8. [AI Documentation Notes](Project%20Guidelines/AI%20Documentation%20Notes.md) — Compact retrieval map for locating authoritative project knowledge.
 9. [Tech Stack Setup Guide](Project%20Guidelines/Tech%20Stack%20Setup%20Guide.md) — Local setup, service launch, and troubleshooting guidance, with an [interactive companion](Project%20Guidelines/tech-stack-setup.html).

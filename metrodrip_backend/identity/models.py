@@ -1,4 +1,11 @@
+import hashlib
+import secrets
+from datetime import timedelta
+
+from django.conf import settings
+from django.contrib.auth.hashers import check_password, identify_hasher, is_password_usable, make_password
 from django.db import models
+from django.utils import timezone
 
 
 class AccountsCustomer(models.Model):
@@ -25,6 +32,59 @@ class AccountsCustomer(models.Model):
     @property
     def is_anonymous(self):
         return False
+
+    def set_password(self, raw_password):
+        self.password = make_password(raw_password)
+
+    def check_password(self, raw_password):
+        if not is_password_usable(self.password):
+            return False
+        try:
+            identify_hasher(self.password)
+        except ValueError:
+            # Existing installs contain plaintext demo passwords. A successful
+            # login upgrades them; new writes are always one-way hashes.
+            return secrets.compare_digest(self.password, raw_password or '')
+        return check_password(raw_password, self.password)
+
+
+class CustomerAccessToken(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    customer = models.ForeignKey(
+        AccountsCustomer,
+        on_delete=models.CASCADE,
+        related_name='access_tokens',
+    )
+    token_digest = models.CharField(max_length=64, unique=True)
+    token_prefix = models.CharField(max_length=12, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(db_index=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    class Meta:
+        db_table = 'identity_customeraccesstoken'
+        indexes = [
+            models.Index(fields=['customer', 'expires_at']),
+        ]
+
+    @staticmethod
+    def digest(raw_token):
+        return hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
+
+    @classmethod
+    def issue(cls, customer, lifetime=None):
+        raw_token = secrets.token_urlsafe(32)
+        lifetime = lifetime or timedelta(
+            seconds=getattr(settings, 'CUSTOMER_TOKEN_TTL_SECONDS', 2592000)
+        )
+        token = cls.objects.create(
+            customer=customer,
+            token_digest=cls.digest(raw_token),
+            token_prefix=raw_token[:12],
+            expires_at=timezone.now() + lifetime,
+        )
+        return token, raw_token
 
 
 class AccountsWishlistItem(models.Model):

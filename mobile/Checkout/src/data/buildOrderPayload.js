@@ -1,15 +1,14 @@
 // Builds the POST /api/orders/checkout/ body from the checkout draft.
 //
-// Contract verified against the active deployment:
-//   services/orders/orders/views.py  OrdersListCreateAPIView.post
-//   services/orders/orders/urls.py    api/orders/checkout/
-//   services/orders/orders/saga.py    execute_cod_checkout_saga
-//   services/catalog/catalog/views.py CatalogQuoteAPIView.post
+// Contract consumed by the active modular Django backend:
+//   metrodrip_backend/orders/views.py  checkout, ownership and pricing
+//   metrodrip_backend/orders/urls.py   api/orders/checkout/
 //
-// The service takes authoritative pricing from catalog, so the client must NOT
+// The backend takes authoritative pricing from catalog, so the client must NOT
 // send prices, totals, status or a product FK — it sends variant ids, the
-// delivery zone, COD, an idempotency key and the shipping address.
-const PAYMENT_METHOD = 'COD';
+// delivery zone, a canonical payment method, an idempotency key and the
+// shipping address. Provider-specific method names stay behind the API.
+const PAYMENT_METHODS = new Set(['cod', 'gcash', 'maya', 'card']);
 const checkoutAttempts = new WeakMap();
 let attemptSequence = 0;
 class CheckoutPayloadError extends Error {
@@ -96,10 +95,20 @@ export function splitShippingAddress(draft = {}) {
   return { address_line1: line1, city: outCity, state: outState };
 }
 
-export function buildIdempotencyKey(draft, items) {
+export function normalizePaymentMethod(value) {
+  const method = clean(value).toLowerCase();
+  if (!PAYMENT_METHODS.has(method)) {
+    throw new CheckoutPayloadError('Choose a supported payment method before placing your order.');
+  }
+  return method;
+}
+
+export function buildIdempotencyKey(draft, items, paymentMethod = 'cod') {
+  const method = normalizePaymentMethod(paymentMethod);
   const address = splitShippingAddress(draft);
   const fingerprint = JSON.stringify({
     items,
+    paymentMethod: method,
     name: clean(draft?.fullName),
     phone: clean(draft?.mobile),
     address: address.address_line1,
@@ -117,8 +126,9 @@ export function buildIdempotencyKey(draft, items) {
   return key;
 }
 
-export function buildOrderPayload(draft) {
+export function buildOrderPayload(draft, paymentMethod = 'cod') {
   const items = buildOrderItems(draft?.items);
+  const method = normalizePaymentMethod(paymentMethod);
   const address = splitShippingAddress(draft);
 
   const name = clean(draft?.fullName);
@@ -137,8 +147,8 @@ export function buildOrderPayload(draft) {
   return {
     items,
     delivery_zone: deliveryZone,
-    payment_method: PAYMENT_METHOD,
-    idempotency_key: buildIdempotencyKey(draft, items),
+    payment_method: method,
+    idempotency_key: buildIdempotencyKey(draft, items, method),
     shipping_address: {
       name,
       address_line1: address.address_line1,

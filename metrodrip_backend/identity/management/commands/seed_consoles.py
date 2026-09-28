@@ -1,4 +1,6 @@
-from django.core.management.base import BaseCommand
+from django.conf import settings
+from django.contrib.auth.hashers import make_password
+from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 from datetime import timedelta
 from identity.models import AccountsCustomer, AuditLog
@@ -13,9 +15,11 @@ from orders.models import OrdersOrder, OrdersOrderLine, OrdersShippingAddress, O
 
 
 class Command(BaseCommand):
-    help = 'Seeds initial console data strictly matching Figma frames 15:2, 57:2, and 58:2'
+    help = 'Seeds local-only demonstration data matching the console design frames'
 
     def handle(self, *args, **options):
+        if not settings.DEBUG:
+            raise CommandError('Demo console data may only be seeded while DEBUG is enabled.')
         self.stdout.write('Seeding console data from Figma specifications...')
         now = timezone.now()
 
@@ -41,7 +45,7 @@ class Command(BaseCommand):
                     'phone': u_data['phone'],
                     'is_staff': u_data['role'] in ['admin', 'merchant'],
                     'is_superuser': u_data['role'] == 'admin',
-                    'password': 'pbkdf2_sha256$mock_password',
+                    'password': make_password(None),
                     'addresses': [],
                     'date_joined': now - timedelta(days=5),
                 }

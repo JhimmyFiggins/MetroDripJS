@@ -20,7 +20,7 @@ from .merchant_views import (
     MerchantBannersAPIView,
     MerchantBannerDetailAPIView,
 )
-from identity.views import LogoutAPIView, SwitchUserAPIView
+from identity.views import LogoutAPIView
 
 urlpatterns = [
     path('dashboard/', MerchantDashboardAPIView.as_view(), name='merchant-dashboard'),
@@ -46,7 +46,5 @@ urlpatterns = [
     path('banners/<int:pk>/', MerchantBannerDetailAPIView.as_view(), name='merchant-banner-detail'),
     path('analytics/', MerchantAnalyticsAPIView.as_view(), name='merchant-analytics'),
     path('logout/', LogoutAPIView.as_view(), name='merchant-logout'),
-    path('switch-user/', SwitchUserAPIView.as_view(), name='merchant-switch-user'),
 ]
-
 

@@ -11,11 +11,11 @@ export const initialDeliveryAddress: DeliveryAddress = {
   zone: 'Metro Manila (NCR)',
 };
 
-// Cash on delivery is the only method the orders service settles today:
-// OrdersListCreateAPIView.post answers 400 for anything other than cod.
-// Do not add a wallet or card row here until that service accepts one.
 export const paymentOptions: readonly PaymentOptionModel[] = [
   { id: 'cod', title: 'Cash on Delivery', subtitle: 'Pay when your package arrives' },
+  { id: 'gcash', title: 'GCash', subtitle: 'Continue in PayMongo secure checkout' },
+  { id: 'maya', title: 'Maya', subtitle: 'Continue in PayMongo secure checkout' },
+  { id: 'card', title: 'Credit or Debit Card', subtitle: 'Enter card details securely on PayMongo' },
 ];
 
 // Provide realistic Philippine delivery zones for the interactive selector.

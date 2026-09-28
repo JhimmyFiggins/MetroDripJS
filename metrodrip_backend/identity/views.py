@@ -2,14 +2,17 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.renderers import JSONRenderer
-from .models import AccountsWishlistItem, AccountsCustomer, AuditLog
+from .models import AccountsWishlistItem, AccountsCustomer, AuditLog, CustomerAccessToken
 from catalog.models import CatalogProduct
 from django.utils import timezone
-from rest_framework.authtoken.models import Token
-from .authentication import CustomerAuthentication
+from .authentication import CustomerAuthentication, CustomerTokenAuthentication
+from .permissions import IsAdminRole, IsMerchantOrAdminRole
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.throttling import ScopedRateThrottle
 
 class WishlistAPIView(APIView):
     authentication_classes = [CustomerAuthentication]
+    permission_classes = [IsAuthenticated]
     renderer_classes = [JSONRenderer]
 
     def _get_customer(self, request):
@@ -128,6 +131,7 @@ class WishlistAPIView(APIView):
 
 class ProfileAPIView(APIView):
     authentication_classes = [CustomerAuthentication]
+    permission_classes = [IsAuthenticated]
     renderer_classes = [JSONRenderer]
 
     def _get_customer(self, request):
@@ -204,6 +208,8 @@ class ProfileAPIView(APIView):
 
 class ForgotPasswordAPIView(APIView):
     renderer_classes = [JSONRenderer]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'password_reset'
 
     def post(self, request):
         email = (request.data.get('email') or '').strip()
@@ -211,81 +217,65 @@ class ForgotPasswordAPIView(APIView):
         if not email:
             return Response({'error': 'Email is required.'}, status=400)
 
-        customer = AccountsCustomer.objects.filter(email=email, is_active=True).first()
-
-        if customer:
-            try:
-                AuditLog.objects.create(
-                    actor=customer.name,
-                    actor_role='customer',
-                    action='Requested password reset',
-                    target_model='AccountsCustomer',
-                    target_id=str(customer.id),
-                )
-            except Exception:
-                pass
-
-            return Response({
-                'success': True,
-                'message': 'Password reset instructions have been sent to your email.',
-                'email': customer.email,
-            }, status=200)
-
         return Response({
-            'success': False,
-            'error': 'No active account found with this email address.',
-        }, status=404)
+            'error': 'Password-reset delivery is not configured. No reset token was generated or sent.',
+            'code': 'reset_delivery_unconfigured',
+        }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 class LoginAPIView(APIView):
     renderer_classes = [JSONRenderer]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'login'
 
     def post(self, request):
-        print("LOGIN EMAIL:", request.data.get('email'))
-        print("LOGIN PASSWORD:", request.data.get('password'))
-        email = request.data.get('email')
-        password = request.data.get('password')
+        email = (request.data.get('email') or '').strip().lower()
+        password = request.data.get('password') or ''
+        customer = AccountsCustomer.objects.filter(email__iexact=email, is_active=True).first()
 
-        customer = AccountsCustomer.objects.filter(
-            email=email,
-            password=password,
-            is_active=True
-        ).first()
-
-        if not customer:
+        if not customer or not customer.check_password(password):
             return Response(
                 {'error': 'Invalid email or password.'},
                 status=401
             )
-        # token, created = Token.objects.get_or_create(user=customer)
+
+        # Upgrade legacy plaintext values only after the submitted password has
+        # matched, so existing accounts migrate without a disruptive reset.
+        if not customer.password.startswith(('pbkdf2_', 'argon2$', 'bcrypt$', 'scrypt$')):
+            customer.set_password(password)
+            customer.last_login = timezone.now()
+            customer.save(update_fields=['password', 'last_login'])
+        else:
+            customer.last_login = timezone.now()
+            customer.save(update_fields=['last_login'])
+
+        token, raw_token = CustomerAccessToken.issue(customer)
         return Response({
             'id': customer.id,
             'name': customer.name,
             'email': customer.email,
             'phone': customer.phone,
             'addresses': customer.addresses,
+            'access_token': raw_token,
+            'token': raw_token,
+            'token_type': 'Bearer',
+            'expires_at': token.expires_at.isoformat(),
+            'role': customer.role,
+            'is_staff': customer.is_staff,
         })
 
 class CheckCustomerAPIView(APIView):
     renderer_classes = [JSONRenderer]
 
     def get(self, request):
-        customer = AccountsCustomer.objects.filter(id=1).first()
-
-        if not customer:
-            return Response({
-                'exists': False
-            })
-
         return Response({
-            'exists': True,
-            'id': customer.id,
-            'email': customer.email,
-            'password': customer.password,
-            'is_active': customer.is_active,
-        })
-        
+            'error': 'This account-discovery endpoint has been retired.',
+            'code': 'account_discovery_retired',
+        }, status=status.HTTP_410_GONE)
+
 class SignupAPIView(APIView):
     renderer_classes = [JSONRenderer]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'signup'
 
     def post(self, request):
         name = request.data.get('name')
@@ -304,10 +294,9 @@ class SignupAPIView(APIView):
                 status=400
             )
 
-        customer = AccountsCustomer.objects.create(
+        customer = AccountsCustomer(
             name=name,
-            email=email,
-            password=password,
+            email=email.strip().lower(),
             phone='',
             addresses={},
             is_active=True,
@@ -316,6 +305,8 @@ class SignupAPIView(APIView):
             role='customer',
             date_joined=timezone.now(),
         )
+        customer.set_password(password)
+        customer.save()
 
         return Response({
             'id': customer.id,
@@ -325,22 +316,20 @@ class SignupAPIView(APIView):
 
 
 class LogoutAPIView(APIView):
+    authentication_classes = [CustomerTokenAuthentication]
+    permission_classes = [IsMerchantOrAdminRole]
     renderer_classes = [JSONRenderer]
 
     def post(self, request):
-        actor_name = request.data.get('actor') or (request.user.name if hasattr(request.user, 'name') and request.user.name else 'Console User')
-        actor_role = request.data.get('role') or (request.user.role if hasattr(request.user, 'role') and request.user.role else 'staff')
-
-        try:
-            AuditLog.objects.create(
-                actor=actor_name,
-                actor_role=actor_role,
-                action='Signed out of console session',
-                target_model='AccountsCustomer',
-                target_id=str(request.data.get('user_id', '')),
-            )
-        except Exception:
-            pass
+        AuditLog.objects.create(
+            actor=request.user.name or request.user.email,
+            actor_role=request.user.role,
+            action='Signed out of console session',
+            target_model='AccountsCustomer',
+            target_id=str(request.user.id),
+        )
+        request.auth.revoked_at = timezone.now()
+        request.auth.save(update_fields=['revoked_at'])
 
         return Response({
             'success': True,
@@ -348,85 +337,61 @@ class LogoutAPIView(APIView):
         }, status=200)
 
 
+class CustomerLogoutAPIView(APIView):
+    authentication_classes = [CustomerTokenAuthentication]
+    permission_classes = [IsAuthenticated]
+    renderer_classes = [JSONRenderer]
+
+    def post(self, request):
+        request.auth.revoked_at = timezone.now()
+        request.auth.save(update_fields=['revoked_at'])
+        return Response({'success': True, 'message': 'Successfully signed out.'}, status=200)
+
+
 class SwitchUserAPIView(APIView):
+    authentication_classes = [CustomerTokenAuthentication]
+    permission_classes = [IsAdminRole]
     renderer_classes = [JSONRenderer]
 
     def get(self, request):
-        role_filter = request.GET.get('role')
-        qs = AccountsCustomer.objects.filter(is_active=True)
-        if role_filter:
-            qs = qs.filter(role=role_filter)
-
-        users = qs.order_by('-is_staff', 'role', 'id')[:30]
-        data = [
-            {
-                'id': u.id,
-                'name': u.name,
-                'email': u.email,
-                'role': u.role,
-                'is_staff': u.is_staff,
-                'is_active': u.is_active,
-                'date_joined': u.date_joined.isoformat() if u.date_joined else None,
-            }
-            for u in users
-        ]
         return Response({
-            'success': True,
-            'users': data,
-            'count': len(data),
-        }, status=200)
+            'success': False,
+            'error': 'Client-side account switching has been retired. Sign out and authenticate as the intended account.',
+            'code': 'account_switching_retired',
+        }, status=status.HTTP_410_GONE)
 
     def post(self, request):
-        user_id = request.data.get('user_id')
-        email = request.data.get('email', '').strip()
-        current_actor = request.data.get('current_actor', 'Console User')
-
-        target = None
-        if user_id:
-            target = AccountsCustomer.objects.filter(id=user_id, is_active=True).first()
-        elif email:
-            target = AccountsCustomer.objects.filter(email=email, is_active=True).first()
-
-        if not target:
-            return Response({
-                'success': False,
-                'error': 'Active user account not found or is suspended.',
-            }, status=404)
-
-        try:
-            AuditLog.objects.create(
-                actor=current_actor,
-                actor_role='system',
-                action=f'Switched active account to {target.name} ({target.role})',
-                target_model='AccountsCustomer',
-                target_id=str(target.id),
-            )
-        except Exception:
-            pass
-
-        if target.role == 'admin':
-            redirect_url = '/admin/index.html'
-        elif target.role == 'merchant':
-            redirect_url = '/merchant/index.html'
-        else:
-            redirect_url = '/'
-
         return Response({
-            'success': True,
-            'message': f'Switched account to {target.name}',
-            'user': {
-                'id': target.id,
-                'name': target.name,
-                'email': target.email,
-                'role': target.role,
-                'is_staff': target.is_staff,
-            },
-            'redirect_url': redirect_url,
-        }, status=200)
+            'success': False,
+            'error': 'Client-side account switching has been retired. Sign out and authenticate as the intended account.',
+            'code': 'account_switching_retired',
+        }, status=status.HTTP_410_GONE)
+
+
+def _active_session_data(customer, current_token=None):
+    tokens = CustomerAccessToken.objects.filter(
+        customer=customer,
+        revoked_at__isnull=True,
+        expires_at__gt=timezone.now(),
+    ).order_by('-created_at')
+    return [
+        {
+            'id': f'token-{token.id}',
+            'device': 'Current authenticated client' if current_token and token.id == current_token.id else 'Authenticated client',
+            'ip': None,
+            'location': None,
+            'created_at': token.created_at.isoformat(),
+            'last_active': (token.last_used_at or token.created_at).isoformat(),
+            'expires_at': token.expires_at.isoformat(),
+            'is_current': bool(current_token and token.id == current_token.id),
+        }
+        for token in tokens
+    ]
 
 
 class UserMeAPIView(APIView):
     authentication_classes = [CustomerAuthentication]
+    permission_classes = [IsAuthenticated]
     renderer_classes = [JSONRenderer]
 
     def _get_customer(self, request):
@@ -463,7 +428,6 @@ class UserMeAPIView(APIView):
 
         meta = customer.addresses if isinstance(customer.addresses, dict) else {}
         avatar = meta.get('avatar', '')
-        mfa_enabled = meta.get('mfa_enabled', True)
         preferences = meta.get('preferences', {
             'email_notifications': True,
             'security_alerts': True,
@@ -473,32 +437,7 @@ class UserMeAPIView(APIView):
             'theme': 'dark',
             'digest_frequency': 'weekly',
         })
-        sessions = meta.get('sessions', [
-            {
-                'id': 'sess-current',
-                'device': 'Chrome 128 on macOS (Sonoma)',
-                'ip': '192.168.30.23',
-                'location': 'Quezon City, PH',
-                'last_active': 'Active now',
-                'is_current': True,
-            },
-            {
-                'id': 'sess-mobile-ios',
-                'device': 'MetroDrip iOS App (iPhone 15 Pro)',
-                'ip': '112.198.71.104',
-                'location': 'Manila, PH',
-                'last_active': '2 hours ago',
-                'is_current': False,
-            },
-            {
-                'id': 'sess-workstation',
-                'device': 'Firefox 130 on Windows 11',
-                'ip': '175.176.88.19',
-                'location': 'Taguig, PH',
-                'last_active': 'Yesterday, 18:42',
-                'is_current': False,
-            },
-        ])
+        sessions = _active_session_data(customer, request.auth)
 
         return Response({
             'id': customer.id,
@@ -508,7 +447,8 @@ class UserMeAPIView(APIView):
             'role': customer.role,
             'is_staff': customer.is_staff,
             'avatar': avatar,
-            'mfa_enabled': mfa_enabled,
+            'mfa_enabled': False,
+            'mfa_available': False,
             'preferences': preferences,
             'sessions': sessions,
             'addresses': customer.addresses,
@@ -570,6 +510,7 @@ class UserMeAPIView(APIView):
 
 class UserPasswordAPIView(APIView):
     authentication_classes = [CustomerAuthentication]
+    permission_classes = [IsAuthenticated]
     renderer_classes = [JSONRenderer]
 
     def post(self, request):
@@ -582,7 +523,7 @@ class UserPasswordAPIView(APIView):
         new_password = request.data.get('new_password', '')
         confirm_password = request.data.get('confirm_password', '')
 
-        if customer.password and customer.password != current_password:
+        if customer.password and not customer.check_password(current_password):
             return Response({'error': 'Current password does not match.'}, status=status.HTTP_400_BAD_REQUEST)
 
         if not new_password:
@@ -606,8 +547,11 @@ class UserPasswordAPIView(APIView):
                     'error': f'Password contains easily guessable term "{word}". Please choose a stronger passphrase per NIST SP 800-63B.'
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-        customer.password = new_password
-        customer.save()
+        customer.set_password(new_password)
+        customer.save(update_fields=['password'])
+        CustomerAccessToken.objects.filter(customer=customer).exclude(pk=request.auth.pk).update(
+            revoked_at=timezone.now()
+        )
 
         try:
             AuditLog.objects.create(
@@ -628,70 +572,19 @@ class UserPasswordAPIView(APIView):
 
 class UserMfaAPIView(APIView):
     authentication_classes = [CustomerAuthentication]
+    permission_classes = [IsAuthenticated]
     renderer_classes = [JSONRenderer]
 
     def post(self, request):
-        user_me_view = UserMeAPIView()
-        customer = user_me_view._get_customer(request)
-        if not customer:
-            return Response({'error': 'Authentication required.'}, status=status.HTTP_401_UNAUTHORIZED)
-
-        enabled = request.data.get('enabled')
-        verification_code = request.data.get('code')
-
-        meta = customer.addresses if isinstance(customer.addresses, dict) else {}
-
-        if enabled is False:
-            meta['mfa_enabled'] = False
-            customer.addresses = meta
-            customer.save()
-
-            try:
-                AuditLog.objects.create(
-                    actor=customer.name,
-                    actor_role=customer.role,
-                    action='Disabled Two-Factor Authentication (MFA)',
-                    target_model='AccountsCustomer',
-                    target_id=str(customer.id),
-                )
-            except Exception:
-                pass
-
-            return Response({
-                'success': True,
-                'mfa_enabled': False,
-                'message': 'Two-factor authentication disabled.',
-            })
-
-        if verification_code and len(str(verification_code).strip()) == 6:
-            meta['mfa_enabled'] = True
-            customer.addresses = meta
-            customer.save()
-
-            try:
-                AuditLog.objects.create(
-                    actor=customer.name,
-                    actor_role=customer.role,
-                    action='Enabled Two-Factor Authentication (TOTP)',
-                    target_model='AccountsCustomer',
-                    target_id=str(customer.id),
-                )
-            except Exception:
-                pass
-
-            return Response({
-                'success': True,
-                'mfa_enabled': True,
-                'message': 'Two-factor authentication verified and enabled.',
-            })
-
         return Response({
-            'error': 'A valid 6-digit TOTP verification code is required to enable MFA.'
-        }, status=status.HTTP_400_BAD_REQUEST)
+            'error': 'Multi-factor authentication is not configured. No verification code was accepted.',
+            'code': 'mfa_unconfigured',
+        }, status=status.HTTP_501_NOT_IMPLEMENTED)
 
 
 class UserSessionsAPIView(APIView):
     authentication_classes = [CustomerAuthentication]
+    permission_classes = [IsAuthenticated]
     renderer_classes = [JSONRenderer]
 
     def post(self, request):
@@ -703,82 +596,52 @@ class UserSessionsAPIView(APIView):
         session_id = request.data.get('session_id')
         revoke_all = request.data.get('revoke_all', False)
 
-        meta = customer.addresses if isinstance(customer.addresses, dict) else {}
-        sessions = meta.get('sessions', [
-            {
-                'id': 'sess-current',
-                'device': 'Chrome 128 on macOS (Sonoma)',
-                'ip': '192.168.30.23',
-                'location': 'Quezon City, PH',
-                'last_active': 'Active now',
-                'is_current': True,
-            },
-            {
-                'id': 'sess-mobile-ios',
-                'device': 'MetroDrip iOS App (iPhone 15 Pro)',
-                'ip': '112.198.71.104',
-                'location': 'Manila, PH',
-                'last_active': '2 hours ago',
-                'is_current': False,
-            },
-            {
-                'id': 'sess-workstation',
-                'device': 'Firefox 130 on Windows 11',
-                'ip': '175.176.88.19',
-                'location': 'Taguig, PH',
-                'last_active': 'Yesterday, 18:42',
-                'is_current': False,
-            },
-        ])
-
         if revoke_all:
-            sessions = [s for s in sessions if s.get('is_current')]
-            meta['sessions'] = sessions
-            customer.addresses = meta
-            customer.save()
-
-            try:
-                AuditLog.objects.create(
-                    actor=customer.name,
-                    actor_role=customer.role,
-                    action='Revoked all remote sessions (NIST SP 800-63B session termination)',
-                    target_model='AccountsCustomer',
-                    target_id=str(customer.id),
-                )
-            except Exception:
-                pass
+            CustomerAccessToken.objects.filter(customer=customer, revoked_at__isnull=True).exclude(
+                pk=request.auth.pk
+            ).update(revoked_at=timezone.now())
+            AuditLog.objects.create(
+                actor=customer.name,
+                actor_role=customer.role,
+                action='Revoked all other access tokens',
+                target_model='CustomerAccessToken',
+                target_id=str(customer.id),
+            )
 
             return Response({
                 'success': True,
                 'message': 'All other active sessions have been revoked.',
-                'sessions': sessions,
+                'sessions': _active_session_data(customer, request.auth),
             })
 
         if session_id:
-            target = next((s for s in sessions if s.get('id') == session_id), None)
-            if target and target.get('is_current'):
+            prefix = 'token-'
+            if not isinstance(session_id, str) or not session_id.startswith(prefix) or not session_id[len(prefix):].isdigit():
+                return Response({'error': 'Session not found.'}, status=status.HTTP_404_NOT_FOUND)
+            target_id = int(session_id[len(prefix):])
+            if target_id == request.auth.id:
                 return Response({'error': 'Cannot revoke current session here. Use Sign Out instead.'}, status=status.HTTP_400_BAD_REQUEST)
-
-            sessions = [s for s in sessions if s.get('id') != session_id]
-            meta['sessions'] = sessions
-            customer.addresses = meta
-            customer.save()
-
-            try:
-                AuditLog.objects.create(
-                    actor=customer.name,
-                    actor_role=customer.role,
-                    action=f'Revoked remote session {session_id}',
-                    target_model='AccountsCustomer',
-                    target_id=str(customer.id),
-                )
-            except Exception:
-                pass
+            target = CustomerAccessToken.objects.filter(
+                pk=target_id,
+                customer=customer,
+                revoked_at__isnull=True,
+            ).first()
+            if not target:
+                return Response({'error': 'Session not found.'}, status=status.HTTP_404_NOT_FOUND)
+            target.revoked_at = timezone.now()
+            target.save(update_fields=['revoked_at'])
+            AuditLog.objects.create(
+                actor=customer.name,
+                actor_role=customer.role,
+                action=f'Revoked access token {target.id}',
+                target_model='CustomerAccessToken',
+                target_id=str(target.id),
+            )
 
             return Response({
                 'success': True,
                 'message': f'Session {session_id} has been revoked.',
-                'sessions': sessions,
+                'sessions': _active_session_data(customer, request.auth),
             })
 
-        return Response({'error': 'session_id or revoke_all is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'error': 'session_id or revoke_all is required.'}, status=status.HTTP_400_BAD_REQUEST)

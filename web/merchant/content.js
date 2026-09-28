@@ -1,338 +1,306 @@
-/**
- * MetroDrip Merchant Console - Content & Banners Management
- * Figma Spec: 550:182 & 554:793
- */
-
-(function () {
+// Merchant banner management backed by the authenticated Django API.
+(() => {
   'use strict';
 
-  // Seed Placements State matching Figma 550:182
-  let banners = [
-    {
-      id: 1,
-      name: 'Urban Style Redefined',
-      placement: 'Homepage hero',
-      status: 'Live',
-      schedule: 'Always on',
-      headline: 'Urban Style Redefined',
-      subtext: 'Designed for the City',
-      buttonLabel: 'Shop Now',
-      destination: '/shop',
-      scheduleType: 'always'
-    },
-    {
-      id: 2,
-      name: 'Free shipping over ₱2,500',
-      placement: 'Announcement bar',
-      status: 'Live',
-      schedule: 'Always on',
-      headline: 'Free shipping over ₱2,500',
-      subtext: 'Applies automatically at checkout on orders over ₱2,500.',
-      buttonLabel: 'View Details',
-      destination: '/shipping',
-      scheduleType: 'always'
-    },
-    {
-      id: 3,
-      name: 'Weekend drop',
-      placement: 'Homepage secondary',
-      status: 'Scheduled',
-      schedule: '25 Sep · 09:00 PHT',
-      headline: 'Weekend drop',
-      subtext: 'Exclusive release drops Friday 9:00 AM PHT sharp.',
-      buttonLabel: 'Notify Me',
-      destination: '/drops/weekend',
-      scheduleType: 'scheduled'
-    },
-    {
-      id: 4,
-      name: 'New season collection',
-      placement: 'Homepage hero',
-      status: 'Draft',
-      schedule: 'Not scheduled',
-      headline: 'New season collection',
-      subtext: 'Fall/Winter 2026 streetwear essentials now in stock.',
-      buttonLabel: 'Explore Collection',
-      destination: '/collections/fw26',
-      scheduleType: 'draft'
-    },
-    {
-      id: 5,
-      name: 'Member early access',
-      placement: 'Homepage secondary',
-      status: 'Draft',
-      schedule: 'Not scheduled',
-      headline: 'Member early access',
-      subtext: 'MetroDrip VIPs get 24-hour headstart before public drop.',
-      buttonLabel: 'Unlock Access',
-      destination: '/vip',
-      scheduleType: 'draft'
+  const API_BASE = ['localhost', '127.0.0.1'].includes(window.location.hostname) || window.location.protocol === 'file:'
+    ? 'http://127.0.0.1:8000/api/merchant'
+    : '/api/merchant';
+  const SESSION_KEY = 'metrodrip_active_user';
+  const placements = {
+    homepage_hero: 'Homepage hero',
+    homepage_secondary: 'Homepage secondary',
+    announcement_bar: 'Announcement bar',
+    category_banner: 'Category banner',
+    checkout_footer: 'Checkout footer',
+  };
+
+  let banners = [];
+  let activeBannerId = null;
+  let lastFocusedElement = null;
+
+  const byId = (id) => document.getElementById(id);
+  const tableBody = byId('placements-table-body');
+  const editorForm = byId('form-banner-editor');
+  const newForm = byId('form-new-banner');
+  const newModal = byId('modal-new-banner');
+
+  function session() {
+    try {
+      const value = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null');
+      if (value?.access_token && value?.is_staff === true && ['merchant', 'admin'].includes(value.role)) return value;
+    } catch {
+      // Invalid session JSON is treated as signed out.
     }
-  ];
+    return null;
+  }
 
-  let activeBannerId = 1; // Default to Urban Style Redefined (Homepage hero)
-
-  // DOM Elements
-  const placementsTableBody = document.getElementById('placements-table-body');
-  const metricLiveBanners = document.getElementById('metric-live-banners');
-  const metricScheduledBanners = document.getElementById('metric-scheduled-banners');
-  const metricDraftBanners = document.getElementById('metric-draft-banners');
-
-  const headingBannerEditor = document.getElementById('heading-banner-editor');
-  const formBannerEditor = document.getElementById('form-banner-editor');
-  const inputBannerHeadline = document.getElementById('input-banner-headline');
-  const inputBannerSubtext = document.getElementById('input-banner-subtext');
-  const inputBannerButtonLabel = document.getElementById('input-banner-button-label');
-  const inputBannerDestination = document.getElementById('input-banner-destination');
-  const selectBannerSchedule = document.getElementById('select-banner-schedule');
-  const btnSaveDraft = document.getElementById('btn-save-draft');
-  const btnPublishBanner = document.getElementById('btn-publish-banner');
-
-  // Preview Elements
-  const previewHeadline = document.getElementById('preview-headline');
-  const previewSubtext = document.getElementById('preview-subtext');
-  const previewCtaButton = document.getElementById('preview-cta-button');
-
-  // Modal Elements
-  const btnOpenNewBanner = document.getElementById('btn-open-new-banner');
-  const modalNewBanner = document.getElementById('modal-new-banner');
-  const btnCloseNewBannerModal = document.getElementById('btn-close-new-banner-modal');
-  const btnCancelNewBanner = document.getElementById('btn-cancel-new-banner');
-  const formNewBanner = document.getElementById('form-new-banner');
-
-  const toastContainer = document.getElementById('toast-container');
+  function escapeHtml(value) {
+    const node = document.createElement('div');
+    node.appendChild(document.createTextNode(String(value ?? '')));
+    return node.innerHTML;
+  }
 
   function showToast(message, type = 'success') {
-    if (!toastContainer) return;
+    const container = byId('toast-container');
+    if (!container) return;
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     toast.textContent = message;
-    toastContainer.appendChild(toast);
-    setTimeout(() => {
-      toast.classList.add('fade-out');
-      setTimeout(() => toast.remove(), 300);
-    }, 3000);
+    container.appendChild(toast);
+    window.setTimeout(() => toast.remove(), 3500);
+  }
+
+  function setPageState(kind, message) {
+    const region = byId('content-page-state');
+    if (!region) return;
+    region.dataset.state = kind;
+    region.textContent = message;
+    region.hidden = kind === 'default';
+  }
+
+  async function api(path, options = {}) {
+    const current = session();
+    if (!current) throw new Error('A verified merchant session is required. Sign in again.');
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${current.access_token}`,
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(options.headers || {}),
+      },
+    });
+    let payload = null;
+    try {
+      payload = await response.json();
+    } catch {
+      payload = null;
+    }
+    if (!response.ok) {
+      throw new Error(payload?.error || payload?.detail || `Request failed (${response.status}).`);
+    }
+    return payload;
+  }
+
+  function statusPill(value) {
+    const className = value === 'Live' ? 'status-active' : value === 'Scheduled' ? 'status-pending' : 'status-alert';
+    return `<span class="status-pill ${className}">${escapeHtml(value)}</span>`;
   }
 
   function updateMetrics() {
-    const liveCount = banners.filter(b => b.status === 'Live').length;
-    const scheduledCount = banners.filter(b => b.status === 'Scheduled').length;
-    const draftCount = banners.filter(b => b.status === 'Draft').length;
-
-    if (metricLiveBanners) metricLiveBanners.textContent = liveCount;
-    if (metricScheduledBanners) metricScheduledBanners.textContent = scheduledCount;
-    if (metricDraftBanners) metricDraftBanners.textContent = draftCount;
-  }
-
-  function getStatusPill(status) {
-    if (status === 'Live') {
-      return '<span class="status-pill status-active">Live</span>';
-    } else if (status === 'Scheduled') {
-      return '<span class="status-pill status-pending">Scheduled</span>';
-    }
-    return '<span class="status-pill status-alert">Draft</span>';
+    const counts = banners.reduce((result, banner) => {
+      result[banner.status] = (result[banner.status] || 0) + 1;
+      return result;
+    }, {});
+    byId('metric-live-banners').textContent = String(counts.Live || 0);
+    byId('metric-scheduled-banners').textContent = String(counts.Scheduled || 0);
+    byId('metric-draft-banners').textContent = String(counts.Draft || 0);
   }
 
   function renderTable() {
-    if (!placementsTableBody) return;
-
-    placementsTableBody.innerHTML = banners.map(b => {
-      const isSelected = b.id === activeBannerId;
-      const actionLabel = b.status === 'Live' ? 'Edit banner' : (b.status === 'Scheduled' ? 'Edit schedule' : 'Continue editing');
-      return `
-        <tr class="${isSelected ? 'is-selected-row' : ''}" style="${isSelected ? 'background-color: rgba(211, 238, 66, 0.08);' : ''}">
-          <td style="font-weight: 600;">
-            ${b.name}
-            ${isSelected ? '<span style="font-size: 10px; margin-left: 6px; color: var(--color-muted);">(Editing)</span>' : ''}
-          </td>
-          <td>${b.placement}</td>
-          <td>${getStatusPill(b.status)}</td>
-          <td class="td-mono" style="font-size: 11px;">${b.schedule}</td>
-          <td style="text-align: right;">
-            <a href="javascript:void(0)" class="action-link btn-edit-banner" data-id="${b.id}" style="font-size: 11px; font-family: var(--font-mono); color: var(--color-ink); text-decoration: underline;">
-              ${actionLabel}
-            </a>
-          </td>
-        </tr>
-      `;
-    }).join('');
-
-    placementsTableBody.querySelectorAll('.btn-edit-banner').forEach(link => {
-      link.addEventListener('click', () => {
-        const id = parseInt(link.dataset.id, 10);
-        loadBannerIntoEditor(id);
-      });
+    if (!tableBody) return;
+    if (!banners.length) {
+      tableBody.innerHTML = '<tr><td colspan="5" style="padding:24px;text-align:center;">No banners have been created.</td></tr>';
+      return;
+    }
+    tableBody.innerHTML = banners.map((banner) => `
+      <tr class="${banner.id === activeBannerId ? 'is-selected-row' : ''}">
+        <td class="td-strong">${escapeHtml(banner.title)}</td>
+        <td>${escapeHtml(banner.placement_label || placements[banner.placement] || 'Unavailable')}</td>
+        <td>${statusPill(banner.status)}</td>
+        <td class="td-mono" style="font-size:11px;">${escapeHtml(banner.schedule || 'Not scheduled')}</td>
+        <td style="text-align:right;">
+          <button type="button" class="action-link btn-edit-banner" data-id="${Number(banner.id)}">Edit banner</button>
+        </td>
+      </tr>`).join('');
+    tableBody.querySelectorAll('.btn-edit-banner').forEach((button) => {
+      button.addEventListener('click', () => loadBanner(Number(button.dataset.id), true));
     });
   }
 
-  function loadBannerIntoEditor(bannerId) {
-    const banner = banners.find(b => b.id === bannerId);
-    if (!banner) return;
+  function toLocalInput(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 16);
+  }
 
-    activeBannerId = bannerId;
+  function toIso(value) {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  }
 
-    if (headingBannerEditor) {
-      headingBannerEditor.textContent = `Edit ${banner.placement.toLowerCase()}`;
+  function updateScheduleVisibility(prefix = '') {
+    const statusInput = byId(prefix ? 'new-banner-status' : 'select-banner-schedule');
+    const fields = byId(prefix ? 'new-banner-schedule-fields' : 'banner-schedule-fields');
+    if (!statusInput || !fields) return;
+    const scheduled = statusInput.value === 'Scheduled' || statusInput.value === 'scheduled';
+    fields.hidden = !scheduled;
+    fields.querySelector('[data-schedule-start]')?.toggleAttribute('required', scheduled);
+  }
+
+  function updatePreview() {
+    const headline = byId('input-banner-headline')?.value.trim() || 'SELECT A BANNER';
+    byId('preview-headline').textContent = headline.toUpperCase();
+    byId('preview-subtext').textContent = byId('input-banner-subtext')?.value.trim() || 'No supporting text';
+    byId('preview-cta-button').textContent = byId('input-banner-button-label')?.value.trim() || 'No CTA';
+  }
+
+  function setEditorEnabled(enabled) {
+    editorForm?.querySelectorAll('input, select, button').forEach((control) => {
+      control.disabled = !enabled;
+    });
+  }
+
+  function loadBanner(id, scroll = false) {
+    const banner = banners.find((item) => item.id === id);
+    activeBannerId = banner?.id ?? null;
+    setEditorEnabled(Boolean(banner));
+    if (!banner) {
+      byId('heading-banner-editor').textContent = 'Select a banner';
+      ['input-banner-headline', 'input-banner-subtext', 'input-banner-button-label', 'input-banner-destination', 'input-banner-starts-at', 'input-banner-ends-at']
+        .forEach((field) => { if (byId(field)) byId(field).value = ''; });
+      updatePreview();
+      renderTable();
+      return;
     }
-
-    if (inputBannerHeadline) inputBannerHeadline.value = banner.headline;
-    if (inputBannerSubtext) inputBannerSubtext.value = banner.subtext;
-    if (inputBannerButtonLabel) inputBannerButtonLabel.value = banner.buttonLabel;
-    if (inputBannerDestination) inputBannerDestination.value = banner.destination;
-    if (selectBannerSchedule) selectBannerSchedule.value = banner.scheduleType || 'always';
-
-    updateLivePreview();
+    byId('heading-banner-editor').textContent = `Edit ${banner.placement_label || placements[banner.placement] || 'banner'}`;
+    byId('input-banner-headline').value = banner.headline || banner.title;
+    byId('input-banner-subtext').value = banner.subtext || '';
+    byId('input-banner-button-label').value = banner.button_label || '';
+    byId('input-banner-destination').value = banner.link_url || '';
+    byId('select-banner-schedule').value = banner.status === 'Scheduled' ? 'scheduled' : banner.status === 'Live' ? 'always' : 'draft';
+    byId('input-banner-starts-at').value = toLocalInput(banner.starts_at);
+    byId('input-banner-ends-at').value = toLocalInput(banner.ends_at);
+    updateScheduleVisibility();
+    updatePreview();
     renderTable();
+    if (scroll) byId('card-banner-editor')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 
-    const editorCard = document.getElementById('card-banner-editor');
-    if (editorCard) {
-      editorCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  function editorPayload(status) {
+    const payload = {
+      headline: byId('input-banner-headline').value.trim(),
+      subtext: byId('input-banner-subtext').value.trim(),
+      button_label: byId('input-banner-button-label').value.trim(),
+      link_url: byId('input-banner-destination').value.trim(),
+      status,
+    };
+    if (status === 'Scheduled') {
+      payload.starts_at = toIso(byId('input-banner-starts-at').value);
+      payload.ends_at = toIso(byId('input-banner-ends-at').value);
+    }
+    return payload;
+  }
+
+  async function updateBanner(status, button) {
+    if (!activeBannerId) return;
+    button.disabled = true;
+    try {
+      const updated = await api(`/banners/${activeBannerId}/`, {
+        method: 'PATCH',
+        body: JSON.stringify(editorPayload(status)),
+      });
+      banners = banners.map((banner) => banner.id === updated.id ? updated : banner);
+      loadBanner(updated.id);
+      setPageState('default', '');
+      showToast(`Banner saved as ${updated.status.toLowerCase()}.`);
+    } catch (error) {
+      showToast(error.message, 'error');
+    } finally {
+      button.disabled = false;
     }
   }
 
-  function updateLivePreview() {
-    const headline = inputBannerHeadline ? inputBannerHeadline.value : 'URBAN STYLE REDEFINED';
-    const subtext = inputBannerSubtext ? inputBannerSubtext.value : 'Designed for the City';
-    const btnLabel = inputBannerButtonLabel ? inputBannerButtonLabel.value : 'Shop Now';
-
-    if (previewHeadline) {
-      // Split words gracefully for display headline
-      const words = headline.trim().split(' ');
-      if (words.length > 2) {
-        const mid = Math.ceil(words.length / 2);
-        previewHeadline.innerHTML = `${words.slice(0, mid).join(' ').toUpperCase()}<br>${words.slice(mid).join(' ').toUpperCase()}`;
-      } else {
-        previewHeadline.textContent = headline.toUpperCase();
-      }
-    }
-
-    if (previewSubtext) {
-      previewSubtext.textContent = subtext;
-    }
-
-    if (previewCtaButton) {
-      previewCtaButton.textContent = btnLabel;
-    }
+  function openModal() {
+    lastFocusedElement = document.activeElement;
+    newModal.hidden = false;
+    newForm.reset();
+    byId('new-banner-cta').value = 'Shop Now';
+    byId('new-banner-link').value = '/shop';
+    updateScheduleVisibility('new');
+    byId('new-banner-name')?.focus();
   }
 
-  // Live typing listeners
-  if (inputBannerHeadline) inputBannerHeadline.addEventListener('input', updateLivePreview);
-  if (inputBannerSubtext) inputBannerSubtext.addEventListener('input', updateLivePreview);
-  if (inputBannerButtonLabel) inputBannerButtonLabel.addEventListener('input', updateLivePreview);
+  function closeModal() {
+    newModal.hidden = true;
+    lastFocusedElement?.focus();
+  }
 
-  // Save Draft Handler
-  if (btnSaveDraft) {
-    btnSaveDraft.addEventListener('click', () => {
-      const banner = banners.find(b => b.id === activeBannerId);
-      if (!banner) return;
-
-      banner.headline = inputBannerHeadline.value;
-      banner.subtext = inputBannerSubtext.value;
-      banner.buttonLabel = inputBannerButtonLabel.value;
-      banner.destination = inputBannerDestination.value;
-      banner.status = 'Draft';
-      banner.schedule = 'Not scheduled';
-      banner.scheduleType = 'draft';
-
+  async function loadBanners() {
+    setPageState('loading', 'Loading banner placements…');
+    setEditorEnabled(false);
+    try {
+      const data = await api('/banners/');
+      banners = Array.isArray(data) ? data : [];
+      activeBannerId = banners[0]?.id ?? null;
       updateMetrics();
       renderTable();
-      showToast(`Saved "${banner.name}" as draft`);
-    });
-  }
-
-  // Publish Handler
-  if (formBannerEditor) {
-    formBannerEditor.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const banner = banners.find(b => b.id === activeBannerId);
-      if (!banner) return;
-
-      banner.headline = inputBannerHeadline.value;
-      banner.subtext = inputBannerSubtext.value;
-      banner.buttonLabel = inputBannerButtonLabel.value;
-      banner.destination = inputBannerDestination.value;
-
-      const scheduleVal = selectBannerSchedule ? selectBannerSchedule.value : 'always';
-      if (scheduleVal === 'scheduled') {
-        banner.status = 'Scheduled';
-        banner.schedule = '25 Sep · 09:00 PHT';
-        banner.scheduleType = 'scheduled';
-        showToast(`Scheduled banner "${banner.name}" for release`);
-      } else if (scheduleVal === 'draft') {
-        banner.status = 'Draft';
-        banner.schedule = 'Not scheduled';
-        banner.scheduleType = 'draft';
-        showToast(`Saved "${banner.name}" as draft`);
-      } else {
-        banner.status = 'Live';
-        banner.schedule = 'Always on';
-        banner.scheduleType = 'always';
-        showToast(`Published "${banner.name}" to storefront!`);
-      }
-
+      loadBanner(activeBannerId);
+      setPageState(banners.length ? 'default' : 'empty', banners.length ? '' : 'No banners yet. Create one to begin.');
+    } catch (error) {
+      banners = [];
+      activeBannerId = null;
       updateMetrics();
       renderTable();
+      loadBanner(null);
+      setPageState('error', error.message);
+      showToast(error.message, 'error');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    ['input-banner-headline', 'input-banner-subtext', 'input-banner-button-label'].forEach((id) => {
+      byId(id)?.addEventListener('input', updatePreview);
     });
-  }
-
-  // Modal Controls for New Banner
-  function openNewBannerModal() {
-    if (modalNewBanner) modalNewBanner.hidden = false;
-  }
-
-  function closeNewBannerModal() {
-    if (modalNewBanner) modalNewBanner.hidden = true;
-    if (formNewBanner) formNewBanner.reset();
-  }
-
-  if (btnOpenNewBanner) btnOpenNewBanner.addEventListener('click', openNewBannerModal);
-  if (btnCloseNewBannerModal) btnCloseNewBannerModal.addEventListener('click', closeNewBannerModal);
-  if (btnCancelNewBanner) btnCancelNewBanner.addEventListener('click', closeNewBannerModal);
-
-  if (modalNewBanner) {
-    modalNewBanner.addEventListener('click', (e) => {
-      if (e.target === modalNewBanner) closeNewBannerModal();
+    byId('select-banner-schedule')?.addEventListener('change', updateScheduleVisibility);
+    byId('new-banner-status')?.addEventListener('change', () => updateScheduleVisibility('new'));
+    byId('btn-save-draft')?.addEventListener('click', (event) => updateBanner('Draft', event.currentTarget));
+    editorForm?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const selected = byId('select-banner-schedule').value;
+      updateBanner(selected === 'scheduled' ? 'Scheduled' : selected === 'draft' ? 'Draft' : 'Live', byId('btn-publish-banner'));
     });
-  }
 
-  if (formNewBanner) {
-    formNewBanner.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const name = document.getElementById('new-banner-name').value;
-      const placement = document.getElementById('new-banner-placement').value;
-      const headline = document.getElementById('new-banner-headline').value;
-      const subtext = document.getElementById('new-banner-subtext').value;
-      const buttonLabel = document.getElementById('new-banner-cta').value;
-      const destination = document.getElementById('new-banner-link').value;
-      const status = document.getElementById('new-banner-status').value;
-
-      const newId = banners.length ? Math.max(...banners.map(b => b.id)) + 1 : 1;
-      const schedule = status === 'Live' ? 'Always on' : (status === 'Scheduled' ? 'Next week' : 'Not scheduled');
-
-      const newBanner = {
-        id: newId,
-        name,
-        placement,
+    byId('btn-open-new-banner')?.addEventListener('click', openModal);
+    byId('btn-close-new-banner-modal')?.addEventListener('click', closeModal);
+    byId('btn-cancel-new-banner')?.addEventListener('click', closeModal);
+    newModal?.addEventListener('click', (event) => { if (event.target === newModal) closeModal(); });
+    newModal?.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeModal(); });
+    newForm?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const submit = newForm.querySelector('[type="submit"]');
+      submit.disabled = true;
+      const status = byId('new-banner-status').value;
+      const payload = {
+        title: byId('new-banner-name').value.trim(),
+        placement: byId('new-banner-placement').value,
+        headline: byId('new-banner-headline').value.trim(),
+        subtext: byId('new-banner-subtext').value.trim(),
+        button_label: byId('new-banner-cta').value.trim(),
+        link_url: byId('new-banner-link').value.trim(),
         status,
-        schedule,
-        headline,
-        subtext,
-        buttonLabel,
-        destination,
-        scheduleType: status.toLowerCase()
+        starts_at: status === 'Scheduled' ? toIso(byId('new-banner-starts-at').value) : null,
+        ends_at: status === 'Scheduled' ? toIso(byId('new-banner-ends-at').value) : null,
+        order: banners.length ? Math.max(...banners.map((banner) => Number(banner.order) || 0)) + 1 : 1,
       };
-
-      banners.unshift(newBanner);
-      closeNewBannerModal();
-      updateMetrics();
-      loadBannerIntoEditor(newId);
-      showToast(`Created new banner "${name}"`);
+      try {
+        const created = await api('/banners/', { method: 'POST', body: JSON.stringify(payload) });
+        banners = [created, ...banners];
+        updateMetrics();
+        closeModal();
+        loadBanner(created.id, true);
+        setPageState('default', '');
+        showToast(`Banner “${created.title}” created.`);
+      } catch (error) {
+        showToast(error.message, 'error');
+      } finally {
+        submit.disabled = false;
+      }
     });
-  }
 
-  // Initial Run
-  updateMetrics();
-  renderTable();
-  updateLivePreview();
-
+    loadBanners();
+  });
 })();

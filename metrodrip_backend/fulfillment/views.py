@@ -2,6 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.renderers import JSONRenderer
+from rest_framework.permissions import IsAuthenticated
 
 from .models import NotificationsNotification
 from identity.authentication import CustomerAuthentication
@@ -22,18 +23,6 @@ CATEGORY_TO_TYPE = {
 def _resolve_customer_id(request):
     if hasattr(request, 'user') and request.user and getattr(request.user, 'is_authenticated', False) and hasattr(request.user, 'id'):
         return request.user.id
-
-    cid = (
-        request.headers.get('X-Customer-ID')
-        or request.headers.get('x-customer-id')
-        or request.META.get('HTTP_X_CUSTOMER_ID')
-        or (request.query_params.get('customer_id') if hasattr(request, 'query_params') else None)
-    )
-    if cid is not None:
-        try:
-            return int(cid)
-        except (ValueError, TypeError):
-            pass
     return None
 
 
@@ -52,6 +41,7 @@ def _serialize_notification(notification):
 
 class NotificationListAPIView(APIView):
     authentication_classes = [CustomerAuthentication]
+    permission_classes = [IsAuthenticated]
     renderer_classes = [JSONRenderer]
 
     def get(self, request):
@@ -72,6 +62,7 @@ class NotificationListAPIView(APIView):
 
 class NotificationReadAPIView(APIView):
     authentication_classes = [CustomerAuthentication]
+    permission_classes = [IsAuthenticated]
     renderer_classes = [JSONRenderer]
 
     def post(self, request, notification_id):
@@ -92,6 +83,7 @@ class NotificationReadAPIView(APIView):
 
 class NotificationReadAllAPIView(APIView):
     authentication_classes = [CustomerAuthentication]
+    permission_classes = [IsAuthenticated]
     renderer_classes = [JSONRenderer]
 
     def post(self, request):

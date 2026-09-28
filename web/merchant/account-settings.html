@@ -66,7 +66,7 @@
           <div class="user-avatar" aria-hidden="true">MD</div>
           <div class="user-meta">
             <p class="user-name">Store Merchant</p>
-            <p class="user-role-badge">MERCHANT · 2FA ON</p>
+            <p class="user-role-badge">MERCHANT · SESSION REQUIRED</p>
           </div>
         </div>
 
@@ -165,11 +165,11 @@
             <!-- Two-Factor Authentication Section -->
             <div class="security-item-block">
               <h3 class="security-item-title">Two-factor authentication</h3>
-              <p class="security-status-badge" id="security-2fa-status-badge">Enabled · Authenticator app</p>
-              <p class="security-item-subhead">Enter a verification code when signing in on a new device.</p>
+              <p class="security-status-badge" id="security-2fa-status-badge">Not configured</p>
+              <p class="security-item-subhead">MFA enrollment is unavailable until a verified authenticator backend is configured.</p>
               <div>
                 <button type="button" class="btn-mgmt-secondary" id="btn-open-2fa-modal">
-                  Manage 2FA
+                  Unavailable
                 </button>
               </div>
             </div>
@@ -177,10 +177,10 @@
             <!-- Recovery Codes Section -->
             <div class="security-item-block">
               <h3 class="security-item-title">Recovery codes</h3>
-              <p class="security-item-subhead">Keep a copy in a safe place in case you lose your device.</p>
+              <p class="security-item-subhead">Recovery codes are unavailable because MFA is not configured.</p>
               <div>
                 <button type="button" class="btn-mgmt-secondary" id="btn-open-recovery-modal">
-                  View recovery options
+                  Unavailable
                 </button>
               </div>
             </div>
@@ -192,7 +192,7 @@
           <div class="sessions-header-row">
             <div>
               <h2 class="mgmt-card-title" id="heading-active-sessions">Active sessions</h2>
-              <p class="mgmt-card-subhead">Example sessions · Review where your account is signed in.</p>
+              <p class="mgmt-card-subhead">Server-recorded bearer sessions for this account.</p>
             </div>
             <button type="button" class="btn-mgmt-secondary" id="btn-open-signout-all-modal">
               Sign out other devices
@@ -210,24 +210,7 @@
                 </tr>
               </thead>
               <tbody id="sessions-table-body">
-                <tr id="session-row-current">
-                  <td><strong>Chrome · Windows</strong></td>
-                  <td>Quezon City, PH</td>
-                  <td>Active now</td>
-                  <td style="text-align: right;">
-                    <span class="current-session-tag">Current session</span>
-                  </td>
-                </tr>
-                <tr id="session-row-safari">
-                  <td><strong>Safari · macOS</strong></td>
-                  <td>Manila, PH</td>
-                  <td>Yesterday, 8:42 PM</td>
-                  <td style="text-align: right;">
-                    <button type="button" class="btn-mgmt-secondary btn-signout-single-device" id="btn-signout-safari" style="min-height: 38px; padding: 8px 16px;">
-                      Sign out
-                    </button>
-                  </td>
-                </tr>
+                <tr><td colspan="4">Loading active sessions…</td></tr>
               </tbody>
             </table>
           </div>
@@ -330,9 +313,9 @@
   <div class="figma-modal-overlay" id="modal-manage-2fa" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="title-manage-2fa">
     <div class="figma-modal-card">
       <h2 class="figma-modal-title" id="title-manage-2fa">Two-factor authentication</h2>
-      <p class="figma-modal-desc">Authenticator app is enabled for this merchant account.</p>
-      <p class="figma-modal-status">Status: Enabled</p>
-      <p class="figma-modal-desc">To replace your authenticator, verify your current password and a code from your existing app.</p>
+      <p class="figma-modal-desc">MFA enrollment is not configured for this deployment.</p>
+      <p class="figma-modal-status">Status: Unavailable</p>
+      <p class="figma-modal-desc">No verification code will be accepted until a verified authenticator backend is implemented.</p>
 
       <div class="mgmt-field-group">
         <label class="mgmt-field-label" for="input-2fa-pwd">Current password</label>
@@ -355,7 +338,7 @@
   <div class="figma-modal-overlay" id="modal-recovery-options" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="title-recovery-options">
     <div class="figma-modal-card">
       <h2 class="figma-modal-title" id="title-recovery-options">Recovery options</h2>
-      <p class="figma-modal-desc">Verify your password before viewing or replacing recovery codes.</p>
+      <p class="figma-modal-desc">Recovery codes are unavailable because MFA is not configured.</p>
 
       <div class="mgmt-field-group" id="recovery-pwd-field">
         <label class="mgmt-field-label" for="input-recovery-pwd">Current password</label>
@@ -363,10 +346,7 @@
       </div>
 
       <div id="recovery-codes-display" style="display: none; background-color: var(--color-surface); padding: 14px; border-radius: 6px; font-family: var(--font-mono); font-size: 13px; line-height: 1.8;">
-        <div>DRIP-4821-9901</div>
-        <div>DRIP-7712-4019</div>
-        <div>DRIP-1029-8433</div>
-        <div>DRIP-9923-5610</div>
+        <div>No recovery codes have been generated.</div>
       </div>
 
       <div class="figma-modal-actions">
@@ -393,7 +373,7 @@
   <div class="figma-modal-overlay" id="modal-signout-single" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="title-signout-single">
     <div class="figma-modal-card">
       <h2 class="figma-modal-title" id="title-signout-single">Sign out this device?</h2>
-      <p class="figma-modal-desc" id="desc-signout-single">End the Safari · macOS session in Manila. This browser stays signed in.</p>
+      <p class="figma-modal-desc" id="desc-signout-single">End the selected authenticated session? This browser stays signed in.</p>
 
       <div class="figma-modal-actions">
         <button type="button" class="btn-mgmt-secondary btn-modal-close" data-modal="modal-signout-single">Cancel</button>

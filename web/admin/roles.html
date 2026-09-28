@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="../css/console.css">
   <script src="../Registration/theme.js"></script>
 </head>
-<body>
+<body class="console-page--stateful">
   <!-- Figma: Admin Console / Roles & Permissions / Light 550:289 & Dark 554:1111 -->
   <div class="console-layout">
     <!-- Left Navigation Sidebar -->
@@ -42,7 +42,7 @@
           </a>
           <a class="nav-item" href="audit.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Audit Trail</span>
-            <span class="nav-badge volt" id="sidebar-audit-count">12</span>
+            <span class="nav-badge volt" id="sidebar-audit-count">—</span>
           </a>
         </nav>
       </div>
@@ -52,7 +52,7 @@
           <div class="user-avatar" aria-hidden="true">AD</div>
           <div class="user-meta">
             <p class="user-name">Admin User</p>
-            <p class="user-role-badge">ADMINISTRATOR · 2FA ON</p>
+            <p class="user-role-badge">ADMINISTRATOR</p>
           </div>
         </div>
 
@@ -74,7 +74,7 @@
         <span>ADMIN CONSOLE</span>
         <span>/</span>
         <span>ROLES & PERMISSIONS</span>
-        <span class="sample-data">SAMPLE DATA</span>
+        <span class="data-source-badge" id="roles-source-status" aria-live="polite">CONNECTING</span>
       </div>
 
       <!-- Header -->
@@ -84,28 +84,43 @@
           <p class="page-subhead">Define what each account can view and manage.</p>
         </div>
         <div class="header-actions">
+          <button type="button" class="btn btn-secondary" id="btn-refresh-roles">
+            Refresh
+          </button>
           <button type="button" class="btn btn-primary" id="btn-create-role-top">
             Create role
           </button>
         </div>
       </header>
 
+      <section class="console-state-banner is-info" id="roles-state-banner" role="status" aria-live="polite" aria-atomic="true">
+        <div class="console-state-copy">
+          <p class="console-state-eyebrow" id="roles-state-eyebrow">LOADING</p>
+          <h2 class="console-state-title" id="roles-state-title">Loading system roles</h2>
+          <p class="console-state-message" id="roles-state-message">Connecting to the administrator roles API.</p>
+        </div>
+        <div class="console-state-actions">
+          <button type="button" class="btn btn-secondary" id="btn-retry-roles" hidden>Try again</button>
+          <a class="btn btn-secondary" id="roles-state-signin" href="../Registration/screens/AdminLoginScreen.html" hidden>Return to sign in</a>
+        </div>
+      </section>
+
       <!-- 3 Stat Metric Cards -->
       <section class="stat-cards-grid" style="grid-template-columns: repeat(3, 1fr);" aria-label="Role metrics">
         <article class="stat-card">
           <p class="stat-label">SYSTEM ROLES</p>
-          <p class="stat-value">3</p>
-          <p class="stat-subtext">Administrator · Merchant · Customer</p>
+          <p class="stat-value" id="metric-system-roles">—</p>
+          <p class="stat-subtext">Server-defined account roles</p>
         </article>
         <article class="stat-card">
           <p class="stat-label">STAFF ASSIGNED</p>
-          <p class="stat-value" id="metric-staff-assigned">7</p>
-          <p class="stat-subtext">2 admins · 5 merchants</p>
+          <p class="stat-value" id="metric-staff-assigned">—</p>
+          <p class="stat-subtext" id="metric-staff-detail">Waiting for role data</p>
         </article>
         <article class="stat-card">
           <p class="stat-label">CUSTOM ROLES</p>
-          <p class="stat-value" id="metric-custom-roles">0</p>
-          <p class="stat-subtext">Create a limited-access role</p>
+          <p class="stat-value" id="metric-custom-roles">—</p>
+          <p class="stat-subtext">Persistence is not configured</p>
         </article>
       </section>
 
@@ -139,7 +154,7 @@
               </tr>
               <tr>
                 <td class="td-strong">Platform settings</td>
-                <td><span class="td-mono">Manage</span></td>
+                <td><span class="td-mono td-muted">Endpoint unavailable</span></td>
                 <td><span class="td-muted">&mdash;</span></td>
                 <td><span class="td-muted">&mdash;</span></td>
               </tr>
@@ -185,12 +200,12 @@
           <div class="panel-header">
             <div>
               <h2 class="panel-title" id="heading-merchant-role">Merchant role</h2>
-              <p class="td-mono td-muted" style="font-size: 11px; margin-top: 2px;">System role · 5 staff accounts assigned</p>
+              <p class="td-mono td-muted" style="font-size: 11px; margin-top: 2px;" id="merchant-role-assignment">System role · assignment data loading</p>
             </div>
           </div>
           <div style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
             <p style="font-size: 13px; color: var(--color-ink); line-height: 1.5;">
-              Catalog, inventory, orders, shipments, shipping zones, content and analytics.
+              Catalog, inventory, orders, shipments, shipping zones and configured content tools.
             </p>
             <p style="font-size: 13px; font-weight: 700; color: var(--color-ink);">
               Customer reviews: View and reply only.
@@ -214,7 +229,7 @@
           <form id="form-custom-role" style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
             <div>
               <label class="form-label" for="custom-role-name">Role name</label>
-              <input type="text" class="form-input" id="custom-role-name" value="Fulfillment staff" placeholder="e.g. Fulfillment staff" required>
+              <input type="text" class="form-input" id="custom-role-name" placeholder="e.g. Fulfillment staff" required>
             </div>
             <div>
               <label class="form-label" for="custom-role-base">Based on</label>
@@ -270,7 +285,7 @@
               </div>
             </div>
 
-            <p class="td-muted" style="font-size: 11px;">Unselected permissions are denied by default.</p>
+            <p class="td-muted" style="font-size: 11px;">Unselected permissions are denied by default. Custom-role persistence is not configured in the current backend.</p>
 
             <div style="display: flex; gap: 10px; margin-top: 6px;">
               <button type="submit" class="btn btn-primary" id="btn-submit-custom-role">Create role</button>
@@ -285,7 +300,7 @@
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container" aria-live="polite"></div>
 
-  <script src="roles.js"></script>
   <script src="../js/user-session.js"></script>
+  <script src="roles.js"></script>
 </body>
 </html>

@@ -1,0 +1,50 @@
+# This Blueprint intentionally uses only Render's free compute plans.
+# Applying it still requires an explicit human review in the Render Dashboard.
+previews:
+  generation: off
+
+services:
+  - type: web
+    name: metrodripjs
+    runtime: python
+    plan: free
+    branch: archim
+    rootDir: metrodrip_backend
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate --noinput
+    startCommand: gunicorn metrodrip_backend.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --threads 2 --timeout 120 --access-logfile - --error-logfile -
+    autoDeployTrigger: off
+    healthCheckPath: /health/
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: metrodrip-postgres
+          property: connectionString
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_DEBUG
+        value: "false"
+      - key: DJANGO_ALLOWED_HOSTS
+        value: metrodripjs.onrender.com
+      - key: DJANGO_CSRF_TRUSTED_ORIGINS
+        value: https://metrodripjs.onrender.com
+      - key: DJANGO_SECURE_SSL_REDIRECT
+        value: "true"
+      - key: DJANGO_HSTS_SECONDS
+        value: "31536000"
+      - key: PYTHON_VERSION
+        value: "3.14.3"
+      - key: PAYMONGO_MODE
+        value: test
+      - key: CHECKOUT_MAX_ACTIVE_ONLINE_ATTEMPTS
+        value: "3"
+      - key: CHECKOUT_MAX_QUANTITY_PER_VARIANT
+        value: "5"
+      - key: PAYMONGO_SECRET_KEY
+        sync: false
+      - key: PAYMONGO_WEBHOOK_SECRET
+        sync: false
+
+databases:
+  - name: metrodrip-postgres
+    plan: free
+    ipAllowList: []

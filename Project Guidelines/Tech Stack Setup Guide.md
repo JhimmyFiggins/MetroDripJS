@@ -1,28 +1,89 @@
 # MetroDripJS Setup & Emulator Guide
 
-## Current QA Workflow
+> **Architecture transition:** The approved production target is one secured modular Django monolith, one Render Free web service, and one Render Free PostgreSQL database. COD plus PayMongo Hosted Checkout for GCash, Maya, and cards is in scope. No paid Render resource, worker, cron, Redis/Key Value, disk, autoscaling, or upgrade is authorized. The microservice/Compose commands later in this guide reproduce the historical baseline for regression only; they are not the target deployment runbook. Follow [Architecture and Operations](Architecture%20and%20Operations.md) and the active [ADRs](Decisions%20and%20Handover.md#active-architecture-decisions--2026-09-28).
+
+## Current modular-monolith backend
+
+The supported implementation path for this enhancement is `metrodrip_backend/`, not the five-service comparison stack later in this guide.
+
+### Install, migrate, and run
+
+```powershell
+cd metrodrip_backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver 127.0.0.1:8000
+```
+
+On Linux/macOS, activate with `source .venv/bin/activate`. The default database is `metrodrip_backend/db.sqlite3` unless `DATABASE_URL` is set. `GET http://127.0.0.1:8000/health/` is a liveness check only; it does not query the database or PayMongo.
+
+Do not use legacy seed users as staff authorization. Provision staff interactively:
+
+```powershell
+python manage.py provision_staff --email admin@example.com --name "MetroDrip Admin" --role admin
+python manage.py provision_staff --email merchant@example.com --name "MetroDrip Merchant" --role merchant
+```
+
+The command prompts twice for a validated password, hashes it, and persists `is_staff=true` with the selected `admin` or `merchant` role. It does not accept a password on the command line.
+
+### Optional online-payment environment
+
+COD works without PayMongo configuration. Hosted GCash/Maya/card and the webhook require server-side values:
+
+```env
+PAYMONGO_MODE=test
+PAYMONGO_SECRET_KEY=replace-in-local-environment
+PAYMONGO_WEBHOOK_SECRET=replace-in-local-environment
+PAYMONGO_SUCCESS_URL=https://your-authorized-host/payment/return?result=success
+PAYMONGO_CANCEL_URL=https://your-authorized-host/payment/return?result=cancelled
+```
+
+Never put those secrets in Expo public variables, JavaScript, Figma, Git, screenshots, or logs. Missing provider configuration fails the affected online operation closed; it does not justify a fake success or paid Render resource.
+
+### Current verification workflow
 
 Release is **HOLD**. See the [current QA report](QA%20Report%202026-09-28.md) for executed evidence and open blockers; setup instructions are not release certification.
 
-For non-destructive local API verification, run `python -B scripts/verify_microservices_e2e.py` from the repository root using an interpreter with the service dependencies installed. It uses that interpreter, disposable SQLite databases, synthetic fixtures, random loopback ports and owned-process cleanup. Do not run legacy seed commands as test setup: they can import existing application data. Run `npm run test:client` for dependency-light contract/dev-server checks, not native compilation.
+Run the active backend checks from `metrodrip_backend/`:
 
-For mocked staff-console layout checks, install the lockfile dependencies with `npm ci`, install the test browser with `npx playwright install chromium`, start `npm run dev` in one terminal and run `npm run test:browser` in another. The browser runner expects the local static server at `127.0.0.1:3000`; it does not launch a server or test live APIs, keyboard access, or native screens.
+```powershell
+python manage.py test
+python manage.py check --deploy
+python manage.py makemigrations --check
+python manage.py migrate --plan
+```
+
+Then run client/static checks from the repository root:
+
+```powershell
+npm ci
+npm run test:client
+npx tsc --noEmit
+```
+
+Final counts are recorded only after the current rerun in [Verification and Evaluation](Verification%20and%20Evaluation.md). SQLite/unit/source checks are not native-device, live-provider, PostgreSQL, or Render evidence.
+
+For historical non-destructive API regression, run `python -B scripts/verify_microservices_e2e.py` from the repository root using an interpreter with the service dependencies installed. It uses disposable SQLite databases, synthetic fixtures, random loopback ports, and owned-process cleanup. It does not verify the active monolith, PostgreSQL, PayMongo, or Render. Do not run legacy seed commands as test setup: they can import existing application data.
+
+For mocked staff-console checks, install Chromium with `npx playwright install chromium`, start `npm run dev` in one terminal, and run `npm run test:browser` in another. The runner expects `127.0.0.1:3000`; it does not launch that server. It checks responsive layouts plus representative loading/default/empty/partial/error/retry/permission/fixture states, failed-write truthfulness, Escape dismissal, focus return, and Tab containment. API responses are mocked and external resources are blocked, so it does not verify browser-to-Django integration or native screens.
 
 | Setting | QA / Development Behavior |
 | --- | --- |
-| `DATABASE_URL` | Runner overrides it for every service with a separate temporary SQLite file |
+| `DATABASE_URL` | Active monolith defaults to local SQLite; set a PostgreSQL URL only for an authorized target test. Historical runner overrides each old service with a temporary SQLite file. |
 | `IDENTITY_SERVICE_URL` | Catalog, Orders, Fulfillment and Content validate bearer tokens through Identity; Compose uses `http://identity-service:8001` |
 | `BIND_HOST` | Python gateway and development static server default to `127.0.0.1`; broader binding is an explicit operational choice |
-| `X-Idempotency-Key` | Gateway forwards it; checkout also accepts `idempotency_key` in JSON |
+| Checkout idempotency | Active `POST /api/orders/checkout/` requires `idempotency_key` in JSON. `X-Idempotency-Key` describes only the historical gateway path. |
 | Gateway `/health/` | Returns 503 when an upstream dependency is unhealthy |
 
-The final local run used Python 3.15.0b2/Django 5.2.16. Repeat checks on the supported deployment runtime. Docker/PostgreSQL and native Nginx were unavailable; no production or native-device validation is implied.
+The previous dated QA run used Python 3.15.0b2/Django 5.2.16. Repeat final checks on the supported runtime. Docker/PostgreSQL, PayMongo delivery, connected Render, and native devices were not established by that historical run.
 
 MetroDripJS is an Expo shopping application built with React Native.
 
 ## Prerequisites and versions
 
-Install Node.js and npm, then open a terminal in the repository. Linux was verified with Node 22.23.2 and npm 10.9.8.
+Install a Python version compatible with the pinned Django/psycopg requirements, Node.js, and npm, then open a terminal in the repository. Linux was previously verified with Node 22.23.2 and npm 10.9.8; the final enhancement rerun is tracked separately.
 
 | Component | Version |
 | --- | --- |
@@ -110,12 +171,12 @@ Generates the native `android/` directory and compiles the APK using Gradle dire
 
 ### 5. Backend Connection on Android Emulator
 
-When running a local backend server on your host machine (e.g. `http://localhost:5000`), the Android emulator accesses the host machine's `localhost` via the special IP address `10.0.2.2`.
+When the active backend runs on the host at `http://127.0.0.1:8000`, the Android emulator accesses the host machine through `10.0.2.2`.
 
 Update `.env` accordingly when testing local backend integration:
 ```env
 # For host-machine local backend:
-EXPO_PUBLIC_API_URL=http://10.0.2.2:5000
+EXPO_PUBLIC_API_URL=http://10.0.2.2:8000
 
 # For remote production backend:
 # EXPO_PUBLIC_API_URL=https://metrodripjs.onrender.com
@@ -148,7 +209,7 @@ EXPO_PUBLIC_API_URL=http://10.0.2.2:5000
 
 ## Web Staff Login Pages (`web/`)
 
-The `web/` folder holds the browser-only Merchant and Administrator login screens. They are plain HTML, CSS, and JavaScript with no build step and no npm dependencies, and they are separate from the Expo app.
+The `web/` folder holds the browser-only Merchant and Administrator login screens and consoles. They are plain HTML, CSS, and JavaScript served by the local Python server; Playwright is a development dependency only for the browser harness. They are separate from the Expo app.
 
 ### Folder layout (mirrors `mobile/`)
 
@@ -167,49 +228,60 @@ flowchart LR
   A -->|defer| C[AppLogin.js]
   C --> D{validate}
   D -->|errors| E[inline field errors<br/>focus first invalid]
-  D -->|ok| F[simulated sign-in 900 ms]
-  F --> G[success status message]
+  D -->|ok| F[POST /login/]
+  F --> H{is_staff and expected persisted role?}
+  H -->|no| I[revoke unexpected token<br/>show access error]
+  H -->|yes| G[store current session in sessionStorage<br/>open role console]
 ```
 
 ### Run it
 
-Any static file server works. Serve the `web/` folder as the site root so the relative paths resolve.
+Use the repository server on the CORS-allowlisted development origin:
 
-```sh
-# Linux / macOS
-python3 -m http.server 8765 --bind 127.0.0.1 -d web
-
-# Windows (PowerShell)
-py -m http.server 8765 --bind 127.0.0.1 -d web
-
-# Any OS with Node.js
-npx serve web -l 8765
+```powershell
+npm run dev
 ```
 
 Open:
 
-- Merchant: `http://127.0.0.1:8765/Registration/screens/MerchantLoginScreen.html`
-- Administrator: `http://127.0.0.1:8765/Registration/screens/AdminLoginScreen.html`
+- Merchant: `http://127.0.0.1:3000/Registration/screens/MerchantLoginScreen.html`
+- Administrator: `http://127.0.0.1:3000/Registration/screens/AdminLoginScreen.html`
 
-**Working means:** the two-panel card renders (dark brand panel on the left, form on the right). Pressing **LOG IN** with empty fields shows red inline errors. Valid input shows "SIGNING IN…" and then a "✓ Signed in as …" message. **☾ Dark** switches the form panel to dark and is remembered on both screens.
+**Working means:** the two-panel card renders, empty submit shows inline errors, and valid credentials reach `POST http://127.0.0.1:8000/login/`. A merchant login accepts only persisted `merchant` staff; an administrator login accepts only persisted `admin` staff. The successful account/token is stored in `sessionStorage`, console requests send `Authorization: Bearer …`, and sign out calls the role API before clearing local state.
 
 ### Limits to know
 
-- Sign-in is **simulated**. `metrodrip_backend` has no staff-login endpoint yet, so `simulateSignIn()` in `AppLogin.js` must be replaced with a real request. Role checks and 2FA must be enforced server-side.
+- Sign-in is real and server-verified, but authorization is coarse persisted-role RBAC only. Store-scoped ABAC/permissions, MFA, and recent-authentication checks are not implemented. `VERIFIED SESSION` means the bearer session was authenticated; it is not a 2FA claim.
 - Fonts (Anton, IBM Plex Mono, Inter) load from Google Fonts. Offline, the pages fall back to Impact / Courier New / Arial.
 - "← Return to storefront" links to `/`, which is the storefront only when the pages are deployed alongside it.
 
 ### Troubleshooting
 
 1. **Unstyled page or missing ring graphic**: the server root is not `web/`. Paths such as `../../assets/deco-ring.svg` need `web/` as root.
-2. **Theme does not persist**: the browser is blocking site storage (private window). The theme still switches for the current page.
-3. **Port 8765 in use**: pick another port, e.g. `python3 -m http.server 8080 -d web`.
+2. **Immediate redirect to login**: provision the correct staff role, sign in through the matching page, and confirm the browser permits `sessionStorage`.
+3. **`401`/`403` console API response**: the token is missing, expired/revoked, the account is inactive, or the persisted role does not authorize that API. Sign out and authenticate explicitly; client-side account switching is retired.
+4. **Theme does not persist**: the browser is blocking site storage (private window). The theme still switches for the current page.
+5. **Port 3000 in use**: stop the owning process or choose another static port and add that exact authorized origin to `DJANGO_CORS_ALLOWED_ORIGINS` for local development.
 
 ---
 
-## Microservices Architecture & Execution
+## Render free-only Blueprint
 
-MetroDripJS backend is decomposed into **five independently deployable Django services** and an API Gateway with dedicated private databases, zero cross-service ORM imports, and snapshot-based boundary contracts.
+[`render.yaml`](../render.yaml) is prepared for human review but has not been applied. It declares:
+
+- preview generation off;
+- `autoDeployTrigger: off`;
+- one Python web service with `plan: free`;
+- one PostgreSQL database with `plan: free` and no public IP allowlist;
+- no worker, cron, Key Value/Redis, disk, autoscaling, HA, replica, or other paid resource.
+
+Do not apply the Blueprint if the dashboard asks for a paid resource. Render's current free PostgreSQL lifecycle (1 GB, expiry after 30 days, 14-day grace period, and no managed backups/pooling) does not satisfy durable production commerce requirements. Production release is therefore **HOLD** even though the file itself is free-only. Live Blueprint creation, database migration, cold-start behavior, and restore remain **UNVERIFIED**.
+
+---
+
+## Historical Microservices Regression Environment
+
+This local comparison environment runs **five independently deployable Django services** and an API Gateway with dedicated private databases. It is retained to regression-test migrated behavior and does not define the approved Render topology.
 
 ### Service Matrix & Ports
 
@@ -258,7 +330,7 @@ cd services\content
 python gateway\gateway.py
 ```
 
-### Production Deployment via Docker Compose
+### Historical containerized comparison via Docker Compose
 
 A complete production multi-container environment with PostgreSQL 16 (isolated role-per-database), all 5 microservices, and Nginx edge gateway is defined in `docker-compose.microservices.yml`:
 

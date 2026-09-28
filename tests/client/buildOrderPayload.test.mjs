@@ -1,9 +1,6 @@
 // Contract tests for the POST /api/orders/checkout/ body.
 //
-// Asserted against the ACTIVE deployment, not the legacy monolith:
-//   services/orders/orders/views.py  OrdersListCreateAPIView.post
-//   services/orders/orders/saga.py    execute_cod_checkout_saga
-//   services/catalog/catalog/views.py CatalogQuoteAPIView.post
+// Asserted against the active modular Django checkout contract.
 //
 // The saga prices from catalog, so the client must send no money, no status and
 // no product FK, and must never let a fractional or non-positive quantity
@@ -12,7 +9,7 @@ import './helpers/loader.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-const { buildOrderPayload, buildOrderItems, splitShippingAddress, buildIdempotencyKey, CheckoutPayloadError } =
+const { buildOrderPayload, buildOrderItems, splitShippingAddress, buildIdempotencyKey, normalizePaymentMethod, CheckoutPayloadError } =
   await import('../../mobile/Checkout/src/data/buildOrderPayload.js');
 
 const cartItem = {
@@ -74,8 +71,15 @@ test('the cart row id is never used as a variant id', () => {
   assert.throws(() => buildOrderItems([{ id: '42', name: 'x', quantity: 1 }]), /not linked to a specific product variant/);
 });
 
-test('payment_method is COD, the only value orders accepts', () => {
-  assert.equal(buildOrderPayload(draft).payment_method, 'COD');
+test('payment_method carries each canonical backend value', () => {
+  for (const method of ['cod', 'gcash', 'maya', 'card']) {
+    assert.equal(buildOrderPayload(draft, method).payment_method, method);
+  }
+});
+
+test('unknown payment methods fail before the request is spent', () => {
+  assert.throws(() => buildOrderPayload(draft, 'bank-transfer'), /supported payment method/i);
+  assert.equal(normalizePaymentMethod(' GCASH '), 'gcash');
 });
 
 test('delivery_zone comes from the selected zone', () => {
@@ -192,6 +196,14 @@ test('a changed quantity, item, or address produces a different key', () => {
   assert.notEqual(buildOrderPayload({ ...draft, address: '9 Kalachuchi St' }).idempotency_key, base);
   assert.notEqual(buildOrderPayload({ ...draft, zone: 'Visayas' }).idempotency_key, base);
   assert.equal(buildIdempotencyKey(draft, items), base);
+});
+
+test('changing payment method creates a distinct checkout attempt', () => {
+  const attempt = { ...draft };
+  const cod = buildOrderPayload(attempt, 'cod').idempotency_key;
+  const gcash = buildOrderPayload(attempt, 'gcash').idempotency_key;
+  assert.notEqual(cod, gcash);
+  assert.equal(buildOrderPayload(attempt, 'gcash').idempotency_key, gcash);
 });
 
 test('the key is a plain string the gateway forwards untouched', () => {

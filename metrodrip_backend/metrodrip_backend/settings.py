@@ -10,26 +10,42 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
+import os
 from pathlib import Path
+
+from django.core.exceptions import ImproperlyConfigured
+
+
+def env_bool(name, default=False):
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+    return raw_value.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+
+def env_list(name, default=''):
+    return [item.strip() for item in os.environ.get(name, default).split(',') if item.strip()]
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
+IS_RENDER = env_bool('RENDER', False)
+DEBUG = env_bool('DJANGO_DEBUG', not IS_RENDER)
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY') or os.environ.get('SECRET_KEY')
+if not SECRET_KEY and DEBUG:
+    SECRET_KEY = 'metrodrip-local-development-key-change-before-production-2026'
+if not SECRET_KEY:
+    raise ImproperlyConfigured('DJANGO_SECRET_KEY is required when DJANGO_DEBUG is false.')
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-=1%m3ag4!mnnu*s$=^3_jj@raa@(b*zfgtmfhcgs5q$i9g02u-'
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = ['localhost',
-                 '127.0.0.1', 
-                 '10.0.2.2', 
-                 'metrodripjs.onrender.com',
-                ]
+ALLOWED_HOSTS = env_list(
+    'DJANGO_ALLOWED_HOSTS',
+    (
+        'localhost,127.0.0.1,10.0.2.2,metrodripjs.onrender.com'
+        if DEBUG
+        else 'metrodripjs.onrender.com'
+    ),
+)
 
 
 # Application definition
@@ -54,6 +70,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -62,7 +79,54 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOWED_ORIGINS = env_list(
+    'DJANGO_CORS_ALLOWED_ORIGINS',
+    (
+        'http://localhost:19006,http://localhost:8081,http://localhost:3000,'
+        'http://127.0.0.1:19006,http://127.0.0.1:8081,http://127.0.0.1:3000'
+        if DEBUG
+        else ''
+    ),
+)
+CSRF_TRUSTED_ORIGINS = env_list(
+    'DJANGO_CSRF_TRUSTED_ORIGINS',
+    'https://metrodripjs.onrender.com',
+)
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = env_bool('DJANGO_SECURE_SSL_REDIRECT', not DEBUG)
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SAMESITE = 'Lax'
+
+REST_FRAMEWORK = {
+    # The free-tier topology runs one web instance, so Django's cache-backed
+    # throttles provide a bounded first line of abuse control without a paid
+    # shared-cache service. A multi-instance deployment must move this cache to
+    # shared infrastructure before relying on these limits globally.
+    'DEFAULT_THROTTLE_RATES': {
+        'login': '10/min',
+        'signup': '5/hour',
+        'password_reset': '5/hour',
+        'checkout': '30/min',
+        'payment_status': '120/min',
+        'payment_webhook': '300/min',
+    },
+    'NUM_PROXIES': 1,
+}
+SECURE_HSTS_SECONDS = int(os.environ.get('DJANGO_HSTS_SECONDS', '0' if DEBUG else '31536000'))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool('DJANGO_HSTS_INCLUDE_SUBDOMAINS', False)
+SECURE_HSTS_PRELOAD = env_bool('DJANGO_HSTS_PRELOAD', False)
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'same-origin'
+X_FRAME_OPTIONS = 'DENY'
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('DJANGO_MAX_REQUEST_BYTES', '1048576'))
+CHECKOUT_MAX_DISTINCT_ITEMS = int(os.environ.get('CHECKOUT_MAX_DISTINCT_ITEMS', '25'))
+CHECKOUT_MAX_QUANTITY_PER_VARIANT = int(os.environ.get('CHECKOUT_MAX_QUANTITY_PER_VARIANT', '5'))
+CHECKOUT_MAX_ACTIVE_ONLINE_ATTEMPTS = int(os.environ.get('CHECKOUT_MAX_ACTIVE_ONLINE_ATTEMPTS', '3'))
 
 ROOT_URLCONF = 'metrodrip_backend.urls'
 
@@ -91,7 +155,9 @@ import dj_database_url
 
 DATABASES = {
     'default': dj_database_url.config(
-        default='sqlite:///' + str(BASE_DIR / 'db.sqlite3')
+        default='sqlite:///' + str(BASE_DIR / 'db.sqlite3'),
+        conn_max_age=int(os.environ.get('DB_CONN_MAX_AGE', '60' if IS_RENDER else '0')),
+        conn_health_checks=True,
     )
 }
 
@@ -130,7 +196,16 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = Path(os.environ.get('DJANGO_STATIC_ROOT', BASE_DIR / 'staticfiles'))
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
 
 
 # Email
@@ -141,3 +216,24 @@ MAILERS = {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
 }
+
+
+# PayMongo Hosted Checkout uses only server-side credentials. No provider
+# secret or raw card/wallet credential is returned to the mobile client.
+PAYMONGO_SECRET_KEY = os.environ.get('PAYMONGO_SECRET_KEY', '')
+PAYMONGO_WEBHOOK_SECRET = os.environ.get('PAYMONGO_WEBHOOK_SECRET', '')
+PAYMONGO_MODE = os.environ.get('PAYMONGO_MODE', 'test').lower()
+PAYMONGO_TIMEOUT_SECONDS = int(os.environ.get('PAYMONGO_TIMEOUT_SECONDS', '8'))
+PAYMONGO_WEBHOOK_TOLERANCE_SECONDS = int(
+    os.environ.get('PAYMONGO_WEBHOOK_TOLERANCE_SECONDS', '300')
+)
+PAYMONGO_WEBHOOK_MAX_BYTES = int(os.environ.get('PAYMONGO_WEBHOOK_MAX_BYTES', '262144'))
+PAYMONGO_SUCCESS_URL = os.environ.get(
+    'PAYMONGO_SUCCESS_URL',
+    'https://metrodripjs.onrender.com/payment/return?result=success',
+)
+PAYMONGO_CANCEL_URL = os.environ.get(
+    'PAYMONGO_CANCEL_URL',
+    'https://metrodripjs.onrender.com/payment/return?result=cancelled',
+)
+CUSTOMER_TOKEN_TTL_SECONDS = int(os.environ.get('CUSTOMER_TOKEN_TTL_SECONDS', '2592000'))

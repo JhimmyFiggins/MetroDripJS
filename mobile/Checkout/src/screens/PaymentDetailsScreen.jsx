@@ -1,34 +1,40 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
+  AppState,
+  Linking,
   Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '../../../context/CartContext';
-import { createOrder } from '../../../../src/services/orderService';
+import { createOrder, getOrder, normalizeOrderId } from '../../../../src/services/orderService';
 import { buildOrderPayload, CheckoutPayloadError } from '../data/buildOrderPayload';
+import {
+  getHostedCheckoutUrl,
+  canClearCartForAttempt,
+  cartAttemptFingerprint,
+  isOnlinePaymentMethod,
+  openHostedCheckout,
+  paymentFlowState,
+} from '../data/paymentFlow';
+import { createServerConfirmation } from '../data/orderConfirmation';
 import { CheckoutProgress } from '../components/CheckoutProgress';
 import { colors, fonts } from '../theme';
 
-// Method definitions with icons and subtitles matching Figma
 const PAYMENT_METHODS = [
-  {
-    id: 'cod',
-    title: 'Cash on Delivery',
-    subtitle: 'Pay when your package arrives',
-    badge: 'COD',
-  },
+  { id: 'cod', title: 'Cash on Delivery', subtitle: 'Pay when your package arrives', badge: 'COD' },
+  { id: 'gcash', title: 'GCash', subtitle: 'Continue in PayMongo secure checkout', badge: 'GC' },
+  { id: 'maya', title: 'Maya', subtitle: 'Continue in PayMongo secure checkout', badge: 'MY' },
+  { id: 'card', title: 'Credit or Debit Card', subtitle: 'Enter details securely on PayMongo', badge: 'CARD' },
 ];
 
 export function PaymentDetailsScreen() {
@@ -37,827 +43,659 @@ export function PaymentDetailsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isWide = width >= 768;
+  const { cart, clearCart } = useCart();
 
-  const cartContext = useCart();
-  const clearCart = cartContext?.clearCart || (() => {});
+  const orderDraft = route.params?.orderDraft || null;
+  const requestedMethod = route.params?.paymentMethod;
+  const initialMethod = PAYMENT_METHODS.some((method) => method.id === requestedMethod)
+    ? requestedMethod
+    : 'cod';
+  const hasRouteOrderId = Object.prototype.hasOwnProperty.call(route.params || {}, 'orderId');
+  const deepLinkedOrderId = normalizeOrderId(route.params?.orderId);
+  const hasLiveDraft = !hasRouteOrderId && Array.isArray(orderDraft?.items) && orderDraft.items.length > 0;
 
-  // Retrieve draft order and method from navigation params, with Figma fallbacks (node 452:2)
-  // The fallback is display-only: its items carry no catalog product id, so
-  // buildOrderPayload refuses to submit them instead of posting a phantom order.
-  const orderDraft = route.params?.orderDraft || {
-    orderId: 'MD-2026-00318',
-    total: 2632,
-    fullName: 'Juan R. Dela Cruz',
-    mobile: '0917 555 0143',
-    email: 'juan@email.com',
-    address: 'Unit 4B, 21 Maginhawa St., Teachers Village',
-    city: 'Quezon City',
-    zone: 'Metro Manila (NCR)',
-    items: [
-      {
-        id: '1',
-        name: 'Drip Zip-Up Hoodie',
-        variant: 'BLACK · M · OVS ×1',
-        price: 1249,
-        quantity: 1,
-        badge: 'H',
-      },
-      {
-        id: '2',
-        name: 'Metro Core Boxy Tee',
-        variant: 'WHITE · L · REG ×2',
-        price: 1383,
-        quantity: 2,
-        badge: 'T',
-      },
-    ],
-  };
-
-  // The orders service settles COD only, so the method is fixed rather than
-  // carried over from the previous screen's selection.
-  const [selectedMethod, setSelectedMethod] = useState('cod');
+  const [selectedMethod, setSelectedMethod] = useState(initialMethod);
   const [methodModalVisible, setMethodModalVisible] = useState(false);
-
-  // Form states - GCash (Figma node 452:2)
-  const [gcashMobile, setGcashMobile] = useState(orderDraft.mobile || '0917 555 0143');
-  const [gcashAccountName, setGcashAccountName] = useState(orderDraft.fullName || 'Juan R. Dela Cruz');
-  const [saveGcash, setSaveGcash] = useState(true);
-
-  // Form states - Maya (Figma node 452:99)
-  const [mayaFundingSource, setMayaFundingSource] = useState('wallet'); // 'wallet' | 'card'
-  const [mayaMobile, setMayaMobile] = useState(orderDraft.mobile || '0917 555 0143');
-  const [mayaAccountName, setMayaAccountName] = useState(orderDraft.fullName || 'Juan R. Dela Cruz');
-  const [saveMaya, setSaveMaya] = useState(true);
-
-  // Form states - Card (Figma node 453:2)
-  const [cardNumber, setCardNumber] = useState('4111 1111 1111 1111');
-  const [cardExpiry, setCardExpiry] = useState('09 / 28');
-  const [cardCvv, setCardCvv] = useState('888');
-  const [cardName, setCardName] = useState((orderDraft.fullName || 'JUAN R DELA CRUZ').toUpperCase());
-  const [billingSameAsDelivery, setBillingSameAsDelivery] = useState(true);
-  const [saveCard, setSaveCard] = useState(false);
-
-  // Submission state
   const [isProcessing, setIsProcessing] = useState(false);
+  const [flowState, setFlowState] = useState(
+    deepLinkedOrderId ? 'pending' : hasLiveDraft ? 'idle' : hasRouteOrderId ? 'lookup_error' : 'entry_error',
+  );
+  const [flowMessage, setFlowMessage] = useState(
+    hasLiveDraft || deepLinkedOrderId
+      ? ''
+      : hasRouteOrderId
+        ? 'This payment link does not contain a valid order reference.'
+        : 'Open payment from Checkout or choose an existing order from Order history.',
+  );
+  const [pendingOrder, setPendingOrder] = useState(
+    deepLinkedOrderId ? { id: deepLinkedOrderId } : null,
+  );
+  const [paymentAction, setPaymentAction] = useState(null);
+  const [lookupErrorKind, setLookupErrorKind] = useState(null);
+
   const submitInFlight = useRef(false);
+  const refreshInFlight = useRef(false);
+  const refreshSequence = useRef(0);
+  const completedOrder = useRef(false);
+  const pollAttempts = useRef(0);
+  const liveAttempt = useRef(null);
+  const cartItemsRef = useRef(cart || []);
 
-  const totalAmount = Number(orderDraft.total) || 0;
-  const itemCount = orderDraft.items?.reduce((sum, it) => sum + (it.quantity || 1), 0) || 0;
+  const currentMethod =
+    PAYMENT_METHODS.find((method) => method.id === selectedMethod) || PAYMENT_METHODS[0];
+  const authoritativeTotal = Number(pendingOrder?.total ?? pendingOrder?.total_amount);
+  cartItemsRef.current = cart || [];
+  const draftTotal = Number(orderDraft?.total);
+  const totalAmount = Number.isFinite(authoritativeTotal)
+    ? authoritativeTotal
+    : Number.isFinite(draftTotal)
+      ? draftTotal
+      : 0;
+  const hasKnownTotal = Number.isFinite(authoritativeTotal) || (hasLiveDraft && Number.isFinite(draftTotal));
+  const itemCount = orderDraft?.items?.reduce((sum, item) => sum + (item.quantity || 1), 0) || 0;
+  const statusOrderId = hasRouteOrderId ? deepLinkedOrderId : normalizeOrderId(pendingOrder?.id);
+  const statusTargetRef = useRef(statusOrderId);
+  statusTargetRef.current = statusOrderId;
 
-  const formatPeso = (val) =>
-    `₱${Number(val).toLocaleString('en-PH', {
+  const formatPeso = (value) =>
+    `₱${Number(value).toLocaleString('en-PH', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
-  const formatCardInput = (text) => {
-    const cleaned = text.replace(/\D/g, '').slice(0, 16);
-    const parts = cleaned.match(/[\s\S]{1,4}/g) || [];
-    setCardNumber(parts.join(' '));
-  };
 
-  const getCardBrand = (num) => {
-    const clean = num.replace(/\s+/g, '');
-    if (clean.startsWith('4')) return 'VISA';
+  const showAlert = (title, message) => {
     if (
-      clean.startsWith('51') ||
-      clean.startsWith('52') ||
-      clean.startsWith('53') ||
-      clean.startsWith('54') ||
-      clean.startsWith('55')
-    )
-      return 'MC';
-    if (clean.startsWith('35')) return 'JCB';
-    return 'CARD';
+      Platform.OS === 'web' &&
+      typeof window !== 'undefined' &&
+      typeof window.alert === 'function'
+    ) {
+      window.alert(`${title}\n\n${message}`);
+      return;
+    }
+    Alert.alert(title, message);
   };
 
-  const currentMethodObj =
-    PAYMENT_METHODS.find((m) => m.id === selectedMethod) || PAYMENT_METHODS[0];
-  
-  const handlePay = async () => {
-    // Guard in the handler, not only on the button: a second tap in the same
-    // tick would otherwise start a second saga run before `disabled` applies.
-    if (submitInFlight.current) return;
+  useEffect(() => {
+    // A screen instance can be reused by navigation. Reset every order-bound
+    // ref/state so a response for order A can never bleed into order B.
+    refreshSequence.current += 1;
+    refreshInFlight.current = false;
+    submitInFlight.current = false;
+    completedOrder.current = false;
+    pollAttempts.current = 0;
+    liveAttempt.current = null;
+    setMethodModalVisible(false);
+    setIsProcessing(false);
+    setPaymentAction(null);
+    setLookupErrorKind(null);
+    setSelectedMethod(initialMethod);
 
-    // The orders service only settles COD today; offering a wallet or card
-    // would post a payment_method it rejects with 400.
-    if (selectedMethod !== 'cod') {
-      const msg = `Payment method ${currentMethodObj.title} is currently unavailable. Real provider integration pending; please use COD.`;
-      Platform.OS === 'web' && typeof window !== 'undefined'
-        ? window.alert(`Payment Method Unavailable\n\n${msg}`)
-        : Alert.alert('Payment Method Unavailable', msg);
+    if (hasRouteOrderId) {
+      setPendingOrder(deepLinkedOrderId ? { id: deepLinkedOrderId } : null);
+      setFlowState(deepLinkedOrderId ? 'pending' : 'lookup_error');
+      setFlowMessage(
+        deepLinkedOrderId ? '' : 'This payment link does not contain a valid order reference.',
+      );
       return;
     }
 
-    submitInFlight.current = true;
-    setIsProcessing(true);
+    setPendingOrder(null);
+    setFlowState(hasLiveDraft ? 'idle' : 'entry_error');
+    setFlowMessage(
+      hasLiveDraft ? '' : 'Open payment from Checkout or choose an existing order from Order history.',
+    );
+  }, [deepLinkedOrderId, hasLiveDraft, hasRouteOrderId, initialMethod, orderDraft]);
 
-      setTimeout(async () => {
-      const paymentDetailStr = `Cash on Delivery · ${orderDraft.mobile}`;
-
-      // Validate before spending a request. The caller is identified by the
-      // Authorization header, which apiClient fills from AuthContext.
-      let orderBody;
-      try {
-        orderBody = buildOrderPayload(orderDraft);
-      } catch (error) {
-        submitInFlight.current = false;
-        setIsProcessing(false);
-        const msg =
-          (error instanceof CheckoutPayloadError && error.message) ||
-          (error && error.message) ||
-          'Something went wrong while preparing your order. Please try again.';
-        Platform.OS === 'web' && typeof window !== 'undefined'
-          ? window.alert(`Order Failed\n\n${msg}`)
-          : Alert.alert('Order Failed', msg);
+  const finishOrder = useCallback(
+    (savedOrder) => {
+      if (completedOrder.current) return;
+      const confirmation = createServerConfirmation(savedOrder);
+      if (!confirmation) {
+        setFlowState('integrity_error');
+        setFlowMessage(
+          'The server response could not be verified, so MetroDrip will not show a confirmation.',
+        );
         return;
       }
-
-      let savedOrder;
-      try {
-        savedOrder = await createOrder(orderBody);
-      } catch (error) {
-        console.error('Failed to create order:', error);
-        const msg =
-          (error && error.message) ||
-          'Something went wrong while creating your order. Please try again.';
-        Platform.OS === 'web' && typeof window !== 'undefined'
-          ? window.alert(`Order Failed\n\n${msg}`)
-          : Alert.alert('Order Failed', msg);
-        return;
-      } finally {
-        // Release the button only once the request has settled, so a second tap
-        // cannot create a duplicate order.
-        submitInFlight.current = false;
-        setIsProcessing(false);
+      completedOrder.current = true;
+      if (canClearCartForAttempt(liveAttempt.current, savedOrder, cartItemsRef.current)) {
+        clearCart();
       }
-
-      const now = new Date();
-      const formattedDate = `${now.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-      })} · ${now.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-      })}`;
-
-      const orderPayload = {
-        orderId: savedOrder.id,
-        refNo: savedOrder.order_no,
-        // The saga prices from catalog, so the server figures are the only ones
-        // worth showing. Never fall back to the local cart arithmetic.
-        subtotal: Number(savedOrder.subtotal),
-        shipping: Number(savedOrder.shipping),
-        total: Number(savedOrder.total),
-        date: formattedDate,
-        paymentMethod: currentMethodObj.title,
-        paymentDetail: paymentDetailStr,
-        email: orderDraft.email || 'juan@email.com',
-        fullName: orderDraft.fullName || 'Juan R. Dela Cruz',
-        address: orderDraft.address || 'Metro Manila (NCR)',
-        // The service assigns no courier and no ETA until dispatch, so say that
-        // rather than promising a date it never computed.
-        eta: 'Delivery schedule is assigned after dispatch',
-        courier: 'To be assigned',
-        // The service returns priced lines under its own keys; map them to what
-        // the confirmation renders so no line displays a ₱0 price.
-        items: (savedOrder.items || []).map((line, idx) => ({
-          id: line.sku || `${line.variant_ref ?? idx}`,
-          name: line.product_name || 'Item',
-          variant: line.variant_desc || '',
-          price: Number(line.unit_price) || 0,
-          quantity: line.quantity || 1,
-          image: orderDraft.items?.[idx]?.image,
-        })),
-      };
-
-      clearCart();
-
-      navigation.navigate('OrderConfirmation', {
-        order: orderPayload,
+      navigation.replace('OrderConfirmation', {
+        order: confirmation,
       });
-    }, 900);
+    },
+    [clearCart, navigation],
+  );
+
+  const refreshPaymentStatus = useCallback(
+    async ({ silent = false } = {}) => {
+      // A route order ID always wins over component state. This prevents a
+      // previous order from being queried after navigation reuses the screen.
+      const orderId = hasRouteOrderId ? deepLinkedOrderId : normalizeOrderId(pendingOrder?.id);
+      if (!orderId || refreshInFlight.current) return;
+
+      const requestId = ++refreshSequence.current;
+      refreshInFlight.current = true;
+      if (!silent) {
+        pollAttempts.current = 0;
+        setFlowState('verifying');
+      }
+
+      try {
+        const latestOrder = await getOrder(orderId);
+        if (requestId !== refreshSequence.current || statusTargetRef.current !== orderId) return;
+        setLookupErrorKind(null);
+        setPendingOrder((current) => ({ ...current, ...latestOrder }));
+        if (latestOrder.payment_action) setPaymentAction(latestOrder.payment_action);
+        const latestMethod = String(latestOrder.payment_method || '').toLowerCase();
+        if (PAYMENT_METHODS.some((method) => method.id === latestMethod)) {
+          setSelectedMethod(latestMethod);
+        }
+
+        const nextState = paymentFlowState(latestOrder);
+        if (nextState === 'paid') {
+          finishOrder(latestOrder);
+          return;
+        }
+        if (nextState === 'setup_failed') {
+          setFlowState('setup_failed');
+          setFlowMessage(
+            'Secure payment setup did not complete. Retry from this checkout or return to Order history.',
+          );
+          return;
+        }
+        if (nextState === 'failed') {
+          setFlowState('failed');
+          setFlowMessage('The provider did not complete this payment. Your cart is still intact.');
+          return;
+        }
+
+        setFlowState('pending');
+        if (!silent) {
+          setFlowMessage('Payment is still awaiting provider confirmation. You can check again safely.');
+        }
+      } catch (error) {
+        if (requestId !== refreshSequence.current || statusTargetRef.current !== orderId) return;
+        const status = Number(error?.status) || 0;
+        if (status === 401) {
+          setLookupErrorKind('session');
+          setFlowState('session_error');
+          setFlowMessage('Your session expired. Sign in again, then reopen this order.');
+        } else if (status === 403 || status === 404) {
+          setLookupErrorKind(status === 403 ? 'permission' : 'not_found');
+          setFlowState('lookup_error');
+          setFlowMessage('This order is not available in your account.');
+        } else if (silent) {
+          setLookupErrorKind('degraded');
+          setFlowState('degraded');
+          setFlowMessage('Automatic verification is unavailable. Your last known status is still shown.');
+        } else if (status === 0) {
+          setLookupErrorKind('offline');
+          setFlowState('offline');
+          setFlowMessage('Reconnect to check this payment. No order or cart data was changed.');
+        } else {
+          setLookupErrorKind('error');
+          setFlowState('status_error');
+          setFlowMessage('We could not verify this payment. Your cart has not been cleared.');
+        }
+      } finally {
+        if (requestId === refreshSequence.current) refreshInFlight.current = false;
+      }
+    },
+    [deepLinkedOrderId, finishOrder, hasRouteOrderId, pendingOrder?.id],
+  );
+
+  useEffect(() => {
+    if (!statusOrderId || !isOnlinePaymentMethod(selectedMethod)) return undefined;
+
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') refreshPaymentStatus({ silent: true });
+    });
+
+    return () => subscription.remove();
+  }, [refreshPaymentStatus, selectedMethod, statusOrderId]);
+
+  useEffect(() => {
+    if (!statusOrderId || !['pending', 'redirecting'].includes(flowState)) return undefined;
+
+    const timer = setInterval(() => {
+      if (pollAttempts.current >= 12) {
+        clearInterval(timer);
+        setFlowState('poll_paused');
+        setFlowMessage('Automatic checks paused. Tap “Check payment status” to refresh.');
+        return;
+      }
+      pollAttempts.current += 1;
+      refreshPaymentStatus({ silent: true });
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, [flowState, refreshPaymentStatus, statusOrderId]);
+
+  useEffect(() => {
+    if (hasRouteOrderId && deepLinkedOrderId) refreshPaymentStatus({ silent: false });
+  }, [deepLinkedOrderId, hasRouteOrderId, refreshPaymentStatus]);
+
+  const openCheckout = async (action = paymentAction) => {
+    setFlowState('redirecting');
+    try {
+      await openHostedCheckout(action, Linking);
+      setFlowState('pending');
+      setFlowMessage(
+        'Complete payment in PayMongo, then return here. We only confirm payment after the server receives the provider webhook.',
+      );
+    } catch (error) {
+      setFlowState('open_error');
+      setFlowMessage(error?.message || 'The secure checkout page could not be opened.');
+    }
   };
 
-  // Reusable custom Checkbox component
-  const RenderCheckbox = ({ checked, onPress, label }) => (
-    <Pressable
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked }}
-      onPress={onPress}
-      style={styles.checkboxRow}
+  const handlePay = async () => {
+    // A synchronous ref closes the same-tick window before disabled state renders.
+    if (submitInFlight.current) return;
+    if (!hasLiveDraft || hasRouteOrderId) {
+      setFlowState('entry_error');
+      setFlowMessage('Start payment from Checkout. This recovery view cannot create a new order.');
+      return;
+    }
+    submitInFlight.current = true;
+    setIsProcessing(true);
+    setFlowState('processing');
+    setFlowMessage('');
+
+    try {
+      const attemptFingerprint = cartAttemptFingerprint(orderDraft.items);
+      const orderBody = buildOrderPayload(orderDraft, selectedMethod);
+      const savedOrder = await createOrder(orderBody);
+      liveAttempt.current = {
+        orderId: savedOrder.id,
+        cartFingerprint: attemptFingerprint,
+      };
+      setPendingOrder(savedOrder);
+
+      if (selectedMethod === 'cod') {
+        finishOrder(savedOrder);
+        return;
+      }
+
+      // A paid response is trusted because its status comes from the backend,
+      // never because the customer returned from the hosted checkout page.
+      const nextState = paymentFlowState(savedOrder);
+      if (nextState === 'paid') {
+        finishOrder(savedOrder);
+        return;
+      }
+      if (nextState === 'setup_failed') {
+        setFlowState('setup_failed');
+        setFlowMessage('Secure payment setup failed. Retry safely with the same checkout attempt.');
+        return;
+      }
+      if (nextState === 'failed') {
+        setFlowState('failed');
+        setFlowMessage('The provider did not complete this payment. Your cart is still intact.');
+        return;
+      }
+
+      setPaymentAction(savedOrder.payment_action || null);
+      await openCheckout(savedOrder.payment_action);
+    } catch (error) {
+      const message =
+        (error instanceof CheckoutPayloadError && error.message) ||
+        error?.message ||
+        'We could not finish creating the order. Your cart is still intact; retrying is safe.';
+      const providerSetupFailure =
+        isOnlinePaymentMethod(selectedMethod) &&
+        ([422, 503].includes(Number(error?.status)) || /payment setup/i.test(message));
+      setFlowState(providerSetupFailure ? 'setup_failed' : 'request_error');
+      setFlowMessage(message);
+      showAlert('Order not completed', message);
+    } finally {
+      submitInFlight.current = false;
+      setIsProcessing(false);
+    }
+  };
+
+  const statusCard = flowState !== 'idle' && (
+    <View
+      accessibilityLiveRegion="polite"
+      style={[
+        styles.statusCard,
+        [
+          'failed',
+          'setup_failed',
+          'open_error',
+          'request_error',
+          'status_error',
+          'session_error',
+          'lookup_error',
+          'offline',
+          'integrity_error',
+          'entry_error',
+        ].includes(flowState) &&
+          styles.statusCardError,
+      ]}
     >
-      <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
-        {checked && <Text style={styles.checkboxCheck}>✓</Text>}
+      {['processing', 'redirecting', 'verifying', 'pending'].includes(flowState) && (
+        <ActivityIndicator color={colors.ink} size="small" />
+      )}
+      <View style={styles.statusTextGroup}>
+        <Text style={styles.statusTitle}>
+          {flowState === 'processing' && 'Creating your order'}
+          {flowState === 'redirecting' && 'Opening secure checkout'}
+          {flowState === 'verifying' && 'Checking payment status'}
+          {flowState === 'pending' && 'Payment confirmation pending'}
+          {flowState === 'poll_paused' && 'Automatic checks paused'}
+          {flowState === 'degraded' && 'Verification temporarily degraded'}
+          {flowState === 'setup_failed' && 'Secure payment setup failed'}
+          {flowState === 'failed' && 'Payment was not completed'}
+          {flowState === 'open_error' && 'Secure checkout did not open'}
+          {flowState === 'request_error' && 'Order request needs attention'}
+          {flowState === 'status_error' && 'Status check unavailable'}
+          {flowState === 'session_error' && 'Session expired'}
+          {flowState === 'lookup_error' && 'Order unavailable'}
+          {flowState === 'offline' && 'You appear to be offline'}
+          {flowState === 'integrity_error' && 'Confirmation could not be verified'}
+          {flowState === 'entry_error' && 'Open payment from a valid order'}
+        </Text>
+        {!!flowMessage && <Text style={styles.statusMessage}>{flowMessage}</Text>}
       </View>
-      <Text style={styles.checkboxLabel}>{label}</Text>
+    </View>
+  );
+
+  const hasPaymentContext = hasLiveDraft || Boolean(pendingOrder?.payment_method);
+  const hasPendingOnlineOrder = Boolean(statusOrderId && isOnlinePaymentMethod(selectedMethod));
+  const canReopenCheckout = (() => {
+    try {
+      return Boolean(paymentAction && getHostedCheckoutUrl(paymentAction));
+    } catch {
+      return false;
+    }
+  })();
+
+  const historyLink = (
+    <Pressable
+      accessibilityRole="button"
+      onPress={() => navigation.navigate('History')}
+      style={({ pressed }) => [styles.linkButton, pressed && styles.payButtonPressed]}
+    >
+      <Text style={styles.linkButtonText}>View Order history</Text>
     </Pressable>
   );
 
-  // Method selector summary card (Figma node 452:78, 452:129, 453:32)
-  const selectedMethodCard = (
-    <View style={styles.selectedMethodCard}>
-      <View style={styles.radioOuter}>
-        <View style={styles.radioInner} />
-      </View>
-      <View style={styles.methodInfo}>
-        <Text style={styles.methodTitle}>{currentMethodObj.title}</Text>
-        <Text style={styles.methodSubtitle}>{currentMethodObj.subtitle}</Text>
-      </View>
+  const actionArea = hasRouteOrderId ? (
+    <View style={styles.actionStack}>
+      {flowState === 'session_error' ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => navigation.navigate('Login')}
+          style={({ pressed }) => [styles.payButton, pressed && styles.payButtonPressed]}
+        >
+          <Text style={styles.payButtonText}>Sign in</Text>
+        </Pressable>
+      ) : (
+        <>
+          {canReopenCheckout && !['failed', 'setup_failed', 'lookup_error'].includes(flowState) && (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => openCheckout()}
+              style={({ pressed }) => [styles.payButton, pressed && styles.payButtonPressed]}
+            >
+              <Text style={styles.payButtonText}>Open secure checkout</Text>
+            </Pressable>
+          )}
+          {deepLinkedOrderId && !['permission', 'not_found'].includes(lookupErrorKind) && (
+            <Pressable
+              accessibilityRole="button"
+              disabled={flowState === 'verifying'}
+              onPress={() => refreshPaymentStatus({ silent: false })}
+              style={({ pressed }) => [styles.secondaryButton, pressed && styles.payButtonPressed]}
+            >
+              <Text style={styles.secondaryButtonText}>Check payment status</Text>
+            </Pressable>
+          )}
+        </>
+      )}
+      {historyLink}
+    </View>
+  ) : !hasLiveDraft ? (
+    <View style={styles.actionStack}>
+      {historyLink}
       <Pressable
-        accessibilityLabel="Change payment method"
         accessibilityRole="button"
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        onPress={() => setMethodModalVisible(true)}
-        style={styles.changeButton}
+        onPress={() => navigation.navigate('Shop')}
+        style={({ pressed }) => [styles.secondaryButton, pressed && styles.payButtonPressed]}
       >
-        <Text style={styles.changeButtonText}>Change</Text>
+        <Text style={styles.secondaryButtonText}>Continue shopping</Text>
       </Pressable>
     </View>
+  ) : flowState === 'setup_failed' ? (
+    <View style={styles.actionStack}>
+      <Pressable
+        accessibilityRole="button"
+        disabled={isProcessing}
+        onPress={handlePay}
+        style={({ pressed }) => [styles.payButton, pressed && styles.payButtonPressed]}
+      >
+        <Text style={styles.payButtonText}>Retry payment setup</Text>
+      </Pressable>
+      <Text style={styles.securityText}>Retrying reuses the same idempotent checkout attempt.</Text>
+    </View>
+  ) : hasPendingOnlineOrder ? (
+    <View style={styles.actionStack}>
+      {canReopenCheckout && !['failed', 'setup_failed'].includes(flowState) && (
+        <Pressable
+          accessibilityRole="button"
+          disabled={isProcessing}
+          onPress={() => openCheckout()}
+          style={({ pressed }) => [styles.payButton, pressed && styles.payButtonPressed]}
+        >
+          <Text style={styles.payButtonText}>Open secure checkout</Text>
+        </Pressable>
+      )}
+      <Pressable
+        accessibilityRole="button"
+        disabled={flowState === 'verifying'}
+        onPress={() => refreshPaymentStatus({ silent: false })}
+        style={({ pressed }) => [styles.secondaryButton, pressed && styles.payButtonPressed]}
+      >
+        <Text style={styles.secondaryButtonText}>Check payment status</Text>
+      </Pressable>
+      {flowState === 'failed' && (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => navigation.goBack()}
+          style={({ pressed }) => [styles.linkButton, pressed && styles.payButtonPressed]}
+        >
+          <Text style={styles.linkButtonText}>Return to checkout with cart intact</Text>
+        </Pressable>
+      )}
+    </View>
+  ) : (
+    <Pressable
+      accessibilityLabel={
+        selectedMethod === 'cod'
+          ? `Place order for ${formatPeso(totalAmount)} with cash on delivery`
+          : `Continue to secure ${currentMethod.title} checkout for ${formatPeso(totalAmount)}`
+      }
+      accessibilityRole="button"
+      disabled={isProcessing}
+      onPress={handlePay}
+      style={({ pressed }) => [
+        styles.payButton,
+        pressed && styles.payButtonPressed,
+        isProcessing && styles.payButtonDisabled,
+      ]}
+    >
+      {isProcessing ? (
+        <ActivityIndicator color={colors.ink} size="small" />
+      ) : (
+        <Text style={styles.payButtonText}>
+          {selectedMethod === 'cod' ? 'Place COD order' : `Continue with ${currentMethod.title}`}
+        </Text>
+      )}
+    </Pressable>
   );
 
-  // Amount due card (Figma node 452:74, 452:125, 453:28)
-  const amountDueCard = (
-    <View style={styles.amountDueCard}>
-      <Text style={styles.amountDueLabel}>AMOUNT DUE</Text>
-      <Text style={styles.amountDuePrice}>{formatPeso(totalAmount)}</Text>
-      <Text style={styles.amountDueSubtitle}>
-        Order {orderDraft.orderId} · {itemCount} items
-      </Text>
-    </View>
+  const paymentContent = (
+    <>
+      {hasKnownTotal && (
+        <View style={styles.amountDueCard}>
+          <Text style={styles.amountDueLabel}>AMOUNT DUE</Text>
+          <Text style={styles.amountDuePrice}>{formatPeso(totalAmount)}</Text>
+          <Text style={styles.amountDueSubtitle}>
+            {pendingOrder?.order_no || pendingOrder?.order_number || orderDraft?.orderId || 'Checkout'}
+            {hasLiveDraft ? ` · ${itemCount} items` : ''}
+          </Text>
+        </View>
+      )}
+
+      {hasPaymentContext && (
+        <View style={styles.selectedMethodCard}>
+          <View style={styles.methodBadge}>
+            <Text style={styles.methodBadgeText}>{currentMethod.badge}</Text>
+          </View>
+          <View style={styles.methodInfo}>
+            <Text style={styles.methodTitle}>{currentMethod.title}</Text>
+            <Text style={styles.methodSubtitle}>{currentMethod.subtitle}</Text>
+          </View>
+          {hasLiveDraft && !pendingOrder?.id && (
+            <Pressable
+              accessibilityLabel="Change payment method"
+              accessibilityRole="button"
+              onPress={() => setMethodModalVisible(true)}
+              style={styles.changeButton}
+            >
+              <Text style={styles.changeButtonText}>Change</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+
+      {statusCard}
+
+      {hasPaymentContext && <View style={styles.explainerCard}>
+        <Text style={styles.explainerTitle}>
+          {selectedMethod === 'cod' ? 'Pay on delivery' : 'Pay on PayMongo, not in MetroDrip'}
+        </Text>
+        <Text style={styles.explainerText}>
+          {selectedMethod === 'cod'
+            ? `Prepare ${formatPeso(totalAmount)} when the courier arrives. No online payment is required.`
+            : `After your order is created, MetroDrip opens PayMongo’s hosted checkout. Enter wallet or card credentials only on checkout.paymongo.com.`}
+        </Text>
+        {isOnlinePaymentMethod(selectedMethod) && (
+          <Text style={styles.explainerFootnote}>
+            Returning to MetroDrip does not prove payment. This screen waits for server verification and keeps your cart until payment is confirmed.
+          </Text>
+        )}
+      </View>}
+    </>
   );
 
   return (
     <SafeAreaView edges={Platform.OS === 'web' ? [] : ['top']} style={styles.safeArea}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.container}
-      >
-        {/* Navigation Header (Figma 452:9, 452:106, 453:9) */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Pressable
-              accessibilityLabel="Go back to checkout"
-              accessibilityRole="button"
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              onPress={() => navigation.goBack()}
-              style={styles.backButton}
-            >
-              <Text style={styles.backArrow}>‹</Text>
-            </Pressable>
-            <Text style={styles.headerTitle}>Payment</Text>
-          </View>
-          <Text accessibilityLabel="Secured checkout" style={styles.lockIcon}>
-            🔒
-          </Text>
-        </View>
-
-        {isWide ? (
-          /* Desktop Responsive 2-Column Layout */
-          <ScrollView
-            contentContainerStyle={styles.desktopScrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.desktopRow}>
-              {/* Left Column: Progress & Payment Form */}
-              <View style={styles.desktopLeft}>
-                <CheckoutProgress currentStep={3} />
-                <View style={styles.bodyWrapper}>
-                  {selectedMethodCard}
-
-                  {/* GCash Form */}
-                  {selectedMethod === 'gcash' && (
-                    <View style={styles.formContainer}>
-                      <Text style={styles.formSectionTitle}>GCash account</Text>
-                      <View style={[styles.fieldContainer, styles.fieldActive]}>
-                        <Text style={styles.fieldLabel}>GCASH MOBILE NUMBER</Text>
-                        <TextInput
-                          keyboardType="phone-pad"
-                          onChangeText={setGcashMobile}
-                          style={styles.fieldInput}
-                          value={gcashMobile}
-                        />
-                      </View>
-                      <View style={styles.fieldContainer}>
-                        <Text style={styles.fieldLabel}>ACCOUNT NAME</Text>
-                        <TextInput
-                          onChangeText={setGcashAccountName}
-                          style={styles.fieldInput}
-                          value={gcashAccountName}
-                        />
-                      </View>
-                      <View style={styles.noteCard}>
-                        <Text style={styles.noteIcon}>ⓘ</Text>
-                        <Text style={styles.noteText}>
-                          You will be redirected to the GCash app to authorize{' '}
-                          {formatPeso(totalAmount)}. Do not close this screen.
-                        </Text>
-                      </View>
-                      <RenderCheckbox
-                        checked={saveGcash}
-                        label="Save GCash for faster checkout"
-                        onPress={() => setSaveGcash(!saveGcash)}
-                      />
-                    </View>
-                  )}
-
-                  {/* Maya Form */}
-                  {selectedMethod === 'maya' && (
-                    <View style={styles.formContainer}>
-                      <Text style={styles.formSectionTitle}>Maya account</Text>
-                      <View style={styles.fundingSourceToggle}>
-                        <Pressable
-                          onPress={() => setMayaFundingSource('wallet')}
-                          style={[
-                            styles.fundingTab,
-                            mayaFundingSource === 'wallet' && styles.fundingTabActive,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.fundingTabText,
-                              mayaFundingSource === 'wallet' && styles.fundingTabTextActive,
-                            ]}
-                          >
-                            Maya Wallet
-                          </Text>
-                        </Pressable>
-                        <Pressable
-                          onPress={() => setMayaFundingSource('card')}
-                          style={[
-                            styles.fundingTab,
-                            mayaFundingSource === 'card' && styles.fundingTabActive,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.fundingTabText,
-                              mayaFundingSource === 'card' && styles.fundingTabTextActive,
-                            ]}
-                          >
-                            Maya Card
-                          </Text>
-                        </Pressable>
-                      </View>
-                      <View style={[styles.fieldContainer, styles.fieldActive]}>
-                        <Text style={styles.fieldLabel}>MAYA MOBILE NUMBER</Text>
-                        <TextInput
-                          keyboardType="phone-pad"
-                          onChangeText={setMayaMobile}
-                          style={styles.fieldInput}
-                          value={mayaMobile}
-                        />
-                      </View>
-                      <View style={styles.fieldContainer}>
-                        <Text style={styles.fieldLabel}>ACCOUNT NAME</Text>
-                        <TextInput
-                          onChangeText={setMayaAccountName}
-                          style={styles.fieldInput}
-                          value={mayaAccountName}
-                        />
-                      </View>
-                      <View style={styles.noteCard}>
-                        <Text style={styles.noteIcon}>ⓘ</Text>
-                        <Text style={styles.noteText}>
-                          A 6-digit OTP will be sent to your Maya-registered number to confirm{' '}
-                          {formatPeso(totalAmount)}.
-                        </Text>
-                      </View>
-                      <RenderCheckbox
-                        checked={saveMaya}
-                        label="Save Maya for faster checkout"
-                        onPress={() => setSaveMaya(!saveMaya)}
-                      />
-                    </View>
-                  )}
-
-                  {/* Card Form */}
-                  {selectedMethod === 'card' && (
-                    <View style={styles.formContainer}>
-                      <Text style={styles.formSectionTitle}>Card details</Text>
-                      <View style={[styles.fieldContainer, styles.fieldActive]}>
-                        <Text style={styles.fieldLabel}>CARD NUMBER</Text>
-                        <View style={styles.cardInputRow}>
-                          <TextInput
-                            keyboardType="number-pad"
-                            maxLength={19}
-                            onChangeText={formatCardInput}
-                            style={[styles.fieldInput, styles.cardFieldInput]}
-                            value={cardNumber}
-                          />
-                          <View style={styles.brandBadge}>
-                            <Text style={styles.brandBadgeText}>
-                              {getCardBrand(cardNumber)}
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-                      <View style={styles.fieldDoubleRow}>
-                        <View style={[styles.fieldContainer, styles.fieldFlex]}>
-                          <Text style={styles.fieldLabel}>EXPIRY</Text>
-                          <TextInput
-                            maxLength={7}
-                            onChangeText={setCardExpiry}
-                            placeholder="MM / YY"
-                            style={styles.fieldInput}
-                            value={cardExpiry}
-                          />
-                        </View>
-                        <View style={[styles.fieldContainer, styles.fieldFlex]}>
-                          <Text style={styles.fieldLabel}>CVV</Text>
-                          <TextInput
-                            keyboardType="number-pad"
-                            maxLength={4}
-                            onChangeText={setCardCvv}
-                            placeholder="•••"
-                            secureTextEntry
-                            style={styles.fieldInput}
-                            value={cardCvv}
-                          />
-                        </View>
-                      </View>
-                      <View style={styles.fieldContainer}>
-                        <Text style={styles.fieldLabel}>NAME ON CARD</Text>
-                        <TextInput
-                          autoCapitalize="characters"
-                          onChangeText={setCardName}
-                          style={styles.fieldInput}
-                          value={cardName}
-                        />
-                      </View>
-                      <RenderCheckbox
-                        checked={billingSameAsDelivery}
-                        label="Billing address same as delivery"
-                        onPress={() => setBillingSameAsDelivery(!billingSameAsDelivery)}
-                      />
-                      <View style={styles.noteCard}>
-                        <Text style={styles.noteIcon}>ⓘ</Text>
-                        <Text style={styles.noteText}>
-                          Card details are tokenized by PayMongo. MetroDrip never sees or stores
-                          your card number.
-                        </Text>
-                      </View>
-                      <RenderCheckbox
-                        checked={saveCard}
-                        label="Save card for faster checkout"
-                        onPress={() => setSaveCard(!saveCard)}
-                      />
-                    </View>
-                  )}
-
-                  {/* COD Fallback */}
-                  {selectedMethod === 'cod' && (
-                    <View style={styles.formContainer}>
-                      <Text style={styles.formSectionTitle}>Cash on Delivery</Text>
-                      <View style={styles.noteCard}>
-                        <Text style={styles.noteIcon}>ⓘ</Text>
-                        <Text style={styles.noteText}>
-                          Please prepare exact cash of {formatPeso(totalAmount)} upon courier
-                          arrival at your delivery address.
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-                </View>
-              </View>
-
-              {/* Right Column: Amount Due & Action Sidebar */}
-              <View style={styles.desktopRight}>
-                {amountDueCard}
-                <View style={styles.desktopPayCard}>
-                  <Pressable
-                    accessibilityLabel={`Pay ${formatPeso(totalAmount)}`}
-                    accessibilityRole="button"
-                    disabled={isProcessing}
-                    onPress={handlePay}
-                    style={({ pressed }) => [
-                      styles.payButton,
-                      pressed && styles.payButtonPressed,
-                      isProcessing && styles.payButtonDisabled,
-                    ]}
-                  >
-                    {isProcessing ? (
-                      <ActivityIndicator color={colors.ink} size="small" />
-                    ) : (
-                      <Text style={styles.payButtonText}>
-                        Pay ₱{Math.round(totalAmount).toLocaleString()}
-                      </Text>
-                    )}
-                  </Pressable>
-                  <Text style={styles.payMongoSecurityText}>
-                    Secured by PayMongo · card details never stored
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </ScrollView>
-        ) : (
-          /* Mobile Single-Column Layout */
-          <View style={styles.mobileWrapper}>
-            <ScrollView
-              contentContainerStyle={styles.mobileScrollContent}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              <CheckoutProgress currentStep={3} />
-
-              <View style={styles.bodyWrapper}>
-                {amountDueCard}
-                {selectedMethodCard}
-
-                {/* GCash Form (Figma node 452:2) */}
-                {selectedMethod === 'gcash' && (
-                  <View style={styles.formContainer}>
-                    <Text style={styles.formSectionTitle}>GCash account</Text>
-                    <View style={[styles.fieldContainer, styles.fieldActive]}>
-                      <Text style={styles.fieldLabel}>GCASH MOBILE NUMBER</Text>
-                      <TextInput
-                        keyboardType="phone-pad"
-                        onChangeText={setGcashMobile}
-                        style={styles.fieldInput}
-                        value={gcashMobile}
-                      />
-                    </View>
-                    <View style={styles.fieldContainer}>
-                      <Text style={styles.fieldLabel}>ACCOUNT NAME</Text>
-                      <TextInput
-                        onChangeText={setGcashAccountName}
-                        style={styles.fieldInput}
-                        value={gcashAccountName}
-                      />
-                    </View>
-                    <View style={styles.noteCard}>
-                      <Text style={styles.noteIcon}>ⓘ</Text>
-                      <Text style={styles.noteText}>
-                        You will be redirected to the GCash app to authorize {formatPeso(totalAmount)}.
-                        Do not close this screen.
-                      </Text>
-                    </View>
-                    <RenderCheckbox
-                      checked={saveGcash}
-                      label="Save GCash for faster checkout"
-                      onPress={() => setSaveGcash(!saveGcash)}
-                    />
-                  </View>
-                )}
-
-                {/* Maya Form (Figma node 452:99) */}
-                {selectedMethod === 'maya' && (
-                  <View style={styles.formContainer}>
-                    <Text style={styles.formSectionTitle}>Maya account</Text>
-                    <View style={styles.fundingSourceToggle}>
-                      <Pressable
-                        onPress={() => setMayaFundingSource('wallet')}
-                        style={[
-                          styles.fundingTab,
-                          mayaFundingSource === 'wallet' && styles.fundingTabActive,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.fundingTabText,
-                            mayaFundingSource === 'wallet' && styles.fundingTabTextActive,
-                          ]}
-                        >
-                          Maya Wallet
-                        </Text>
-                      </Pressable>
-                      <Pressable
-                        onPress={() => setMayaFundingSource('card')}
-                        style={[
-                          styles.fundingTab,
-                          mayaFundingSource === 'card' && styles.fundingTabActive,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.fundingTabText,
-                            mayaFundingSource === 'card' && styles.fundingTabTextActive,
-                          ]}
-                        >
-                          Maya Card
-                        </Text>
-                      </Pressable>
-                    </View>
-                    <View style={[styles.fieldContainer, styles.fieldActive]}>
-                      <Text style={styles.fieldLabel}>MAYA MOBILE NUMBER</Text>
-                      <TextInput
-                        keyboardType="phone-pad"
-                        onChangeText={setMayaMobile}
-                        style={styles.fieldInput}
-                        value={mayaMobile}
-                      />
-                    </View>
-                    <View style={styles.fieldContainer}>
-                      <Text style={styles.fieldLabel}>ACCOUNT NAME</Text>
-                      <TextInput
-                        onChangeText={setMayaAccountName}
-                        style={styles.fieldInput}
-                        value={mayaAccountName}
-                      />
-                    </View>
-                    <View style={styles.noteCard}>
-                      <Text style={styles.noteIcon}>ⓘ</Text>
-                      <Text style={styles.noteText}>
-                        A 6-digit OTP will be sent to your Maya-registered number to confirm{' '}
-                        {formatPeso(totalAmount)}.
-                      </Text>
-                    </View>
-                    <RenderCheckbox
-                      checked={saveMaya}
-                      label="Save Maya for faster checkout"
-                      onPress={() => setSaveMaya(!saveMaya)}
-                    />
-                  </View>
-                )}
-
-                {/* Card Form (Figma node 453:2) */}
-                {selectedMethod === 'card' && (
-                  <View style={styles.formContainer}>
-                    <Text style={styles.formSectionTitle}>Card details</Text>
-                    <View style={[styles.fieldContainer, styles.fieldActive]}>
-                      <Text style={styles.fieldLabel}>CARD NUMBER</Text>
-                      <View style={styles.cardInputRow}>
-                        <TextInput
-                          keyboardType="number-pad"
-                          maxLength={19}
-                          onChangeText={formatCardInput}
-                          style={[styles.fieldInput, styles.cardFieldInput]}
-                          value={cardNumber}
-                        />
-                        <View style={styles.brandBadge}>
-                          <Text style={styles.brandBadgeText}>{getCardBrand(cardNumber)}</Text>
-                        </View>
-                      </View>
-                    </View>
-                    <View style={styles.fieldDoubleRow}>
-                      <View style={[styles.fieldContainer, styles.fieldFlex]}>
-                        <Text style={styles.fieldLabel}>EXPIRY</Text>
-                        <TextInput
-                          maxLength={7}
-                          onChangeText={setCardExpiry}
-                          placeholder="MM / YY"
-                          style={styles.fieldInput}
-                          value={cardExpiry}
-                        />
-                      </View>
-                      <View style={[styles.fieldContainer, styles.fieldFlex]}>
-                        <Text style={styles.fieldLabel}>CVV</Text>
-                        <TextInput
-                          keyboardType="number-pad"
-                          maxLength={4}
-                          onChangeText={setCardCvv}
-                          placeholder="•••"
-                          secureTextEntry
-                          style={styles.fieldInput}
-                          value={cardCvv}
-                        />
-                      </View>
-                    </View>
-                    <View style={styles.fieldContainer}>
-                      <Text style={styles.fieldLabel}>NAME ON CARD</Text>
-                      <TextInput
-                        autoCapitalize="characters"
-                        onChangeText={setCardName}
-                        style={styles.fieldInput}
-                        value={cardName}
-                      />
-                    </View>
-                    <RenderCheckbox
-                      checked={billingSameAsDelivery}
-                      label="Billing address same as delivery"
-                      onPress={() => setBillingSameAsDelivery(!billingSameAsDelivery)}
-                    />
-                    <View style={styles.noteCard}>
-                      <Text style={styles.noteIcon}>ⓘ</Text>
-                      <Text style={styles.noteText}>
-                        Card details are tokenized by PayMongo. MetroDrip never sees or stores your
-                        card number.
-                      </Text>
-                    </View>
-                    <RenderCheckbox
-                      checked={saveCard}
-                      label="Save card for faster checkout"
-                      onPress={() => setSaveCard(!saveCard)}
-                    />
-                  </View>
-                )}
-
-                {/* COD Fallback */}
-                {selectedMethod === 'cod' && (
-                  <View style={styles.formContainer}>
-                    <Text style={styles.formSectionTitle}>Cash on Delivery</Text>
-                    <View style={styles.noteCard}>
-                      <Text style={styles.noteIcon}>ⓘ</Text>
-                      <Text style={styles.noteText}>
-                        Please prepare exact cash of {formatPeso(totalAmount)} upon courier arrival
-                        at your delivery address.
-                      </Text>
-                    </View>
-                  </View>
-                )}
-              </View>
-
-              <View style={styles.mobileScrollSpacer} />
-            </ScrollView>
-
-            {/* Mobile Fixed Safe Bottom Payment Bar (Figma node 452:69, 452:150, 453:53) */}
-            <View
-              style={[
-                styles.mobileFixedFooter,
-                { paddingBottom: Math.max(insets.bottom, 24) },
-              ]}
-            >
-              <Pressable
-                accessibilityLabel={`Pay ${formatPeso(totalAmount)}`}
-                accessibilityRole="button"
-                disabled={isProcessing}
-                onPress={handlePay}
-                style={({ pressed }) => [
-                  styles.payButton,
-                  pressed && styles.payButtonPressed,
-                  isProcessing && styles.payButtonDisabled,
-                ]}
-              >
-                {isProcessing ? (
-                  <ActivityIndicator color={colors.ink} size="small" />
-                ) : (
-                  <Text style={styles.payButtonText}>
-                    Pay ₱{Math.round(totalAmount).toLocaleString()}
-                  </Text>
-                )}
-              </Pressable>
-              <Text style={styles.payMongoSecurityText}>
-                Secured by PayMongo · card details never stored
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* Payment Method Switcher Modal */}
-        <Modal
-          animationType="fade"
-          onRequestClose={() => setMethodModalVisible(false)}
-          transparent
-          visible={methodModalVisible}
-        >
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
           <Pressable
-            accessibilityLabel="Close payment method options"
-            onPress={() => setMethodModalVisible(false)}
-            style={styles.modalBackdrop}
+            accessibilityLabel="Go back to checkout"
+            accessibilityRole="button"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            onPress={() => navigation.goBack()}
           >
-            <Pressable onPress={(e) => e.stopPropagation()} style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select Payment Method</Text>
-                <Pressable
-                  accessibilityLabel="Close"
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  onPress={() => setMethodModalVisible(false)}
-                >
-                  <Text style={styles.modalCloseText}>✕</Text>
-                </Pressable>
-              </View>
-              {PAYMENT_METHODS.map((method) => {
-                const isSelected = selectedMethod === method.id;
-                return (
-                  <Pressable
-                    key={method.id}
-                    onPress={() => {
-                      setSelectedMethod(method.id);
-                      setMethodModalVisible(false);
-                    }}
-                    style={[
-                      styles.methodOptionItem,
-                      isSelected && styles.methodOptionItemSelected,
-                    ]}
-                  >
-                    <View style={styles.radioOuter}>
-                      {isSelected && <View style={styles.radioInner} />}
-                    </View>
-                    <View style={styles.methodOptionTextGroup}>
-                      <Text style={styles.methodOptionTitle}>{method.title}</Text>
-                      <Text style={styles.methodOptionSubtitle}>{method.subtitle}</Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </Pressable>
+            <Text style={styles.backArrow}>‹</Text>
           </Pressable>
-        </Modal>
-      </KeyboardAvoidingView>
+          <Text style={styles.headerTitle}>Payment</Text>
+        </View>
+        <Text accessibilityLabel="Secured checkout" style={styles.lockIcon}>🔒</Text>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          isWide && styles.desktopScrollContent,
+          { paddingBottom: Math.max(insets.bottom, 24) + 20 },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.contentShell, isWide && styles.desktopShell]}>
+          <View style={styles.mainColumn}>
+            <CheckoutProgress currentStep={3} />
+            <View style={styles.contentStack}>{paymentContent}</View>
+          </View>
+          <View style={[styles.actionCard, isWide && styles.desktopActionCard]}>
+            {actionArea}
+            <Text style={styles.securityText}>
+              {!hasPaymentContext
+                ? 'This recovery view cannot place a new order or clear your cart.'
+                : selectedMethod === 'cod'
+                ? 'Your order is payable when delivered.'
+                : 'Secured by PayMongo · MetroDrip never receives wallet or card credentials'}
+            </Text>
+          </View>
+        </View>
+      </ScrollView>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setMethodModalVisible(false)}
+        presentationStyle="overFullScreen"
+        transparent
+        visible={methodModalVisible}
+      >
+        <View style={styles.modalBackdrop}>
+          <Pressable
+            accessibilityLabel="Dismiss payment method options"
+            accessibilityRole="button"
+            onPress={() => setMethodModalVisible(false)}
+            style={styles.modalDismissArea}
+          />
+          <View accessibilityViewIsModal style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select payment method</Text>
+              <Pressable
+                accessibilityLabel="Close payment method options"
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={() => setMethodModalVisible(false)}
+                style={styles.modalCloseButton}
+              >
+                <Text style={styles.modalCloseText}>✕</Text>
+              </Pressable>
+            </View>
+            {PAYMENT_METHODS.map((method) => {
+              const isSelected = selectedMethod === method.id;
+              return (
+                <Pressable
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: isSelected }}
+                  key={method.id}
+                  onPress={() => {
+                    setSelectedMethod(method.id);
+                    setFlowState('idle');
+                    setFlowMessage('');
+                    setMethodModalVisible(false);
+                  }}
+                  style={[styles.methodOption, isSelected && styles.methodOptionSelected]}
+                >
+                  <View style={styles.methodBadge}>
+                    <Text style={styles.methodBadgeText}>{method.badge}</Text>
+                  </View>
+                  <View style={styles.methodInfo}>
+                    <Text style={styles.methodTitle}>{method.title}</Text>
+                    <Text style={styles.methodSubtitle}>{method.subtitle}</Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.paper,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: colors.paper,
-  },
-  // Header per Figma 452:9, 452:106, 453:9
+  safeArea: { flex: 1, backgroundColor: colors.paper },
   header: {
     height: 52,
     borderBottomWidth: 1,
@@ -868,83 +706,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: colors.paper,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  backButton: {
-    paddingRight: 4,
-  },
-  backArrow: {
-    fontSize: 26,
-    color: colors.ink,
-    lineHeight: 28,
-  },
-  headerTitle: {
-    fontFamily: fonts.interBold,
-    fontWeight: '700',
-    fontSize: 17,
-    color: colors.ink,
-  },
-  lockIcon: {
-    fontSize: 18,
-    color: colors.ink,
-  },
-  // Body and layout containers
-  bodyWrapper: {
-    paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 16,
-    gap: 12,
-  },
-  mobileWrapper: {
-    flex: 1,
-  },
-  mobileScrollContent: {
-    flexGrow: 1,
-  },
-  mobileScrollSpacer: {
-    height: 120,
-  },
-  // Desktop layout
-  desktopScrollContent: {
-    paddingHorizontal: 24,
-    paddingVertical: 20,
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  backArrow: { fontSize: 26, color: colors.ink, lineHeight: 28 },
+  headerTitle: { fontFamily: fonts.interBold, fontWeight: '700', fontSize: 17, color: colors.ink },
+  lockIcon: { fontSize: 18 },
+  scrollContent: { flexGrow: 1 },
+  desktopScrollContent: { paddingHorizontal: 24, paddingVertical: 20 },
+  contentShell: { width: '100%', alignSelf: 'center' },
+  desktopShell: {
     maxWidth: 1040,
-    alignSelf: 'center',
-    width: '100%',
-  },
-  desktopRow: {
     flexDirection: 'row',
-    gap: 32,
     alignItems: 'flex-start',
+    gap: 32,
   },
-  desktopLeft: {
-    flex: 7,
-  },
-  desktopRight: {
-    flex: 5,
-    gap: 16,
-    position: Platform.OS === 'web' ? 'sticky' : 'relative',
-    top: 16,
-  },
-  desktopPayCard: {
-    backgroundColor: colors.paper,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 18,
-    gap: 10,
-  },
-  // Amount due card per Figma 452:74
-  amountDueCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 2,
-  },
+  mainColumn: { flex: 7 },
+  contentStack: { padding: 16, gap: 14 },
+  amountDueCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 16, gap: 3 },
   amountDueLabel: {
     fontFamily: fonts.monoSemiBold,
     fontSize: 9,
@@ -952,322 +729,119 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     color: colors.muted,
   },
-  amountDuePrice: {
-    fontFamily: fonts.interBold,
-    fontWeight: '900',
-    fontSize: 30,
-    color: colors.ink,
-    letterSpacing: -0.5,
-  },
-  amountDueSubtitle: {
-    fontFamily: fonts.monoRegular,
-    fontSize: 10,
-    color: colors.muted,
-  },
-  // Selected method banner per Figma 452:78
+  amountDuePrice: { fontFamily: fonts.interBold, fontWeight: '900', fontSize: 30, color: colors.ink },
+  amountDueSubtitle: { fontFamily: fonts.monoRegular, fontSize: 10, color: colors.muted },
   selectedMethodCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 13,
+    padding: 14,
     borderWidth: 2,
     borderColor: colors.ink,
-    borderRadius: 10,
+    borderRadius: 12,
     backgroundColor: colors.paper,
     gap: 12,
   },
-  radioOuter: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: colors.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioInner: {
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
-    backgroundColor: colors.volt,
-  },
-  methodInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  methodTitle: {
-    fontFamily: fonts.interSemiBold,
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.ink,
-  },
-  methodSubtitle: {
-    fontFamily: fonts.interRegular,
-    fontSize: 11,
-    color: colors.muted,
-  },
-  changeButton: {
-    paddingVertical: 4,
+  methodBadge: {
+    minWidth: 38,
+    height: 30,
     paddingHorizontal: 6,
-  },
-  changeButtonText: {
-    fontFamily: fonts.interSemiBold,
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.muted,
-  },
-  // Form container & inputs
-  formContainer: {
-    gap: 12,
-    marginTop: 4,
-  },
-  formSectionTitle: {
-    fontFamily: fonts.interBold,
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.ink,
-  },
-  fieldContainer: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    gap: 3,
-    backgroundColor: colors.paper,
-  },
-  fieldActive: {
-    borderWidth: 2,
-    borderColor: colors.ink,
-  },
-  fieldFlex: {
-    flex: 1,
-  },
-  fieldDoubleRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  fieldLabel: {
-    fontFamily: fonts.monoRegular,
-    fontSize: 9,
-    letterSpacing: 0.8,
-    color: colors.muted,
-    textTransform: 'uppercase',
-  },
-  fieldInput: {
-    fontFamily: fonts.interRegular,
-    fontSize: 14,
-    color: colors.ink,
-    padding: 0,
-    margin: 0,
-  },
-  cardInputRow: {
-    flexDirection: 'row',
+    borderRadius: 7,
     alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  cardFieldInput: {
-    flex: 1,
-    fontFamily: fonts.monoRegular,
-    letterSpacing: 1,
-  },
-  brandBadge: {
+    justifyContent: 'center',
     backgroundColor: colors.ink,
-    borderRadius: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
   },
-  brandBadgeText: {
-    fontFamily: fonts.monoSemiBold,
-    fontSize: 9,
-    fontWeight: '600',
-    letterSpacing: 0.6,
-    color: colors.paper,
-  },
-  // Maya Funding Source toggle pill (Figma 452:154)
-  fundingSourceToggle: {
+  methodBadgeText: { fontFamily: fonts.monoSemiBold, fontSize: 10, color: colors.paper },
+  methodInfo: { flex: 1, gap: 2 },
+  methodTitle: { fontFamily: fonts.interSemiBold, fontSize: 14, fontWeight: '600', color: colors.ink },
+  methodSubtitle: { fontFamily: fonts.interRegular, fontSize: 11, color: colors.muted, lineHeight: 16 },
+  changeButton: { padding: 8 },
+  changeButtonText: { fontFamily: fonts.interSemiBold, fontSize: 12, fontWeight: '600', color: colors.muted },
+  statusCard: {
     flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderRadius: 10,
-    padding: 4,
-    gap: 4,
-  },
-  fundingTab: {
-    flex: 1,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-  },
-  fundingTabActive: {
-    backgroundColor: colors.paper,
-    borderWidth: 1,
-    borderColor: colors.ink,
-  },
-  fundingTabText: {
-    fontFamily: fonts.interRegular,
-    fontSize: 13,
-    color: colors.muted,
-  },
-  fundingTabTextActive: {
-    fontFamily: fonts.interSemiBold,
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.ink,
-  },
-  // Note Card per Figma 452:92, 452:143, 453:80
-  noteCard: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 10,
     alignItems: 'flex-start',
-  },
-  noteIcon: {
-    fontFamily: fonts.interRegular,
-    fontSize: 13,
-    color: colors.muted,
-    lineHeight: 18,
-  },
-  noteText: {
-    flex: 1,
-    fontFamily: fonts.interRegular,
-    fontSize: 12,
-    color: colors.muted,
-    lineHeight: 18,
-  },
-  // Checkbox row per Figma 452:95, 452:146, 453:76
-  checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 2,
-  },
-  checkbox: {
-    width: 18,
-    height: 18,
-    borderRadius: 5,
-    borderWidth: 1.5,
+    gap: 12,
+    borderWidth: 1,
     borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 12,
+    padding: 14,
+    backgroundColor: colors.surface,
+  },
+  statusCardError: { borderColor: colors.danger },
+  statusTextGroup: { flex: 1, gap: 4 },
+  statusTitle: { fontFamily: fonts.interBold, fontSize: 14, fontWeight: '700', color: colors.ink },
+  statusMessage: { fontFamily: fonts.interRegular, fontSize: 12, lineHeight: 18, color: colors.muted },
+  explainerCard: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 16,
+    gap: 8,
     backgroundColor: colors.paper,
   },
-  checkboxChecked: {
-    backgroundColor: colors.volt,
-    borderColor: colors.ink,
-  },
-  checkboxCheck: {
-    fontFamily: fonts.interBold,
-    fontWeight: '700',
-    fontSize: 11,
-    color: colors.ink,
-  },
-  checkboxLabel: {
-    fontFamily: fonts.interRegular,
-    fontSize: 13,
-    color: colors.ink,
-  },
-  // Fixed Mobile Footer per Figma 452:69
-  mobileFixedFooter: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: colors.paper,
+  explainerTitle: { fontFamily: fonts.interBold, fontSize: 16, fontWeight: '700', color: colors.ink },
+  explainerText: { fontFamily: fonts.interRegular, fontSize: 13, lineHeight: 20, color: colors.ink },
+  explainerFootnote: { fontFamily: fonts.interRegular, fontSize: 12, lineHeight: 18, color: colors.muted },
+  actionCard: {
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    gap: 8,
-  },
-  payButton: {
-    height: 54,
-    borderRadius: 9999,
-    backgroundColor: colors.volt,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.ink,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  payButtonPressed: {
-    opacity: 0.88,
-    transform: [{ scale: 0.99 }],
-  },
-  payButtonDisabled: {
-    opacity: 0.6,
-  },
-  payButtonText: {
-    fontFamily: fonts.interBold,
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.ink,
-  },
-  payMongoSecurityText: {
-    fontFamily: fonts.monoRegular,
-    fontSize: 10,
-    color: colors.muted,
-    textAlign: 'center',
-  },
-  // Modal for changing method
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(20, 20, 20, 0.45)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
+    padding: 16,
+    gap: 10,
     backgroundColor: colors.paper,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 20,
-    gap: 12,
   },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingBottom: 8,
-  },
-  modalTitle: {
-    fontFamily: fonts.interBold,
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.ink,
-  },
-  modalCloseText: {
-    fontSize: 16,
-    color: colors.muted,
-  },
-  methodOptionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 10,
+  desktopActionCard: {
+    flex: 5,
+    marginTop: 58,
     borderWidth: 1,
     borderColor: colors.border,
-    gap: 12,
+    borderRadius: 12,
   },
-  methodOptionItemSelected: {
+  actionStack: { gap: 10 },
+  payButton: {
+    minHeight: 52,
+    borderRadius: 999,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.volt,
+  },
+  payButtonPressed: { opacity: 0.86 },
+  payButtonDisabled: { opacity: 0.58 },
+  payButtonText: { fontFamily: fonts.interBold, fontSize: 15, fontWeight: '700', color: colors.ink },
+  secondaryButton: {
+    minHeight: 50,
+    borderRadius: 999,
+    borderWidth: 1,
     borderColor: colors.ink,
-    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.paper,
   },
-  methodOptionTextGroup: {
-    flex: 1,
+  secondaryButtonText: { fontFamily: fonts.interBold, fontSize: 14, fontWeight: '700', color: colors.ink },
+  linkButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  linkButtonText: { fontFamily: fonts.interSemiBold, fontSize: 12, color: colors.muted, textDecorationLine: 'underline' },
+  securityText: { fontFamily: fonts.monoRegular, fontSize: 10, lineHeight: 15, color: colors.muted, textAlign: 'center' },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(20, 20, 20, 0.45)', justifyContent: 'flex-end' },
+  modalDismissArea: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  modalContent: {
+    backgroundColor: colors.paper,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    padding: 20,
+    gap: 10,
   },
-  methodOptionTitle: {
-    fontFamily: fonts.interSemiBold,
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.ink,
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 8 },
+  modalTitle: { fontFamily: fonts.interBold, fontSize: 16, fontWeight: '700', color: colors.ink },
+  modalCloseButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  modalCloseText: { fontSize: 17, color: colors.muted },
+  methodOption: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
   },
-  methodOptionSubtitle: {
-    fontFamily: fonts.interRegular,
-    fontSize: 11,
-    color: colors.muted,
-  },
+  methodOptionSelected: { borderWidth: 2, borderColor: colors.ink },
 });

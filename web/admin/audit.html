@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="../css/console.css">
   <script src="../Registration/theme.js"></script>
 </head>
-<body>
+<body class="console-page--stateful">
   <!-- Figma: Admin Console / Audit Trail / Light 550:347 & Dark 554:1337 -->
   <div class="console-layout">
     <!-- Left Navigation Sidebar -->
@@ -42,7 +42,7 @@
           </a>
           <a class="nav-item is-active" href="audit.html">
             <span class="nav-item-content"><span class="nav-glyph" aria-hidden="true">◇</span> Audit Trail</span>
-            <span class="nav-badge volt" id="sidebar-audit-count">12</span>
+            <span class="nav-badge volt" id="sidebar-audit-count">—</span>
           </a>
         </nav>
       </div>
@@ -52,7 +52,7 @@
           <div class="user-avatar" aria-hidden="true">AD</div>
           <div class="user-meta">
             <p class="user-name">Admin User</p>
-            <p class="user-role-badge">ADMINISTRATOR · 2FA ON</p>
+            <p class="user-role-badge">ADMINISTRATOR</p>
           </div>
         </div>
 
@@ -74,7 +74,7 @@
         <span>ADMIN CONSOLE</span>
         <span>/</span>
         <span>AUDIT TRAIL</span>
-        <span class="sample-data">SAMPLE DATA</span>
+        <span class="data-source-badge" id="audit-source-status" aria-live="polite">CONNECTING</span>
       </div>
 
       <!-- Header -->
@@ -84,28 +84,43 @@
           <p class="page-subhead">Review a chronological record of platform activity.</p>
         </div>
         <div class="header-actions">
+          <button type="button" class="btn btn-secondary" id="btn-refresh-audit">
+            Refresh
+          </button>
           <button type="button" class="btn btn-secondary" id="btn-export-audit-csv">
             Export CSV
           </button>
         </div>
       </header>
 
+      <section class="console-state-banner is-info" id="audit-state-banner" role="status" aria-live="polite" aria-atomic="true">
+        <div class="console-state-copy">
+          <p class="console-state-eyebrow" id="audit-state-eyebrow">LOADING</p>
+          <h2 class="console-state-title" id="audit-state-title">Loading audit records</h2>
+          <p class="console-state-message" id="audit-state-message">Connecting to the administrator audit API.</p>
+        </div>
+        <div class="console-state-actions">
+          <button type="button" class="btn btn-secondary" id="btn-retry-audit" hidden>Try again</button>
+          <a class="btn btn-secondary" id="audit-state-signin" href="../Registration/screens/AdminLoginScreen.html" hidden>Return to sign in</a>
+        </div>
+      </section>
+
       <!-- 3 Stat Metric Cards -->
       <section class="stat-cards-grid" style="grid-template-columns: repeat(3, 1fr);" aria-label="Audit metrics">
         <article class="stat-card">
           <p class="stat-label">EVENTS TODAY</p>
-          <p class="stat-value" id="metric-audit-today">12</p>
-          <p class="stat-subtext">Across all platform modules</p>
+          <p class="stat-value" id="metric-audit-today">—</p>
+          <p class="stat-subtext">Within the loaded server records</p>
         </article>
         <article class="stat-card">
           <p class="stat-label">ACCESS CHANGES</p>
-          <p class="stat-value" id="metric-access-changes">3</p>
-          <p class="stat-subtext">Role and account updates</p>
+          <p class="stat-value" id="metric-access-changes">—</p>
+          <p class="stat-subtext">Actions mentioning access or roles</p>
         </article>
         <article class="stat-card" style="border: 1px dashed var(--color-danger);">
-          <p class="stat-label">FAILED ACTIONS</p>
-          <p class="stat-value" style="color: var(--color-danger);" id="metric-failed-actions">1</p>
-          <p class="stat-subtext">Permission check denied</p>
+          <p class="stat-label">LOADED RECORDS</p>
+          <p class="stat-value" id="metric-loaded-events">—</p>
+          <p class="stat-subtext">Most recent records returned by API</p>
         </article>
       </section>
 
@@ -123,15 +138,16 @@
         <select class="toolbar-select" id="filter-module-select" aria-label="Filter by module">
           <option value="all">Module: All</option>
           <option value="shipping">Shipping Zones</option>
-          <option value="users">User Accounts</option>
-          <option value="reviews">Reviews</option>
-          <option value="settings">Platform Settings</option>
+          <option value="account">User Accounts</option>
+          <option value="review">Reviews</option>
+          <option value="setting">Platform Settings</option>
           <option value="system">System</option>
         </select>
-        <select class="toolbar-select" id="filter-result-select" aria-label="Filter by result">
-          <option value="all">Result: All</option>
-          <option value="success">Success</option>
-          <option value="denied">Denied</option>
+        <select class="toolbar-select" id="filter-role-select" aria-label="Filter by actor role">
+          <option value="all">Actor role: All</option>
+          <option value="admin">Administrator</option>
+          <option value="merchant">Merchant</option>
+          <option value="system">System</option>
         </select>
       </div>
 
@@ -141,26 +157,24 @@
           <h2 class="panel-title" id="heading-activity-log">Activity log</h2>
         </div>
         <div class="table-responsive">
-          <table class="data-table" id="audit-activity-table">
+          <table class="data-table data-table--adaptive" id="audit-activity-table">
             <thead>
               <tr>
                 <th scope="col">TIME (PHT)</th>
                 <th scope="col">ACTOR</th>
-                <th scope="col">EVENT / ENTITY</th>
-                <th scope="col">RESULT</th>
+                <th scope="col">ACTION / TARGET</th>
+                <th scope="col">ROLE</th>
               </tr>
             </thead>
             <tbody id="audit-activity-tbody">
-              <!-- Seeded matching Figma frame 550:347 -->
+              <tr class="table-state-row">
+                <td colspan="4"><div class="table-state"><strong>Loading audit records</strong></div></td>
+              </tr>
             </tbody>
           </table>
         </div>
         <div class="pagination-footer">
-          <span id="audit-pagination-info">Showing 6 of 12 events today · Logs are read-only.</span>
-          <div class="pagination-btns">
-            <button type="button" class="pagination-btn" disabled>Previous</button>
-            <button type="button" class="pagination-btn">Next &rarr;</button>
-          </div>
+          <span id="audit-pagination-info">Waiting for server records · Logs are read-only.</span>
         </div>
       </section>
 
@@ -170,39 +184,35 @@
         <section class="panel-card" id="card-event-detail" aria-labelledby="heading-event-detail">
           <div class="panel-header">
             <div>
-              <h2 class="panel-title" id="detail-event-title">Shipping zone updated</h2>
-              <p class="td-mono td-muted" style="font-size: 11px; margin-top: 2px;" id="detail-event-sub">Event EVT-2026-0920-009 · Success</p>
+              <h2 class="panel-title" id="detail-event-title">No audit record selected</h2>
+              <p class="td-mono td-muted" style="font-size: 11px; margin-top: 2px;" id="detail-event-sub">Load or select a record to inspect it.</p>
             </div>
           </div>
           <div style="padding: 16px; display: flex; flex-direction: column; gap: 10px; font-size: 13px;">
-            <p><strong>Actor:</strong> <span id="detail-event-actor">Store Merchant</span></p>
-            <p><strong>Module:</strong> <span id="detail-event-module">Merchant / Shipping Zones</span></p>
-            <p><strong>Entity:</strong> <span id="detail-event-entity">Metro Manila · NCR</span></p>
-            <p><strong>Timestamp:</strong> <span class="td-mono td-muted" id="detail-event-time">20 Sep 2026, 09:12:09 PHT</span></p>
+            <p><strong>Actor:</strong> <span id="detail-event-actor">—</span></p>
+            <p><strong>Role:</strong> <span id="detail-event-role">—</span></p>
+            <p><strong>Target:</strong> <span id="detail-event-module">—</span></p>
+            <p><strong>Timestamp:</strong> <span class="td-mono td-muted" id="detail-event-time">—</span></p>
             <p class="td-muted" style="font-size: 12px; margin-top: 4px;">
-              <strong>Source:</strong> <span id="detail-event-source">Merchant Console · Authenticated staff session</span>
+              <strong>Source:</strong> <span id="detail-event-source">—</span>
             </p>
           </div>
         </section>
 
-        <!-- Right: Recorded Changes Diff -->
-        <section class="panel-card" aria-labelledby="heading-recorded-changes">
+        <!-- Right: metadata supplied by the audit API -->
+        <section class="panel-card" aria-labelledby="heading-record-metadata">
           <div class="panel-header">
-            <h2 class="panel-title" id="heading-recorded-changes">Recorded changes</h2>
+            <h2 class="panel-title" id="heading-record-metadata">Record metadata</h2>
           </div>
           <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
-            <p class="td-mono td-muted" style="font-size: 11px; text-transform: uppercase;">STANDARD SHIPPING FEE</p>
-            <div style="display: flex; align-items: center; gap: 12px; font-family: var(--font-display); font-size: 24px; color: var(--color-ink);" id="detail-diff-box">
-              <span>&#8369;90</span>
-              <span style="color: var(--color-volt);">&rarr;</span>
-              <span>&#8369;85</span>
-            </div>
-            <p class="td-muted" style="font-size: 12px;" id="detail-diff-sub">All other zone settings unchanged.</p>
+            <p><strong>Target model:</strong> <span class="td-mono" id="detail-target-model">—</span></p>
+            <p><strong>Record ID:</strong> <span class="td-mono" id="detail-record-id">—</span></p>
+            <p class="td-muted" style="font-size: 12px;">Field-level before/after values are not supplied by the current audit API.</p>
             <p class="td-muted" style="font-size: 11px; border-top: 1px solid var(--color-border); padding-top: 10px;">
               Audit records cannot be edited or deleted from this console.
             </p>
             <div>
-              <button type="button" class="btn btn-secondary" id="btn-copy-event-id">Copy event ID</button>
+              <button type="button" class="btn btn-secondary" id="btn-copy-event-id" disabled>Copy event ID</button>
             </div>
           </div>
         </section>
@@ -213,7 +223,7 @@
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container" aria-live="polite"></div>
 
-  <script src="audit.js"></script>
   <script src="../js/user-session.js"></script>
+  <script src="audit.js"></script>
 </body>
 </html>

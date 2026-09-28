@@ -1,7 +1,7 @@
 from django.test import TestCase
 from rest_framework.test import APIClient
 from django.utils import timezone
-from identity.models import AccountsCustomer, AccountsWishlistItem, AuditLog
+from identity.models import AccountsCustomer, AccountsWishlistItem, AuditLog, CustomerAccessToken
 from catalog.models import (
     CatalogCategory,
     CatalogProduct,
@@ -43,6 +43,9 @@ class MobileBackendAPITestCase(TestCase):
             is_superuser=False,
             date_joined=self.now,
         )
+
+        _, self.raw_token = CustomerAccessToken.issue(self.customer)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.raw_token}')
 
         # Seed category
         self.category = CatalogCategory.objects.create(
@@ -127,6 +130,8 @@ class MobileBackendAPITestCase(TestCase):
         }, format='json')
         self.assertEqual(login_res.status_code, 200)
         self.assertEqual(login_res.data['email'], 'newuser@metrodrip.ph')
+        self.assertEqual(login_res.data['role'], 'customer')
+        self.assertFalse(login_res.data['is_staff'])
 
         # Login with invalid password
         bad_login = self.client.post('/login/', {
@@ -137,28 +142,25 @@ class MobileBackendAPITestCase(TestCase):
 
     # 2. FORGOT PASSWORD & PASSWORD RESET
     def test_forgot_password_flow(self):
-        # Existing customer email
+        # Reset delivery fails closed and does not reveal whether an account exists.
         res = self.client.post('/forgot-password/', {
             'email': 'mobileuser@metrodrip.ph',
         }, format='json')
-        self.assertEqual(res.status_code, 200)
-        self.assertTrue(res.data['success'])
-
-        # Check audit log was recorded
-        audit = AuditLog.objects.filter(actor='Test Mobile User').first()
-        self.assertIsNotNone(audit)
+        self.assertEqual(res.status_code, 503)
+        self.assertEqual(res.data['code'], 'reset_delivery_unconfigured')
 
         # Alias route /password-reset/
         alias_res = self.client.post('/password-reset/', {
             'email': 'mobileuser@metrodrip.ph',
         }, format='json')
-        self.assertEqual(alias_res.status_code, 200)
+        self.assertEqual(alias_res.status_code, 503)
 
-        # Nonexistent email
+        # Nonexistent email receives the identical non-enumerating response.
         missing_res = self.client.post('/forgot-password/', {
             'email': 'unknown@metrodrip.ph',
         }, format='json')
-        self.assertEqual(missing_res.status_code, 404)
+        self.assertEqual(missing_res.status_code, 503)
+        self.assertEqual(missing_res.data['code'], res.data['code'])
 
         # Empty email
         empty_res = self.client.post('/forgot-password/', {
@@ -173,13 +175,12 @@ class MobileBackendAPITestCase(TestCase):
         self.assertEqual(get_res.status_code, 200)
         self.assertEqual(get_res.data['name'], 'Test Mobile User')
 
-        # GET with Bearer token format
-        bearer_res = self.client.get('/profile/', HTTP_AUTHORIZATION=f'Bearer {self.customer.id}')
-        self.assertEqual(bearer_res.status_code, 200)
-        self.assertEqual(bearer_res.data['email'], 'mobileuser@metrodrip.ph')
+        # Numeric bearer values are not credentials.
+        bearer_res = APIClient().get('/profile/', HTTP_AUTHORIZATION=f'Bearer {self.customer.id}')
+        self.assertEqual(bearer_res.status_code, 401)
 
         # GET unauthenticated without any credentials
-        anon_res = self.client.get('/profile/')
+        anon_res = APIClient().get('/profile/')
         self.assertEqual(anon_res.status_code, 401)
 
         # PUT with X-Customer-ID header
@@ -192,7 +193,7 @@ class MobileBackendAPITestCase(TestCase):
         self.assertEqual(put_res.data['name'], 'Updated Mobile User')
         self.assertEqual(put_res.data['phone'], '+639998887766')
 
-        # PUT WITHOUT X-Customer-ID header (fallback via email in body like ProfileManagement.jsx)
+        # The bearer token, not a body email, selects the profile being updated.
         put_fallback_res = self.client.put('/profile/', {
             'email': 'mobileuser@metrodrip.ph',
             'name': 'Resilient Updated Name',
@@ -254,7 +255,7 @@ class MobileBackendAPITestCase(TestCase):
         self.assertEqual(get_empty.data['stats']['count'], 0)
         self.assertEqual(get_empty.data['reviews'], [])
 
-        # POST review with valid data
+        # Authenticated author identity is server-owned; body aliases are ignored.
         post_res = self.client.post(f'/products/{self.product.id}/reviews/', {
             'rating': 5,
             'comment': 'Heavyweight fleece is top tier. Dropped shoulders sit just right.',
@@ -262,7 +263,7 @@ class MobileBackendAPITestCase(TestCase):
         }, format='json')
         self.assertEqual(post_res.status_code, 201)
         self.assertEqual(post_res.data['review']['rating'], 5)
-        self.assertEqual(post_res.data['review']['author'], 'Bea S.')
+        self.assertEqual(post_res.data['review']['author'], self.customer.name)
 
         # POST authenticated review (author auto-populated from customer)
         post_auth = self.client.post(f'/products/{self.product.id}/reviews/', {
@@ -296,31 +297,19 @@ class MobileBackendAPITestCase(TestCase):
 
     # 6. ORDERS & CHECKOUT FLOW
     def test_orders_creation_and_history(self):
+        _, raw_token = CustomerAccessToken.issue(self.customer)
+        auth = {'HTTP_AUTHORIZATION': f'Bearer {raw_token}'}
         order_payload = {
-            'status': 'pending',
-            'subtotal': '2499.00',
-            'tax': '0.00',
-            'shipping': '150.00',
-            'discount': '0.00',
-            'total': '2649.00',
-            'currency': 'PHP',
-            'lines': [
-                {
-                    'product': self.product.id,
-                    'variant': self.variant.id,
-                    'quantity': 1,
-                    'unit_price': '2499.00',
-                    'discount_amount': '0.00',
-                    'tax_amount': '0.00',
-                    'tax_rate': '0.0000',
-                }
-            ],
+            'items': [{'variant_id': self.variant.id, 'quantity': 1}],
+            'delivery_zone': 'Metro Manila (NCR)',
+            'payment_method': 'cod',
+            'idempotency_key': 'mobile-backend-checkout-001',
             'shipping_address': {
                 'name': 'Test Mobile User',
                 'address_line1': 'Unit 402, Katipunan Ave',
                 'address_line2': '',
                 'city': 'Quezon City',
-                'state': 'Metro Manila',
+                'state': 'Metro Manila (NCR)',
                 'postal_code': '1108',
                 'country': 'PH',
                 'phone': '+639171234567',
@@ -329,35 +318,32 @@ class MobileBackendAPITestCase(TestCase):
 
         # Create order
         create_res = self.client.post(
-            '/orders/',
+            '/api/orders/checkout/',
             order_payload,
-            HTTP_X_CUSTOMER_ID=str(self.customer.id),
-            format='json'
+            format='json',
+            **auth,
         )
         self.assertEqual(create_res.status_code, 201)
         order_id = create_res.data['id']
-        self.assertEqual(create_res.data['customer_id'], self.customer.id)
-        self.assertEqual(len(create_res.data['lines']), 1)
-        self.assertEqual(create_res.data['lines'][0]['product_name'], self.product.name)
-        self.assertEqual(create_res.data['lines'][0]['variant_color'], self.color.name)
+        self.assertEqual(create_res.data['payment_method'], 'cod')
+        self.assertEqual(len(create_res.data['items']), 1)
+        self.assertEqual(create_res.data['items'][0]['product_name'], self.product.name)
 
         # Retrieve customer order history
-        history_res = self.client.get('/orders/', HTTP_X_CUSTOMER_ID=str(self.customer.id))
+        history_res = self.client.get('/orders/', **auth)
         self.assertEqual(history_res.status_code, 200)
         self.assertEqual(len(history_res.data), 1)
         self.assertEqual(history_res.data[0]['id'], order_id)
 
         # Retrieve specific order detail
-        detail_res = self.client.get(f'/orders/{order_id}/', HTTP_X_CUSTOMER_ID=str(self.customer.id))
+        detail_res = self.client.get(f'/orders/{order_id}/', **auth)
         self.assertEqual(detail_res.status_code, 200)
         self.assertEqual(detail_res.data['id'], order_id)
         self.assertEqual(detail_res.data['shipping_address']['city'], 'Quezon City')
 
-        # Test guest order creation (customer_id is null, no header)
-        guest_payload = order_payload.copy()
-        guest_create = self.client.post('/orders/', guest_payload, format='json')
-        self.assertEqual(guest_create.status_code, 201)
-        self.assertIsNone(guest_create.data['customer_id'])
+        # Checkout never accepts a caller-selected guest/customer identity.
+        guest_create = APIClient().post('/api/orders/checkout/', order_payload, format='json')
+        self.assertEqual(guest_create.status_code, 401)
 
     # 7. PRODUCT CATALOG FILTERING & VARIANTS
     def test_catalog_search_and_variants(self):

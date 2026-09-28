@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { colors, fonts } from '../theme';
+import { formatConfirmationDate, validateConfirmationRoute } from '../data/orderConfirmation';
 
 export function OrderConfirmationScreen() {
   const navigation = useNavigation();
@@ -22,42 +23,62 @@ export function OrderConfirmationScreen() {
 
   const [receiptModalVisible, setReceiptModalVisible] = useState(false);
 
-  // Retrieve order details from route params or fallback to mock Figma data (M07 node 445:2)
-  const order = route.params?.order || {
-    orderId: 'MD-2026-00318',
-    refNo: 'PM-8H2K19XQ',
-    total: 2632,
-    date: 'Jul 18 · 9:42 AM',
-    paymentMethod: 'Cash on Delivery',
-    paymentDetail: 'Cash on Delivery · pay on arrival',
-    email: 'juan@email.com',
-    fullName: 'Juan R. Dela Cruz',
-    address: 'Unit 4B, 21 Maginhawa St., Teachers Village, Quezon City, Metro Manila (NCR)',
-    eta: 'Delivery schedule is assigned after dispatch',
-    courier: 'To be assigned',
-    items: [
-      {
-        id: '1',
-        name: 'Drip Zip-Up Hoodie',
-        variant: 'BLACK · M · OVS ×1',
-        price: 1249,
-        badge: 'H',
-      },
-      {
-        id: '2',
-        name: 'Metro Core Boxy Tee',
-        variant: 'WHITE · L · REG ×2',
-        price: 1383,
-        badge: 'T',
-      },
-    ],
-  };
+  // Confirmation is intentionally unavailable without a validated, server-built
+  // order object. This route never substitutes preview or client-priced data.
+  const order = validateConfirmationRoute(route.params?.order);
+
+  if (!order) {
+    return (
+      <SafeAreaView edges={Platform.OS === 'web' ? [] : ['top', 'bottom']} style={styles.safeArea}>
+        <View style={styles.invalidState}>
+          <Text style={styles.invalidEyebrow}>CONFIRMATION UNAVAILABLE</Text>
+          <Text style={styles.invalidTitle}>We could not verify this order</Text>
+          <Text style={styles.invalidMessage}>
+            Open the order from Order history. MetroDrip will only show a confirmation after the server verifies its payment state.
+          </Text>
+          <Pressable
+            accessibilityLabel="Open order history"
+            accessibilityRole="button"
+            onPress={() => navigation.replace('History')}
+            style={({ pressed }) => [styles.primaryButton, styles.invalidAction, pressed && styles.primaryButtonPressed]}
+          >
+            <Text style={styles.primaryButtonText}>Open Order history</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const formatPeso = (val) =>
     `₱${Number(val).toLocaleString('en-PH', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
+
+  const isCashOnDelivery = order.paymentMethod === 'cod';
+  const requiresReview = order.orderStatus === 'payment_review';
+  const paymentMethodLabel = {
+    cod: 'Cash on Delivery · pay on arrival',
+    gcash: 'GCash · confirmed by PayMongo',
+    maya: 'Maya · confirmed by PayMongo',
+    card: 'Card · confirmed by PayMongo',
+  }[order.paymentMethod];
+  const paymentSummary = isCashOnDelivery
+    ? 'ORDER PLACED · CASH ON DELIVERY'
+    : requiresReview
+      ? 'PAYMENT CONFIRMED · ORDER UNDER REVIEW'
+      : 'ORDER PLACED · ONLINE PAYMENT CONFIRMED';
+  const amountLabel = isCashOnDelivery ? 'Amount due on delivery' : 'Amount paid';
+  const confirmationTitle = requiresReview ? 'Payment confirmed' : 'Order confirmed';
+  const confirmationDate = formatConfirmationDate(order.createdAt);
+  const deliveryAddress = [
+    order.shippingAddress.addressLine1,
+    order.shippingAddress.addressLine2,
+    order.shippingAddress.city,
+    order.shippingAddress.state,
+    order.shippingAddress.postalCode,
+    order.shippingAddress.country,
+  ].filter(Boolean).join(', ');
 
   const itemCount = order.items
     ? order.items.reduce((sum, it) => sum + (it.quantity || 1), 0)
@@ -93,15 +114,14 @@ export function OrderConfirmationScreen() {
               <Text style={styles.checkIcon}>✓</Text>
             </View>
 
-            {/* Cash on delivery: the order is placed, but no money has moved yet. */}
-            <Text style={styles.successSub}>ORDER PLACED · CASH ON DELIVERY</Text>
-            <Text style={styles.orderConfirmedTitle}>Order confirmed</Text>
+            <Text style={styles.successSub}>{paymentSummary}</Text>
+            <Text style={styles.orderConfirmedTitle}>{confirmationTitle}</Text>
 
             <View style={styles.metaRow}>
               <View style={styles.orderChip}>
-                <Text style={styles.orderChipText}>{order.orderId}</Text>
+                <Text style={styles.orderChipText}>{order.refNo}</Text>
               </View>
-              <Text style={styles.dateText}>{order.date}</Text>
+              <Text style={styles.dateText}>{confirmationDate}</Text>
             </View>
           </View>
 
@@ -110,13 +130,13 @@ export function OrderConfirmationScreen() {
             <Text style={styles.sectionTitle}>Payment</Text>
             <View style={styles.cardBox}>
               <View style={styles.cardRow}>
-                <Text style={styles.rowLabel}>Amount due on delivery</Text>
+                <Text style={styles.rowLabel}>{amountLabel}</Text>
                 <Text style={styles.rowValueBold}>{formatPeso(order.total)}</Text>
               </View>
 
               <View style={styles.cardRow}>
                 <Text style={styles.rowLabel}>Method</Text>
-                <Text style={styles.rowValue}>{order.paymentDetail || order.paymentMethod}</Text>
+                <Text style={styles.rowValue}>{paymentMethodLabel}</Text>
               </View>
 
               <View style={styles.divider} />
@@ -126,24 +146,23 @@ export function OrderConfirmationScreen() {
                 <Text style={styles.monoValue}>{order.refNo}</Text>
               </View>
             </View>
-            <Text style={styles.receiptNote}>
-              Receipt sent to {order.email || 'your registered email'}
-            </Text>
+            <Text style={styles.receiptNote}>This server-verified receipt remains available in Order history.</Text>
           </View>
 
           {/* 3. Delivery Details Card */}
           <View style={styles.sectionBlock}>
             <Text style={styles.sectionTitle}>Delivery</Text>
             <View style={styles.cardBox}>
-              <Text style={styles.recipientName}>{order.fullName}</Text>
-              <Text style={styles.deliveryAddress}>{order.address}</Text>
+              <Text style={styles.recipientName}>{order.shippingAddress.name}</Text>
+              <Text style={styles.deliveryAddress}>{deliveryAddress}</Text>
 
               <View style={styles.etaRow}>
                 <View style={styles.etaDot} />
-                <Text style={styles.etaText}>{order.eta}</Text>
-                <View style={styles.courierTag}>
-                  <Text style={styles.courierText}>{order.courier || 'To be assigned'}</Text>
-                </View>
+                <Text style={styles.etaText}>
+                  {requiresReview
+                    ? 'Support will review inventory allocation before fulfillment.'
+                    : 'Tracking updates will appear after dispatch.'}
+                </Text>
               </View>
             </View>
           </View>
@@ -164,22 +183,22 @@ export function OrderConfirmationScreen() {
                     ) : (
                       <View style={styles.itemBadge}>
                         <Text style={styles.itemBadgeText}>
-                          {it.badge || (it.name ? it.name.charAt(0) : 'M')}
+                        {it.name ? it.name.charAt(0) : 'M'}
                         </Text>
                       </View>
                     )}
 
                     <View style={styles.itemInfo}>
                       <Text numberOfLines={1} style={styles.itemName}>
-                        {it.name || it.product_name}
+                        {it.name}
                       </Text>
                       <Text style={styles.itemVariant}>
-                        {it.variant || `${it.color || 'BLACK'} · ${it.size || 'M'} · ${it.fit || 'REG'} ×${it.quantity || 1}`}
+                        {it.variant || 'Standard option'} · ×{it.quantity}
                       </Text>
                     </View>
 
                     <Text style={styles.itemPrice}>
-                      {formatPeso((it.price || 0) * (it.quantity || 1))}
+                      {formatPeso(it.totalPrice)}
                     </Text>
                   </View>
                 ))
@@ -230,8 +249,10 @@ export function OrderConfirmationScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Official Electronic Receipt</Text>
+                <Text style={styles.modalTitle}>Order receipt</Text>
               <Pressable
+                accessibilityLabel="Close receipt"
+                accessibilityRole="button"
                 onPress={() => setReceiptModalVisible(false)}
                 style={styles.modalCloseBtn}
               >
@@ -242,7 +263,7 @@ export function OrderConfirmationScreen() {
             <ScrollView style={styles.modalScroll}>
               <Text style={styles.receiptStoreName}>METRODRIP MANILA</Text>
               <Text style={styles.receiptMeta}>
-                Order: {order.orderId} · {order.date}
+                Order: {order.refNo} · {confirmationDate}
               </Text>
               <Text style={styles.receiptMeta}>Ref: {order.refNo}</Text>
 
@@ -260,14 +281,18 @@ export function OrderConfirmationScreen() {
               <View style={styles.modalDivider} />
 
               <View style={styles.receiptRow}>
-                <Text style={styles.receiptTotalLabel}>AMOUNT DUE</Text>
+                <Text style={styles.receiptTotalLabel}>
+                  {isCashOnDelivery ? 'AMOUNT DUE' : 'AMOUNT PAID'}
+                </Text>
                 <Text style={styles.receiptTotalVal}>{formatPeso(order.total)}</Text>
               </View>
 
               <View style={styles.modalDivider} />
 
               <Text style={styles.receiptFooterText}>
-                Secured via PayMongo Philippines. Card/Wallet details are strictly encrypted.
+                {isCashOnDelivery
+                  ? 'Payment is collected by the courier when this order is delivered.'
+                  : 'Payment was confirmed by the server after PayMongo provider verification.'}
               </Text>
             </ScrollView>
 
@@ -288,6 +313,40 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: colors.paper,
+  },
+  invalidState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+    gap: 12,
+  },
+  invalidEyebrow: {
+    fontFamily: fonts.monoSemiBold,
+    fontSize: 10,
+    letterSpacing: 1.3,
+    color: colors.muted,
+  },
+  invalidTitle: {
+    fontFamily: fonts.interBold,
+    fontSize: 22,
+    color: colors.ink,
+    textAlign: 'center',
+  },
+  invalidMessage: {
+    maxWidth: 380,
+    fontFamily: fonts.interRegular,
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.muted,
+    textAlign: 'center',
+  },
+  invalidAction: {
+    flex: 0,
+    minWidth: 190,
+    minHeight: 48,
+    marginTop: 8,
+    justifyContent: 'center',
   },
   scrollContent: {
     paddingBottom: 32,
@@ -557,6 +616,7 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     flex: 1,
+    minHeight: 48,
     borderWidth: 1,
     borderColor: colors.ink,
     borderRadius: 10,
@@ -572,6 +632,7 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     flex: 1,
+    minHeight: 48,
     backgroundColor: colors.volt,
     borderRadius: 10,
     paddingVertical: 14,
@@ -617,7 +678,10 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   modalCloseBtn: {
-    padding: 6,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalCloseText: {
     fontSize: 16,

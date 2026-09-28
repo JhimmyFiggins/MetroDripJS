@@ -9,6 +9,7 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
+metrodrip_backend/staticfiles/
 
 # Expo
 .expo/

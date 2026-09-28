@@ -28,6 +28,7 @@ import { PaymentDetailsScreen } from '../Checkout/src/screens/PaymentDetailsScre
 import OrderConfirmationScreen from '../Checkout/src/screens/OrderConfirmationScreen';
 
 import ProfileManagement from '../Account_Management/ProfileManagement';
+import { normalizeOrderId } from '../../src/services/orderService';
 
 const Stack = createNativeStackNavigator();
 
@@ -35,12 +36,19 @@ export default function AppNavigator() {
     return (
         <NavigationContainer
             linking={{
-                prefixes: [],
+                prefixes: ['metrodripjs://'],
                 config: {
                     screens: {
                         Checkout: 'checkout',
-                        PaymentDetails: 'payment-details',
-                        OrderConfirmation: 'order-confirmation',
+                        PaymentDetails: {
+                            path: 'payment-details',
+                            parse: { orderId: normalizeOrderId },
+                        },
+                        History: 'orders',
+                        OrderTracking: {
+                            path: 'orders/:orderId',
+                            parse: { orderId: normalizeOrderId },
+                        },
                     },
                 },
             }}
@@ -60,7 +68,11 @@ export default function AppNavigator() {
                 <Stack.Screen name="ProductDetails" component={ProductDetailsScreen}/>
                 <Stack.Screen name="Cart" component={ShoppingCart}/>
                 <Stack.Screen name="Checkout" component={CheckoutScreen} />
-                <Stack.Screen name="PaymentDetails" component={PaymentDetailsScreen} />
+                <Stack.Screen
+                    name="PaymentDetails"
+                    component={PaymentDetailsScreen}
+                    getId={({ params }) => normalizeOrderId(params?.orderId) || 'active-checkout'}
+                />
                 <Stack.Screen name="OrderConfirmation" component={OrderConfirmationScreen} />
                 <Stack.Screen name="Account" component={Account} />
                 <Stack.Screen name="Profile" component={ProfileManagement} />

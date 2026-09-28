@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="../css/console.css">
   <script src="../Registration/theme.js"></script>
 </head>
-<body>
+<body class="console-page--stateful">
   <!-- Figma: Admin Console / User Accounts / Light 550:260 & Dark 554:999 -->
   <div class="console-layout">
     <!-- Left Navigation Sidebar -->
@@ -52,7 +52,7 @@
           <div class="user-avatar" aria-hidden="true">AD</div>
           <div class="user-meta">
             <p class="user-name">Admin User</p>
-            <p class="user-role-badge">ADMINISTRATOR · 2FA ON</p>
+            <p class="user-role-badge">ADMINISTRATOR</p>
           </div>
         </div>
 
@@ -74,7 +74,7 @@
         <span>ADMIN CONSOLE</span>
         <span>/</span>
         <span>USER ACCOUNTS</span>
-        <span class="sample-data">SAMPLE DATA</span>
+        <span class="data-source-badge" id="users-source-status" aria-live="polite">CONNECTING</span>
       </div>
 
       <!-- Header -->
@@ -84,27 +84,42 @@
           <p class="page-subhead">Manage customers, store staff and account access.</p>
         </div>
         <div class="header-actions">
+          <button type="button" class="btn btn-secondary" id="btn-refresh-users">
+            Refresh
+          </button>
           <button type="button" class="btn btn-primary" id="btn-open-add-user">
             <span aria-hidden="true">+</span> Add user
           </button>
         </div>
       </header>
 
+      <section class="console-state-banner is-info" id="users-state-banner" role="status" aria-live="polite" aria-atomic="true">
+        <div class="console-state-copy">
+          <p class="console-state-eyebrow" id="users-state-eyebrow">LOADING</p>
+          <h2 class="console-state-title" id="users-state-title">Loading user accounts</h2>
+          <p class="console-state-message" id="users-state-message">Connecting to the administrator API. Account actions stay unavailable until access is verified.</p>
+        </div>
+        <div class="console-state-actions">
+          <button type="button" class="btn btn-secondary" id="btn-retry-users" hidden>Try again</button>
+          <a class="btn btn-secondary" id="users-state-signin" href="../Registration/screens/AdminLoginScreen.html" hidden>Return to sign in</a>
+        </div>
+      </section>
+
       <!-- 3 Stat Metric Cards -->
       <section class="stat-cards-grid" style="grid-template-columns: repeat(3, 1fr);" aria-label="User account metrics">
         <article class="stat-card">
           <p class="stat-label">TOTAL CUSTOMERS</p>
-          <p class="stat-value" id="metric-total-customers">1,284</p>
-          <p class="stat-subtext trend-up">+38 this week</p>
+          <p class="stat-value" id="metric-total-customers">—</p>
+          <p class="stat-subtext" id="metric-customer-detail">Waiting for account data</p>
         </article>
         <article class="stat-card">
           <p class="stat-label">STAFF ACCOUNTS</p>
-          <p class="stat-value" id="metric-staff-accounts">7</p>
-          <p class="stat-subtext">5 merchants · 2 admins</p>
+          <p class="stat-value" id="metric-staff-accounts">—</p>
+          <p class="stat-subtext" id="metric-staff-detail">Waiting for account data</p>
         </article>
         <article class="stat-card" style="border: 1px dashed var(--color-danger);">
           <p class="stat-label">SUSPENDED</p>
-          <p class="stat-value" style="color: var(--color-danger);" id="metric-suspended">3</p>
+          <p class="stat-value" style="color: var(--color-danger);" id="metric-suspended">—</p>
           <p class="stat-subtext">Sign-in access restricted</p>
         </article>
       </section>
@@ -134,7 +149,7 @@
           <h2 class="panel-title" id="heading-user-directory">User directory</h2>
         </div>
         <div class="table-responsive">
-          <table class="data-table" id="users-directory-table">
+          <table class="data-table data-table--adaptive" id="users-directory-table">
             <thead>
               <tr>
                 <th scope="col">NAME / EMAIL</th>
@@ -144,16 +159,18 @@
                 <th scope="col">LAST ACTIVE</th>
               </tr>
             </thead>
-            <tbody id="users-directory-tbody">
-              <!-- Seeded matching Figma frame 550:260 -->
+            <tbody id="users-directory-tbody" aria-live="polite" aria-busy="true">
+              <tr class="table-state-row table-loading-row">
+                <td colspan="5"><span class="skeleton-line is-wide"></span><span class="sr-only">Loading user accounts</span></td>
+              </tr>
             </tbody>
           </table>
         </div>
         <div class="pagination-footer">
-          <span id="pagination-info">Showing 1–5 of 1,291 accounts</span>
+          <span id="pagination-info">Loading accounts…</span>
           <div class="pagination-btns">
             <button type="button" class="pagination-btn" id="btn-prev-page" disabled>Previous</button>
-            <button type="button" class="pagination-btn" id="btn-next-page">Next &rarr;</button>
+            <button type="button" class="pagination-btn" id="btn-next-page" disabled>Next &rarr;</button>
           </div>
         </div>
       </section>
@@ -164,35 +181,35 @@
         <section class="panel-card" id="card-user-detail" aria-labelledby="heading-user-detail">
           <div class="panel-header">
             <div>
-              <h2 class="panel-title" id="detail-user-name">Store Merchant</h2>
-              <p class="td-mono td-muted" style="font-size: 11px; margin-top: 2px;" id="detail-user-sub">merch@metrodrip.ph · Active</p>
+              <h2 class="panel-title" id="detail-user-name">No user selected</h2>
+              <p class="td-mono td-muted" style="font-size: 11px; margin-top: 2px;" id="detail-user-sub">Select an account after the directory loads.</p>
             </div>
           </div>
           <div style="padding: 16px; display: flex; flex-direction: column; gap: 16px;">
             <div>
               <label class="form-label" for="detail-user-role" style="margin-bottom: 6px;">Assigned role</label>
-              <select class="toolbar-select" id="detail-user-role" style="width: 100%;">
+              <select class="toolbar-select" id="detail-user-role" style="width: 100%;" disabled>
                 <option value="customer">Customer</option>
                 <option value="merchant" selected>Merchant</option>
                 <option value="administrator">Administrator</option>
               </select>
             </div>
             <div>
-              <p class="td-muted" style="font-size: 12px;" id="detail-user-2fa">Two-factor authentication: <strong>Enabled</strong></p>
-              <p class="td-muted" style="font-size: 11px; margin-top: 4px;" id="detail-user-activity">Member since 12 Jan 2026 · Last active today, 08:55</p>
+              <p class="td-muted" style="font-size: 12px;" id="detail-user-2fa">Two-factor authentication: <strong>Not reported</strong></p>
+              <p class="td-muted" style="font-size: 11px; margin-top: 4px;" id="detail-user-activity">Account activity unavailable.</p>
             </div>
             <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px;">
-              <button type="button" class="btn btn-primary" id="btn-save-user-role">Save role</button>
-              <button type="button" class="btn btn-secondary" id="btn-reset-password">Reset password</button>
-              <button type="button" class="btn btn-secondary" id="btn-toggle-suspend" style="border-color: var(--color-danger); color: var(--color-danger);">Suspend account</button>
+              <button type="button" class="btn btn-primary" id="btn-save-user-role" disabled>Save role</button>
+              <button type="button" class="btn btn-secondary" id="btn-reset-password" disabled>Reset password</button>
+              <button type="button" class="btn btn-secondary" id="btn-toggle-suspend" style="border-color: var(--color-danger); color: var(--color-danger);" disabled>Suspend account</button>
             </div>
           </div>
         </section>
 
-        <!-- Right: Invite Staff Card -->
+        <!-- Right: Create Staff Card -->
         <section class="panel-card" aria-labelledby="heading-invite-staff">
           <div class="panel-header">
-            <h2 class="panel-title" id="heading-invite-staff">Invite staff</h2>
+            <h2 class="panel-title" id="heading-invite-staff">Add staff account</h2>
           </div>
           <form id="form-invite-staff" style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
             <div>
@@ -210,9 +227,9 @@
                 <option value="administrator">Administrator</option>
               </select>
             </div>
-            <p class="td-muted" style="font-size: 11px;">An invitation lets the staff member set their own password.</p>
+            <p class="td-muted" style="font-size: 11px;">Creates the staff account through the administrator API. Invitation delivery is not claimed by this screen.</p>
             <div>
-              <button type="submit" class="btn btn-primary" id="btn-send-invite">Send invitation</button>
+              <button type="submit" class="btn btn-primary" id="btn-send-invite" disabled>Create staff account</button>
             </div>
           </form>
         </section>
