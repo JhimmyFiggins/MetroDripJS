@@ -1,4 +1,5 @@
 from django.utils import timezone
+from django.db import transaction
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -9,6 +10,12 @@ from .models import (
     ShippingShipment,
     NotificationsNotification,
     NotificationsDeviceToken,
+)
+from .authentication import InternalServiceAuthentication, InternalServiceOrCustomerAuthentication
+from .permissions import (
+    IsInternalService,
+    IsAuthenticatedCustomer,
+    IsMerchantOrAdmin,
 )
 
 
@@ -63,6 +70,7 @@ class ShippingQuoteAPIView(APIView):
 
 
 class ShippingZonesAPIView(APIView):
+    authentication_classes = [InternalServiceOrCustomerAuthentication]
     def get(self, request):
         zones = ShippingShippingZone.objects.all().order_by('id')
         data = [
@@ -78,6 +86,9 @@ class ShippingZonesAPIView(APIView):
         return Response(data)
 
     def patch(self, request, pk):
+        if not IsMerchantOrAdmin().has_permission(request, self):
+            return Response({'error': 'Insufficient permissions.'}, status=403)
+
         zone = ShippingShippingZone.objects.filter(pk=pk).first()
         if not zone:
             return Response({'error': 'Shipping zone not found.'}, status=404)
@@ -102,6 +113,9 @@ class ShippingZonesAPIView(APIView):
 
 
 class ShipmentsAPIView(APIView):
+    authentication_classes = [InternalServiceOrCustomerAuthentication]
+    permission_classes = [IsMerchantOrAdmin]
+
     def get(self, request):
         shipments = ShippingShipment.objects.all().order_by('-id')[:50]
         data = [
@@ -145,13 +159,12 @@ class ShipmentsAPIView(APIView):
 
 
 class NotificationsAPIView(APIView):
+    authentication_classes = [InternalServiceOrCustomerAuthentication]
+    permission_classes = [IsAuthenticatedCustomer]
     renderer_classes = [JSONRenderer]
 
     def get(self, request):
-        customer_id = request.headers.get('X-User-ID') or request.headers.get('X-Customer-ID')
-        if not customer_id or not customer_id.isdigit():
-            return Response({'error': 'Authentication required.'}, status=401)
-
+        customer_id = request.user.id
         notes = NotificationsNotification.objects.filter(customer_ref=int(customer_id)).order_by('-created_at')[:30]
         data = [
             {
@@ -170,11 +183,11 @@ class NotificationsAPIView(APIView):
 
 
 class NotificationMarkReadAPIView(APIView):
+    authentication_classes = [InternalServiceOrCustomerAuthentication]
+    permission_classes = [IsAuthenticatedCustomer]
+
     def post(self, request, pk):
-        customer_id = request.headers.get('X-User-ID') or request.headers.get('X-Customer-ID')
-        qs = NotificationsNotification.objects.filter(pk=pk)
-        if customer_id and customer_id.isdigit():
-            qs = qs.filter(customer_ref=int(customer_id))
+        qs = NotificationsNotification.objects.filter(pk=pk, customer_ref=request.user.id)
 
         note = qs.first()
         if not note:
@@ -186,11 +199,11 @@ class NotificationMarkReadAPIView(APIView):
 
 
 class NotificationMarkAllReadAPIView(APIView):
-    def post(self, request):
-        customer_id = request.headers.get('X-User-ID') or request.headers.get('X-Customer-ID')
-        if not customer_id or not customer_id.isdigit():
-            return Response({'error': 'Authentication required.'}, status=401)
+    authentication_classes = [InternalServiceOrCustomerAuthentication]
+    permission_classes = [IsAuthenticatedCustomer]
 
+    def post(self, request):
+        customer_id = request.user.id
         updated = NotificationsNotification.objects.filter(customer_ref=int(customer_id), is_read=False).update(is_read=True)
         return Response({'success': True, 'marked_count': updated})
 
@@ -200,6 +213,10 @@ class OrderPlacedEventConsumerAPIView(APIView):
     Consumes OrderPlaced event from Orders transactional outbox.
     Idempotent: Replay does not duplicate shipments or notifications.
     """
+    authentication_classes = [InternalServiceAuthentication]
+    permission_classes = [IsInternalService]
+
+    @transaction.atomic
     def post(self, request):
         payload = request.data.get('payload') or request.data
         order_id = payload.get('order_id')
@@ -210,7 +227,7 @@ class OrderPlacedEventConsumerAPIView(APIView):
             return Response({'error': 'order_id is required in event payload.'}, status=400)
 
         # Idempotent shipment entry creation
-        shipment, _ = ShippingShipment.objects.get_or_create(
+        shipment, _ = ShippingShipment.objects.select_for_update().get_or_create(
             order_ref=order_id,
             defaults={
                 'courier': 'J&T Express',

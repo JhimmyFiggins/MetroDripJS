@@ -45,6 +45,7 @@ services:
     ports:
       - "8002:8002"
     environment:
+      - IDENTITY_SERVICE_URL=http://identity-service:8001
       - PORT=8002
       - DEBUG=False
       - DATABASE_URL=postgresql://catalog_user:catalog_dev_secret_2026@postgres:5432/db_catalog
@@ -90,6 +91,7 @@ services:
     ports:
       - "8004:8004"
     environment:
+      - IDENTITY_SERVICE_URL=http://identity-service:8001
       - PORT=8004
       - DEBUG=False
       - DATABASE_URL=postgresql://fulfillment_user:fulfillment_dev_secret_2026@postgres:5432/db_fulfillment
@@ -110,6 +112,7 @@ services:
     ports:
       - "8005:8005"
     environment:
+      - IDENTITY_SERVICE_URL=http://identity-service:8001
       - PORT=8005
       - DEBUG=False
       - DATABASE_URL=postgresql://content_user:content_dev_secret_2026@postgres:5432/db_content

@@ -15,21 +15,15 @@ import {
 import Footer from '../components/Footer';
 import AdaptHeader from '../components/AdaptHeader';
 import { useCart } from '../context/CartContext';
+import { cartTotals } from '../context/cartLogic';
 import { StatusBar } from 'expo-status-bar';
 
 
 export default function CartScreen({navigation}) {
   const { cart, changeQuantity, removeItem } = useCart();
 
-  const subtotal = cart.reduce(
-    (total, item) => total + item.price * item.quantity,
-    0
-  );
+  const { subtotal, shipping, discount, total } = cartTotals(cart);
 
-
-  const shipping = subtotal > 0 ? 150 : 0;
-  const discount = 0;
-  const total = subtotal + shipping - discount;
   const screenTitle = 'Your Cart';
 
   const formatPrice = price => {

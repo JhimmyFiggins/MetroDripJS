@@ -9,6 +9,7 @@ DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1')
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
 
 INTERNAL_TOKEN = os.environ.get('INTERNAL_TOKEN', 'internal_service_mesh_secret_2026')
+IDENTITY_SERVICE_URL = os.environ.get('IDENTITY_SERVICE_URL', 'http://127.0.0.1:8001')
 
 INSTALLED_APPS = [
     'corsheaders',

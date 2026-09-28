@@ -18,6 +18,7 @@ from .models import (
     InventoryStockMovement,
 )
 from .permissions import IsInternalService, IsMerchantOrAdmin
+from .authentication import InternalServiceOrGatewayAuthentication
 
 
 class HealthCheckAPIView(APIView):
@@ -256,6 +257,7 @@ class CatalogQuoteAPIView(APIView):
 
 
 class CatalogReserveStockAPIView(APIView):
+    permission_classes = [IsInternalService]
     """
     Saga Step 3: Checkout-only stock reservation under checkout_id with TTL.
     Locks stock atomically with select_for_update().
@@ -334,6 +336,7 @@ class CatalogReserveStockAPIView(APIView):
 
 
 class CatalogCommitReservationAPIView(APIView):
+    permission_classes = [IsInternalService]
     """
     Saga Step 5: Orders or its worker sends idempotent commit command.
     Permanently decrements on-hand stock and releases reserved quantity.
@@ -377,6 +380,7 @@ class CatalogCommitReservationAPIView(APIView):
 
 
 class CatalogReleaseReservationAPIView(APIView):
+    permission_classes = [IsInternalService]
     """
     Saga Compensation: Release stock hold on checkout cancellation or expiry.
     """
@@ -412,6 +416,9 @@ class CatalogReleaseReservationAPIView(APIView):
 # ==============================================================================
 
 class MerchantInventoryAPIView(APIView):
+    authentication_classes = [InternalServiceOrGatewayAuthentication]
+    permission_classes = [IsMerchantOrAdmin]
+
     def get(self, request):
         entries = InventoryStockEntry.objects.select_related('product', 'variant').all().order_by('id')
         data = []

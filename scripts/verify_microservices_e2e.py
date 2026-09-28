@@ -12,10 +12,16 @@ import json
 import subprocess
 import urllib.request
 import urllib.error
+import secrets
+import socket
+import sqlite3
+import tempfile
+from contextlib import closing
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
-PYTHON_EXE = ROOT_DIR / 'metrodrip_backend' / '.venv' / 'Scripts' / 'python.exe'
+PYTHON_EXE = sys.executable
+GATEWAY_URL = None
 
 SERVICES = [
     ('identity', ROOT_DIR / 'services' / 'identity', 8001),
@@ -25,7 +31,65 @@ SERVICES = [
     ('content', ROOT_DIR / 'services' / 'content', 8005),
 ]
 
+
+def isolated_environment(directory, ports):
+    env = {key: value for key, value in os.environ.items()
+           if key.upper() not in ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'DATABASE_URL', 'DJANGO_SETTINGS_MODULE')}
+    env.update(DEBUG='False', ALLOWED_HOSTS='127.0.0.1,localhost', BIND_HOST='127.0.0.1',
+               INTERNAL_TOKEN=secrets.token_urlsafe(32), SECRET_KEY=secrets.token_urlsafe(32),
+               QA_PASSWORD=secrets.token_urlsafe(24), PYTHONDONTWRITEBYTECODE='1',
+               PYTHONIOENCODING='utf-8')
+    for name, port in ports.items():
+        env[f'{name.upper()}_SERVICE_URL'] = f'http://127.0.0.1:{port}'
+        env[f'{name.upper()}_URL'] = f'http://127.0.0.1:{port}'
+    return env
+
+
+def prepare_database(name, directory, env):
+    env = dict(env, DATABASE_URL='sqlite:///' + (Path(directory) / f'{name}.sqlite3').as_posix())
+    fixtures = {
+        'identity': """
+import os
+from identity.models import AccountsCustomer
+from django.utils import timezone
+for role in ('customer', 'merchant', 'admin'):
+    user = AccountsCustomer(email=f'{role}@example.invalid', name=f'QA {role}', role=role,
+        is_active=True, is_staff=role != 'customer', is_superuser=role == 'admin',
+        date_joined=timezone.now(), addresses=[])
+    user.set_password(os.environ['QA_PASSWORD'])
+    user.save()
+""",
+        'catalog': """
+from catalog.models import CatalogCategory, CatalogProduct, CatalogProductVariant, InventoryStockEntry
+c = CatalogCategory.objects.create(name='QA Category', slug='qa-category')
+p = CatalogProduct.objects.create(sku='QA-001', name='QA Product', category=c, base_price=1249, currency='PHP')
+v = CatalogProductVariant.objects.create(product=p, sku='QA-001-M', attributes={'size': 'M'}, price_adjustment=0)
+InventoryStockEntry.objects.create(product=p, variant=v, warehouse_id=1, quantity=5, reserved_quantity=0)
+""",
+        'fulfillment': """
+from fulfillment.models import ShippingShippingZone
+for name, fee in [('NCR (Metro Manila)',85),('North & South Luzon',120),('Visayas & Mindanao (VisMin)',150)]:
+    ShippingShippingZone.objects.create(name=name, fee=fee, is_active=True)
+""",
+        'content': """
+from content.models import CmsHomepageBanner
+CmsHomepageBanner.objects.create(title='QA Banner', image_url='/qa.png', link_url='/shop', is_active=True, order=1)
+""",
+    }
+    commands = [['migrate', '--noinput']]
+    if name in fixtures:
+        commands.append(['shell', '-c', fixtures[name]])
+    for args in commands:
+        result = subprocess.run([PYTHON_EXE, 'manage.py', *args], cwd=ROOT_DIR / 'services' / name,
+                                env=env, capture_output=True, text=True, timeout=60)
+        if result.returncode:
+            raise RuntimeError(f'Isolated {name} database setup failed: {result.stderr[-1200:]}')
+    return env
+
 def make_request(url, method='GET', data=None, headers=None):
+    if GATEWAY_URL is None:
+        raise RuntimeError('Requests require the isolated gateway to be configured')
+    url = url.replace('http://127.0.0.1:8000', GATEWAY_URL, 1)
     hdrs = {'Accept': 'application/json', 'User-Agent': 'MetroDrip-E2E-Verifier'}
     if headers:
         hdrs.update(headers)
@@ -36,7 +100,8 @@ def make_request(url, method='GET', data=None, headers=None):
 
     req = urllib.request.Request(url, data=req_body, headers=hdrs, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=15.0) as resp:
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(req, timeout=15.0) as resp:
             body = resp.read().decode('utf-8')
             return resp.status, json.loads(body) if body else {}, dict(resp.getheaders())
     except urllib.error.HTTPError as e:
@@ -49,6 +114,7 @@ def make_request(url, method='GET', data=None, headers=None):
 
 
 def main():
+    global GATEWAY_URL
     print("=" * 70)
     print("METRODRIP-JS: END-TO-END MICROSERVICES INTEGRATION VERIFICATION")
     print("=" * 70)
@@ -56,16 +122,26 @@ def main():
     print(f"Python interpreter: {PYTHON_EXE}")
 
     processes = []
+    temporary = tempfile.TemporaryDirectory(prefix='metrodrip-qa-')
     try:
+        # Reserve distinct loopback ports together; never reuse an existing listener.
+        sockets = []
+        for _ in range(6):
+            listener = socket.socket()
+            listener.bind(('127.0.0.1', 0))
+            sockets.append(listener)
+        ports = {name: sockets[index].getsockname()[1] for index, (name, _, _) in enumerate(SERVICES)}
+        gateway_port = sockets[-1].getsockname()[1]
+        GATEWAY_URL = f'http://127.0.0.1:{gateway_port}'
+        for listener in sockets:
+            listener.close()
+        base_env = isolated_environment(temporary.name, ports)
         # 1. Start all 5 microservices
-        for name, svc_dir, port in SERVICES:
+        for name, svc_dir, _ in SERVICES:
+            port = ports[name]
             print(f"[*] Starting {name} service on port {port}...")
-            env = os.environ.copy()
+            env = prepare_database(name, temporary.name, base_env)
             env['PORT'] = str(port)
-            env['CATALOG_SERVICE_URL'] = 'http://127.0.0.1:8002'
-            env['FULFILLMENT_SERVICE_URL'] = 'http://127.0.0.1:8004'
-            env['IDENTITY_SERVICE_URL'] = 'http://127.0.0.1:8001'
-            env['INTERNAL_TOKEN'] = 'internal_service_mesh_secret_2026'
             proc = subprocess.Popen(
                 [str(PYTHON_EXE), 'manage.py', 'runserver', f'127.0.0.1:{port}', '--noreload'],
                 cwd=str(svc_dir),
@@ -76,10 +152,11 @@ def main():
             processes.append((name, proc))
 
         # 2. Start Gateway
-        print("[*] Starting Gateway on port 8000...")
+        print(f"[*] Starting Gateway on port {gateway_port}...")
         gw_proc = subprocess.Popen(
             [str(PYTHON_EXE), str(ROOT_DIR / 'gateway' / 'gateway.py')],
             cwd=str(ROOT_DIR),
+            env=dict(base_env, PORT=str(gateway_port)),
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -90,6 +167,8 @@ def main():
         gateway_healthy = False
         for attempt in range(25):
             time.sleep(1.0)
+            if any(proc.poll() is not None for _, proc in processes):
+                raise RuntimeError('Owned service exited during startup; refusing to use another listener')
             try:
                 status, data, _ = make_request('http://127.0.0.1:8000/health/')
                 if status == 200 and data.get('gateway') == 'ok':
@@ -104,7 +183,8 @@ def main():
 
         if not gateway_healthy:
             print("[-] Gateway health check timed out. Checking individual services...")
-            for name, _, port in SERVICES:
+            for name, _, _ in SERVICES:
+                port = ports[name]
                 try:
                     s, d, _ = make_request(f'http://127.0.0.1:{port}/health/')
                     print(f"    - {name} ({port}): {s} {d}")
@@ -116,7 +196,7 @@ def main():
         print("PHASE 1: SECURITY & AUTHENTICATION")
         print("-" * 70)
         # 1. Test Customer Signup
-        signup_email = f"customer_{int(time.time())}@metrodrip.ph"
+        signup_email = 'signup@example.invalid'
         signup_status, signup_data, _ = make_request('http://127.0.0.1:8000/signup/', method='POST', data={
             'name': 'E2E Test Customer',
             'email': signup_email,
@@ -127,28 +207,43 @@ def main():
 
         # 2. Test Customer Login
         login_status, login_data, _ = make_request('http://127.0.0.1:8000/login/', method='POST', data={
-            'email': 'customer@metrodrip.ph',
-            'password': 'CustomerSecurePassword2026!',
+            'email': 'customer@example.invalid',
+            'password': base_env['QA_PASSWORD'],
         })
         assert login_status == 200, f"Login failed: {login_data}"
         assert 'token' in login_data, "Token missing in login response"
         assert 'password' not in login_data, "Plaintext password disclosed in response"
         token = login_data['token']
         customer_id = login_data['id']
-        print(f"[+] Login successful: customer_id={customer_id}, token={token[:8]}... (password not exposed)")
+        print('[+] Customer login returned a token; credential values omitted')
 
         # 2. Authenticated Profile access via Bearer Token
         prof_status, prof_data, _ = make_request('http://127.0.0.1:8000/profile/', headers={
             'Authorization': f'Bearer {token}',
         })
         assert prof_status == 200, f"Profile failed: {prof_data}"
-        assert prof_data.get('email') == 'customer@metrodrip.ph'
+        assert prof_data.get('email') == 'customer@example.invalid'
         print(f"[+] Verifiable Token authentication verified: {prof_data['name']} ({prof_data['role']})")
 
         # 3. Unauthenticated access rejected
         unauth_status, _, _ = make_request('http://127.0.0.1:8000/profile/')
         assert unauth_status in (401, 403), f"Unauthenticated profile returned {unauth_status}"
         print("[+] Unauthenticated request properly rejected (HTTP 401)")
+
+        authorization_failures = []
+        for path, method, data, headers in [
+            ('/api/catalog/reserve/', 'POST', {}, {}),
+            ('/api/fulfillment/events/order-placed/', 'POST', {}, {}),
+            ('/api/merchant/banners/', 'GET', None, {}),
+            ('/notifications/', 'GET', None, {'X-User-ID': str(customer_id)}),
+            ('/orders/', 'GET', None, {'X-User-ID': str(customer_id)}),
+        ]:
+            result, _, _ = make_request(GATEWAY_URL + path, method=method, data=data, headers=headers)
+            if result not in (401, 403):
+                authorization_failures.append(path)
+                print(f'[FAIL] Authorization boundary {path}: HTTP {result}')
+            else:
+                print(f'[PASS] Authorization boundary {path}: HTTP {result}')
 
         print("\n" + "-" * 70)
         print("PHASE 2: CATALOG & INVENTORY")
@@ -237,16 +332,26 @@ def main():
         print("[+] Replay protection verified: Identical request returned existing order without re-holding stock")
 
         print("\n" + "-" * 70)
-        print("PHASE 4: MERCHANT CONSOLE PARITY (ZERO FAKE DATA)")
+        print("PHASE 4: MERCHANT API PARITY (SYNTHETIC FIXTURES)")
         print("-" * 70)
         # 1. Fetch merchant orders
-        m_status, m_orders, _ = make_request('http://127.0.0.1:8000/api/merchant/orders/')
+        merchant_status, merchant, _ = make_request('http://127.0.0.1:8000/login/', method='POST', data={
+            'email': 'merchant@example.invalid', 'password': base_env['QA_PASSWORD'],
+        })
+        assert merchant_status == 200, 'Merchant fixture login failed'
+        merchant_headers = {'Authorization': f"Bearer {merchant['token']}"}
+        for path in ['/api/merchant/products/', '/inventory/', '/shipments/', '/api/merchant/banners/', '/api/merchant/contact-messages/']:
+            allowed, _, _ = make_request(GATEWAY_URL + path, headers=merchant_headers)
+            denied, _, _ = make_request(GATEWAY_URL + path, headers={'Authorization': f'Bearer {token}'})
+            assert allowed == 200 and denied in (401, 403), f'Role boundary failed for {path}: merchant={allowed}, customer={denied}'
+        print('[+] Five merchant endpoints accepted verified merchant tokens and rejected customer tokens')
+        m_status, m_orders, _ = make_request('http://127.0.0.1:8000/api/merchant/orders/', headers=merchant_headers)
         assert m_status == 200, f"Merchant orders failed: {m_orders}"
         assert isinstance(m_orders, list), "Merchant orders response is not an array"
         matching_order = next((o for o in m_orders if o['order_no'] == order_no or o['id'] == order_no), None)
         assert matching_order is not None, f"Newly created order {order_no} not found in merchant orders!"
         assert matching_order['total'] == f"₱{order_total:,}", f"Merchant total {matching_order['total']} != ₱{order_total:,}"
-        print(f"[+] Real-time Merchant Console verified:")
+        print(f"[+] Merchant API returned the persisted order:")
         print(f"    - Found newly placed order {matching_order['id']} on merchant console")
         print(f"    - Customer: {matching_order['customer']}")
         print(f"    - Total: {matching_order['total']}")
@@ -256,7 +361,7 @@ def main():
         target_id = matching_order.get('order_id') or order_no
         patch_status, patch_res, _ = make_request(f'http://127.0.0.1:8000/api/merchant/orders/{target_id}/', method='PATCH', data={
             'status': 'packed',
-        })
+        }, headers=merchant_headers)
         assert patch_status == 200, f"Merchant order patch failed (HTTP {patch_status}): {patch_res}"
         assert patch_res['status'] == 'Packed'
         print(f"[+] Merchant marked order as Packed: {patch_res['message']}")
@@ -275,7 +380,47 @@ def main():
         print(f"[+] Content service: {len(cb_data)} public active banners verified")
 
         print("\n" + "=" * 70)
-        print("ALL END-TO-END VERIFICATION CHECKS PASSED PERFECTLY (5/5 SERVICES)")
+        with closing(sqlite3.connect(Path(temporary.name) / 'catalog.sqlite3')) as db:
+            stock = db.execute('SELECT quantity, reserved_quantity FROM inventory_stockentry').fetchone()
+            assert stock == (4, 0), f'Stock must decrement exactly once, observed {stock}'
+        print('[+] Persisted stock decremented exactly once across checkout replay')
+        with closing(sqlite3.connect(Path(temporary.name) / 'orders.sqlite3')) as db:
+            assert db.execute('PRAGMA foreign_key_check').fetchall() == [], 'Orders contains orphaned relations'
+            rows = db.execute('SELECT payload, state FROM orders_outboxmessage').fetchall()
+            assert len(rows) == 1, 'Checkout replay duplicated outbox event'
+            event = json.loads(rows[0][0])
+            print(f'[+] One durable outbox record; dispatch state: {rows[0][1]}')
+        # Explicit delivery tests the consumer, not an automatic outbox publisher.
+        for _ in range(2):
+            event_status, _, _ = make_request(
+                f"{base_env['FULFILLMENT_SERVICE_URL']}/api/fulfillment/events/order-placed/",
+                method='POST', data=event, headers={'X-Internal-Token': base_env['INTERNAL_TOKEN']})
+            assert event_status == 200, f'Event consumer returned {event_status}'
+        with closing(sqlite3.connect(Path(temporary.name) / 'fulfillment.sqlite3')) as db:
+            assert db.execute('SELECT COUNT(*) FROM shipping_shipment').fetchone()[0] == 1
+            assert db.execute('SELECT COUNT(*) FROM notifications_notification').fetchone()[0] == 1
+        print('[+] Manual duplicate event delivery produced one shipment and one notification')
+        note_status, notes, _ = make_request(GATEWAY_URL + '/notifications/', headers={'Authorization': f'Bearer {token}'})
+        assert note_status == 200 and len(notes) == 1, 'Customer bearer notification access failed'
+        cascade_check = """
+from django.db import transaction
+from orders.models import OrdersOrder, OrdersOrderLine, OrdersShippingAddress, OrdersPayment, OrdersStockHold, OrdersIdempotencyRecord
+models = (OrdersOrder, OrdersOrderLine, OrdersShippingAddress, OrdersPayment, OrdersStockHold, OrdersIdempotencyRecord)
+assert all(model.objects.count() == 1 for model in models)
+with transaction.atomic():
+    OrdersOrder.objects.first().delete()
+    assert all(model.objects.count() == 0 for model in models)
+    transaction.set_rollback(True)
+assert all(model.objects.count() == 1 for model in models)
+"""
+        result = subprocess.run([PYTHON_EXE, 'manage.py', 'shell', '-c', cascade_check],
+            cwd=ROOT_DIR / 'services' / 'orders', capture_output=True, text=True, timeout=30,
+            env=dict(base_env, DATABASE_URL='sqlite:///' + (Path(temporary.name) / 'orders.sqlite3').as_posix()))
+        assert result.returncode == 0, f'Isolated cascade/rollback check failed: {result.stderr[-1000:]}'
+        print('[+] ORM deletion cascaded to five related tables; transaction rollback restored all six tables')
+        print('[!] Automatic outbox delivery/reconciliation is not verified by this runner')
+        assert not authorization_failures, f'Authorization checks failed: {authorization_failures}'
+        print("ALL 5 ISOLATED API INTEGRATION PHASES PASSED (not browser or native E2E)")
         print("=" * 70)
 
     finally:
@@ -287,9 +432,12 @@ def main():
             except Exception:
                 try:
                     proc.kill()
+                    proc.wait(timeout=5.0)
                 except Exception:
                     pass
         print("[+] All processes terminated cleanly.")
+        GATEWAY_URL = None
+        temporary.cleanup()
 
 
 if __name__ == '__main__':

@@ -1,4 +1,5 @@
 from django.test import TestCase
+from django.conf import settings
 from rest_framework.test import APIClient
 from content.models import CmsHomepageBanner, CmsContactMessage
 
@@ -37,6 +38,7 @@ class ContentServiceTests(TestCase):
         self.assertEqual(len(res_alias.data), 1)
 
     def test_merchant_banners_crud(self):
+        self.client.credentials(HTTP_X_INTERNAL_TOKEN=settings.INTERNAL_TOKEN, HTTP_X_USER_ROLE='merchant')
         # 1. List all banners
         res = self.client.get('/api/merchant/banners/')
         self.assertEqual(res.status_code, 200)
@@ -67,6 +69,7 @@ class ContentServiceTests(TestCase):
         self.assertFalse(CmsHomepageBanner.objects.filter(pk=new_id).exists())
 
     def test_merchant_banners_negative(self):
+        self.client.credentials(HTTP_X_INTERNAL_TOKEN=settings.INTERNAL_TOKEN, HTTP_X_USER_ROLE='merchant')
         # Missing title
         res = self.client.post('/api/merchant/banners/', {'link_url': '/promo'}, format='json')
         self.assertEqual(res.status_code, 400)
@@ -90,6 +93,7 @@ class ContentServiceTests(TestCase):
         msg_id = good_res.data['id']
 
         # 3. Merchant list
+        self.client.credentials(HTTP_X_INTERNAL_TOKEN=settings.INTERNAL_TOKEN, HTTP_X_USER_ROLE='merchant')
         list_res = self.client.get('/api/merchant/contact-messages/')
         self.assertEqual(list_res.status_code, 200)
         self.assertTrue(any(m['id'] == msg_id for m in list_res.data))

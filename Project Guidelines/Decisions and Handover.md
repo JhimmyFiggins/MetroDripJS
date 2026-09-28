@@ -1,6 +1,6 @@
 # Decisions and Handover
 
-**Status:** Implementation Complete & Operational Handover  
+**Status:** Release HOLD; QA remediation and outstanding verification documented below
 **Project:** MetroDripJS Urban Streetwear E-Commerce Platform  
 **Architecture:** Five Microservices + API Gateway + Isolated Multi-Database  
 **Date:** 2026-09-27  
@@ -24,7 +24,7 @@
 ## 2. Resume Snapshot
 
 - **Date & Environment**: 2026-09-27 | Local Development (`Windows 11`, Python 3.11 Virtual Environment, SQLite per service) & Production Docker Compose (`PostgreSQL 16`, Nginx).
-- **Current Status**: Complete, fully verified microservices migration. Zero pending blockers. 100% test pass rate.
+- **Current Status**: Release HOLD. [Current QA report](QA%20Report%202026-09-27.md) supersedes historical test counts and zero-blocker claims in this document. Staff sessions and event/reconciliation automation remain incomplete; native and PostgreSQL verification are blocked.
 - **Repository Location**: `A:\Users\Archim Pameroyan\Documents\GitHub\MetroDripJS`
 
 ### Completed Deliverables and Exact File Paths

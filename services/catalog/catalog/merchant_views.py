@@ -10,8 +10,14 @@ from .models import (
     InventoryStockEntry,
     InventoryStockMovement,
 )
+from .permissions import IsMerchantOrAdmin
+from .authentication import InternalServiceOrGatewayAuthentication
+
 
 class MerchantDashboardCatalogSliceAPIView(APIView):
+    authentication_classes = [InternalServiceOrGatewayAuthentication]
+    permission_classes = [IsMerchantOrAdmin]
+
     def get(self, request):
         low_stock_entries = InventoryStockEntry.objects.filter(quantity__lte=5).select_related('product', 'variant')
         low_stock_count = low_stock_entries.count()
@@ -36,7 +42,11 @@ class MerchantDashboardCatalogSliceAPIView(APIView):
             'total_variants': CatalogProductVariant.objects.count(),
         })
 
+
 class MerchantProductsAPIView(APIView):
+    authentication_classes = [InternalServiceOrGatewayAuthentication]
+    permission_classes = [IsMerchantOrAdmin]
+
     def get(self, request, pk=None):
         if pk is not None:
             p = CatalogProduct.objects.filter(pk=pk).first()

@@ -8,6 +8,7 @@
 
 /* Page Container & Layout */
 .account-mgmt-container {
+  min-width: 0;
   max-width: 1048px;
   margin: 0 auto;
   padding: 28px;
@@ -163,6 +164,21 @@
 @media (max-width: 900px) {
   .account-grid-2col {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .account-mgmt-container {
+    padding: 0;
+  }
+
+  .account-identity-card {
+    flex-wrap: wrap;
+  }
+
+  .mgmt-card {
+    min-width: 0;
+    padding: 16px;
   }
 }
 

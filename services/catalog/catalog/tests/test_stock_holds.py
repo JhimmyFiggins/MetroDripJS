@@ -1,5 +1,6 @@
 from datetime import timedelta
 from django.test import TestCase
+from django.conf import settings
 from django.utils import timezone
 from django.core.management import call_command
 from rest_framework.test import APIClient
@@ -14,6 +15,7 @@ from catalog.models import (
 class StockHoldAndReservationTests(TestCase):
     def setUp(self):
         self.client = APIClient()
+        self.client.credentials(HTTP_X_INTERNAL_TOKEN=settings.INTERNAL_TOKEN)
         self.category = CatalogCategory.objects.create(name='Hoodies', slug='hoodies')
         self.product = CatalogProduct.objects.create(
             sku='MD-HD-001',
