@@ -6,6 +6,7 @@
     "dev": "python web/dev_server.py 3000",
     "web:server": "python web/dev_server.py 3000",
     "test:client": "node --test \"tests/client/*.test.mjs\"",
+    "test:browser": "node tests/browser/run-console-layout.mjs",
     "start": "expo start",
     "android": "expo run:android",
     "android:run": "expo run:android",
@@ -36,6 +37,7 @@
   },
   "private": true,
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/react": "~19.1.10",
     "typescript": "~5.9.2"
   }

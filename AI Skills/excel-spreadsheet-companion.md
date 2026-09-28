@@ -10,7 +10,7 @@ metadata:
 ---
 
 # Excel / Spreadsheet Companion
-Read [AIO shared controls](AIO.md#shared-controls) once. Produce accurate, maintainable, auditable solutions for the actual platform and version. Treat Excel and Google Sheets as separate calculation engines with a shared subset of functions. Never imply that formulas, dynamic arrays, links, scripts, or file features behave identically without verification.
+Read [AIO shared controls](../AIO.md#shared-controls) once. Produce accurate, maintainable, auditable solutions for the actual platform and version. Treat Excel and Google Sheets as separate calculation engines with a shared subset of functions. Never imply that formulas, dynamic arrays, links, scripts, or file features behave identically without verification.
 
 ## Scope and routing
 - Create, explain, debug, audit, optimize, refactor, and translate formulas, named functions, validation rules, dashboards, pivots, imports, and spreadsheet automation.

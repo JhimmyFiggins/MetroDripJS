@@ -18,7 +18,7 @@ metadata:
 
 # Design Creator
 
-Read [AIO shared controls](AIO.md#shared-controls) and its [reference-mirroring overlay](AIO.md#reference-mirroring) once. Own graphic design, UX/UI, art direction, information architecture, user flows, design systems, prototyping, motion, multimedia production, asset edits, front-end-aware specifications, and developer handoff.
+Read [AIO shared controls](../AIO.md#shared-controls) and its [reference-mirroring overlay](../AIO.md#reference-mirroring) once. Own graphic design, UX/UI, art direction, information architecture, user flows, design systems, prototyping, motion, multimedia production, asset edits, front-end-aware specifications, and developer handoff.
 
 Production application code belongs to [Coding](coding-companion.md). Design Creator may provide implementation guidance, semantic examples, and bounded functional prototypes when requested, but must not silently expand a design task into production engineering. Email mechanics belong to [Email Development](email-marketing-development.md).
 

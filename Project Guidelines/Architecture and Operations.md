@@ -43,13 +43,13 @@ MetroDripJS follows a decoupled, asynchronous microservices architecture. All ex
 
 | Container / Service | Host Port | Internal Port | Target Database | Directory / Config | Path Routing Rules |
 |---|---|---|---|---|---|
-| **API Gateway** | `8000` | `8000` | N/A (Stateless) | [gateway/](file:///a:/Users/Archim%20Pameroyan/Documents/GitHub/MetroDripJS/gateway) | Proxies all `/api/` prefixes; aggregates `/health/` |
-| **Identity Service** | `8001` | `8001` | `db_identity` | [services/identity/](file:///a:/Users/Archim%20Pameroyan/Documents/GitHub/MetroDripJS/services/identity) | `/api/v1/auth/` |
-| **Catalog Service** | `8002` | `8002` | `db_catalog` | [services/catalog/](file:///a:/Users/Archim%20Pameroyan/Documents/GitHub/MetroDripJS/services/catalog) | `/api/v1/catalog/` |
-| **Orders Service** | `8003` | `8003` | `db_orders` | [services/orders/](file:///a:/Users/Archim%20Pameroyan/Documents/GitHub/MetroDripJS/services/orders) | `/api/v1/orders/`, `/api/merchant/orders/` |
-| **Fulfillment Service** | `8004` | `8004` | `db_fulfillment` | [services/fulfillment/](file:///a:/Users/Archim%20Pameroyan/Documents/GitHub/MetroDripJS/services/fulfillment) | `/api/v1/fulfillment/` |
-| **Content Service** | `8005` | `8005` | `db_content` | [services/content/](file:///a:/Users/Archim%20Pameroyan/Documents/GitHub/MetroDripJS/services/content) | `/api/v1/content/`, `/api/merchant/banners/` |
-| **PostgreSQL 16** | `5432` | `5432` | 5 Databases | [database/](file:///a:/Users/Archim%20Pameroyan/Documents/GitHub/MetroDripJS/database) | Private database container on Docker internal bridge |
+| **API Gateway** | `8000` | `8000` | N/A (Stateless) | [gateway/](../gateway/) | Proxies all `/api/` prefixes; aggregates `/health/` |
+| **Identity Service** | `8001` | `8001` | `db_identity` | [services/identity/](../services/identity/) | `/api/v1/auth/` |
+| **Catalog Service** | `8002` | `8002` | `db_catalog` | [services/catalog/](../services/catalog/) | `/api/v1/catalog/` |
+| **Orders Service** | `8003` | `8003` | `db_orders` | [services/orders/](../services/orders/) | `/api/v1/orders/`, `/api/merchant/orders/` |
+| **Fulfillment Service** | `8004` | `8004` | `db_fulfillment` | [services/fulfillment/](../services/fulfillment/) | `/api/v1/fulfillment/` |
+| **Content Service** | `8005` | `8005` | `db_content` | [services/content/](../services/content/) | `/api/v1/content/`, `/api/merchant/banners/` |
+| **PostgreSQL 16** | `5432` | `5432` | 5 Databases | [database/](../database/) | Private database container on Docker internal bridge |
 
 ---
 
@@ -58,7 +58,7 @@ MetroDripJS follows a decoupled, asynchronous microservices architecture. All ex
 ### Stack Rationale
 - **Core Framework**: Python 3.11+ with Django 5.x & Django REST Framework (DRF). Provides proven ORM capabilities, robust database migrations, and mature security primitives.
 - **Relational Database**: PostgreSQL 16. Multi-database setup (`db_identity`, `db_catalog`, etc.) provides physical schema isolation and supports ACID transactions with `select_for_update` row locking for stock holds.
-- **Edge Reverse Proxy**: Nginx (Production) and Python HTTP Gateway ([gateway/gateway.py](file:///a:/Users/Archim%20Pameroyan/Documents/GitHub/MetroDripJS/gateway/gateway.py)) for local development. Injects distributed tracing headers (`X-Correlation-ID`) across all requests.
+- **Edge Reverse Proxy**: Nginx (Production) and Python HTTP Gateway ([gateway/gateway.py](../gateway/gateway.py)) for local development. Injects distributed tracing headers (`X-Correlation-ID`) across all requests.
 - **Mobile Frontend**: React Native & Expo SDK 52. Cross-platform native mobile experience with adaptive web fallbacks for review.
 - **Web Consoles**: Vanilla HTML5, CSS3, and ES6 JavaScript. Zero heavy build tools required for merchant operations; fast loading and zero bundle vulnerabilities.
 
@@ -104,7 +104,7 @@ python gateway\gateway.py
 ```
 
 ### Runbook 3: Production Docker Compose Deployment
-The root repository includes [docker-compose.microservices.yml](file:///a:/Users/Archim%20Pameroyan/Documents/GitHub/MetroDripJS/docker-compose.microservices.yml) orchestrating the complete stack:
+The root repository includes [docker-compose.microservices.yml](../docker-compose.microservices.yml) orchestrating the complete stack:
 
 ```sh
 # Build and launch all 5 microservices, PostgreSQL 16, and Nginx gateway
@@ -118,12 +118,9 @@ curl -i http://localhost:8000/health/
 Abandoned reservations are freed automatically via the catalog hold sweeper. To manually trigger the cleanup:
 
 ```powershell
-# Method A: Via Catalog Management Command
+# Catalog management command
 cd services\catalog
 ..\..\metrodrip_backend\.venv\Scripts\python.exe manage.py release_expired_holds
-
-# Method B: Via Standalone Sweeper Script
-metrodrip_backend\.venv\Scripts\python.exe scripts\sweep_expired_holds.py
 ```
 
 ---
@@ -170,3 +167,25 @@ This header is propagated across inter-service calls (Orders → Catalog, Orders
 3. **Rollback Window**:
    - Service releases are zero-downtime using rolling updates.
    - If schema rollback is needed, each service maintains an independent Django migration timeline (`python manage.py migrate <app_name> <target_migration>`).
+
+---
+
+## 7. Repository Layout and Ownership
+
+| Path | Ownership and allowed contents |
+| --- | --- |
+| `App.js`, `index.js`, `app.json`, `package.json` | Expo application entry points and root runtime configuration. Keep the repository root free of alternate app copies and generated exports. |
+| `mobile/` | Active React Native screens, navigation, contexts, components, data, and mobile assets. Route reachability starts at `mobile/navigation/AppNavigator.jsx`. |
+| `src/` | Shared client services and theme code consumed by the mobile application. |
+| `web/` | Source HTML/CSS/JS for merchant/admin consoles and their runtime assets. Generated Expo `_expo` output is ignored and is not part of this source tree. |
+| `gateway/` | Local Python gateway, Nginx production routing, and gateway tests. |
+| `services/<bounded-context>/` | Current independently deployable Django services, migrations, requirements, Dockerfiles, and local development databases. |
+| `metrodrip_backend/` | Retained legacy monolith, baseline database, and ignored local Python environment. Treat as compatibility/reference code until a separate retirement decision is approved. |
+| `database/` | Database provisioning and initialization assets. |
+| `scripts/` | Repository-level verification and operational scripts. |
+| `tests/` | Cross-cutting client, browser, and safety tests. Service-local tests remain beside each service. |
+| `Project Guidelines/` | Canonical project documentation, compact retrieval index, setup guide, QA evidence, and interactive setup companion. |
+| `AI Skills/`, `AIO.md`, `AGENTS.md`, `Project-Operating-Directives.md` | Repository governance and specialist contracts; not application runtime code. |
+| `.idea/`, `.vscode/`, `.claude/`, `.kilo/` | Tool-specific project configuration. Machine caches and nested local worktrees remain ignored. |
+
+The 2026-09-28 cleanup removed generated bytecode, orphaned Expo bundles, obsolete source copies, and redundant archives without moving runtime modules. The exact deletion and recovery manifest is in [Decisions and Handover](Decisions%20and%20Handover.md#5-repository-cleanup-record--2026-09-28).
