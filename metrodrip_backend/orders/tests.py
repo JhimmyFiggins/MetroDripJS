@@ -1,3 +1,2 @@
-from django.test import TestCase
-
-# Create your tests here.
+from .tests_payments import *
+from .tests_transitions_and_snapshots import *

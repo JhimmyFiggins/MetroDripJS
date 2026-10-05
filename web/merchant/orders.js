@@ -9,6 +9,7 @@
   let isLoading = true;
   let loadGeneration = 0;
   let detailGeneration = 0;
+  let modalActiveTrigger = null;
   const detailCache = new Map();
 
   function escapeHtml(value) {
@@ -144,10 +145,12 @@
       address: addressParts.join(', ') || 'Delivery address not reported.',
       speed: String(raw.delivery_estimate || 'Delivery estimate not reported.'),
       items: lines.map(item => ({
-        name: [item.product_name || item.name || 'Unnamed item', item.variant_desc].filter(Boolean).join(' · '),
+        name: [item.product_name_snapshot || item.product_name || item.name || 'Unnamed item', item.variant_desc_snapshot || item.variant_desc].filter(Boolean).join(' · '),
+        sku: item.sku_snapshot || item.sku || '',
         price: `${Number(item.quantity || 1)} × ${money(item.unit_price ?? item.price)}`,
       })),
       activity: Array.isArray(raw.activity) ? raw.activity : [],
+      paymentTransitions: Array.isArray(raw.payment_transitions) ? raw.payment_transitions : [],
     };
   }
 
@@ -284,23 +287,32 @@
     const items = document.getElementById('detail-line-items');
     const subtotal = document.getElementById('detail-subtotal-row');
     const activity = document.getElementById('order-activity-list');
+    const transitions = document.getElementById('payment-transitions-list');
+    const transitionsBadge = document.getElementById('payment-transitions-count');
     if (items) items.innerHTML = '<p class="td-muted">No items to display.</p>';
     if (subtotal) subtotal.innerHTML = '<span>Subtotal —</span><span>Shipping —</span>';
     if (activity) activity.innerHTML = '<p class="td-muted">No activity recorded.</p>';
+    if (transitions) transitions.innerHTML = '<p class="td-muted">No transitions recorded.</p>';
+    if (transitionsBadge) transitionsBadge.textContent = '0 recorded';
     setDetailActions(false);
   }
 
-  function setDetailActions(enabled, packed = false) {
+  function setDetailActions(enabled, packed = false, cancelled = false) {
     const packButton = document.getElementById('btn-mark-packed');
     const shipmentLink = document.getElementById('btn-create-shipment-link');
+    const cancelButton = document.getElementById('btn-cancel-order');
     if (packButton) {
-      packButton.disabled = !enabled || packed;
+      packButton.disabled = !enabled || packed || cancelled;
       packButton.textContent = packed ? 'Already packed ✓' : 'Mark as packed';
     }
     if (shipmentLink) {
-      shipmentLink.classList.toggle('is-disabled', !enabled);
-      shipmentLink.setAttribute('aria-disabled', enabled ? 'false' : 'true');
-      shipmentLink.tabIndex = enabled ? 0 : -1;
+      shipmentLink.classList.toggle('is-disabled', !enabled || cancelled);
+      shipmentLink.setAttribute('aria-disabled', (enabled && !cancelled) ? 'false' : 'true');
+      shipmentLink.tabIndex = (enabled && !cancelled) ? 0 : -1;
+    }
+    if (cancelButton) {
+      cancelButton.disabled = !enabled || packed || cancelled;
+      cancelButton.textContent = cancelled ? 'Cancelled' : 'Cancel order';
     }
   }
 
@@ -308,9 +320,13 @@
     const number = document.getElementById('detail-order-number');
     const sub = document.getElementById('detail-order-sub');
     const items = document.getElementById('detail-line-items');
+    const transitions = document.getElementById('payment-transitions-list');
+    const transitionsBadge = document.getElementById('payment-transitions-count');
     if (number) number.textContent = `Order ${order.id}`;
     if (sub) sub.textContent = 'Loading order details…';
     if (items) items.innerHTML = '<span class="skeleton-line is-wide" aria-hidden="true"></span><span class="sr-only">Loading order details</span>';
+    if (transitions) transitions.innerHTML = '<span class="skeleton-line is-wide" aria-hidden="true"></span><span class="sr-only">Loading transitions</span>';
+    if (transitionsBadge) transitionsBadge.textContent = '…';
     setDetailActions(false);
   }
 
@@ -330,14 +346,58 @@
     const items = document.getElementById('detail-line-items');
     const subtotal = document.getElementById('detail-subtotal-row');
     const activity = document.getElementById('order-activity-list');
+    const transitions = document.getElementById('payment-transitions-list');
+    const transitionsBadge = document.getElementById('payment-transitions-count');
+
     if (items) items.innerHTML = order.items.length
-      ? order.items.map(item => `<div class="detail-line"><span>${escapeHtml(item.name)}</span><span class="td-mono">${escapeHtml(item.price)}</span></div>`).join('')
+      ? order.items.map(item => `
+        <div class="detail-line">
+          <div>
+            <span>${escapeHtml(item.name)}</span>
+            ${item.sku ? `<span class="td-mono td-muted" style="font-size: 11px; margin-left: 6px;">[${escapeHtml(item.sku)}]</span>` : ''}
+          </div>
+          <span class="td-mono">${escapeHtml(item.price)}</span>
+        </div>`).join('')
       : '<p class="td-muted">The API did not report line items.</p>';
+
     if (subtotal) subtotal.innerHTML = `<span>Subtotal ${escapeHtml(order.subtotal)}</span><span>Shipping ${escapeHtml(order.shipping)}</span>`;
+
     if (activity) activity.innerHTML = order.activity.length
       ? order.activity.map(item => `<p><span class="td-mono td-muted">${escapeHtml(item.time || '')}</span> ${escapeHtml(item.desc || '')}</p>`).join('')
       : '<p class="td-muted">No activity timeline was reported.</p>';
-    setDetailActions(true, ['packed', 'shipped', 'delivered'].includes(order.fulfillmentKey));
+
+    if (transitionsBadge) {
+      transitionsBadge.textContent = `${order.paymentTransitions.length} recorded`;
+    }
+
+    if (transitions) {
+      if (order.paymentTransitions.length === 0) {
+        transitions.innerHTML = '<p class="td-muted">No payment transitions recorded for this order.</p>';
+      } else {
+        transitions.innerHTML = order.paymentTransitions.map(t => {
+          const toKey = String(t.to_status || '').toLowerCase();
+          const nodeType = toKey === 'paid' ? 'node--paid' : (['failed', 'expired', 'cancelled'].includes(toKey) ? 'node--failed' : 'node--pending');
+          const nodeGlyph = toKey === 'paid' ? '✓' : (['failed', 'expired', 'cancelled'].includes(toKey) ? '✕' : '●');
+          const codeText = `${escapeHtml(t.from_status || 'INIT')} → ${escapeHtml(t.to_status || 'UNKNOWN')}`;
+          const triggerText = t.trigger_source ? `via ${escapeHtml(t.trigger_source)}` : '';
+          const reasonText = t.reason ? `<span class="timeline-reason">${escapeHtml(t.reason)}</span>` : '';
+          const timeText = t.created_at ? `<span class="timeline-time">${escapeHtml(t.created_at.replace('T', ' ').slice(0, 19))}</span>` : '';
+          return `
+            <div class="timeline-item">
+              <span class="timeline-node ${nodeType}" aria-hidden="true">${nodeGlyph}</span>
+              <div class="timeline-row">
+                <span class="timeline-transition-code">${codeText}</span>
+                ${timeText}
+              </div>
+              <div class="timeline-meta">${triggerText} ${reasonText}</div>
+            </div>`;
+        }).join('');
+      }
+    }
+
+    const isCancelled = order.fulfillmentKey === 'cancelled';
+    const isPacked = ['packed', 'shipped', 'delivered'].includes(order.fulfillmentKey);
+    setDetailActions(true, isPacked, isCancelled);
   }
 
   async function selectOrder(id) {
@@ -367,7 +427,7 @@
       renderDetail(detail);
     } catch (error) {
       if (generation !== detailGeneration || selectedOrderId !== id) return;
-      renderDetail({ ...summary, subtotal: '—', shipping: '—', address: 'Delivery address unavailable.', speed: 'Delivery estimate unavailable.', items: [], activity: [] });
+      renderDetail({ ...summary, subtotal: '—', shipping: '—', address: 'Delivery address unavailable.', speed: 'Delivery estimate unavailable.', items: [], activity: [], paymentTransitions: [] });
       setPageState('warning', 'Order list loaded with missing details', error.message, true);
       setSourceStatus('PARTIAL DATA', 'is-warning');
     }
@@ -475,6 +535,67 @@
     }
   }
 
+  function openStepUpModal() {
+    const summary = orders.find(order => order.id === selectedOrderId);
+    if (!summary) return;
+    const modal = document.getElementById('step-up-modal');
+    const body = document.getElementById('step-up-modal-body');
+    const cancelBtn = document.getElementById('btn-modal-cancel');
+    if (!modal || !body) return;
+    modalActiveTrigger = document.activeElement;
+    body.innerHTML = `Are you sure you want to cancel Order <strong>${escapeHtml(summary.id)}</strong> (${escapeHtml(summary.customer)}) for <strong>${escapeHtml(summary.total)}</strong>? This action updates the fulfillment state to cancelled.`;
+    modal.hidden = false;
+    modal.classList.add('is-open');
+    cancelBtn?.focus();
+  }
+
+  function closeStepUpModal() {
+    const modal = document.getElementById('step-up-modal');
+    if (!modal) return;
+    modal.classList.remove('is-open');
+    modal.hidden = true;
+    if (modalActiveTrigger && typeof modalActiveTrigger.focus === 'function') {
+      modalActiveTrigger.focus();
+    }
+    modalActiveTrigger = null;
+  }
+
+  async function confirmCancelOrder() {
+    const summary = orders.find(order => order.id === selectedOrderId);
+    const confirmBtn = document.getElementById('btn-modal-confirm');
+    if (!summary || !confirmBtn) return;
+    const priorLabel = confirmBtn.textContent;
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Cancelling…';
+    try {
+      const response = await fetch(`${API_BASE}/orders/${encodeURIComponent(summary.recordId)}/`, {
+        method: 'PATCH',
+        headers: requestHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ status: 'cancelled' }),
+      });
+      if (!response.ok) throw await responseError(response, `Cancel order returned HTTP ${response.status}.`);
+      const result = await response.json();
+      summary.fulfillment = String(result.status || 'Cancelled');
+      summary.fulfillmentKey = String(result.raw_status || result.status || 'cancelled').toLowerCase();
+      const cached = detailCache.get(summary.id);
+      if (cached) {
+        cached.fulfillment = summary.fulfillment;
+        cached.fulfillmentKey = summary.fulfillmentKey;
+      }
+      closeStepUpModal();
+      showToast(`Order ${summary.id} is now cancelled.`);
+      setPageState('ready');
+      renderTable();
+      if (cached) renderDetail(cached);
+      else await selectOrder(summary.id);
+    } catch (error) {
+      showToast(`Order was not cancelled: ${error.message}`, 'error');
+    } finally {
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = priorLabel;
+    }
+  }
+
   function exportOrders() {
     if (!orders.length) {
       showToast('No loaded orders to export.', 'error');
@@ -503,7 +624,17 @@
     document.getElementById('btn-refresh-orders')?.addEventListener('click', loadOrders);
     document.getElementById('btn-retry-orders')?.addEventListener('click', loadOrders);
     document.getElementById('btn-mark-packed')?.addEventListener('click', markPacked);
+    document.getElementById('btn-cancel-order')?.addEventListener('click', openStepUpModal);
     document.getElementById('btn-export-orders')?.addEventListener('click', exportOrders);
+    document.getElementById('btn-modal-cancel')?.addEventListener('click', closeStepUpModal);
+    document.getElementById('step-up-modal-backdrop')?.addEventListener('click', closeStepUpModal);
+    document.getElementById('btn-modal-confirm')?.addEventListener('click', confirmCancelOrder);
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && document.getElementById('step-up-modal')?.classList.contains('is-open')) {
+        closeStepUpModal();
+      }
+    });
 
     const tbody = document.getElementById('all-orders-tbody');
     tbody?.addEventListener('click', event => {

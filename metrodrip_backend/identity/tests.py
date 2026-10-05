@@ -1,3 +1,2 @@
-from django.test import TestCase
-
-# Create your tests here.
+from .tests_consoles import *
+from .tests_mobile_backend import *

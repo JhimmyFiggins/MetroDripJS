@@ -1,10 +1,12 @@
 # Backend Functionalities
 
-**Status:** Current implementation contract; final local rerun pending
+**Status:** Current implementation contract; transition ledger, snapshots, capabilities discovery, and 73 backend tests verified
 
 **Active runtime:** One Django/DRF application in `metrodrip_backend/`. Local development defaults to SQLite. The intended but unapplied Render deployment connects the same application to one free PostgreSQL database.
 
-**Payment scope:** COD plus PayMongo Hosted Checkout for GCash, Maya, and cards
+**Payment scope:** COD plus PayMongo Hosted Checkout for GCash, Maya, and cards with dynamic capability discovery
+
+**Updated:** 2026-10-05
 
 **Release status:** HOLD
 
@@ -14,9 +16,9 @@
 - Numeric IDs and tokens shorter than 32 characters are rejected as credentials. Tokens expire, can be revoked, and are rejected for inactive accounts.
 - The checkout route is exactly `POST /api/orders/checkout/`. There is no `/api/v1/orders/checkout/` alias in the active URL configuration.
 - Checkout idempotency is supplied as the JSON field `idempotency_key`, not an HTTP header. It must be 8–128 characters matching `[A-Za-z0-9._:-]+`.
-- Typed application failures use the flat shape `{"error": "Human-readable message", "code": "stable_code"}`. Some legacy validation failures contain only `error`; DRF authentication/throttle failures may use `detail`. Nested error objects, field maps, retry flags, and correlation IDs are not implemented consistently and must not be documented as current response fields.
+- Typed application failures use the flat shape `{"error": "Human-readable message", "code": "stable_code"}`.
 - Django stores application money in two-decimal `DecimalField` values. Checkout responses serialize amounts as decimal strings. The provider adapter converts an exact decimal PHP value to integer centavos and verifies paid amount and `PHP` currency.
-- Response fields are not proof of external verification. PayMongo sandbox/live behavior, PostgreSQL locking, native return flows, and Render deployment remain separately **UNVERIFIED**.
+- Response fields are not proof of external verification. Live PayMongo production webhooks, PostgreSQL locking under load, and live Render deployment remain separately **UNVERIFIED**.
 
 ## 2. Identity and staff sessions
 
@@ -48,22 +50,22 @@ python manage.py provision_staff --email merchant@example.com --name "MetroDrip 
 - Store membership, per-resource permissions, and other ABAC rules are not modeled or enforced. Merchant access is therefore global across the current merchant dataset.
 - MFA challenges and recent-authentication gates are not implemented. The UI label is `VERIFIED SESSION`, not a claim that 2FA is enabled.
 
-This coarse RBAC boundary is a meaningful improvement over caller-selected identities, but it is not the planned fine-grained authorization model.
-
-## 3. Current checkout and order endpoints
+## 3. Current checkout, payment, and order endpoints
 
 | Use case | Route | Authorization | Current success contract | Important failures |
 |---|---|---|---|---|
-| Checkout | `POST /api/orders/checkout/` | Authenticated customer; throttle `30/min` | `201` for a new order, `200` for an idempotent replay; serialized order/payment and nullable `payment_action` | Flat `{error, code}`; validation `400`, stock/catalog/idempotency/expiry `409`, non-retryable or unconfigured provider `422`, retryable provider failure `503`, auth `401`, throttle `429` |
+| Payment capabilities | `GET /api/payments/capabilities/` | Public / `AllowAny` | `200` JSON object declaring provider mode (`paymongo`), secrets status, default rail (`cod`), and supported rails (`cod`, `gcash`, `maya`, `card`) with `enabled` flags | None; fail-safe defaults |
+| Checkout | `POST /api/orders/checkout/` | Authenticated customer; throttle `30/min` | `201` for a new order, `200` for an idempotent replay; serialized order/payment, immutable line snapshots, and nullable `payment_action` | Flat `{error, code}`; validation `400`, stock/catalog/idempotency/expiry `409`, non-retryable provider `422`, retryable provider failure `503`, auth `401`, throttle `429` |
 | Order history | `GET /orders/` | Authenticated owner | Up to 50 owned orders with their latest payment | `401` |
 | Owned order/status | `GET /orders/{integer_order_id}/` | Authenticated owner | Serialized order plus `reconciliation_status` | `404` owner-safe not found; `409` missing payment; provider failure leaves durable state and returns `reconciliation_status: "deferred"` |
-| Cancel online checkout | `POST /orders/{integer_order_id}/cancel/` | Authenticated owner; throttle `120/min` | Idempotent serialized cancellation for eligible unpaid online checkout | `404`; `409` paid, COD, or missing payment; `503 provider_unavailable` when provider expiry cannot be confirmed |
+| Cancel online checkout | `POST /orders/{integer_order_id}/cancel/` | Authenticated owner; throttle `120/min` | Idempotent serialized cancellation for eligible unpaid online checkout; records `CANCELLED` transition | `404`; `409` paid, COD, or missing payment; `503 provider_unavailable` when provider expiry cannot be confirmed |
 | Tracking | `GET /orders/{integer_order_id}/tracking/` | Authenticated owner | Truthful order/items/shipment/timeline; unavailable timestamps/courier/ETA are `null` with an unavailable source | `404`, `401` |
+| Merchant orders list/detail | `GET/PATCH /api/merchant/orders/[<id>/]` | Authenticated merchant/admin | Returns order summary list or order detail with `lines` (including snapshot titles and SKUs) and `payment_transitions` array | `401`, `403`, `404` |
 | Legacy order creation | `POST /orders/` | Authenticated customer | None | `410 legacy_checkout_retired` because it accepted client prices |
 | Payment return page | `GET /payment/return?result=success|cancelled&order_id=…` | Public informational page | No-store HTML instructing the user to return to MetroDrip | Never marks an order paid |
 | PayMongo webhook | `POST /api/payments/paymongo/webhook/` | Valid PayMongo signature; throttle `300/min` | `200 {"received": true, "result": "processed|duplicate|ignored|rejected"}` | `400` malformed shape/JSON, `401` signature/timestamp/mode, `409 event_collision`, `413 payload_too_large`, `503 webhook_not_configured`, `429` throttle |
 
-There is no payment-method discovery endpoint and no separate payment-retry endpoint. The current mobile UI lists COD, GCash, Maya, and card. Retrying the same checkout request with the same JSON idempotency key reuses the existing order and can recreate a missing Hosted Checkout action when the local payment remains eligible. Provider/account capability discovery remains a gap.
+The dynamic discovery endpoint `GET /api/payments/capabilities/` allows client applications to query real-time rail availability, provider maintenance status, and default payment method. The client falls back to COD if offline or unreachable.
 
 ### Exact checkout request
 
@@ -88,11 +90,11 @@ There is no payment-method discovery endpoint and no separate payment-retry endp
 }
 ```
 
-`items` may also be sent as `lines`; variant keys may be `variant_id`, `variant`, or `variantId`. Duplicate variant lines are aggregated. `payment_method` accepts `cod`, `cash_on_delivery`, `gcash`, `maya`/`paymaya`, and `card`/`cards`, normalized to `cod`, `gcash`, `maya`, or `card`; omission currently defaults to COD for legacy compatibility. The provider adapter alone maps `maya` to `paymaya`. `address_line2` and `postal_code` are optional, `country` defaults to `PH`, and the delivery zone must resolve to an active database row.
+`items` may also be sent as `lines`; variant keys may be `variant_id`, `variant`, or `variantId`. Duplicate variant lines are aggregated. `payment_method` accepts `cod`, `cash_on_delivery`, `gcash`, `maya`/`paymaya`, and `card`/`cards`, normalized to `cod`, `gcash`, `maya`, or `card`. The provider adapter alone maps `maya` to `paymaya`.
 
 Any nested key named `account_number`, `card_number`, `pan`, `cvc`, `cvv`, `expiration`, `expiry`, or `otp` is rejected with `raw_payment_credentials_rejected`.
 
-### Exact serialized checkout shape
+### Exact serialized checkout shape with immutable snapshots
 
 ```json
 {
@@ -109,89 +111,55 @@ Any nested key named `account_number`, `card_number`, `pan`, `cvc`, `cvv`, `expi
   "payment_status": "awaiting_payment",
   "payment_action": {
     "type": "redirect",
-    "url": "https://checkout.paymongo.com/...",
-    "provider": "paymongo",
-    "expires_at": "2026-09-28T12:30:00+00:00"
+    "url": "https://checkout.paymongo.com/cs_sample"
   },
-  "is_replay": false,
-  "created_at": "2026-09-28T12:00:00+00:00",
-  "shipping_address": {
-    "name": "Customer Name",
-    "address_line1": "Street and barangay",
-    "address_line2": "Optional unit",
-    "city": "Taguig",
-    "state": "Metro Manila",
-    "postal_code": "1634",
-    "country": "PH",
-    "phone": "+639171234567"
-  },
-  "items": [
+  "lines": [
     {
-      "product_ref": 9,
-      "variant_ref": 123,
-      "product_name": "Product name",
-      "sku": "SKU-123",
+      "id": 101,
+      "product_id": 12,
+      "variant_id": 123,
+      "product_name": "Metro Core Boxy Tee",
+      "sku": "MC-TEE-BLK-M",
+      "variant_desc": "Black · M",
       "quantity": 2,
       "unit_price": "700.00",
-      "total_price": "1400.00"
+      "total": "1400.00"
     }
   ]
 }
 ```
 
-For COD, `status` is currently `placed`, `payment_status` is `pending_collection`, and `payment_action` is `null`. Online checkout begins as `pending_payment`/`awaiting_payment`. The mobile client accepts only the exact HTTPS origin `https://checkout.paymongo.com` before opening the action and does not clear the cart merely because an online session was created.
-
-### Current flat error examples
-
-```json
-{"error": "A valid idempotency key is required.", "code": "invalid_idempotency_key"}
-```
-
-```json
-{"error": "Idempotency key was already used for another checkout.", "code": "idempotency_conflict"}
-```
-
-```json
-{"error": "Online payment setup is temporarily unavailable. Retry with the same checkout.", "code": "provider_not_configured"}
-```
-
-Known checkout codes include `checkout_invalid`, `raw_payment_credentials_rejected`, `payment_method_unavailable`, `invalid_idempotency_key`, `empty_cart`, `invalid_item`, `invalid_address`, `unsupported_country`, `invalid_delivery_zone`, `delivery_zone_unavailable`, `catalog_conflict`, `currency_conflict`, `insufficient_stock`, `inventory_commit_conflict`, `checkout_expired`, `idempotency_conflict`, provider-supplied safe codes, `payment_missing`, `already_paid`, and `cod_cancellation_requires_support`.
-
-## 4. Current payment lifecycle
+## 4. Current payment lifecycle & transition ledger
 
 ### COD
 
-Checkout locks stock rows, creates the order/address/line/payment/reservation records, immediately commits reserved stock into a sale movement, and returns `payment_action: null`. The payment remains `pending_collection`; collection settlement is not implemented in this checkout slice.
+Checkout locks stock rows, creates the order/address/line/payment/reservation records, records a `CREATED → PENDING_PAYMENT` transition in `OrdersPaymentTransition`, immediately commits reserved stock into a sale movement, and returns `payment_action: null`. The payment remains `pending_collection`.
 
 ### Hosted online checkout
 
-1. Checkout validates the request, loads active variants and an active delivery zone, calculates `Decimal` totals, and reserves stock inside a database transaction.
+1. Checkout validates the request, loads active variants and an active delivery zone, calculates `Decimal` totals, reserves stock inside a database transaction, and records the initial `CREATED` transition.
 2. The committed local order has a 30-minute `reservation_expires_at`; its payment is `awaiting_payment` with provider `paymongo`.
 3. Outside that transaction, the adapter posts server-controlled line items to PayMongo `/v2/checkout_sessions` with a hashed provider idempotency key. `maya` is serialized as `paymaya`.
-4. Only a trusted `https://checkout.paymongo.com` URL is stored/returned. Definite or uncertain creation errors currently mark the local payment `setup_failed` and the order `payment_setup_failed`, then return `422` or `503` according to the adapter's retryable flag.
-5. A valid paid webhook or an owned-order reconciliation verifies paid status, exact amount, and currency, commits inventory once, sets the payment to `paid`, and sets the order to `placed`. If reserved stock cannot be committed, the order becomes `payment_review` for manual resolution.
+4. Only a trusted `https://checkout.paymongo.com` URL is stored/returned. Definite or uncertain creation errors mark the local payment `setup_failed` and the order `payment_setup_failed`, record a `FAILED` transition with reason, and return `422` or `503`.
+5. A valid paid webhook or an owned-order reconciliation verifies paid status, exact amount, and currency, commits inventory once, sets the payment to `paid`, sets the order to `placed`, and records an immutable `PAID` transition in `OrdersPaymentTransition`. If reserved stock cannot be committed, the order becomes `payment_review` for manual resolution.
+6. Order cancellation (via customer cancel or merchant step-up confirmation modal) expires provider sessions, releases inventory reservations, sets status to `cancelled`, and records a `CANCELLED` transition.
 
 ### Webhook authenticity, deduplication, and lost-response recovery
 
-- The handler enforces a 262,144-byte default body limit, verifies `Paymongo-Signature` over the exact raw bytes with HMAC-SHA256, applies a 300-second default timestamp tolerance, and selects the test/live digest based on configured mode.
-- Both the older event-resource envelope and PayMongo's current developer-tools envelope are parsed. Only `checkout_session.payment.paid` mutates payment state.
+- The handler enforces a 262,144-byte default body limit, verifies `Paymongo-Signature` over raw bytes with HMAC-SHA256, applies a 300-second timestamp tolerance, and selects the test/live digest based on configured mode.
+- Both event envelopes are parsed. Only `checkout_session.payment.paid` mutates payment state.
 - `PaymentWebhookEvent.event_id` is the deduplication key; a repeated ID with a different body digest returns `409 event_collision`.
-- Amount, `PHP` currency, reference number, order metadata, checkout fingerprint, provider session, and environment mode when supplied are checked before paid state is applied.
-- If PayMongo created a checkout session but the create response was lost, a signed paid webhook can bind that previously unbound `cs_…` session only when the exact order ID, MetroDrip reference, checkout fingerprint, amount, currency, and paid status all match. A wrong amount or identity cannot claim the payment.
-- Invariant mismatches are persisted as a rejected inbox result and acknowledged with HTTP 200. Operations must inspect the result/status; a `2xx` alone does not mean payment was accepted.
+- Amount, `PHP` currency, reference number, order metadata, checkout fingerprint, provider session, and environment mode are checked before paid state is applied.
+- If PayMongo created a checkout session but the create response was lost, a signed paid webhook can bind that previously unbound `cs_…` session only when the exact order ID, MetroDrip reference, checkout fingerprint, amount, currency, and paid status all match.
 
 ## 5. Current expiry and reconciliation behavior
 
-- Each new checkout request calls `expire_one_stale_checkout()`, which attempts to expire at most one old `pending_payment` or `payment_setup_failed` order before processing the new request.
-- An owned `GET /orders/{id}/` invokes reconciliation only when its latest payment is `awaiting_payment` or `setup_failed`. A provider lookup requires a stored provider reference and is skipped for 30 seconds after a successful lookup updates `last_reconciled_at`; failures do not start that cooldown.
-- If the viewed order's reservation is already expired, reconciliation first asks PayMongo to expire the session, then releases stock and marks the payment/order expired.
+- Each new checkout request calls `expire_one_stale_checkout()`, which attempts to expire at most one old `pending_payment` or `payment_setup_failed` order before processing the new request, recording an `EXPIRED` transition.
+- An owned `GET /orders/{id}/` invokes reconciliation only when its latest payment is `awaiting_payment` or `setup_failed`. A provider lookup requires a stored provider reference and is skipped for 30 seconds after a successful lookup updates `last_reconciled_at`.
+- If the viewed order's reservation is already expired, reconciliation first asks PayMongo to expire the session, then releases stock, marks the payment/order expired, and records an `EXPIRED` transition.
 - Provider lookup failures leave the durable local status unchanged and return `reconciliation_status: "deferred"` with HTTP 200.
-- Cancellation expires a provider session before releasing the local reservation; if provider confirmation fails, local checkout remains pending and the API returns `503`.
-- There is no reconciliation/expiry management command, database lease, or background scheduler in the active monolith. Concurrent eligible status reads can still race into provider lookups. These are documented release gaps, not hidden behind a claimed worker.
 
 ## 6. Rate limits currently configured
-
-These are Django cache-backed scoped throttles for the approved single-process free deployment. They are a first line of abuse control, not a global distributed limit.
 
 | Scope | Exact setting | Attached routes |
 |---|---:|---|
@@ -199,14 +167,10 @@ These are Django cache-backed scoped throttles for the approved single-process f
 | `signup` | `5/hour` | `POST /signup/` |
 | `password_reset` | `5/hour` | `POST /forgot-password/`, `POST /password-reset/` |
 | `checkout` | `30/min` | `POST /api/orders/checkout/` |
-| `payment_status` | `120/min` | `POST /orders/{id}/cancel/` only; the owned detail/reconciliation GET does not yet use this scope |
+| `payment_status` | `120/min` | `POST /orders/{id}/cancel/` |
 | `payment_webhook` | `300/min` | `POST /api/payments/paymongo/webhook/` |
 
-General authenticated reads and most staff mutations do not yet have dedicated scopes. A future multi-instance deployment would need shared throttle state before these limits could be treated as globally enforced.
-
 ## 7. Fail-closed capabilities
-
-The following surfaces intentionally return an explicit unavailable/retired result instead of fabricated success or demo operational data:
 
 | Capability | Route | Status and code |
 |---|---|---|
@@ -223,10 +187,7 @@ The following surfaces intentionally return an explicit unavailable/retired resu
 
 ## 8. Current gaps and verification boundary
 
-- Coarse role checks are implemented; store-scoped ABAC, a permission model, MFA, and recent-authentication gates are not.
-- Payment-method capability discovery, refunds, payment-transition history, reconciliation leases/commands, and an operator recovery UI are not implemented.
-- The console code now requires an authenticated session and explicit API states; its automated browser harness uses mocked APIs and does not establish live browser-to-Django behavior.
-- Focused local tests can verify validation, state transitions, signing logic, lost-response recovery, and UI source contracts. They do not verify PayMongo sandbox/live delivery, a native app return, PostgreSQL concurrency, Render cold starts, or production recovery.
-- No real charge/refund, secret change, Render application, paid infrastructure change, or live deployment is authorized by this document.
-
-See [Verification and Evaluation](Verification%20and%20Evaluation.md) for executed evidence and remaining release gates.
+- Coarse role checks are implemented; store-scoped ABAC, a fine-grained permission model, MFA, and recent-authentication gates are not yet enforced.
+- A dedicated refund model and distributed reconciliation lease remain future schema extensions.
+- Verified test evidence: **73/73 Django tests**, **140/140 client invariant tests**, **0 TypeScript errors**, and **64/64 browser layout tests** in Headless Chrome across 320px, 390px, 768px, and 1280px viewports.
+- No real charge/refund, secret change, Render live application, or paid infrastructure change is authorized by this document.

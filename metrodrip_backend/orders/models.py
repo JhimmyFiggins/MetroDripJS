@@ -98,6 +98,10 @@ class OrdersOrderLine(models.Model):
         decimal_places=4
     )
 
+    product_name_snapshot = models.CharField(max_length=255, default='', blank=True)
+    sku_snapshot = models.CharField(max_length=100, default='', blank=True)
+    variant_desc_snapshot = models.CharField(max_length=255, default='', blank=True)
+
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()
 
@@ -221,6 +225,42 @@ class OrdersPayment(models.Model):
         indexes = [
             models.Index(fields=['order', 'status']),
             models.Index(fields=['provider', 'status']),
+        ]
+
+
+class OrdersPaymentTransition(models.Model):
+    id = models.BigAutoField(primary_key=True)
+
+    payment = models.ForeignKey(
+        OrdersPayment,
+        on_delete=models.CASCADE,
+        db_column='payment_id',
+        related_name='transitions'
+    )
+
+    order = models.ForeignKey(
+        OrdersOrder,
+        on_delete=models.CASCADE,
+        db_column='order_id',
+        related_name='payment_transitions'
+    )
+
+    from_status = models.CharField(max_length=30)
+    to_status = models.CharField(max_length=30)
+    actor_type = models.CharField(max_length=30)
+    actor_id = models.CharField(max_length=100, null=True, blank=True)
+    provider_event_id = models.CharField(max_length=100, null=True, blank=True)
+    reason = models.TextField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    created_at = models.DateTimeField(db_index=True)
+
+    class Meta:
+        db_table = 'orders_paymenttransition'
+        indexes = [
+            models.Index(fields=['payment', 'created_at']),
+            models.Index(fields=['order', 'created_at']),
+            models.Index(fields=['to_status']),
         ]
 
 

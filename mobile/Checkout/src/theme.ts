@@ -5,10 +5,13 @@ export const colors = {
   muted: '#63635C',
   border: '#E4E4DF',
   surface: '#F4F4F2',
+  canvas: '#F2F2EF',
   volt: '#D3EE42',
+  voltTint: '#F7FBE8',
   onVolt: '#141414',
   olive: '#5C6B12',
-  danger: '#B42318',
+  danger: '#C2282D',
+  dangerTint: '#FCEBEC',
   overlay: 'rgba(20, 20, 20, 0.34)',
 } as const;
 
