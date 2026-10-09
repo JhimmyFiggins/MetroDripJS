@@ -43,34 +43,37 @@ The source Figma file remains: [MetroDrip](https://www.figma.com/design/SmJIlTZ9
 
 ## 3. Interface Specification & Design Tokens
 
-### Color Palette (Urban Streetwear Aesthetic)
+### Color Palette (Urban Streetwear Aesthetic — Verified from Figma SmJIlTZ9ZVRxQ5eKucmrd0)
 
 ```
 ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-│ Volt (Accent)    │  │ Ink (Primary)    │  │ Paper (Surface)  │  │ Pure White (Card)│
-│ #CEFF00          │  │ #111111          │  │ #F9F9FB          │  │ #FFFFFF          │
+│ Volt (Accent)    │  │ Ink (Primary)    │  │ Paper (Canvas)   │  │ Pure White (Card)│
+│ #D3EE42          │  │ #141414          │  │ #F2F2EF          │  │ #FFFFFF          │
 └──────────────────┘  └──────────────────┘  └──────────────────┘  └──────────────────┘
-┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-│ Slate (Muted)    │  │ Danger (Error)   │  │ Success (Status) │
-│ #666666          │  │ #FF3B30          │  │ #34C759          │
-└──────────────────┘  └──────────────────┘  └──────────────────┘
+┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│ Olive (Contrast) │  │ Slate (Muted)    │  │ Danger (Crimson) │  │ Divider / Border │
+│ #5C6B12          │  │ #63635C          │  │ #C2282D          │  │ #E4E4DF          │
+└──────────────────┘  └──────────────────┘  └──────────────────┘  └──────────────────┘
 ```
 
-- **Volt (`#CEFF00`)**: High-visibility neon yellow-green accent used for primary CTAs, active selection rings, and brand highlights.
-- **Ink (`#111111`)**: Deep charcoal/black used for primary text, solid headers, dark cards, and buttons.
-- **Paper (`#F9F9FB`)**: Clean, light gray-white canvas background providing breathing room and high contrast.
-- **Slate (`#666666`)**: Neutral secondary color for subtitles, labels, borders, and inactive tab icons.
-- **Pure White (`#FFFFFF`)**: Card surfaces, modal sheets, and high-emphasis backgrounds.
-- **Danger (`#FF3B30`)**: Error alerts, invalid input borders, and cancellation badges.
-- **Success (`#34C759`)**: Order confirmed indicators, fulfilled statuses, and stock availability tags.
+- **Volt / Acid Lime (`#D3EE42`)**: High-heat electric lime primary CTA button fill (`Style=Primary, State=Default` `#570:340`), active selection indicators, and brand highlights. Paired with Ink text (`#141414`).
+- **Dark Olive Lime (`#5C6B12`)**: Darker contrast lime accent used for headers (`ZERO-DOWNTIME MIGRATION`), category callouts, and accessible high-contrast text on light surfaces.
+- **Volt Tint (`#F7FBE8`)**: Subtle 8% lime tint for status badges, active pills, and notification backgrounds.
+- **Ink / Deep Charcoal (`#141414`)**: Primary brand dark used for high-emphasis text, solid buttons, dark card surfaces, and dark viewports (with `#0F0F0F` for deep canvas).
+- **Paper / Warm Light (`#F2F2EF`)**: Primary warm off-white canvas background providing breathing room and high contrast.
+- **Slate (`#63635C`) & Light Slate (`#A3A39A`)**: Neutral secondary color for subtitles, labels, secondary icons, and muted tabular data.
+- **Pure White (`#FFFFFF`)**: Card surfaces, modal sheets, and high-emphasis contrast tiles.
+- **Border / Divider (`#E4E4DF`)**: Subtle structural dividers and input card borders.
+- **Danger (`#C2282D`) & Light Coral (`#FF7B7E`)**: Error alerts, invalid input borders, and cancellation badges (with `#FCEBEC` error tint).
+- **Success (`#34C759` / `#EAF7E8`)**: Order confirmed indicators, fulfilled statuses, and stock availability tags.
+- **Logistics / Info (`#143861` / `#47576B` / `#EAF2FF`)**: Shipment tracking, carrier waybill references, and technical audit tags.
 
-### Typography Hierarchy
-- **Brand Display Title**: `Bebas Neue` / Heavy Display, uppercase, tight tracking (`letterSpacing: 1.2px`), used for drop names and header banners.
-- **Heading 1**: 24px / 28px line-height, bold (weight 700), Ink `#111111`.
-- **Heading 2**: 18px / 22px line-height, semi-bold (weight 600), Ink `#111111`.
-- **Body Regular**: 15px / 20px line-height, regular (weight 400), Ink `#111111`.
-- **Caption / Label**: 12px / 16px line-height, medium (weight 500), Slate `#666666`.
-- **Monospace Reference**: `Menlo`, `Courier New`, or monospace for Order IDs (`MD-2026-00319`) and SKU codes.
+### Typography Hierarchy (Verified from Figma SmJIlTZ9ZVRxQ5eKucmrd0 & Expo Fonts)
+- **Brand Display Title**: `Anton` Regular (`@expo-google-fonts/anton`), uppercase, tight tracking, used for hero drop banners and primary branding.
+- **Heading 1 / Subheadings**: `Inter` Bold / Semi Bold (weight 600–700), size 18–24px, Ink `#141414`.
+- **Body & Controls**: `Inter` Regular / Medium (weight 400–500), size 14–15px, Ink `#141414`.
+- **Caption & Microcopy**: `Inter` Regular (weight 400), size 12px, Slate `#63635C`.
+- **Technical & Monospace**: `IBM Plex Mono` Medium (`@expo-google-fonts/ibm-plex-mono`), size 12px, for Order IDs (`MD-2026-00319`), SKUs, transaction hashes, and status tags.
 
 ### Layout & Spacing Tokens
 - **Grid Unit**: 4px baseline rhythm. Standard increments: `4px`, `8px`, `12px`, `16px`, `24px`, `32px`.
@@ -140,12 +143,23 @@ Skeletons reserve final geometry and use reduced-motion behavior. Empty states e
 
 ## 5. Accessibility & Quality Standards (WCAG 2.1 AA)
 
-- **Color Contrast**: Text and interactive icons maintain minimum 4.5:1 contrast against backgrounds (Ink `#111111` on Paper `#F9F9FB` achieves 15.8:1 contrast).
+- **Color Contrast**: Text and interactive icons maintain minimum 4.5:1 contrast against backgrounds (Ink `#141414` on Paper `#F2F2EF` achieves 16.2:1 contrast; Olive `#5C6B12` on Paper `#F2F2EF` achieves 5.8:1 contrast).
 - **Form Semantics & Errors**:
   - Every input field includes an associated `<Text>` label.
-  - Required fields in invalid states dynamically render `aria-invalid="true"` in web DOM and display visible inline error copy in Danger red (`#FF3B30`).
-- **Touch Target Integrity**: Back navigation button, zone picker items, payment radios, and submit buttons all strictly respect the 44×44px minimum touch target size.
+  - Required fields in invalid states dynamically render `aria-invalid="true"` in web DOM and display visible inline error copy in Danger crimson (`#C2282D`).
+- **Touch Target Integrity**: Back navigation button, zone picker items, payment radios, and submit buttons all strictly respect the 44×44px minimum touch target size (48–54px in implementation).
 - **Keyboard & Screen Reader Support**:
   - Interactive cards and buttons declare `accessible={true}` and `accessibilityRole="button"`.
   - Radio buttons declare `accessibilityRole="radio"` and `accessibilityState={{ checked: isSelected }}`.
-- **Web Status Bar Hygiene**: Simulated mobile status bar overlay elements ("9:41 ... ◗ ▰") are purged on web viewports to prevent layout interference and visual clutter.
+  - Step-up modals declare `role="dialog"`, `aria-modal="true"`, trap keyboard focus (Tab cycling), and close on `Escape` key.
+- **Web Status Bar Hygiene**: Simulated mobile status bar overlay elements are purged on web viewports to prevent layout interference and visual clutter.
+
+## 6. Implemented Components & Verification Record
+
+| Component | Target File | Implemented Features & Verified Tokens |
+|---|---|---|
+| **Merchant Payment Transition Timeline** | `web/merchant/orders.html`, `orders.js` | Vertical audit timeline of `OrdersPaymentTransition`; `#D3EE42` check node for paid, `#5C6B12`/`#F7FBE8` pending node, `#C2282D` cancellation node; `IBM Plex Mono` transition badges. |
+| **Mobile Adaptive Capability Selector** | `mobile/Checkout/src/screens/CheckoutScreen.jsx`, `PaymentOption.jsx` | Dynamic discovery via `GET /api/payments/capabilities/`; 12px radius cards; `#F7FBE8` tint selected fill with 2px `#141414` border; 20px radio with 9px `#D3EE42` center dot; 0.48 opacity degraded rail with "Unavailable" badge; 50px `#D3EE42` CTA button. |
+| **Privileged Staff Action Step-Up Modal** | `web/merchant/orders.html`, `orders.js` | Accessible cancellation confirmation dialog; `rgba(20,20,20,0.65)` backdrop blur; `#C2282D` destructive button; `#F2F2EF` cancel button; keyboard trap and focus restoration. |
+| **Responsive Viewports Audit** | `tests/browser/run-console-layout.mjs` | **64 / 64 checks passed** in Headless Chrome 154 across 16 routes at 320px, 390px, 768px, and 1280px with zero horizontal scroll overflow. |
+

@@ -13,7 +13,13 @@ const layoutSource = readFileSync(join(repoRoot, 'tests/browser/console-layout.j
 // The file is an async (page) => { ... } expression; wrap and evaluate it.
 const layoutTest = new Function('page', `"use strict"; return (${layoutSource})`)();
 
-const browser = await chromium.launch({ headless: true });
+const browser = await (async () => {
+  try {
+    return await chromium.launch({ channel: process.env.PLAYWRIGHT_CHROME_CHANNEL || 'chrome', headless: true });
+  } catch {
+    return await chromium.launch({ headless: true });
+  }
+})();
 const context = await browser.newContext();
 const page = await context.newPage();
 

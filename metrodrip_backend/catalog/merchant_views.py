@@ -688,12 +688,27 @@ class MerchantOrdersAPIView(MerchantAPIView):
                 color = attributes.get('color') or (line.variant.color.name if line.variant and line.variant.color else None)
                 variant_parts = [attributes.get('size'), color, attributes.get('fit')]
                 lines.append({
-                    'product_name': line.product.name,
-                    'variant_desc': ' · '.join(str(part).upper() for part in variant_parts if part) or None,
+                    'product_name': line.product_name_snapshot or line.product.name,
+                    'sku': line.sku_snapshot or (line.variant.sku if line.variant else line.product.sku),
+                    'variant_desc': line.variant_desc_snapshot or (' · '.join(str(part).upper() for part in variant_parts if part) or None),
                     'quantity': line.quantity,
                     'unit_price': str(line.unit_price),
                     'total_price': str(line.total_price),
                 })
+
+            transitions = [
+                {
+                    'id': t.id,
+                    'from_status': t.from_status,
+                    'to_status': t.to_status,
+                    'actor_type': t.actor_type,
+                    'actor_id': t.actor_id,
+                    'provider_event_id': t.provider_event_id,
+                    'reason': t.reason,
+                    'created_at': t.created_at.isoformat(),
+                }
+                for t in order.payment_transitions.order_by('-created_at')
+            ]
 
             address = getattr(order, 'shipping_address', None)
             payment = _latest_payment(order)
@@ -717,6 +732,7 @@ class MerchantOrdersAPIView(MerchantAPIView):
                     'phone': address.phone,
                 } if address else None,
                 'lines': lines,
+                'payment_transitions': transitions,
             })
             return Response(response)
 

@@ -30,6 +30,70 @@ class HealthAPIView(APIView):
     def get(self, request):
         return Response({'status': 'ok'}, status=status.HTTP_200_OK)
 
+class PaymentCapabilitiesAPIView(APIView):
+    authentication_classes = []
+    permission_classes = []
+    renderer_classes = [JSONRenderer]
+
+    def get(self, request):
+        mode = getattr(settings, 'PAYMONGO_MODE', 'test').lower()
+        has_secret = bool(getattr(settings, 'PAYMONGO_SECRET_KEY', ''))
+        has_webhook = bool(getattr(settings, 'PAYMONGO_WEBHOOK_SECRET', ''))
+        provider_ready = has_secret and has_webhook
+
+        methods = [
+            {
+                'id': 'cod',
+                'name': 'Cash on Delivery',
+                'description': 'Pay in cash upon delivery to your doorstep.',
+                'type': 'offline',
+                'available': True,
+                'min_amount': '1.00',
+                'max_amount': '50000.00',
+                'currencies': ['PHP'],
+            },
+            {
+                'id': 'gcash',
+                'name': 'GCash',
+                'description': 'Instant e-wallet payment via PayMongo Hosted Checkout.',
+                'type': 'hosted',
+                'available': provider_ready,
+                'min_amount': '100.00',
+                'max_amount': '50000.00',
+                'currencies': ['PHP'],
+            },
+            {
+                'id': 'maya',
+                'name': 'Maya',
+                'description': 'Pay via Maya wallet or QR via PayMongo Hosted Checkout.',
+                'type': 'hosted',
+                'available': provider_ready,
+                'min_amount': '100.00',
+                'max_amount': '50000.00',
+                'currencies': ['PHP'],
+            },
+            {
+                'id': 'card',
+                'name': 'Credit / Debit Card',
+                'description': 'Visa, Mastercard, JCB via PayMongo Hosted Checkout.',
+                'type': 'hosted',
+                'available': provider_ready,
+                'min_amount': '100.00',
+                'max_amount': '100000.00',
+                'currencies': ['PHP'],
+            },
+        ]
+
+        return Response({
+            'currency': 'PHP',
+            'provider': 'paymongo',
+            'mode': mode,
+            'provider_ready': provider_ready,
+            'methods': methods,
+            'ttl_seconds': 1800,
+        }, status=status.HTTP_200_OK)
+
+
 
 class CreateOrderAPIView(APIView):
     authentication_classes = [CustomerTokenAuthentication]

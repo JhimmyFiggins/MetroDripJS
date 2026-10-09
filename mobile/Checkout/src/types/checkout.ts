@@ -17,4 +17,7 @@ export type PaymentOptionModel = {
   id: PaymentMethod;
   title: string;
   subtitle: string;
+  enabled?: boolean;
+  requiresRedirect?: boolean;
+  unavailableReason?: string;
 };

@@ -3341,3 +3341,247 @@ button, input, select, textarea {
     margin-left: 0;
   }
 }
+
+/* ==========================================================================
+   Payment State Transition Ledger & Step-Up Modal Tokens & Components
+   ========================================================================== */
+
+/* Payment State Transition Ledger Timeline */
+.payment-timeline-card {
+  margin-top: 16px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 16px;
+}
+
+.payment-timeline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.payment-timeline-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+}
+
+.payment-timeline-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-muted);
+}
+
+.timeline-list {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  padding-left: 20px;
+  gap: 16px;
+}
+
+.timeline-list::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 7px;
+  width: 2px;
+  background-color: var(--color-border);
+}
+
+.timeline-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.timeline-node {
+  position: absolute;
+  left: -20px;
+  top: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  background-color: var(--color-card);
+  border: 2px solid var(--color-border);
+  z-index: 1;
+}
+
+.timeline-node.node--paid {
+  background-color: var(--color-volt);
+  border-color: var(--color-ink);
+  color: var(--color-on-volt);
+}
+
+.timeline-node.node--pending {
+  background-color: #f7fbe8;
+  border-color: var(--color-accent-text);
+  color: var(--color-accent-text);
+}
+
+.timeline-node.node--failed {
+  background-color: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #ffffff;
+}
+
+.timeline-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.timeline-transition-code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-ink);
+  word-break: break-all;
+}
+
+.timeline-time {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.timeline-meta {
+  font-size: 12px;
+  color: var(--color-ink);
+  word-break: break-word;
+}
+
+.timeline-reason {
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+/* Privileged Staff Action Step-Up Modal */
+.step-up-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.step-up-modal.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.step-up-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(20, 20, 20, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.step-up-modal-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 460px;
+  background-color: var(--color-paper);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  box-shadow: 0 20px 25px -5px rgba(20, 20, 20, 0.2), 0 8px 10px -6px rgba(20, 20, 20, 0.1);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+}
+
+.step-up-modal-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.step-up-icon-badge {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  border-radius: 9999px;
+  background-color: rgba(194, 40, 45, 0.12);
+  color: var(--color-danger);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.step-up-modal-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1.2;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  margin-bottom: 4px;
+}
+
+.step-up-modal-sub {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.step-up-modal-body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-ink);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.step-up-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.step-up-modal-actions .btn {
+  min-height: 44px;
+  padding: 10px 18px;
+}
+
+.btn-danger {
+  background-color: var(--color-danger);
+  color: #ffffff;
+  border: none;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: #a71e22;
+}
+

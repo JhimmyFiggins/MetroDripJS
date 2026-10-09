@@ -17,7 +17,39 @@ from catalog.models import (
 )
 from fulfillment.models import ShippingShippingZone
 
-from .models import OrdersOrder, OrdersOrderLine, OrdersPayment, OrdersShippingAddress
+from .models import (
+    OrdersOrder,
+    OrdersOrderLine,
+    OrdersPayment,
+    OrdersPaymentTransition,
+    OrdersShippingAddress,
+)
+
+def record_payment_transition(
+    payment,
+    to_status,
+    from_status=None,
+    actor_type='system',
+    actor_id=None,
+    provider_event_id=None,
+    reason=None,
+    metadata=None,
+):
+    current_from = from_status if from_status is not None else payment.status
+    now = timezone.now()
+    return OrdersPaymentTransition.objects.create(
+        payment=payment,
+        order=payment.order,
+        from_status=current_from,
+        to_status=to_status,
+        actor_type=actor_type,
+        actor_id=str(actor_id) if actor_id is not None else None,
+        provider_event_id=str(provider_event_id) if provider_event_id is not None else None,
+        reason=reason or '',
+        metadata=metadata or {},
+        created_at=now,
+    )
+
 from .paymongo import PayMongoClient, PayMongoError, pesos_to_centavos, verified_paid_payment
 
 
@@ -318,10 +350,18 @@ def _expire_order(order, provider_client=None):
         if locked_order.status in {'cancelled', 'payment_expired'}:
             return locked_order
         _release_reservations(locked_order, final_status='expired')
+        from_status = locked_payment.status
         locked_payment.status = 'expired'
         locked_payment.failure_code = None
         locked_payment.updated_at = now
         locked_payment.save(update_fields=['status', 'failure_code', 'updated_at'])
+        record_payment_transition(
+            locked_payment,
+            to_status='expired',
+            from_status=from_status,
+            actor_type='system_expiry',
+            reason='Hold reservation expired (30m TTL)',
+        )
         locked_order.status = 'payment_expired'
         locked_order.cancelled_at = now
         locked_order.updated_at = now
@@ -489,6 +529,11 @@ def _build_order(customer, checkout, fingerprint):
             expires_at=reservation_expires_at or (now + timedelta(days=30)),
             created_at=now,
         )
+        variant_desc = ' · '.join(
+            str(val).upper()
+            for val in (variant.attributes.values() if isinstance(variant.attributes, dict) else [])
+            if val
+        )
         OrdersOrderLine.objects.create(
             order=order,
             product=variant.product,
@@ -499,6 +544,9 @@ def _build_order(customer, checkout, fingerprint):
             discount_amount=Decimal('0.00'),
             tax_amount=Decimal('0.00'),
             tax_rate=Decimal('0.0000'),
+            product_name_snapshot=variant.product.name[:255],
+            sku_snapshot=(variant.sku or variant.product.sku)[:100],
+            variant_desc_snapshot=variant_desc[:255],
             created_at=now,
             updated_at=now,
         )
@@ -513,6 +561,15 @@ def _build_order(customer, checkout, fingerprint):
         metadata={'delivery_zone': zone.name},
         created_at=now,
         updated_at=now,
+    )
+    record_payment_transition(
+        payment,
+        to_status=payment.status,
+        from_status='none',
+        actor_type='customer',
+        actor_id=customer.id,
+        reason='Order checkout initiated',
+        metadata={'payment_method': payment.method, 'delivery_zone': zone.name},
     )
     if checkout['payment_method'] == 'cod' and not _commit_reservations(order):
         raise CheckoutError(
@@ -546,10 +603,18 @@ def _ensure_provider_session(order, payment, customer, provider_client=None):
             locked_order = OrdersOrder.objects.select_for_update().get(pk=order.pk)
             if locked_payment.status == 'paid' or locked_payment.provider_ref:
                 return locked_order, locked_payment
+            from_status = locked_payment.status
             locked_payment.status = 'setup_failed'
             locked_payment.failure_code = error.code
             locked_payment.updated_at = now
             locked_payment.save(update_fields=['status', 'failure_code', 'updated_at'])
+            record_payment_transition(
+                locked_payment,
+                to_status='setup_failed',
+                from_status=from_status,
+                actor_type='system_provider',
+                reason=f'Provider session setup failed: {error.code}',
+            )
             locked_order.status = 'payment_setup_failed'
             locked_order.updated_at = now
             locked_order.save(update_fields=['status', 'updated_at'])
@@ -618,6 +683,7 @@ def apply_verified_payment(payment, session_data):
         locked = OrdersPayment.objects.select_for_update().select_related('order').get(pk=payment.pk)
         if locked.status == 'paid':
             return True
+        from_status = locked.status
         locked.status = 'paid'
         locked.provider_payment_ref = provider_payment_ref
         locked.paid_at = now
@@ -632,6 +698,15 @@ def apply_verified_payment(payment, session_data):
             'failure_code',
             'updated_at',
         ])
+        record_payment_transition(
+            locked,
+            to_status='paid',
+            from_status=from_status,
+            actor_type='system_webhook' if 'evt_' in str(provider_payment_ref) else 'system_reconciliation',
+            provider_event_id=provider_payment_ref,
+            reason='Verified online payment confirmation',
+            metadata={'provider_payment_ref': provider_payment_ref},
+        )
         order = locked.order
         stock_committed = not order.cancelled_at and _commit_reservations(order)
         order.status = 'placed' if stock_committed else 'payment_review'
@@ -674,10 +749,18 @@ def reconcile_payment(payment, provider_client=None):
             if locked_payment.status in {'cancelled', 'expired'} or locked_order.status in {'cancelled', 'payment_expired'}:
                 return locked_payment.status
             _release_reservations(locked_order, final_status='expired')
+            from_status = locked_payment.status
             locked_payment.status = 'expired'
             locked_payment.failure_code = None
             locked_payment.updated_at = now
             locked_payment.save(update_fields=['status', 'failure_code', 'updated_at'])
+            record_payment_transition(
+                locked_payment,
+                to_status='expired',
+                from_status=from_status,
+                actor_type='system_reconciliation',
+                reason='Provider reported checkout expired',
+            )
             locked_order.status = 'payment_expired'
             locked_order.cancelled_at = now
             locked_order.updated_at = now
@@ -711,9 +794,18 @@ def cancel_checkout(order, provider_client=None):
         if locked_order.status in {'cancelled', 'payment_expired'}:
             return locked_order, locked_payment
         _release_reservations(locked_order)
+        from_status = locked_payment.status
         locked_payment.status = 'cancelled'
         locked_payment.updated_at = now
         locked_payment.save(update_fields=['status', 'updated_at'])
+        record_payment_transition(
+            locked_payment,
+            to_status='cancelled',
+            from_status=from_status,
+            actor_type='customer',
+            actor_id=locked_order.customer_id,
+            reason='Online checkout cancelled by customer',
+        )
         locked_order.status = 'cancelled'
         locked_order.cancelled_at = now
         locked_order.updated_at = now
@@ -760,8 +852,9 @@ def serialize_checkout(order, payment, is_replay=False):
             {
                 'product_ref': line.product_id,
                 'variant_ref': line.variant_id,
-                'product_name': line.product.name,
-                'sku': line.variant.sku if line.variant else line.product.sku,
+                'product_name': line.product_name_snapshot or line.product.name,
+                'sku': line.sku_snapshot or (line.variant.sku if line.variant else line.product.sku),
+                'variant_desc': line.variant_desc_snapshot or None,
                 'quantity': line.quantity,
                 'unit_price': str(line.unit_price),
                 'total_price': str(line.total_price),

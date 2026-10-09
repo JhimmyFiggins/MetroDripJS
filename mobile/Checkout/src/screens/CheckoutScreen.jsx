@@ -1,5 +1,5 @@
 // Import React state for the editable form, payment radios, and selector modal.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 // Import native primitives required by this adaptive checkout surface.
 import {
   Alert,
@@ -46,12 +46,72 @@ export function CheckoutScreen() {
   const [address, setAddress] = useState(initialDeliveryAddress);
   // The selected value is a provider-neutral method understood by the orders API.
   const [paymentMethod, setPaymentMethod] = useState('cod');
+  // Available payment rails with dynamic capability checks.
+  const [availableOptions, setAvailableOptions] = useState(paymentOptions);
+  const [isCapabilitiesLoading, setIsCapabilitiesLoading] = useState(false);
   // Control delivery zone selector modal visibility.
   const [zoneSelectorVisible, setZoneSelectorVisible] = useState(false);
   // Store invalid field names without altering pristine state.
   const [invalidFields, setInvalidFields] = useState([]);
   // Read safe area insets.
   const insets = useSafeAreaInsets();
+
+  // Load payment capabilities on mount with offline fallback.
+  useEffect(() => {
+    let isMounted = true;
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+
+    async function loadCapabilities() {
+      try {
+        setIsCapabilitiesLoading(true);
+        const host = Platform.OS === 'web' && typeof window !== 'undefined'
+          ? (window.location.origin || 'http://127.0.0.1:8000')
+          : 'http://127.0.0.1:8000';
+        const response = await fetch(`${host}/api/payments/capabilities/`, {
+          signal: controller?.signal,
+          headers: { Accept: 'application/json' },
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        if (!isMounted) return;
+
+        if (Array.isArray(data.supported_channels)) {
+          const channelMap = new Map(data.supported_channels.map((c) => [c.channel, c]));
+          const updated = paymentOptions.map((opt) => {
+            const ch = channelMap.get(opt.id);
+            return {
+              ...opt,
+              enabled: ch ? ch.enabled !== false : true,
+              requiresRedirect: ch ? Boolean(ch.requires_online_redirect) : opt.id !== 'cod',
+              unavailableReason: ch && ch.enabled === false ? 'Temporarily Unavailable' : undefined,
+            };
+          });
+          setAvailableOptions(updated);
+
+          // If current selection is disabled, auto-fallback to default or first enabled channel
+          const currentOpt = updated.find((o) => o.id === paymentMethod);
+          if (currentOpt && currentOpt.enabled === false) {
+            const defaultMethod = data.default_channel || 'cod';
+            const fallbackOpt = updated.find((o) => o.id === defaultMethod && o.enabled !== false)
+              || updated.find((o) => o.enabled !== false);
+            if (fallbackOpt) {
+              setPaymentMethod(fallbackOpt.id);
+            }
+          }
+        }
+      } catch {
+        // Fallback gracefully to default static payment options
+      } finally {
+        if (isMounted) setIsCapabilitiesLoading(false);
+      }
+    }
+
+    loadCapabilities();
+    return () => {
+      isMounted = false;
+      controller?.abort();
+    };
+  }, []);
 
   // Update one address value while clearing its validation error upon editing.
   const updateAddress = (field, value) => {
@@ -86,7 +146,7 @@ export function CheckoutScreen() {
       return;
     }
 
-    const selectedOption = paymentOptions.find((opt) => opt.id === paymentMethod);
+    const selectedOption = availableOptions.find((opt) => opt.id === paymentMethod);
     const orderItems =
     cart && cart.length > 0
       ? cart.map((it) => ({
@@ -204,14 +264,21 @@ export function CheckoutScreen() {
     <View style={styles.paymentSection}>
       <Text style={styles.sectionTitle}>Payment method</Text>
 
-      {paymentOptions.map((option) => (
-        <PaymentOption
-          key={option.id}
-          onSelect={setPaymentMethod}
-          option={option}
-          selected={paymentMethod === option.id}
-        />
-      ))}
+      {isCapabilitiesLoading ? (
+        <View style={styles.skeletonContainer}>
+          <View style={styles.skeletonCard} />
+          <View style={styles.skeletonCard} />
+        </View>
+      ) : (
+        availableOptions.map((option) => (
+          <PaymentOption
+            key={option.id}
+            onSelect={setPaymentMethod}
+            option={option}
+            selected={paymentMethod === option.id}
+          />
+        ))
+      )}
     </View>
   );
 
@@ -480,6 +547,18 @@ const styles = StyleSheet.create({
     width: '100%',
     gap: 12,
   },
+  skeletonContainer: {
+    width: '100%',
+    gap: 10,
+  },
+  skeletonCard: {
+    height: 58,
+    width: '100%',
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
   sectionTitle: {
     color: colors.ink,
     fontFamily: fonts.interBold,
@@ -553,17 +632,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.paper,
   },
 
-  // Action Button
+  // Action Button - Follows Figma Style=Primary with 44px min touch target
   payButton: {
     width: '100%',
-    height: 54,
-    borderRadius: 27,
+    height: 50,
+    minHeight: 44,
+    borderRadius: 25,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.volt,
   },
   payButtonPressed: {
-    opacity: 0.78,
+    backgroundColor: colors.olive,
+    opacity: 0.9,
   },
   payButtonText: {
     color: colors.onVolt,
