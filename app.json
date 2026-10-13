@@ -5,13 +5,13 @@
     "scheme": "metrodripjs",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./web/assets/favicon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./specs.jpg",
+      "image": "./web/assets/favicon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#141414"
     },
     "ios": {
       "supportsTablet": true,
@@ -20,22 +20,16 @@
     "android": {
       "package": "com.metrodrip.js",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./web/assets/favicon.png",
+        "backgroundColor": "#141414"
       },
-      "edgeToEdgeEnabled": true,
-      "usesCleartextTraffic": true
+      "edgeToEdgeEnabled": true
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./web/assets/favicon.png"
     },
     "plugins": [
       "expo-font"
-    ],
-    "font": [
-      "@expo-google-fonts/inter",
-      "@expo-google-fonts/ibm-plex-mono"
     ]
-
   }
 }

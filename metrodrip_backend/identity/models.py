@@ -87,6 +87,29 @@ class CustomerAccessToken(models.Model):
         return token, raw_token
 
 
+class RequestRateLimitBucket(models.Model):
+    """A fixed-window counter shared by every application worker."""
+
+    id = models.BigAutoField(primary_key=True)
+    scope = models.CharField(max_length=64)
+    identity_digest = models.CharField(max_length=64)
+    window_started_at = models.DateTimeField()
+    request_count = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'identity_request_ratelimit'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['scope', 'identity_digest'],
+                name='uniq_rl_scope_identity',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['updated_at'], name='identity_rl_updated_idx'),
+        ]
+
+
 class AccountsWishlistItem(models.Model):
     id = models.BigAutoField(primary_key=True)
 

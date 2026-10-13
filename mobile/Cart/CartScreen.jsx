@@ -59,6 +59,8 @@ export default function CartScreen({navigation}) {
 
 
             <TouchableOpacity 
+              accessibilityLabel="Continue shopping"
+              accessibilityRole="button"
               style={styles.shopButton}
               onPress={() => navigation.navigate('Shop')}
             >
@@ -77,6 +79,7 @@ export default function CartScreen({navigation}) {
                   style={styles.cartItem}
                 >
                   <Image
+                    accessibilityLabel={item.name}
                     source={{ uri: item.image }}
                     style={styles.productImage}
                   />
@@ -108,6 +111,8 @@ export default function CartScreen({navigation}) {
 
                     <View style={styles.quantity}>
                       <TouchableOpacity
+                        accessibilityLabel={`Decrease ${item.name} quantity`}
+                        accessibilityRole="button"
                         style={styles.quantityButton}
                         onPress={() =>
                           changeQuantity(item.id, -1)
@@ -125,6 +130,8 @@ export default function CartScreen({navigation}) {
 
 
                       <TouchableOpacity
+                        accessibilityLabel={`Increase ${item.name} quantity`}
+                        accessibilityRole="button"
                         style={styles.quantityButton}
                         onPress={() =>
                           changeQuantity(item.id, 1)
@@ -138,6 +145,9 @@ export default function CartScreen({navigation}) {
 
                     {/* Remove Button */}
                     <TouchableOpacity
+                      accessibilityLabel={`Remove ${item.name} from cart`}
+                      accessibilityRole="button"
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                       onPress={() => removeItem(item.id)}
                     >
                       <Text style={styles.remove}>
@@ -226,6 +236,8 @@ export default function CartScreen({navigation}) {
       {cart.length > 0 && (
         <View style={styles.checkoutContainer}>
           <TouchableOpacity
+            accessibilityLabel={`Proceed to checkout, total ${formatPrice(total)}`}
+            accessibilityRole="button"
             style={styles.checkout}
             onPress={() => navigation.navigate('Checkout') }
           >
@@ -414,12 +426,12 @@ const styles = StyleSheet.create({
 
 
   quantityButton: {
-    width: 32,
-    height: 35,
+    width: 44,
+    height: 44,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: '2',
+    marginHorizontal: 2,
   },
 
 

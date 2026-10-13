@@ -5,11 +5,11 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.renderers import JSONRenderer
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.throttling import ScopedRateThrottle
 
 from .models import OrdersOrder, OrdersPayment
 from fulfillment.models import ShippingShipment
 from identity.authentication import CustomerTokenAuthentication
+from identity.throttling import DatabaseScopedRateThrottle
 from .checkout import (
     CheckoutError,
     cancel_checkout,
@@ -123,7 +123,7 @@ class CheckoutAPIView(APIView):
     authentication_classes = [CustomerTokenAuthentication]
     permission_classes = [IsAuthenticated]
     renderer_classes = [JSONRenderer]
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [DatabaseScopedRateThrottle]
     throttle_scope = 'checkout'
 
     def post(self, request):
@@ -147,7 +147,7 @@ class OrderDetailAPIView(APIView):
     authentication_classes = [CustomerTokenAuthentication]
     permission_classes = [IsAuthenticated]
     renderer_classes = [JSONRenderer]
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [DatabaseScopedRateThrottle]
     throttle_scope = 'payment_status'
 
     def get(self, request, order_id):
@@ -175,7 +175,7 @@ class CancelCheckoutAPIView(APIView):
     authentication_classes = [CustomerTokenAuthentication]
     permission_classes = [IsAuthenticated]
     renderer_classes = [JSONRenderer]
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [DatabaseScopedRateThrottle]
     throttle_scope = 'payment_status'
 
     def post(self, request, order_id):
@@ -201,7 +201,7 @@ class PayMongoWebhookAPIView(APIView):
     authentication_classes = []
     permission_classes = []
     renderer_classes = [JSONRenderer]
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [DatabaseScopedRateThrottle]
     throttle_scope = 'payment_webhook'
 
     def post(self, request):

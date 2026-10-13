@@ -13,6 +13,33 @@ export async function getOrders() {
   return apiFetch('/orders/');
 }
 
+export async function getPaymentCapabilities() {
+  return apiFetch('/api/payments/capabilities/', { auth: false });
+}
+
+export function mapPaymentCapabilities(options, capabilities) {
+  const methods = Array.isArray(capabilities?.methods) ? capabilities.methods : [];
+  const methodById = new Map(methods.map((method) => [method.id, method]));
+
+  return options.map((option) => {
+    const method = methodById.get(option.id);
+    const enabled = method ? method.available === true : option.id === 'cod';
+    let unavailableReason;
+    if (!enabled) {
+      unavailableReason = method
+        ? 'Temporarily unavailable'
+        : 'Availability unavailable';
+    }
+
+    return {
+      ...option,
+      enabled,
+      requiresRedirect: method ? method.type === 'hosted' : option.id !== 'cod',
+      unavailableReason,
+    };
+  });
+}
+
 export function normalizeOrderId(value) {
   if (typeof value === 'number') {
     return Number.isSafeInteger(value) && value > 0 ? String(value) : null;

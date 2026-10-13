@@ -7,71 +7,96 @@ import {
   TextInput,
   Modal,
   ScrollView,
-  Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { colors, fonts } from '../../Checkout/src/theme';
 import { apiFetch } from '../../../src/services/apiClient';
-import { getReviewsForProduct, getReviewStats, addReviewForProduct } from '../data/reviewsData';
+import { getReviewStats } from '../data/reviewsData';
 
 export default function CustomerReviews({ productId }) {
-  const [reviews, setReviews] = useState(() => getReviewsForProduct(productId));
+  const [reviews, setReviews] = useState([]);
   const [showAll, setShowAll] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
-  const [newAuthor, setNewAuthor] = useState('');
   const [newRating, setNewRating] = useState(5);
   const [newComment, setNewComment] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [noticeMsg, setNoticeMsg] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const stats = getReviewStats(reviews);
   const displayedReviews = showAll ? reviews : reviews.slice(0, 2);
 
   useEffect(() => {
-    if (!productId) return;
+    let isMounted = true;
+    if (!productId) {
+      setReviews([]);
+      setIsLoading(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setIsLoading(true);
+    setLoadError('');
+    setShowAll(false);
     apiFetch(`/products/${productId}/reviews/`, { auth: false })
       .then((data) => {
-        if (data && data.reviews && data.reviews.length > 0) {
-          setReviews(data.reviews);
-        }
+        if (!isMounted) return;
+        setReviews(Array.isArray(data?.reviews) ? data.reviews : []);
       })
-      .catch(() => {
-        // Graceful fallback to seeded reviews
+      .catch((error) => {
+        if (!isMounted) return;
+        setReviews([]);
+        setLoadError(error?.message || 'Reviews could not be loaded.');
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
       });
-  }, [productId]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [productId, reloadKey]);
 
   const handleSubmitReview = async () => {
     if (!newComment.trim()) {
       setErrorMsg('Please enter your review comments.');
       return;
     }
+    if (newComment.trim().length > 2000) {
+      setErrorMsg('Keep your review to 2,000 characters or fewer.');
+      return;
+    }
 
     const reviewPayload = {
-      author: newAuthor.trim() || 'Verified Buyer',
       rating: newRating,
       comment: newComment.trim(),
     };
 
     try {
+      setIsSubmitting(true);
+      setErrorMsg('');
+      setNoticeMsg('');
       const data = await apiFetch(`/products/${productId}/reviews/`, {
         method: 'POST',
         body: reviewPayload,
       });
 
-      if (data && data.review) {
+      if (data?.review?.status === 'approved') {
         setReviews((current) => [data.review, ...current]);
-      } else {
-        const updated = addReviewForProduct(productId, reviewPayload);
-        setReviews([...updated]);
       }
-    } catch {
-      const updated = addReviewForProduct(productId, reviewPayload);
-      setReviews([...updated]);
+      setNoticeMsg(data?.message || 'Review submitted for moderation.');
+      setNewComment('');
+      setNewRating(5);
+      setModalVisible(false);
+    } catch (error) {
+      setErrorMsg(error?.message || 'Review submission failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setNewAuthor('');
-    setNewComment('');
-    setNewRating(5);
-    setErrorMsg('');
-    setModalVisible(false);
   };
 
   const renderStars = (rating) => {
@@ -90,27 +115,54 @@ export default function CustomerReviews({ productId }) {
           <Text style={styles.sectionTitle}>Reviews</Text>
           <View style={styles.ratingBadge}>
             <Text style={styles.ratingScore}>{stats.average}</Text>
-            <Text style={styles.ratingStars}>★★★★★</Text>
+            <Text
+              accessibilityLabel={`${stats.average} out of 5 stars`}
+              style={styles.ratingStars}
+            >
+              {renderStars(stats.average)}
+            </Text>
             <Text style={styles.ratingCount}>({stats.count})</Text>
           </View>
         </View>
 
-        <View style={styles.actionGroup}>
-          <TouchableOpacity
-            accessibilityRole="button"
-            onPress={() => setShowAll(!showAll)}
-            style={styles.seeAllButton}
-          >
-            <Text style={styles.seeAllText}>
-              {showAll ? 'Show less' : `See all ${stats.count} →`}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {stats.count > 2 ? (
+          <View style={styles.actionGroup}>
+            <TouchableOpacity
+              accessibilityLabel={showAll ? 'Show fewer reviews' : `Show all ${stats.count} reviews`}
+              accessibilityRole="button"
+              onPress={() => setShowAll(!showAll)}
+              style={styles.seeAllButton}
+            >
+              <Text style={styles.seeAllText}>
+                {showAll ? 'Show less' : `See all ${stats.count} →`}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </View>
 
       {/* Review Cards List */}
       <View style={styles.reviewList}>
-        {displayedReviews.map((rev) => (
+        {isLoading ? (
+          <View accessibilityLiveRegion="polite" style={styles.loadingState}>
+            <ActivityIndicator color={colors.ink} size="small" />
+            <Text style={styles.stateText}>Loading reviews…</Text>
+          </View>
+        ) : loadError ? (
+          <View accessibilityRole="alert" style={styles.loadingState}>
+            <Text style={styles.stateText}>{loadError}</Text>
+            <TouchableOpacity
+              accessibilityLabel="Retry loading reviews"
+              accessibilityRole="button"
+              onPress={() => setReloadKey((value) => value + 1)}
+              style={styles.retryButton}
+            >
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : displayedReviews.length === 0 ? (
+          <Text style={styles.stateText}>No approved reviews yet.</Text>
+        ) : displayedReviews.map((rev) => (
           <View key={rev.id} style={styles.reviewCard}>
             <View style={styles.cardHeader}>
               <View style={styles.authorBadgeRow}>
@@ -133,11 +185,21 @@ export default function CustomerReviews({ productId }) {
         ))}
       </View>
 
+      {noticeMsg ? (
+        <Text accessibilityLiveRegion="polite" style={styles.submissionNotice}>
+          {noticeMsg}
+        </Text>
+      ) : null}
+
       {/* Write a Review Button */}
       <TouchableOpacity
         accessibilityLabel="Write a review"
         accessibilityRole="button"
-        onPress={() => setModalVisible(true)}
+        onPress={() => {
+          setErrorMsg('');
+          setNoticeMsg('');
+          setModalVisible(true);
+        }}
         style={styles.writeReviewButton}
       >
         <Text style={styles.writeReviewButtonText}>+ Write a Review</Text>
@@ -154,7 +216,12 @@ export default function CustomerReviews({ productId }) {
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Write a Review</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeBtn}>
+              <TouchableOpacity
+                accessibilityLabel="Close review form"
+                accessibilityRole="button"
+                onPress={() => setModalVisible(false)}
+                style={styles.closeBtn}
+              >
                 <Text style={styles.closeBtnText}>✕</Text>
               </TouchableOpacity>
             </View>
@@ -165,6 +232,9 @@ export default function CustomerReviews({ productId }) {
               <View style={styles.starSelectRow}>
                 {[1, 2, 3, 4, 5].map((star) => (
                   <TouchableOpacity
+                    accessibilityLabel={`${star} star${star === 1 ? '' : 's'}`}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: newRating === star }}
                     key={star}
                     onPress={() => setNewRating(star)}
                     style={styles.starTouch}
@@ -177,20 +247,15 @@ export default function CustomerReviews({ productId }) {
                 <Text style={styles.ratingGuide}>{newRating} of 5 Stars</Text>
               </View>
 
-              {/* Name Input */}
-              <Text style={styles.inputLabel}>YOUR NAME</Text>
-              <TextInput
-                onChangeText={setNewAuthor}
-                placeholder="e.g. Juan D."
-                placeholderTextColor={colors.muted}
-                style={styles.textInput}
-                value={newAuthor}
-              />
+              <Text style={styles.accountNote}>
+                Your account name will be used. Reviews appear after moderation.
+              </Text>
 
               {/* Comment Input */}
               <Text style={styles.inputLabel}>COMMENT / FEEDBACK</Text>
               <TextInput
                 multiline
+                maxLength={2000}
                 numberOfLines={3}
                 onChangeText={(text) => {
                   setNewComment(text);
@@ -206,11 +271,16 @@ export default function CustomerReviews({ productId }) {
 
               {/* Submit Button */}
               <TouchableOpacity
+                accessibilityLabel="Submit review"
                 accessibilityRole="button"
+                accessibilityState={{ disabled: isSubmitting }}
+                disabled={isSubmitting}
                 onPress={handleSubmitReview}
-                style={styles.submitButton}
+                style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
               >
-                <Text style={styles.submitButtonText}>Submit Review</Text>
+                <Text style={styles.submitButtonText}>
+                  {isSubmitting ? 'Submitting…' : 'Submit Review'}
+                </Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -280,6 +350,31 @@ const styles = StyleSheet.create({
   reviewList: {
     gap: 10,
   },
+  loadingState: {
+    minHeight: 72,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  stateText: {
+    color: colors.muted,
+    fontFamily: fonts.interRegular,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  retryButton: {
+    borderColor: colors.border,
+    borderRadius: 9999,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  retryText: {
+    color: colors.ink,
+    fontFamily: fonts.interSemiBold,
+    fontSize: 12,
+  },
   reviewCard: {
     backgroundColor: colors.paper,
     borderWidth: 1,
@@ -335,6 +430,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#999990',
     marginTop: 2,
+  },
+  submissionNotice: {
+    color: colors.olive || colors.ink,
+    fontFamily: fonts.interSemiBold,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 10,
+    textAlign: 'center',
   },
   writeReviewButton: {
     marginTop: 12,
@@ -424,6 +527,13 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginLeft: 8,
   },
+  accountNote: {
+    color: colors.muted,
+    fontFamily: fonts.interRegular,
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
   textInput: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -450,6 +560,9 @@ const styles = StyleSheet.create({
     borderRadius: 9999,
     alignItems: 'center',
     marginTop: 10,
+  },
+  submitButtonDisabled: {
+    opacity: 0.55,
   },
   submitButtonText: {
     color: colors.ink,

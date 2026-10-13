@@ -1,12 +1,12 @@
 # Plan and Goals
 
-**Status:** Approved scope; local code/Figma slice implemented; transition ledger, snapshots, capabilities discovery, and 64-route browser layout checks verified
+**Status:** Approved scope; 2026-10-11 QA implementation and local regression cycle completed; release gates remain on hold
 
 **Project:** MetroDripJS urban streetwear commerce platform
 
 **Target architecture:** Secured modular Django monolith on one Render Free web service and one Render Free PostgreSQL database
 
-**Updated:** 2026-10-05
+**Updated:** 2026-10-11
 
 **Release status:** HOLD until production deployment gates pass
 
@@ -88,7 +88,7 @@ The earlier five-service topology remains useful as a local reference and migrat
    - Built `OrdersPaymentTransition` append-only ledger and immutable `OrdersOrderLine` snapshots (Migration `0007`).
    - Implemented `GET /api/payments/capabilities/` and wired into mobile checkout.
    - Implemented merchant console timeline and step-up modal with keyboard focus containment.
-   - Passed all **73/73 Django tests**, **140/140 client invariant tests**, **0 TypeScript errors**, and **64/64 browser layout checks**.
+   - Passed all **75/75 Django tests**, **148/148 client invariant tests**, **0 TypeScript errors**, and **64/64 browser layout checks** in the 2026-10-11 local rerun.
 
 4. **Verification and controlled release**
    - Run migrations and rollback rehearsal against disposable PostgreSQL.
@@ -104,7 +104,7 @@ The earlier five-service topology remains useful as a local reference and migrat
 | R-02 | Provider activation differs between test and live accounts. | Medium | High | Method absent or rejected in live mode | Current server fails closed; capability discovery and conditional display implemented; verify live method before exposure | Payments | Controlled |
 | R-03 | Duplicate or out-of-order webhooks regress payment state. | Medium | High | Repeated event IDs or terminal-to-nonterminal transition attempts | Event-ID/body-digest dedupe, row locking, invariant checks, and append-only `OrdersPaymentTransition` ledger | Backend | **Mitigated** |
 | R-04 | Inventory is held while an online payment remains pending. | Medium | High | Growing stale-pending/hold count | Thirty-minute expiry, one stale cleanup per new checkout, owned read repair, and an operational query | Orders | Controlled |
-| R-05 | Consolidation changes legacy API behavior. | Medium | High | Mobile contract or merchant console regressions | Preserve `/api/orders/checkout/`, retire unsafe `/orders/` with `410`, verified via 140 client invariant tests | Architecture | **Mitigated** |
+| R-05 | Consolidation changes legacy API behavior. | Medium | High | Mobile contract or merchant console regressions | Preserve `/api/orders/checkout/`, retire unsafe `/orders/` with `410`, verified via 148 client invariant tests | Architecture | **Mitigated** |
 | R-06 | Render Free PostgreSQL expires and lacks managed backup/pooling needed for durable commerce storage. | High | High | Thirty-day lifecycle or restore requirement cannot be met | Keep production release on HOLD; rehearse logical export/restore for non-production; do not buy an upgrade without new approval | Platform | Open release blocker |
 | R-07 | A requested improvement requires a paid resource. | Medium | Medium | Blueprint validation or dashboard prompts for billing | Stop the change, retain free configuration, and record the paid option separately for explicit future approval | Platform | Controlled |
 

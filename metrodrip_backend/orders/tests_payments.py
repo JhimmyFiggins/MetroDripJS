@@ -505,9 +505,9 @@ class HostedCheckoutAPITest(TestCase):
         self.assertEqual(self.stock.reserved_quantity, 0)
         self.assertTrue(InventoryReservation.objects.filter(order_id=order.id, status='expired').exists())
 
-    def _post_signed_event(self, event, valid=True):
+    def _post_signed_event(self, event, valid=True, timestamp=None):
         raw_body = json.dumps(event, separators=(',', ':')).encode('utf-8')
-        timestamp = str(int(time.time()))
+        timestamp = str(int(time.time()) if timestamp is None else timestamp)
         signature = hmac.new(
             b'whsec_test_example',
             timestamp.encode('ascii') + b'.' + raw_body,
@@ -542,6 +542,52 @@ class HostedCheckoutAPITest(TestCase):
         self.assertEqual(self.stock.quantity, 3)
         self.assertEqual(self.stock.reserved_quantity, 0)
         self.assertEqual(InventoryStockMovement.objects.filter(ref_order_ref=order.id).count(), 1)
+
+    def test_out_of_order_webhook_cannot_regress_paid_state(self):
+        order, _ = self._online_order(key='checkout-out-of-order-webhook')
+        paid_event = self._paid_event(order)
+        expired_event = json.loads(json.dumps(paid_event))
+        expired_event['data']['id'] = f'evt_expired_{order.id}'
+        expired_event['data']['attributes']['type'] = 'checkout_session.expired'
+
+        paid = self._post_signed_event(paid_event)
+        late_expiry = self._post_signed_event(expired_event)
+
+        self.assertEqual(paid.data['result'], 'processed')
+        self.assertEqual(late_expiry.data['result'], 'ignored')
+        payment = OrdersPayment.objects.get(order=order)
+        order.refresh_from_db()
+        self.stock.refresh_from_db()
+        self.assertEqual(payment.status, 'paid')
+        self.assertEqual(order.status, 'placed')
+        self.assertEqual(self.stock.quantity, 3)
+        self.assertEqual(InventoryStockMovement.objects.filter(ref_order_ref=order.id).count(), 1)
+
+    def test_webhook_rejects_event_id_collision_mode_mismatch_and_stale_timestamp(self):
+        order, _ = self._online_order(key='checkout-webhook-envelope-negatives')
+        ignored_event = self._paid_event(order)
+        ignored_event['data']['attributes']['type'] = 'checkout_session.expired'
+        first = self._post_signed_event(ignored_event)
+        self.assertEqual(first.data['result'], 'ignored')
+
+        collided_event = self._paid_event(order)
+        collision = self._post_signed_event(collided_event)
+        self.assertEqual(collision.status_code, 409)
+        self.assertEqual(collision.data['code'], 'event_collision')
+
+        mode_mismatch_event = self._paid_event(order)
+        mode_mismatch_event['data']['id'] = f'evt_live_{order.id}'
+        mode_mismatch_event['data']['attributes']['livemode'] = True
+        mode_mismatch = self._post_signed_event(mode_mismatch_event)
+        self.assertEqual(mode_mismatch.status_code, 401)
+        self.assertEqual(mode_mismatch.data['code'], 'mode_mismatch')
+
+        stale_event = self._paid_event(order)
+        stale_event['data']['id'] = f'evt_stale_{order.id}'
+        stale = self._post_signed_event(stale_event, timestamp=int(time.time()) - 301)
+        self.assertEqual(stale.status_code, 401)
+        self.assertEqual(stale.data['code'], 'timestamp_outside_tolerance')
+        self.assertEqual(OrdersPayment.objects.get(order=order).status, 'awaiting_payment')
 
     def test_current_webhook_envelope_is_processed(self):
         order, _ = self._online_order(key='checkout-current-webhook')

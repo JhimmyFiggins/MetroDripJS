@@ -18,9 +18,9 @@
   --color-volt-hover: #c4df33;
   --color-on-volt: #141414;
   --color-accent-text: #5c6b12;
-  --color-danger: #c2282d;
+  --color-danger: #9f1d23;
   --color-danger-bg: rgba(194, 40, 45, 0.08);
-  --color-success: #15803d;
+  --color-success: #116b32;
   --color-success-bg: rgba(21, 128, 61, 0.08);
   --color-warning: #b45309;
   --color-warning-bg: rgba(180, 83, 9, 0.08);
@@ -3584,4 +3584,3 @@ button, input, select, textarea {
 .btn-danger:hover:not(:disabled) {
   background-color: #a71e22;
 }
-

@@ -35,6 +35,22 @@ export function getAuthToken() {
   return currentAuthToken;
 }
 
+export function resolveApiUrl(path) {
+  if (typeof path !== 'string' || path.trim() === '') {
+    throw new TypeError('A non-empty API path is required.');
+  }
+
+  const base = BASE_URL.replace(/\/+$/, '');
+  const candidate = /^https?:\/\//i.test(path)
+    ? path
+    : `${base}/${path.replace(/^\/+/, '')}`;
+  const parsed = new URL(candidate);
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new TypeError('Only HTTP(S) API URLs are supported.');
+  }
+  return parsed.toString();
+}
+
 export class ApiError extends Error {
   constructor(message, { status, data } = {}) {
     super(message);
@@ -64,7 +80,16 @@ function describeErrorPayload(data) {
 }
 
 export async function apiFetch(path, { method = 'GET', body, auth = true, headers = {} } = {}) {
-  const url = path.startsWith('http') ? path : `${BASE_URL}${path}`;
+  const url = resolveApiUrl(path);
+  const apiOrigin = new URL(resolveApiUrl('/')).origin;
+  const requestOrigin = new URL(url).origin;
+  const suppliedAuthorization = Object.keys(headers).some(
+    (name) => name.toLowerCase() === 'authorization',
+  );
+
+  if (requestOrigin !== apiOrigin && ((auth && currentAuthToken) || suppliedAuthorization)) {
+    throw new ApiError('Authenticated requests must use the configured API origin.', { status: 0 });
+  }
 
   const finalHeaders = {
     Accept: 'application/json',
@@ -77,7 +102,7 @@ export async function apiFetch(path, { method = 'GET', body, auth = true, header
     serializedBody = JSON.stringify(body);
   }
 
-  if (auth && currentAuthToken) {
+  if (auth && currentAuthToken && requestOrigin === apiOrigin) {
     finalHeaders['Authorization'] = `Bearer ${currentAuthToken}`;
   }
 

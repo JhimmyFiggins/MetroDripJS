@@ -1,6 +1,6 @@
 # MetroDripJS
 
-> **Release status: HOLD.** The approved target is one secured modular Django monolith on **one Render Free web service and one Render Free PostgreSQL database**, with no paid worker, cron, Redis/Key Value, disk, autoscaling, or plan upgrade. Checkout retains COD and adds PayMongo Hosted Checkout for available GCash, Maya, and card methods. See the controlling [plan](Project%20Guidelines/Plan%20and%20Goals.md), [architecture](Project%20Guidelines/Architecture%20and%20Operations.md), [backend contract](Project%20Guidelines/Backend%20Functionalities.md), [database plan](Project%20Guidelines/Database%20Structure.md), and [ADRs](Project%20Guidelines/Decisions%20and%20Handover.md#active-architecture-decisions--2026-09-28).
+> **Release status: HOLD.** The approved target is one secured modular Django monolith on **one Render Free web service and one Render Free PostgreSQL database**, with no paid worker, cron, Redis/Key Value, disk, autoscaling, or plan upgrade. Checkout retains COD and adds PayMongo Hosted Checkout for available GCash, Maya, and card methods. See the controlling [plan](Project%20Guidelines/Plan%20and%20Goals.md), [architecture](Project%20Guidelines/Architecture%20and%20Operations.md), [backend contract](Project%20Guidelines/Backend%20Functionalities.md), [database plan](Project%20Guidelines/Database%20Structure.md), [ADRs](Project%20Guidelines/Decisions%20and%20Handover.md#active-architecture-decisions--2026-09-28), and [current release-blocker evidence](Project%20Guidelines/Release%20Blocker%20Verification%20-%202026-10-12.md).
 
 MetroDripJS is an urban streetwear e-commerce platform with an Expo/React Native customer app and responsive merchant/admin web consoles. The active implementation path is `metrodrip_backend/`: one Django/DRF process containing identity, catalog, orders/payments, fulfillment, content, and staff-console APIs. Local development defaults to SQLite; the unapplied Render Blueprint wires that same application to one free PostgreSQL database.
 
@@ -15,7 +15,7 @@ python manage.py migrate
 python manage.py runserver 127.0.0.1:8000
 ```
 
-The health endpoint is `GET http://127.0.0.1:8000/health/`. Local SQLite is convenient for development and focused tests, but it does not verify PostgreSQL row locking, query plans, migration rollback, or production concurrency.
+The health endpoint is `GET http://127.0.0.1:8000/health/`. Local SQLite is convenient for development and focused tests, but it does not verify PostgreSQL behavior. The 2026-10-13 release-blocker pass separately verified migrations, rollback boundaries, backup/restore, and critical concurrency on disposable PostgreSQL 16; connected Render PostgreSQL still requires acceptance.
 
 ### Staff accounts and consoles
 
@@ -55,7 +55,7 @@ npm run test:client
 npx tsc --noEmit
 ```
 
-For the mocked Chromium console harness, first start `npm run dev`, then run `npm run test:browser` in another terminal. It checks responsive layouts and representative loading, default, empty, partial-failure, failed-write/retry, development-fixture, permission, Escape, focus-return, and Tab-containment behavior. APIs are mocked; this is not browser-to-Django integration evidence. Final rerun results belong in [Verification and Evaluation](Project%20Guidelines/Verification%20and%20Evaluation.md).
+For the mocked Chromium console harness, first start `npm run dev`, then run `npm run test:browser` in another terminal. It checks responsive layouts and representative loading, default, empty, partial-failure, failed-write/retry, development-fixture, permission, Escape, focus-return, and Tab-containment behavior. `npm run test:browser:integration` is the separate real browser-to-Django harness and requires the disposable QA environment variables documented by the script; it must never point at production. `npm run test:load:local` is likewise capped and disposable-only. Final rerun results belong in [Verification and Evaluation](Project%20Guidelines/Verification%20and%20Evaluation.md).
 
 ### Free-tier deployment boundary
 
@@ -239,3 +239,4 @@ Authoritative project specifications and evidence statuses based on [AGENTS.md](
 7. [Decisions and Handover](Project%20Guidelines/Decisions%20and%20Handover.md) — Active ADRs, implementation snapshot, exact paths, blockers, and cold-start continuation instructions.
 8. [AI Documentation Notes](Project%20Guidelines/AI%20Documentation%20Notes.md) — Compact retrieval map for locating authoritative project knowledge.
 9. [Tech Stack Setup Guide](Project%20Guidelines/Tech%20Stack%20Setup%20Guide.md) — Local setup, service launch, and troubleshooting guidance, with an [interactive companion](Project%20Guidelines/tech-stack-setup.html).
+10. [QA Audit and Implementation Report — 2026-10-11](Project%20Guidelines/QA%20Audit%20and%20Implementation%20Report%20-%202026-10-11.md) — Current end-to-end audit, implemented fixes, measured evidence, residual risks, and release blockers.

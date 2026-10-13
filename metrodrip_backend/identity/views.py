@@ -8,7 +8,10 @@ from django.utils import timezone
 from .authentication import CustomerAuthentication, CustomerTokenAuthentication
 from .permissions import IsAdminRole, IsMerchantOrAdminRole
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.throttling import ScopedRateThrottle
+from .throttling import DatabaseScopedRateThrottle
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 
 class WishlistAPIView(APIView):
     authentication_classes = [CustomerAuthentication]
@@ -39,13 +42,18 @@ class WishlistAPIView(APIView):
         if not customer:
             return Response({'error': 'Authentication required.'}, status=401)
 
-        wishlist = AccountsWishlistItem.objects.filter(
+        wishlist = list(AccountsWishlistItem.objects.filter(
             customer=customer
-        ).order_by('-created_at')
+        ).order_by('-created_at'))
+
+        products = CatalogProduct.objects.filter(
+            id__in={item.product_ref for item in wishlist},
+            is_active=True,
+        ).in_bulk()
 
         data = []
         for item in wishlist:
-            product = CatalogProduct.objects.filter(id=item.product_ref).first()
+            product = products.get(item.product_ref)
             if product:
                 data.append({
                     'id': item.id,
@@ -69,6 +77,14 @@ class WishlistAPIView(APIView):
                 {'error': 'product_ref is required'},
                 status=400
             )
+
+        try:
+            product_ref = int(product_ref)
+        except (TypeError, ValueError):
+            return Response({'error': 'Invalid product reference.'}, status=400)
+
+        if not CatalogProduct.objects.filter(id=product_ref, is_active=True).exists():
+            return Response({'error': 'Product not found.'}, status=404)
 
         wishlist_item, created = AccountsWishlistItem.objects.get_or_create(
             customer=customer,
@@ -182,11 +198,12 @@ class ProfileAPIView(APIView):
 
         customer.name = request.data.get('name', customer.name)
         new_email = request.data.get('email')
-        if new_email and new_email.strip() != customer.email:
-            existing = AccountsCustomer.objects.filter(email=new_email.strip()).exclude(id=customer.id).first()
+        normalized_email = new_email.strip().lower() if isinstance(new_email, str) else ''
+        if normalized_email and normalized_email != customer.email:
+            existing = AccountsCustomer.objects.filter(email__iexact=normalized_email).exclude(id=customer.id).first()
             if existing:
                 return Response({'error': 'An account with this email already exists.'}, status=400)
-            customer.email = new_email.strip()
+            customer.email = normalized_email
 
         customer.phone = request.data.get('phone', customer.phone)
         customer.addresses = request.data.get(
@@ -208,7 +225,7 @@ class ProfileAPIView(APIView):
 
 class ForgotPasswordAPIView(APIView):
     renderer_classes = [JSONRenderer]
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [DatabaseScopedRateThrottle]
     throttle_scope = 'password_reset'
 
     def post(self, request):
@@ -224,7 +241,7 @@ class ForgotPasswordAPIView(APIView):
 
 class LoginAPIView(APIView):
     renderer_classes = [JSONRenderer]
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [DatabaseScopedRateThrottle]
     throttle_scope = 'login'
 
     def post(self, request):
@@ -274,12 +291,12 @@ class CheckCustomerAPIView(APIView):
 
 class SignupAPIView(APIView):
     renderer_classes = [JSONRenderer]
-    throttle_classes = [ScopedRateThrottle]
+    throttle_classes = [DatabaseScopedRateThrottle]
     throttle_scope = 'signup'
 
     def post(self, request):
-        name = request.data.get('name')
-        email = request.data.get('email')
+        name = (request.data.get('name') or '').strip()
+        email = (request.data.get('email') or '').strip().lower()
         password = request.data.get('password')
 
         if not name or not email or not password:
@@ -288,7 +305,7 @@ class SignupAPIView(APIView):
                 status=400
             )
 
-        if AccountsCustomer.objects.filter(email=email).exists():
+        if AccountsCustomer.objects.filter(email__iexact=email).exists():
             return Response(
                 {'error': 'An account with this email already exists.'},
                 status=400
@@ -296,7 +313,7 @@ class SignupAPIView(APIView):
 
         customer = AccountsCustomer(
             name=name,
-            email=email.strip().lower(),
+            email=email,
             phone='',
             addresses={},
             is_active=True,
@@ -305,8 +322,20 @@ class SignupAPIView(APIView):
             role='customer',
             date_joined=timezone.now(),
         )
+        try:
+            validate_password(password, user=customer)
+        except ValidationError as error:
+            return Response({'password': list(error.messages)}, status=400)
+
         customer.set_password(password)
-        customer.save()
+        try:
+            with transaction.atomic():
+                customer.save()
+        except IntegrityError:
+            return Response(
+                {'error': 'An account with this email already exists.'},
+                status=400,
+            )
 
         return Response({
             'id': customer.id,

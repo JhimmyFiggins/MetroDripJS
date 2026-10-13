@@ -80,11 +80,14 @@ export default function ProductCards({ selectedCategory, onSelectProduct, produc
                 columnWrapperStyle={styles.row}
                 renderItem={({ item }) => (
                     <TouchableOpacity
+                        accessibilityLabel={`${item.name}, ${formatPrice(Number(item.base_price))}`}
+                        accessibilityRole="button"
                         style={styles.productCard}
                         // 3. Fixed: Use item.id instead of 'id'
                         onPress={() => onSelectProduct(item.id)}
                     >
                         <Image
+                            accessibilityLabel={item.name}
                             source={require('../assets/products/Men\'s Round T-shirt.webp')}
                             style={styles.productImage}
                         />

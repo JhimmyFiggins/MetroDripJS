@@ -29,6 +29,9 @@ export default function Footer({ active = null }) {
 const NavItem = ({ icon, label, active = false, onPress }) => {
   return (
       <TouchableOpacity
+        accessibilityLabel={label}
+        accessibilityRole="tab"
+        accessibilityState={{ selected: active }}
         style={styles.item}
         onPress={onPress}
       >
@@ -58,6 +61,8 @@ const styles = StyleSheet.create({
     item: {
         alignItems: 'center',
         flex: 1,
+        minHeight: 44,
+        justifyContent: 'center',
     },
     label: {
         fontSize: 12,

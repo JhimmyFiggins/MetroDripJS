@@ -17,10 +17,10 @@ export const productService = {
   // params (all optional): { search, category, size, color, fit, sort }
   // sort: 'newest' | 'price_asc' | 'price_desc'
   getAllProducts: async (params = {}) => {
-    return apiFetch(`/products/${buildQueryString(params)}`);
+    return apiFetch(`/products/${buildQueryString(params)}`, { auth: false });
   },
 
   getProductById: async (productId) => {
-    return apiFetch(`/products/${productId}/`);
+    return apiFetch(`/products/${productId}/`, { auth: false });
   },
 };
