@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 
 import { installFetch, sentBody, headerOf } from './helpers/fetchRecorder.mjs';
 
-const { setAuthToken, clearCustomer, BASE_URL } = await import('../../src/services/apiClient.js');
+const { apiFetch, setAuthToken, clearCustomer, BASE_URL } = await import('../../src/services/apiClient.js');
 const auth = await import('../../src/services/authService.js');
 const orders = await import('../../src/services/orderService.js');
 const { productService } = await import('../../src/services/productService.js');
@@ -101,6 +101,31 @@ test('createOrder forwards the caller body untouched so the builder stays in cha
   assert.deepEqual(sentBody(fetch.last), payload);
 });
 
+test('payment capabilities use the public Django capability route without a token', async () => {
+  await orders.getPaymentCapabilities();
+  assert.equal(pathOf(fetch.last), '/api/payments/capabilities/');
+  assert.equal(headerOf(fetch.last, 'Authorization'), undefined);
+});
+
+test('payment capability mapping follows methods[].available and fails online rails closed', () => {
+  const options = [
+    { id: 'cod', title: 'Cash on Delivery' },
+    { id: 'gcash', title: 'GCash' },
+    { id: 'maya', title: 'Maya' },
+  ];
+  const mapped = orders.mapPaymentCapabilities(options, {
+    methods: [
+      { id: 'cod', available: true, type: 'offline' },
+      { id: 'gcash', available: false, type: 'hosted' },
+    ],
+  });
+
+  assert.equal(mapped.find((option) => option.id === 'cod').enabled, true);
+  assert.equal(mapped.find((option) => option.id === 'gcash').enabled, false);
+  assert.equal(mapped.find((option) => option.id === 'maya').enabled, false);
+  assert.equal(mapped.find((option) => option.id === 'gcash').requiresRedirect, true);
+});
+
 test('the client never puts customer_id in the checkout body; the token identifies the caller', async () => {
   await orders.createOrder({ items: [{ variant_id: 1, quantity: 1 }] });
   assert.equal('customer_id' in sentBody(fetch.last), false);
@@ -111,6 +136,7 @@ test('the client never puts customer_id in the checkout body; the token identifi
 test('product listing builds a filtered, encoded query string', async () => {
   await productService.getAllProducts();
   assert.equal(pathOf(fetch.last), '/products/');
+  assert.equal(headerOf(fetch.last, 'Authorization'), undefined);
 
   await productService.getAllProducts({ search: 'hoodie', size: 'L', sort: 'price_asc' });
   assert.equal(pathOf(fetch.last), '/products/?search=hoodie&size=L&sort=price_asc');
@@ -185,7 +211,6 @@ test('every authenticated service call carries the bearer token', async () => {
     () => auth.getProfile(),
     () => wishlist.getWishlist(),
     () => notifications.getNotifications(),
-    () => productService.getAllProducts(),
   ]) {
     await call();
     assert.equal(headerOf(fetch.last, 'Authorization'), 'Bearer tok-test', `missing token on ${pathOf(fetch.last)}`);
@@ -198,6 +223,28 @@ test('after logout no request carries a stale token', async () => {
   await orders.getOrders();
   assert.equal(headerOf(fetch.last, 'Authorization'), undefined);
   assert.equal(headerOf(fetch.last, 'X-Customer-ID'), undefined);
+});
+
+test('the API client blocks bearer tokens from crossing the configured origin', async () => {
+  await assert.rejects(
+    apiFetch('https://attacker.example/token-capture'),
+    /configured API origin/,
+  );
+  assert.equal(fetch.calls.length, 0);
+
+  await apiFetch('https://public.example/catalog.json', { auth: false });
+  assert.equal(headerOf(fetch.last, 'Authorization'), undefined);
+});
+
+test('caller-supplied authorization headers are also blocked cross-origin', async () => {
+  await assert.rejects(
+    apiFetch('https://public.example/catalog.json', {
+      auth: false,
+      headers: { Authorization: 'Bearer caller-supplied' },
+    }),
+    /configured API origin/,
+  );
+  assert.equal(fetch.calls.length, 0);
 });
 
 // Guards against a service module being added without a smoke-level assertion.

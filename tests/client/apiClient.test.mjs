@@ -109,12 +109,13 @@ test('a caller-supplied header is forwarded alongside the token', async () => {
   assert.equal(headerOf(fetch.last, 'Authorization'), 'Bearer tok-abc');
 });
 
-test('absolute URLs bypass BASE_URL so a caller can pin an explicit host', async () => {
+test('an explicit public URL is allowed only when no bearer credential is present', async () => {
   const fetch = installFetch().reply({ ok: true });
 
-  await apiFetch('http://example.test/ping/');
+  await apiFetch('http://example.test/ping/', { auth: false });
 
   assert.equal(fetch.last.url, 'http://example.test/ping/');
+  assert.equal(headerOf(fetch.last, 'Authorization'), undefined);
 });
 
 test('an empty 200 body resolves to null instead of throwing on JSON.parse', async () => {

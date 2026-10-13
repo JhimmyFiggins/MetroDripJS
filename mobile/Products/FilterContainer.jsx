@@ -39,7 +39,7 @@ export default function FilterContainer({
             return;
         }
         let cancelled = false;
-        apiFetch('/categories/')
+        apiFetch('/categories/', { auth: false })
             .then((data) => {
                 if (!cancelled) setCategories(Array.isArray(data) ? data : []);
             })
@@ -74,6 +74,9 @@ export default function FilterContainer({
                 <View style={styles.buttonRowContainer}>
                     <View style={styles.fullWidthItem}>
                         <TouchableOpacity
+                            accessibilityLabel="Show all categories"
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: activeCategory == null }}
                             style={[styles.baseButton, activeCategory == null && styles.activeButton]}
                             onPress={() => patch({ category: null })}
                         >
@@ -88,6 +91,9 @@ export default function FilterContainer({
                         return (
                             <View key={item.id} style={styles.fullWidthItem}>
                                 <TouchableOpacity
+                                    accessibilityLabel={`Filter by ${item.name}`}
+                                    accessibilityRole="button"
+                                    accessibilityState={{ selected: isActive }}
                                     style={[styles.baseButton, isActive && styles.activeButton]}
                                     onPress={() => patch({ category: isActive ? null : item.id })}
                                 >
@@ -110,6 +116,9 @@ export default function FilterContainer({
 
                         return (
                             <TouchableOpacity
+                                accessibilityLabel={`Filter by size ${item.size_attribute}`}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: isSizeActive }}
                                 key={item.id}
                                 style={[
                                     styles.baseButton,
@@ -139,6 +148,9 @@ export default function FilterContainer({
 
                         return (
                             <TouchableOpacity
+                                accessibilityLabel={`Filter by color ${item.color_name}`}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: isColorActive }}
                                 key={item.id}
                                 style={[styles.baseButton, isColorActive && styles.activeButton]}
                                 onPress={() => patch({ color: isColorActive ? null : item.color_name })}
@@ -158,6 +170,9 @@ export default function FilterContainer({
 
                         return (
                             <TouchableOpacity
+                                accessibilityLabel={`Filter by fit ${item.fit_name}`}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: isActiveFit }}
                                 key={item.id}
                                 style={[styles.baseButton, isActiveFit && styles.activeButton]}
                                 onPress={() => patch({ fit: isActiveFit ? null : item.fit_name })}
@@ -178,6 +193,9 @@ export default function FilterContainer({
 
                         return (
                             <TouchableOpacity
+                                accessibilityLabel={`Sort by ${item.sort_name}`}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: isActiveSort }}
                                 key={item.id}
                                 style={[styles.baseButton, isActiveSort && styles.activeButton]}
                                 onPress={() => patch({ sort: value })}
@@ -192,6 +210,8 @@ export default function FilterContainer({
 
                 <View style={styles.actionsRow}>
                     <TouchableOpacity
+                        accessibilityLabel="Clear all filters"
+                        accessibilityRole="button"
                         style={styles.clearButton}
                         onPress={() => {
                             if (onClearAll) onClearAll();
@@ -200,6 +220,8 @@ export default function FilterContainer({
                         <Text style={styles.clearButtonText}>Clear all</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
+                        accessibilityLabel="Apply filters and show results"
+                        accessibilityRole="button"
                         style={styles.applyButton}
                         onPress={() => props.navigation && props.navigation.closeDrawer()}
                     >
@@ -247,7 +269,7 @@ const styles = StyleSheet.create({
         borderRadius: 6,
         borderColor: 'rgb(228, 228, 223)',
         borderWidth: 1,
-        minHeight: 30,
+        minHeight: 44,
         paddingHorizontal: 8,
         paddingVertical: 6,
         margin: 4,
@@ -289,6 +311,8 @@ const styles = StyleSheet.create({
         borderColor: 'rgb(228, 228, 223)',
         paddingVertical: 10,
         alignItems: 'center',
+        minHeight: 44,
+        justifyContent: 'center',
     },
     clearButtonText: {
         fontFamily: fonts.interBold,
@@ -301,6 +325,8 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgb(0, 0, 0)',
         paddingVertical: 10,
         alignItems: 'center',
+        minHeight: 44,
+        justifyContent: 'center',
     },
     applyButtonText: {
         fontFamily: fonts.interBold,

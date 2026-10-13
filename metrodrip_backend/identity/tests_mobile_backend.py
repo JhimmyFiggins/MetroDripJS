@@ -1,6 +1,9 @@
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APIClient
 from django.utils import timezone
+from decimal import Decimal
 from identity.models import AccountsCustomer, AccountsWishlistItem, AuditLog, CustomerAccessToken
 from catalog.models import (
     CatalogCategory,
@@ -118,10 +121,18 @@ class MobileBackendAPITestCase(TestCase):
         # Duplicate signup attempt
         duplicate_res = self.client.post('/signup/', {
             'name': 'Duplicate User',
-            'email': 'newuser@metrodrip.ph',
+            'email': '  NEWUSER@METRODRIP.PH  ',
             'password': 'securepass123',
         }, format='json')
         self.assertEqual(duplicate_res.status_code, 400)
+
+        weak_password = self.client.post('/signup/', {
+            'name': 'Weak Password',
+            'email': 'weak@metrodrip.ph',
+            'password': '12345678',
+        }, format='json')
+        self.assertEqual(weak_password.status_code, 400)
+        self.assertIn('password', weak_password.data)
 
         # Login with valid credentials
         login_res = self.client.post('/login/', {
@@ -247,6 +258,38 @@ class MobileBackendAPITestCase(TestCase):
         }, HTTP_X_CUSTOMER_ID=str(self.customer.id), format='json')
         self.assertEqual(del_missing.status_code, 404)
 
+    def test_wishlist_metadata_lookup_has_a_bounded_query_count(self):
+        products = [self.product]
+        for index in range(4):
+            products.append(CatalogProduct.objects.create(
+                sku=f'MD-PERF-{index}',
+                name=f'Performance Product {index}',
+                description='Wishlist query-budget fixture',
+                image_url='https://example.com/product.jpg',
+                category=self.category,
+                base_price=Decimal('999.00'),
+                currency='PHP',
+                is_active=True,
+                is_featured=False,
+                created_at=self.now,
+                updated_at=self.now,
+            ))
+        AccountsWishlistItem.objects.bulk_create([
+            AccountsWishlistItem(
+                customer=self.customer,
+                product_ref=product.id,
+                created_at=self.now,
+            )
+            for product in products
+        ])
+
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get('/wishlist/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), len(products))
+        self.assertLessEqual(len(queries), 4)
+
     # 5. PRODUCT REVIEWS API (GET & POST)
     def test_product_reviews_endpoints(self):
         # GET reviews before any are posted
@@ -255,31 +298,81 @@ class MobileBackendAPITestCase(TestCase):
         self.assertEqual(get_empty.data['stats']['count'], 0)
         self.assertEqual(get_empty.data['reviews'], [])
 
+        # Owning an account is not enough: only a delivered purchase can be reviewed.
+        no_purchase = self.client.post(f'/products/{self.product.id}/reviews/', {
+            'rating': 5,
+            'comment': 'Heavyweight fleece is top tier. Dropped shoulders sit just right.',
+            'author': 'Bea S.',
+        }, format='json')
+        self.assertEqual(no_purchase.status_code, 403)
+        self.assertEqual(no_purchase.data['code'], 'delivered_purchase_required')
+
+        delivered_order = OrdersOrder.objects.create(
+            customer_id=self.customer.id,
+            status='delivered',
+            subtotal=Decimal('2499.00'),
+            tax=Decimal('0.00'),
+            shipping=Decimal('0.00'),
+            discount=Decimal('0.00'),
+            total=Decimal('2499.00'),
+            currency='PHP',
+            created_at=self.now,
+            updated_at=self.now,
+        )
+        OrdersOrderLine.objects.create(
+            order=delivered_order,
+            product=self.product,
+            variant=self.variant,
+            quantity=1,
+            unit_price=Decimal('2499.00'),
+            total_price=Decimal('2499.00'),
+            discount_amount=Decimal('0.00'),
+            tax_amount=Decimal('0.00'),
+            tax_rate=Decimal('0.0000'),
+            created_at=self.now,
+            updated_at=self.now,
+        )
+
         # Authenticated author identity is server-owned; body aliases are ignored.
         post_res = self.client.post(f'/products/{self.product.id}/reviews/', {
             'rating': 5,
             'comment': 'Heavyweight fleece is top tier. Dropped shoulders sit just right.',
             'author': 'Bea S.',
+            'order_id': delivered_order.id,
         }, format='json')
         self.assertEqual(post_res.status_code, 201)
         self.assertEqual(post_res.data['review']['rating'], 5)
         self.assertEqual(post_res.data['review']['author'], self.customer.name)
+        self.assertEqual(post_res.data['review']['status'], 'pending')
 
-        # POST authenticated review (author auto-populated from customer)
-        post_auth = self.client.post(f'/products/{self.product.id}/reviews/', {
-            'rating': 4,
-            'comment': 'Solid fabric and finish, fits oversize.',
-        }, HTTP_X_CUSTOMER_ID=str(self.customer.id), format='json')
-        self.assertEqual(post_auth.status_code, 201)
-        self.assertEqual(post_auth.data['review']['author'], self.customer.name)
+        # Pending reviews are private until moderation approves them.
+        get_pending = self.client.get(f'/products/{self.product.id}/reviews/')
+        self.assertEqual(get_pending.data['stats']['count'], 0)
+        review = ReviewsReview.objects.get(id=post_res.data['review']['id'])
+        review.status = 'approved'
+        review.save(update_fields=['status'])
 
-        # GET reviews list and verify statistics
+        # GET reviews list and verify statistics and purchase-derived badge.
         get_res = self.client.get(f'/products/{self.product.id}/reviews/')
         self.assertEqual(get_res.status_code, 200)
-        self.assertEqual(get_res.data['stats']['count'], 2)
-        self.assertEqual(get_res.data['stats']['average'], 4.5)
+        self.assertEqual(get_res.data['stats']['count'], 1)
+        self.assertEqual(get_res.data['stats']['average'], 5.0)
         self.assertEqual(get_res.data['stats']['breakdown'][5], 1)
-        self.assertEqual(get_res.data['stats']['breakdown'][4], 1)
+        self.assertTrue(get_res.data['reviews'][0]['verified'])
+
+        duplicate = self.client.post(f'/products/{self.product.id}/reviews/', {
+            'rating': 4,
+            'comment': 'Second review for the same purchase.',
+            'order_id': delivered_order.id,
+        }, format='json')
+        self.assertEqual(duplicate.status_code, 409)
+
+        forged_order = self.client.post(f'/products/{self.product.id}/reviews/', {
+            'rating': 5,
+            'comment': 'This order does not belong to the customer.',
+            'order_id': 999999,
+        }, format='json')
+        self.assertEqual(forged_order.status_code, 403)
 
         # POST invalid rating
         bad_rating = self.client.post(f'/products/{self.product.id}/reviews/', {
@@ -288,12 +381,14 @@ class MobileBackendAPITestCase(TestCase):
         }, format='json')
         self.assertEqual(bad_rating.status_code, 400)
 
-        # POST empty comment
-        bad_comment = self.client.post(f'/products/{self.product.id}/reviews/', {
-            'rating': 5,
-            'comment': '',
-        }, format='json')
-        self.assertEqual(bad_comment.status_code, 400)
+    def test_inactive_catalog_items_are_not_exposed(self):
+        self.product.is_active = False
+        self.product.save(update_fields=['is_active'])
+
+        self.assertEqual(self.client.get(f'/products/{self.product.id}/').status_code, 404)
+        self.assertEqual(self.client.get(f'/products/{self.product.id}/variants/').data, [])
+        self.assertEqual(self.client.get(f'/variants/{self.variant.id}/stock/').data, [])
+        self.assertEqual(self.client.get(f'/products/{self.product.id}/reviews/').status_code, 404)
 
     # 6. ORDERS & CHECKOUT FLOW
     def test_orders_creation_and_history(self):

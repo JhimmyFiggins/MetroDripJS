@@ -289,7 +289,7 @@ def _commit_reservations(order):
     now = timezone.now()
     with transaction.atomic():
         reservations = list(
-            InventoryReservation.objects.select_for_update().select_related('variant').filter(
+            InventoryReservation.objects.select_for_update(of=('self',)).select_related('variant').filter(
                 order_id=order.id,
             ).order_by('id')
         )

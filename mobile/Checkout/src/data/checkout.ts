@@ -1,14 +1,15 @@
 // Import checkout-only types so sample data remains type-safe.
 import type { DeliveryAddress, PaymentOptionModel } from '../types/checkout';
 
-// Seed the form with the exact customer values shown in Figma.
+// Start with no personal data. Checkout may prefill real fields from the
+// authenticated account, but never displays a fabricated customer identity.
 export const initialDeliveryAddress: DeliveryAddress = {
-  fullName: 'Juan R. Dela Cruz',
-  mobile: '0917 555 0143',
-  email: 'juan@email.com',
-  address: 'Unit 4B, 21 Maginhawa St., Teachers Village',
-  city: 'Quezon City',
-  zone: 'Metro Manila (NCR)',
+  fullName: '',
+  mobile: '',
+  email: '',
+  address: '',
+  city: '',
+  zone: '',
 };
 
 export const paymentOptions: readonly PaymentOptionModel[] = [
@@ -25,9 +26,6 @@ export const deliveryZones = [
   'Visayas',
   'Mindanao',
 ] as const;
-
-// Keep the display total in one place so the footer and payment handoff agree.
-export const orderTotal = 2632;
 
 // Format totals using the exact peso presentation shown in the design.
 export const formatPeso = (amount: number) => `₱${amount.toLocaleString('en-PH')}`;

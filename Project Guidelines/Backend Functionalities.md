@@ -1,12 +1,12 @@
 # Backend Functionalities
 
-**Status:** Current implementation contract; transition ledger, snapshots, capabilities discovery, and 73 backend tests verified
+**Status:** Current implementation contract; transition ledger, snapshots, capabilities discovery, review trust controls, and 81 backend tests verified
 
 **Active runtime:** One Django/DRF application in `metrodrip_backend/`. Local development defaults to SQLite. The intended but unapplied Render deployment connects the same application to one free PostgreSQL database.
 
 **Payment scope:** COD plus PayMongo Hosted Checkout for GCash, Maya, and cards with dynamic capability discovery
 
-**Updated:** 2026-10-05
+**Updated:** 2026-10-13
 
 **Release status:** HOLD
 
@@ -18,7 +18,7 @@
 - Checkout idempotency is supplied as the JSON field `idempotency_key`, not an HTTP header. It must be 8–128 characters matching `[A-Za-z0-9._:-]+`.
 - Typed application failures use the flat shape `{"error": "Human-readable message", "code": "stable_code"}`.
 - Django stores application money in two-decimal `DecimalField` values. Checkout responses serialize amounts as decimal strings. The provider adapter converts an exact decimal PHP value to integer centavos and verifies paid amount and `PHP` currency.
-- Response fields are not proof of external verification. Live PayMongo production webhooks, PostgreSQL locking under load, and live Render deployment remain separately **UNVERIFIED**.
+- Response fields are not proof of external verification. Critical locking/concurrency passed on disposable PostgreSQL 16; PayMongo sandbox/live webhooks, connected Render PostgreSQL, and live deployment remain separately **UNVERIFIED**.
 
 ## 2. Identity and staff sessions
 
@@ -170,6 +170,8 @@ Checkout locks stock rows, creates the order/address/line/payment/reservation re
 | `payment_status` | `120/min` | `POST /orders/{id}/cancel/` |
 | `payment_webhook` | `300/min` | `POST /api/payments/paymongo/webhook/` |
 
+All listed scopes use `DatabaseScopedRateThrottle`: an atomic fixed-window counter shared through the configured database across Gunicorn workers. The database stores a SHA-256 digest of the DRF identity key, not the raw user/IP key. Prune inactive identities with `python manage.py prune_rate_limit_buckets`; app-level limits do not replace provider or edge protection against volumetric traffic.
+
 ## 7. Fail-closed capabilities
 
 | Capability | Route | Status and code |
@@ -189,5 +191,5 @@ Checkout locks stock rows, creates the order/address/line/payment/reservation re
 
 - Coarse role checks are implemented; store-scoped ABAC, a fine-grained permission model, MFA, and recent-authentication gates are not yet enforced.
 - A dedicated refund model and distributed reconciliation lease remain future schema extensions.
-- Verified test evidence: **73/73 Django tests**, **140/140 client invariant tests**, **0 TypeScript errors**, and **64/64 browser layout tests** in Headless Chrome across 320px, 390px, 768px, and 1280px viewports.
+- Verified local test evidence: **75/75 Django tests**, **148/148 client invariant tests**, **0 TypeScript errors**, and **64/64 mocked browser layout tests** in Headless Chrome across 320px, 390px, 768px, and 1280px viewports. See the [2026-10-11 QA audit](QA%20Audit%20and%20Implementation%20Report%20-%202026-10-11.md) for evidence boundaries.
 - No real charge/refund, secret change, Render live application, or paid infrastructure change is authorized by this document.

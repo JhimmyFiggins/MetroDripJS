@@ -76,7 +76,7 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
   // Category chips row: All + categories from the API.
   useEffect(() => {
     let cancelled = false;
-    apiFetch('/categories/')
+    apiFetch('/categories/', { auth: false })
       .then((data) => {
         if (!cancelled) setCategories(Array.isArray(data) ? data : []);
       })
@@ -152,16 +152,18 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
   const renderGridContent = () => {
     if (loading) {
       return (
-        <View style={styles.stateContainer}>
+        <View accessibilityLiveRegion="polite" style={styles.stateContainer}>
           <ActivityIndicator size="large" color={colors.ink} />
         </View>
       );
     }
     if (error) {
       return (
-        <View style={styles.stateContainer}>
+        <View accessibilityRole="alert" style={styles.stateContainer}>
           <Text style={styles.stateText}>Error loading products: {error}</Text>
           <TouchableOpacity
+            accessibilityLabel="Retry loading products"
+            accessibilityRole="button"
             style={styles.stateButton}
             onPress={() => setReloadKey((key) => key + 1)}
           >
@@ -172,10 +174,15 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
     }
     if (productList.length === 0) {
       return (
-        <View style={styles.stateContainer}>
+        <View accessibilityLiveRegion="polite" style={styles.stateContainer}>
           <Text style={styles.stateText}>No products match</Text>
           {filterCount > 0 && (
-            <TouchableOpacity style={styles.stateButton} onPress={onClearAll}>
+            <TouchableOpacity
+              accessibilityLabel="Clear all product filters"
+              accessibilityRole="button"
+              style={styles.stateButton}
+              onPress={onClearAll}
+            >
               <Text style={styles.stateButtonText}>Clear filters</Text>
             </TouchableOpacity>
           )}
@@ -199,6 +206,8 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
           <ShopHeader screenTitle={screenTitle} />
           <View style={styles.topHeader}>
             <TouchableOpacity
+              accessibilityLabel="Open product filters"
+              accessibilityRole="button"
               style={styles.hamburgerBtn}
               onPress={() => navigation.toggleDrawer()}
             >
@@ -221,6 +230,9 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
             contentContainerStyle={styles.categoryRow}
           >
             <TouchableOpacity
+              accessibilityLabel="Show all categories"
+              accessibilityRole="button"
+              accessibilityState={{ selected: filters.category == null }}
               style={[styles.categoryChip, filters.category == null && styles.categoryChipActive]}
               onPress={() => onFiltersChange({ category: null })}
             >
@@ -232,6 +244,9 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
               const isActive = filters.category === category.id;
               return (
                 <TouchableOpacity
+                  accessibilityLabel={`Filter by ${category.name}`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isActive }}
                   key={category.id}
                   style={[styles.categoryChip, isActive && styles.categoryChipActive]}
                   onPress={() => onFiltersChange({ category: isActive ? null : category.id })}
@@ -252,6 +267,8 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
             contentContainerStyle={styles.chipsRow}
           >
             <TouchableOpacity
+              accessibilityLabel={`Open filters, ${filterCount} active`}
+              accessibilityRole="button"
               style={styles.filterPill}
               onPress={() => navigation.openDrawer()}
             >
@@ -261,6 +278,8 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
               <View key={chip.key} style={styles.chip}>
                 <Text style={styles.chipLabel}>{chip.label}</Text>
                 <TouchableOpacity
+                  accessibilityLabel={`Remove ${chip.label} filter`}
+                  accessibilityRole="button"
                   onPress={() => removeChip(chip.key)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
@@ -272,10 +291,12 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
 
           {/* Results count + sort control */}
           <View style={styles.resultsRow}>
-            <Text style={styles.resultsCount}>
+            <Text accessibilityLiveRegion="polite" style={styles.resultsCount}>
               {loading ? 'Loading…' : `${productList.length} results`}
             </Text>
             <TouchableOpacity
+              accessibilityLabel={`Sort products, currently ${sortLabel(filters.sort)}`}
+              accessibilityRole="button"
               style={styles.sortButton}
               onPress={() => setSortModalVisible(true)}
             >
@@ -302,12 +323,14 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
 
       {/* Sort modal */}
       <Modal
+        accessibilityViewIsModal
         visible={sortModalVisible}
         transparent
         animationType="fade"
         onRequestClose={() => setSortModalVisible(false)}
       >
         <Pressable
+          accessible={false}
           style={styles.modalBackdrop}
           onPress={() => setSortModalVisible(false)}
         >
@@ -316,6 +339,9 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
               const isActive = filters.sort === option.value;
               return (
                 <TouchableOpacity
+                  accessibilityLabel={`Sort by ${option.label}`}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: isActive }}
                   key={option.value}
                   style={styles.sortOption}
                   onPress={() => {
@@ -398,6 +424,10 @@ const styles = StyleSheet.create({
   },
   hamburgerBtn: {
     paddingRight: 10,
+    minHeight: 44,
+    minWidth: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   searchContainer: {
     flex: 1,
@@ -423,6 +453,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'center',
+    minHeight: 44,
   },
   categoryChipActive: {
     backgroundColor: colors.ink,
@@ -451,6 +482,8 @@ const styles = StyleSheet.create({
     borderRadius: 9999,
     paddingHorizontal: 12,
     paddingVertical: 8,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   filterPillText: {
     fontFamily: fonts.interSemiBold,
@@ -491,7 +524,8 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   sortButton: {
-    paddingVertical: 4,
+    minHeight: 44,
+    justifyContent: 'center',
     paddingLeft: 10,
   },
   sortButtonText: {
@@ -526,6 +560,8 @@ const styles = StyleSheet.create({
     borderRadius: 9999,
     paddingHorizontal: 16,
     paddingVertical: 8,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   stateButtonText: {
     fontFamily: fonts.interSemiBold,
@@ -549,6 +585,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
+    minHeight: 44,
   },
   sortOptionText: {
     fontFamily: fonts.interRegular,

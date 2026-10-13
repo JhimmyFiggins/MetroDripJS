@@ -1,6 +1,6 @@
 # Architecture and Operations
 
-**Status:** Local modular-monolith/payment implementation present; external and deployment verification pending
+**Status:** Local modular-monolith/payment implementation and disposable PostgreSQL verification present; external and deployment verification pending
 
 **Production target:** One Render Free Django web service + one Render Free PostgreSQL database
 
@@ -10,7 +10,7 @@
 
 ## 1. System context
 
-MetroDrip uses an Expo/React Native customer application and responsive merchant/admin web consoles. The active implementation path is the Django project in `metrodrip_backend/`: identity, catalog, orders/payments, fulfillment, content, and staff APIs deploy in one process. Local development defaults to SQLite. One PostgreSQL database is the approved Render target, but PostgreSQL migration, locking, restore, and live connectivity are still **UNVERIFIED**.
+MetroDrip uses an Expo/React Native customer application and responsive merchant/admin web consoles. The active implementation path is the Django project in `metrodrip_backend/`: identity, catalog, orders/payments, fulfillment, content, and staff APIs deploy in one process. Local development defaults to SQLite. Fresh migration, legacy-shaped upgrade, rollback boundaries, backup/restore, and critical concurrency were verified on disposable PostgreSQL 16 on 2026-10-13; the connected Render database and deployment remain **UNVERIFIED**.
 
 ```text
 Customer app ─────────────┐
@@ -91,7 +91,7 @@ COD follows the same authoritative pricing, stock, idempotency, address, and ord
 - Current RBAC is `admin` for administrator APIs and `merchant|admin` for merchant APIs. Store membership/ABAC, explicit permissions, MFA, and recent-authentication gates are **not implemented** and remain release gaps.
 - Provider secret and webhook secret stay in environment variables. Never expose them through Expo public variables, source maps, API responses, logs, fixtures, or Figma.
 - Enforce HTTPS in production, secure cookies where sessions are used, CSRF protection for cookie-authenticated browser mutations, a strict CORS origin allowlist, host validation, HSTS after domain verification, and secure proxy headers.
-- Enforce the configured webhook byte limit before parsing. Current scoped throttles are login `10/min`, signup `5/hour`, reset `5/hour`, checkout `30/min`, cancellation under `payment_status` `120/min`, and webhook `300/min`. The owned reconciliation GET and most staff mutations do not yet have dedicated throttles.
+- Enforce the configured webhook byte limit before parsing. Current scoped throttles are login `10/min`, signup `5/hour`, reset `5/hour`, checkout `30/min`, cancellation under `payment_status` `120/min`, and webhook `300/min`. These counters are atomic PostgreSQL-backed fixed windows shared across Gunicorn workers; only a SHA-256 identity digest is stored. Stale bucket pruning is an explicit maintenance task. The owned reconciliation GET and most staff mutations do not yet have dedicated throttles.
 
 ### Webhook verification
 
@@ -156,4 +156,4 @@ Do not commit values. Production startup requires the Django secret. Online chec
 
 ## 9. Unverified external checks
 
-The following are **UNVERIFIED** until executed against the intended environment: current Render free-plan availability/limits, Blueprint application, production server boot, PostgreSQL migration and rollback, database retention/restore, custom-domain TLS, cold-start timings, PayMongo account activation for GCash/Maya/card, signed sandbox/live webhook delivery, real refunds, native deep-link behavior, and end-to-end payment on physical Android/iOS devices. No payment or infrastructure spend is authorized by this document.
+The following are **UNVERIFIED** until executed against the intended environment: Blueprint/deployed-commit inspection, production server boot from the candidate commit, connected PostgreSQL migration and rollback, hosted database retention/recovery, custom-domain TLS, connected cold-start/load behavior, PayMongo account activation for GCash/Maya/card, signed sandbox/live webhook delivery, real refunds, native deep-link behavior, and end-to-end payment on physical Android/iOS devices. Disposable PostgreSQL and one public Render health request are recorded in [Release Blocker Verification — 2026-10-12 to 2026-10-13](Release%20Blocker%20Verification%20-%202026-10-12.md); neither substitutes for connected acceptance. No payment or infrastructure spend is authorized by this document.

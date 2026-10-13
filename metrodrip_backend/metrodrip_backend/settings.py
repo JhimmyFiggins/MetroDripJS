@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 import os
 from pathlib import Path
 
+from django import VERSION as DJANGO_VERSION
 from django.core.exceptions import ImproperlyConfigured
 
 
@@ -103,10 +104,8 @@ CSRF_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SAMESITE = 'Lax'
 
 REST_FRAMEWORK = {
-    # The free-tier topology runs one web instance, so Django's cache-backed
-    # throttles provide a bounded first line of abuse control without a paid
-    # shared-cache service. A multi-instance deployment must move this cache to
-    # shared infrastructure before relying on these limits globally.
+    # Endpoint scopes use an atomic database-backed fixed-window counter, so
+    # every Gunicorn worker and service instance observes the same limits.
     'DEFAULT_THROTTLE_RATES': {
         'login': '10/min',
         'signup': '5/hour',
@@ -114,6 +113,7 @@ REST_FRAMEWORK = {
         'checkout': '30/min',
         'payment_status': '120/min',
         'payment_webhook': '300/min',
+        'review_submission': '5/day',
     },
     'NUM_PROXIES': 1,
 }
@@ -208,14 +208,37 @@ STORAGES = {
 }
 
 
-# Email
-# https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
+# Email. Development logs mail locally; non-debug environments default to the
+# SMTP backend so deployment checks never accept console-only delivery.
+_EMAIL_BACKEND = os.environ.get(
+    'DJANGO_EMAIL_BACKEND',
+    (
+        'django.core.mail.backends.console.EmailBackend'
+        if DEBUG
+        else 'django.core.mail.backends.smtp.EmailBackend'
+    ),
+)
+DEFAULT_FROM_EMAIL = os.environ.get('DJANGO_DEFAULT_FROM_EMAIL', 'no-reply@metrodrip.local')
 
-MAILERS = {
-    'default': {
-        'BACKEND': 'django.core.mail.backends.console.EmailBackend',
-    },
-}
+if DJANGO_VERSION >= (6, 1):
+    mailer_config = {'BACKEND': _EMAIL_BACKEND}
+    if _EMAIL_BACKEND == 'django.core.mail.backends.smtp.EmailBackend':
+        mailer_config['OPTIONS'] = {
+            'host': os.environ.get('DJANGO_EMAIL_HOST', 'localhost'),
+            'port': int(os.environ.get('DJANGO_EMAIL_PORT', '25')),
+            'username': os.environ.get('DJANGO_EMAIL_HOST_USER', ''),
+            'password': os.environ.get('DJANGO_EMAIL_HOST_PASSWORD', ''),
+            'use_tls': env_bool('DJANGO_EMAIL_USE_TLS', False),
+        }
+    MAILERS = {'default': mailer_config}
+else:
+    # Django 5.2 (the deployment target) uses the legacy email settings.
+    EMAIL_BACKEND = _EMAIL_BACKEND
+    EMAIL_HOST = os.environ.get('DJANGO_EMAIL_HOST', 'localhost')
+    EMAIL_PORT = int(os.environ.get('DJANGO_EMAIL_PORT', '25'))
+    EMAIL_HOST_USER = os.environ.get('DJANGO_EMAIL_HOST_USER', '')
+    EMAIL_HOST_PASSWORD = os.environ.get('DJANGO_EMAIL_HOST_PASSWORD', '')
+    EMAIL_USE_TLS = env_bool('DJANGO_EMAIL_USE_TLS', False)
 
 
 # PayMongo Hosted Checkout uses only server-side credentials. No provider

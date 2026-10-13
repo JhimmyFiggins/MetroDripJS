@@ -3,12 +3,14 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.renderers import JSONRenderer
-from django.db.models import Q
+from django.db import transaction
+from django.db.models import Exists, OuterRef, Q
 
 from .models import CatalogProduct, CatalogCategory, CatalogProductVariant, InventoryStockEntry
-from orders.models import ReviewsReview
+from orders.models import OrdersOrder, OrdersOrderLine, ReviewsReview
 from identity.models import AccountsCustomer
 from identity.authentication import CustomerAuthentication
+from identity.throttling import DatabaseScopedRateThrottle
 
 from .serializers import (
     ProductSerializer,
@@ -73,7 +75,7 @@ class ProductListAPIView(ListAPIView):
 
 
 class ProductDetailAPIView(RetrieveAPIView):
-    queryset = CatalogProduct.objects.all()
+    queryset = CatalogProduct.objects.filter(is_active=True)
     serializer_class = ProductSerializer
     renderer_classes = [JSONRenderer]
 
@@ -89,8 +91,9 @@ class ProductVariantListAPIView(ListAPIView):
     def get_queryset(self):
         return CatalogProductVariant.objects.filter(
             product_id=self.kwargs['product_id'],
+            product__is_active=True,
             is_active=True
-        )
+        ).select_related('color')
 
 class VariantStockAPIView(ListAPIView):
     serializer_class = VariantStockSerializer
@@ -98,25 +101,52 @@ class VariantStockAPIView(ListAPIView):
 
     def get_queryset(self):
         return InventoryStockEntry.objects.filter(
-            variant_id=self.kwargs['variant_id']
-        )
+            variant_id=self.kwargs['variant_id'],
+            variant__is_active=True,
+            variant__product__is_active=True,
+        ).select_related('variant', 'variant__product')
 
 
 class ProductReviewsAPIView(APIView):
     authentication_classes = [CustomerAuthentication]
     renderer_classes = [JSONRenderer]
 
+    REVIEWABLE_ORDER_STATUSES = {'delivered', 'completed'}
+    MAX_REVIEW_BODY_LENGTH = 2000
+
+    def get_throttles(self):
+        if self.request.method == 'POST':
+            self.throttle_scope = 'review_submission'
+            return [DatabaseScopedRateThrottle()]
+        return []
+
     def get(self, request, product_id):
-        product = CatalogProduct.objects.filter(id=product_id).first()
+        product = CatalogProduct.objects.filter(id=product_id, is_active=True).first()
         if not product:
             return Response({'error': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         reviews_qs = ReviewsReview.objects.filter(
-            product_ref=product_id
-        ).exclude(status='rejected').order_by('-created_at')
+            product_ref=product_id,
+            status='approved',
+        ).order_by('-created_at')
 
         review_list = list(reviews_qs)
         total_count = len(review_list)
+
+        # Verified badges are derived from delivered orders, never from the
+        # presence of caller-supplied identifiers. Resolve all pairs in one query.
+        referenced_order_ids = {
+            review.order_id for review in review_list if review.order_id and review.customer_ref
+        }
+        verified_order_customers = set()
+        if referenced_order_ids:
+            verified_order_customers = set(
+                OrdersOrderLine.objects.filter(
+                    order_id__in=referenced_order_ids,
+                    product_id=product.id,
+                    order__status__in=self.REVIEWABLE_ORDER_STATUSES,
+                ).values_list('order_id', 'order__customer_id')
+            )
 
         breakdown = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0}
         total_rating = 0
@@ -135,12 +165,12 @@ class ProductReviewsAPIView(APIView):
                 'rating': rev.rating,
                 'comment': rev.body,
                 'date': date_str,
-                'verified': bool(rev.order_id or rev.customer_ref),
+                'verified': (rev.order_id, rev.customer_ref) in verified_order_customers,
                 'merchant_reply': rev.merchant_reply or '',
                 'status': rev.status,
             })
 
-        avg_rating = round(total_rating / total_count, 1) if total_count > 0 else 5.0
+        avg_rating = round(total_rating / total_count, 1) if total_count > 0 else 0.0
 
         return Response({
             'product_id': product.id,
@@ -154,7 +184,7 @@ class ProductReviewsAPIView(APIView):
         }, status=status.HTTP_200_OK)
 
     def post(self, request, product_id):
-        product = CatalogProduct.objects.filter(id=product_id).first()
+        product = CatalogProduct.objects.filter(id=product_id, is_active=True).first()
         if not product:
             return Response({'error': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -173,36 +203,84 @@ class ProductReviewsAPIView(APIView):
         body = (request.data.get('comment') or request.data.get('body') or '').strip()
         if not body:
             return Response({'error': 'Review comment is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if len(body) > self.MAX_REVIEW_BODY_LENGTH:
+            return Response(
+                {'error': f'Review comment must be {self.MAX_REVIEW_BODY_LENGTH} characters or fewer.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        order_id = request.data.get('order_id')
-        if order_id:
+        requested_order_id = request.data.get('order_id')
+        if requested_order_id not in (None, ''):
             try:
-                order_id = int(order_id)
+                requested_order_id = int(requested_order_id)
             except (ValueError, TypeError):
-                order_id = None
+                return Response(
+                    {'error': 'order_id must be a valid order ID.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        review = ReviewsReview.objects.create(
-            customer_name=customer_name,
-            product_name=product.name,
-            customer_ref=customer_ref,
-            product_ref=product.id,
-            order_id=order_id,
-            rating=rating,
-            body=body,
-            status='approved',
-        )
+        with transaction.atomic():
+            purchased_product = OrdersOrderLine.objects.filter(
+                order_id=OuterRef('pk'),
+                product_id=product.id,
+            )
+            eligible_orders = (
+                OrdersOrder.objects.select_for_update()
+                .annotate(has_purchased_product=Exists(purchased_product))
+                .filter(
+                    customer_id=customer_ref,
+                    status__in=self.REVIEWABLE_ORDER_STATUSES,
+                    has_purchased_product=True,
+                )
+            )
+            if requested_order_id not in (None, ''):
+                eligible_orders = eligible_orders.filter(id=requested_order_id)
+
+            order = eligible_orders.order_by('-created_at', '-id').first()
+            if not order:
+                return Response(
+                    {
+                        'error': 'A delivered purchase of this product is required before reviewing it.',
+                        'code': 'delivered_purchase_required',
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            if ReviewsReview.objects.filter(
+                customer_ref=customer_ref,
+                product_ref=product.id,
+                order_id=order.id,
+            ).exists():
+                return Response(
+                    {
+                        'error': 'A review has already been submitted for this product and order.',
+                        'code': 'review_already_submitted',
+                    },
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+            review = ReviewsReview.objects.create(
+                customer_name=customer_name,
+                product_name=product.name,
+                customer_ref=customer_ref,
+                product_ref=product.id,
+                order_id=order.id,
+                rating=rating,
+                body=body,
+                status='pending',
+            )
 
         date_str = review.created_at.strftime('%b %d, %Y') if review.created_at else 'Recent'
 
         return Response({
-            'message': 'Review submitted successfully.',
+            'message': 'Review submitted for moderation.',
             'review': {
                 'id': review.id,
                 'author': review.customer_name,
                 'rating': review.rating,
                 'comment': review.body,
                 'date': date_str,
-                'verified': bool(review.order_id or review.customer_ref),
+                'verified': True,
                 'status': review.status,
             }
         }, status=status.HTTP_201_CREATED)

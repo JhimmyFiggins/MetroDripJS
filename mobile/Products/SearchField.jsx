@@ -37,6 +37,7 @@ export default function SearchField({ value, onSearch, debounceMs = 300 }) {
         <View style={styles.searchPill}>
             <Text style={styles.searchGlyph}>⌕</Text>
             <TextInput
+                accessibilityLabel="Search products"
                 style={styles.searchInput}
                 placeholder="Search products, SKU…"
                 placeholderTextColor={colors.muted}

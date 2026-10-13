@@ -18,7 +18,12 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useNavigation } from '@react-navigation/native';
 import { useCart } from '../../../context/CartContext';
+import { useAuth } from '../../../context/AuthContext';
 import { cartTotals } from '../../../context/cartLogic';
+import {
+  getPaymentCapabilities,
+  mapPaymentCapabilities,
+} from '../../../../src/services/orderService';
 
 // Compose the screen from focused reusable controls.
 import { CheckoutProgress } from '../components/CheckoutProgress';
@@ -38,6 +43,7 @@ import { colors, fonts } from '../theme';
 // Export the complete, fully responsive Checkout & Payment module.
 export function CheckoutScreen() {
   const navigation = useNavigation();
+  const { user } = useAuth();
   const { width } = useWindowDimensions();
   // 768px breakpoint distinguishes mobile devices from tablets and desktop screens.
   const isWide = width >= 768;
@@ -47,7 +53,9 @@ export function CheckoutScreen() {
   // The selected value is a provider-neutral method understood by the orders API.
   const [paymentMethod, setPaymentMethod] = useState('cod');
   // Available payment rails with dynamic capability checks.
-  const [availableOptions, setAvailableOptions] = useState(paymentOptions);
+  const [availableOptions, setAvailableOptions] = useState(() =>
+    mapPaymentCapabilities(paymentOptions, null),
+  );
   const [isCapabilitiesLoading, setIsCapabilitiesLoading] = useState(false);
   // Control delivery zone selector modal visibility.
   const [zoneSelectorVisible, setZoneSelectorVisible] = useState(false);
@@ -56,51 +64,49 @@ export function CheckoutScreen() {
   // Read safe area insets.
   const insets = useSafeAreaInsets();
 
-  // Load payment capabilities on mount with offline fallback.
+  // Prefill only known account fields. Empty delivery fields stay empty so the
+  // customer must confirm real information instead of inheriting demo data.
+  useEffect(() => {
+    if (!user) return;
+    const savedAddresses = user.addresses;
+    const savedAddress = typeof savedAddresses === 'string'
+      ? savedAddresses
+      : savedAddresses?.address || savedAddresses?.line || '';
+
+    setAddress((current) => ({
+      ...current,
+      fullName: current.fullName || user.name || '',
+      mobile: current.mobile || user.phone || '',
+      email: current.email || user.email || '',
+      address: current.address || savedAddress,
+      city: current.city || savedAddresses?.city || '',
+      zone: current.zone || savedAddresses?.zone || '',
+    }));
+  }, [user]);
+
+  // Load the backend-owned payment contract. If it cannot be reached, COD is
+  // still usable while all online rails remain disabled rather than guessed.
   useEffect(() => {
     let isMounted = true;
-    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
 
     async function loadCapabilities() {
       try {
         setIsCapabilitiesLoading(true);
-        const host = Platform.OS === 'web' && typeof window !== 'undefined'
-          ? (window.location.origin || 'http://127.0.0.1:8000')
-          : 'http://127.0.0.1:8000';
-        const response = await fetch(`${host}/api/payments/capabilities/`, {
-          signal: controller?.signal,
-          headers: { Accept: 'application/json' },
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
+        const data = await getPaymentCapabilities();
         if (!isMounted) return;
 
-        if (Array.isArray(data.supported_channels)) {
-          const channelMap = new Map(data.supported_channels.map((c) => [c.channel, c]));
-          const updated = paymentOptions.map((opt) => {
-            const ch = channelMap.get(opt.id);
-            return {
-              ...opt,
-              enabled: ch ? ch.enabled !== false : true,
-              requiresRedirect: ch ? Boolean(ch.requires_online_redirect) : opt.id !== 'cod',
-              unavailableReason: ch && ch.enabled === false ? 'Temporarily Unavailable' : undefined,
-            };
-          });
-          setAvailableOptions(updated);
-
-          // If current selection is disabled, auto-fallback to default or first enabled channel
-          const currentOpt = updated.find((o) => o.id === paymentMethod);
-          if (currentOpt && currentOpt.enabled === false) {
-            const defaultMethod = data.default_channel || 'cod';
-            const fallbackOpt = updated.find((o) => o.id === defaultMethod && o.enabled !== false)
-              || updated.find((o) => o.enabled !== false);
-            if (fallbackOpt) {
-              setPaymentMethod(fallbackOpt.id);
-            }
-          }
-        }
+        const updated = mapPaymentCapabilities(paymentOptions, data);
+        setAvailableOptions(updated);
+        setPaymentMethod((currentMethod) => {
+          const current = updated.find((option) => option.id === currentMethod);
+          if (current?.enabled) return currentMethod;
+          return updated.find((option) => option.enabled)?.id || 'cod';
+        });
       } catch {
-        // Fallback gracefully to default static payment options
+        if (isMounted) {
+          setAvailableOptions(mapPaymentCapabilities(paymentOptions, null));
+          setPaymentMethod('cod');
+        }
       } finally {
         if (isMounted) setIsCapabilitiesLoading(false);
       }
@@ -109,7 +115,6 @@ export function CheckoutScreen() {
     loadCapabilities();
     return () => {
       isMounted = false;
-      controller?.abort();
     };
   }, []);
 
@@ -136,6 +141,11 @@ export function CheckoutScreen() {
 
   // Validate all fields before simulated payment initiation.
   const handlePay = () => {
+    if (!cart || cart.length === 0) {
+      showAlert('Your cart is empty', 'Add an item before continuing to payment.');
+      return;
+    }
+
     const emptyFields = Object.keys(address).filter(
       (field) => address[field].trim().length === 0,
     );
@@ -147,6 +157,10 @@ export function CheckoutScreen() {
     }
 
     const selectedOption = availableOptions.find((opt) => opt.id === paymentMethod);
+    if (!selectedOption || selectedOption.enabled === false) {
+      showAlert('Payment method unavailable', 'Choose an available payment method to continue.');
+      return;
+    }
     const orderItems =
     cart && cart.length > 0
       ? cart.map((it) => ({
@@ -163,7 +177,6 @@ export function CheckoutScreen() {
       : [];
 
     const orderDraft = {
-      orderId: `MD-2026-00${Math.floor(100 + Math.random() * 900)}`,
       total: total,
       paymentMethod: selectedOption?.title || 'Cash on Delivery',
       email: address.email,

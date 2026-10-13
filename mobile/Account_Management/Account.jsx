@@ -26,19 +26,19 @@ const INACTIVE_ORDER_STATUSES = ['delivered', 'completed', 'cancelled'];
 const FAQ_ITEMS = [
   {
     q: 'Where do you ship and how long does it take?',
-    a: 'We ship nationwide. Metro Manila (NCR) orders arrive in 1–3 business days; provincial orders take 3–7 business days via our courier partners.',
+    a: 'Available delivery zones are shown at checkout. Timing depends on the destination and courier; tracking updates appear after dispatch.',
   },
   {
     q: 'What is your return and exchange policy?',
-    a: 'You may return or exchange unworn items with tags attached within 7 days of delivery. Sale items are final unless defective.',
+    a: 'Contact support before returning an item so the team can confirm eligibility and provide the correct instructions.',
   },
   {
     q: 'How do I pick the right size?',
-    a: 'Each product page has a size chart with measurements in centimeters. Our tees run true to size; if you are between sizes, we recommend sizing up.',
+    a: 'Use the sizing information on the product page. If measurements are missing, contact support before ordering.',
   },
   {
     q: 'What payment methods do you accept?',
-    a: 'We accept GCash, Maya, credit/debit cards, and cash on delivery (COD) in selected areas.',
+    a: 'Checkout shows the payment methods that are currently available. Online methods appear only when the payment provider is ready.',
   },
   {
     q: 'How can I track my order?',
@@ -103,7 +103,12 @@ function normalizeAddresses(addresses) {
 
 function MenuRow({ icon, label, meta, onPress }) {
   return (
-    <TouchableOpacity style={styles.menuRow} onPress={onPress}>
+    <TouchableOpacity
+      accessibilityLabel={meta ? `${label}, ${meta}` : label}
+      accessibilityRole="button"
+      style={styles.menuRow}
+      onPress={onPress}
+    >
       <Text style={styles.menuIcon}>{icon}</Text>
       <Text style={styles.menuLabel}>{label}</Text>
       {meta ? <Text style={styles.menuMeta}>{meta}</Text> : null}
@@ -115,7 +120,12 @@ function MenuRow({ icon, label, meta, onPress }) {
 function PanelHeader({ title, onBack }) {
   return (
     <View style={styles.panelHeader}>
-      <TouchableOpacity onPress={onBack} hitSlop={8}>
+      <TouchableOpacity
+        accessibilityLabel={`Back from ${title}`}
+        accessibilityRole="button"
+        onPress={onBack}
+        hitSlop={8}
+      >
         <Text style={styles.panelBack}>‹</Text>
       </TouchableOpacity>
       <Text style={styles.panelTitle}>{title}</Text>
@@ -196,6 +206,8 @@ export default function Account() {
       </Text>
 
       <TouchableOpacity
+        accessibilityLabel="Sign in"
+        accessibilityRole="button"
         style={styles.guestPrimary}
         onPress={() => navigation.navigate('Login')}
       >
@@ -203,13 +215,19 @@ export default function Account() {
       </TouchableOpacity>
 
       <TouchableOpacity
+        accessibilityLabel="Create account"
+        accessibilityRole="button"
         style={styles.guestSecondary}
         onPress={() => navigation.navigate('Signup')}
       >
         <Text style={styles.guestSecondaryText}>Create account</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => navigation.navigate('Home')}>
+      <TouchableOpacity
+        accessibilityLabel="Continue browsing"
+        accessibilityRole="button"
+        onPress={() => navigation.navigate('Home')}
+      >
         <Text style={styles.guestLink}>Continue browsing</Text>
       </TouchableOpacity>
     </View>
@@ -231,6 +249,8 @@ export default function Account() {
         ))
       )}
       <TouchableOpacity
+        accessibilityLabel="Edit saved addresses in profile"
+        accessibilityRole="button"
         style={styles.panelAction}
         onPress={() => {
           setPanel(null);
@@ -246,8 +266,8 @@ export default function Account() {
     <View>
       <PanelHeader title="My Reviews" onBack={() => setPanel(null)} />
       <Text style={styles.emptyText}>
-        You haven't reviewed anything yet. Reviews appear after your order is
-        delivered.
+        Review history is not available in the app yet. Approved reviews remain
+        visible on their product pages.
       </Text>
     </View>
   );
@@ -260,6 +280,9 @@ export default function Account() {
         return (
           <View key={item.q} style={styles.faqItem}>
             <TouchableOpacity
+              accessibilityLabel={item.q}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: open }}
               style={styles.faqQuestion}
               onPress={() => setOpenFaq(open ? null : index)}
             >
@@ -277,6 +300,8 @@ export default function Account() {
     <View>
       <PanelHeader title="Contact us" onBack={() => setPanel(null)} />
       <TouchableOpacity
+        accessibilityLabel="Email MetroDrip support"
+        accessibilityRole="link"
         style={styles.contactRow}
         onPress={() => Linking.openURL('mailto:support@metrodrip.ph')}
       >
@@ -320,6 +345,7 @@ export default function Account() {
           <View style={styles.headerWrap}>
             <AdaptHeader screenTitle="Account" />
             <TouchableOpacity
+              accessibilityRole="button"
               style={styles.gearButton}
               onPress={() => navigation.navigate('Profile')}
               accessibilityLabel="Settings"
@@ -359,7 +385,7 @@ export default function Account() {
                   <Text style={styles.statLabel}>WISHLIST</Text>
                 </View>
                 <View style={styles.statCard}>
-                  <Text style={styles.statNumber}>0</Text>
+                  <Text style={styles.statNumber}>—</Text>
                   <Text style={styles.statLabel}>REVIEWS</Text>
                 </View>
               </View>
@@ -407,7 +433,12 @@ export default function Account() {
                 />
               </View>
 
-              <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+              <TouchableOpacity
+                accessibilityLabel="Sign out"
+                accessibilityRole="button"
+                style={styles.signOutButton}
+                onPress={handleSignOut}
+              >
                 <Text style={styles.signOutText}>Sign out</Text>
               </TouchableOpacity>
             </>

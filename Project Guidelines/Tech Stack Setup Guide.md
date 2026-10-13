@@ -138,17 +138,16 @@ The project settings in `app.json` are pre-configured for Android emulator compa
     "android": {
       "package": "com.metrodrip.js",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./web/assets/favicon.png",
+        "backgroundColor": "#141414"
       },
-      "edgeToEdgeEnabled": true,
-      "usesCleartextTraffic": true
+      "edgeToEdgeEnabled": true
     }
   }
 }
 ```
 
-- **`usesCleartextTraffic: true`**: Allows local HTTP backend connections during development.
+- **Conditional cleartext in `app.config.js`**: the supported `expo-build-properties` plugin keeps `usesCleartextTraffic: false` for a configured remote API and sets it to `true` only when `EXPO_PUBLIC_API_URL` is unset or points to the explicit `localhost`, `127.0.0.1`, or Android-emulator `10.0.2.2` development fallback. `usesCleartextTraffic` is intentionally not placed directly under `expo.android`, because that is not a valid Expo SDK 54 app-config field.
 - **`package: "com.metrodrip.js"`**: Configures the Android application package identifier required for native builds and Expo CLI device targeting.
 
 ### 4. Running the App on Emulator

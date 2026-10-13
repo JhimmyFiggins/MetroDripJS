@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
 
-
-import { ScrollView, FlatList, StyleSheet, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { fonts } from '../../src/theme/font';
 
@@ -13,11 +11,7 @@ import Footer from '../components/Footer';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-// Temp API Services
-import { categoryService } from '../../src/services/categoryService';
-import { productService } from '../../src/services/productService';
 import { apiFetch } from '../../src/services/apiClient';
-import { products } from '../data/product.js';
 import ProductCards from '../Products/ProductCards';
 import ProductDetails from '../Products/ProductDetails';
 
@@ -27,58 +21,15 @@ export default function Home({ navigation, route }) {
 
     const [categoryList, setCategoryList] = useState([]);
     const [selectedProductId, setSelectedProductId] = useState(null);
-    const selectedCategory = route.params?.selectedCategory ?? null;
-
-    const [productList, setProductList] = useState([]); 
-    
     const [currentCategory, setCurrentCategory] = useState(1);
-    const [loading, setLoading] = useState(true);
+    const [categoriesLoading, setCategoriesLoading] = useState(true);
     const [showTopSection, setShowTopSection] = useState(true);
-    const formatPrice = price => {
-        return `₱${price.toLocaleString('en-PH', {
-        minimumFractionDigits: 2,
-        })}`;
-    };
-
-    const items = products.length;
-    const data = [
-        { id: '0', name: 'All' },
-        { id: '1', name: `${items} Items` },
-    ];
 
     useEffect(() => {
             apiFetch('/categories/', { auth: false })
                 .then(data => setCategoryList(data))
-                .catch(error => console.error('Failed to load categories:', error));
-        }, []);
-
-    // useEffect(() => {
-    //     async function fetchCategories() {
-    //         try {
-    //             const data = await categoryService.getAllCategories();
-    //             setCategoryList(data);
-    //         } catch (error) {
-    //             console.error('Failed to load categories:', error);
-    //         } finally {
-    //             setLoading(false);
-    //         }
-    //     }
-
-    //     fetchCategories();
-    // }, []);
-
-    useEffect(() => {
-            async function fetchProducts() {
-                try {
-                    const data = await productService.getAllProducts();
-                    setProductList(data);
-                } catch (error) {
-                    console.error('Failed to load products:', error);
-                } finally {
-                    setLoading(false);
-                }
-            }
-            fetchProducts();
+                .catch(error => console.error('Failed to load categories:', error))
+                .finally(() => setCategoriesLoading(false));
         }, []);
 
     // const handleSelectProduct = (id) => {
@@ -108,6 +59,8 @@ export default function Home({ navigation, route }) {
                     </Text>
 
                     <TouchableOpacity
+                        accessibilityLabel="Shop the latest drop"
+                        accessibilityRole="button"
                         style={styles.HeroLowerButton}
                         onPress={() => navigation.navigate('Shop')}
                     >
@@ -116,7 +69,7 @@ export default function Home({ navigation, route }) {
                 </View>
 
                 <View style={styles.CategorySection}>
-                    {loading ? (
+                    {categoriesLoading ? (
                         <ActivityIndicator size="small" color="#000" style={{ padding: 20 }} />
                     ) : (
                         <ScrollView
@@ -130,6 +83,9 @@ export default function Home({ navigation, route }) {
                                 const isActive = category.id === currentCategory;
                                 return(
                                     <TouchableOpacity 
+                                        accessibilityLabel={`Filter by ${category.name}`}
+                                        accessibilityRole="button"
+                                        accessibilityState={{ selected: isActive }}
                                         key={category.id || index} 
                                         style={[
                                             styles.CategoryChip,
