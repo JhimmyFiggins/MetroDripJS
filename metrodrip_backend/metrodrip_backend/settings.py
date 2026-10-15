@@ -31,6 +31,28 @@ def env_list(name, default=''):
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def _load_env_file(path):
+    if not path.is_file():
+        return
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#') or '=' not in line:
+                    continue
+                key, _, value = line.partition('=')
+                key = key.strip()
+                value = value.strip().strip("'\"")
+                if key and key not in os.environ:
+                    os.environ[key] = value
+    except OSError:
+        pass
+
+
+_load_env_file(BASE_DIR / '.env.local')
+_load_env_file(BASE_DIR.parent / '.env.local')
+
+
 IS_RENDER = env_bool('RENDER', False)
 DEBUG = env_bool('DJANGO_DEBUG', not IS_RENDER)
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY') or os.environ.get('SECRET_KEY')
