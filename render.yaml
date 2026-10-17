@@ -24,9 +24,9 @@ services:
       - key: DJANGO_DEBUG
         value: "false"
       - key: DJANGO_ALLOWED_HOSTS
-        value: metrodripjs.onrender.com
+        value: .onrender.com,localhost,127.0.0.1
       - key: DJANGO_CSRF_TRUSTED_ORIGINS
-        value: https://metrodripjs.onrender.com
+        value: https://*.onrender.com
       - key: DJANGO_SECURE_SSL_REDIRECT
         value: "true"
       - key: DJANGO_HSTS_SECONDS

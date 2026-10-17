@@ -64,9 +64,9 @@ if not SECRET_KEY:
 ALLOWED_HOSTS = env_list(
     'DJANGO_ALLOWED_HOSTS',
     (
-        'localhost,127.0.0.1,10.0.2.2,metrodripjs.onrender.com'
+        'localhost,127.0.0.1,10.0.2.2,.onrender.com'
         if DEBUG
-        else 'metrodripjs.onrender.com'
+        else '.onrender.com,localhost,127.0.0.1'
     ),
 )
 
@@ -114,7 +114,7 @@ CORS_ALLOWED_ORIGINS = env_list(
 )
 CSRF_TRUSTED_ORIGINS = env_list(
     'DJANGO_CSRF_TRUSTED_ORIGINS',
-    'https://metrodripjs.onrender.com',
+    'https://*.onrender.com',
 )
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
