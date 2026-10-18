@@ -1,7 +1,7 @@
 // MetroDrip Merchant Console · Analytics Controller
 // Interacts with /api/merchant/analytics/ with high-fidelity fallback seeded to Figma specifications.
 (() => {
-  const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:')
+  const API_BASE = ((['localhost', '127.0.0.1'].includes(window.location.hostname) && window.location.port !== '3000') || window.location.protocol === 'file:')
     ? 'http://127.0.0.1:8000/api/merchant'
     : '/api/merchant';
 

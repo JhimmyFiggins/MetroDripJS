@@ -1,7 +1,7 @@
 // API-backed account settings for authenticated staff sessions. Failed writes
 // never update the local profile or show a success state.
 (() => {
-  const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  const isLocal = (['localhost', '127.0.0.1'].includes(window.location.hostname) && window.location.port !== '3000');
   const API_ROOT = isLocal ? 'http://127.0.0.1:8000' : '';
   const preferenceMap = {
     'pref-btn-orders': 'order_alerts',

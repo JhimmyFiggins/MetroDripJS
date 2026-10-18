@@ -4,7 +4,7 @@
   const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const MIN_PASSWORD_LENGTH = 8;
   const STORAGE_KEY = 'metrodrip_active_user';
-  const API_ROOT = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+  const API_ROOT = ((['localhost', '127.0.0.1'].includes(window.location.hostname) && window.location.port !== '3000') && window.location.port !== '3000')
     ? 'http://127.0.0.1:8000'
     : '';
   const ROLE_LABELS = { merchant: 'Merchant', admin: 'Administrator' };

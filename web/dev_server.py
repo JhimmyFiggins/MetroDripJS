@@ -6,6 +6,8 @@ import re
 import sys
 from functools import partial
 from http.server import HTTPServer, SimpleHTTPRequestHandler
+import urllib.request
+import urllib.error
 
 # /save-favicon writes into web/assets. Only these names may be written, so a
 # crafted filename cannot escape the assets directory or overwrite arbitrary
@@ -16,6 +18,8 @@ ALLOWED_FAVICON_NAMES = re.compile(
 )
 MAX_FAVICON_BYTES = 1024 * 1024
 ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
+
+BACKEND_URL = os.environ.get('BACKEND_URL', 'https://metrodripjs-q4ik.onrender.com').rstrip('/')
 
 class DevHTTPRequestHandler(SimpleHTTPRequestHandler):
     def end_headers(self):
@@ -48,15 +52,50 @@ class DevHTTPRequestHandler(SimpleHTTPRequestHandler):
             path = path.replace('/admin/assets/', '/assets/').replace('/merchant/assets/', '/assets/')
         return super().translate_path(path)
 
-    def _send_json(self, status, payload):
-        body = json.dumps(payload).encode('utf-8')
-        self.send_response(status)
-        self.send_header('Content-Type', 'application/json')
-        self.send_header('Content-Length', str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+    def _proxy_to_backend(self, method):
+        clean_path = self.path
+        target_url = f"{BACKEND_URL}{clean_path}"
+        length = int(self.headers.get('Content-Length') or 0)
+        body = self.rfile.read(length) if length > 0 else None
+
+        req = urllib.request.Request(target_url, data=body, method=method)
+        for key, value in self.headers.items():
+            if key.lower() not in ('host', 'content-length'):
+                req.add_header(key, value)
+        req.add_header('Host', urllib.parse.urlparse(target_url).netloc)
+
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                resp_data = resp.read()
+                self.send_response(resp.status)
+                for header, val in resp.getheaders():
+                    if header.lower() not in ('content-length', 'transfer-encoding', 'connection'):
+                        self.send_header(header, val)
+                self.send_header('Content-Length', str(len(resp_data)))
+                self.end_headers()
+                self.wfile.write(resp_data)
+        except urllib.error.HTTPError as e:
+            err_data = e.read()
+            self.send_response(e.code)
+            for header, val in e.headers.items():
+                if header.lower() not in ('content-length', 'transfer-encoding', 'connection'):
+                    self.send_header(header, val)
+            self.send_header('Content-Length', str(len(err_data)))
+            self.end_headers()
+            self.wfile.write(err_data)
+        except Exception as e:
+            self._send_json(502, {'error': f'Failed to proxy request: {str(e)}'})
+
+    def do_GET(self):
+        if self.path.startswith('/api/'):
+            self._proxy_to_backend('GET')
+            return
+        super().do_GET()
 
     def do_POST(self):
+        if self.path.startswith(('/api/', '/login/', '/logout/')):
+            self._proxy_to_backend('POST')
+            return
         if self.path.split('?', 1)[0] != '/save-favicon':
             self._send_json(404, {'error': 'Not found'})
             return

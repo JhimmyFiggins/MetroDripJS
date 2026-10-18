@@ -2,7 +2,7 @@
 // authenticated staff session; account impersonation and seed identities are
 // intentionally unsupported.
 (() => {
-  const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  const isLocal = (['localhost', '127.0.0.1'].includes(window.location.hostname) && window.location.port !== '3000') && window.location.port !== '3000';
   const isAdmin = window.location.pathname.includes('/admin/');
   const expectedRoles = isAdmin ? ['admin'] : ['merchant', 'admin'];
   const API_ROOT = isLocal ? 'http://127.0.0.1:8000' : '';

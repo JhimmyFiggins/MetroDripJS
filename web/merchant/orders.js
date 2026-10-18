@@ -1,6 +1,6 @@
 // Merchant orders workspace: live API states, keyboard selection, and truthful write feedback.
 (() => {
-  const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  const API_BASE = (['localhost', '127.0.0.1'].includes(window.location.hostname) && window.location.port !== '3000')
     ? 'http://127.0.0.1:8000/api/merchant'
     : '/api/merchant';
 

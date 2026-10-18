@@ -1,7 +1,7 @@
 // Platform settings controller. The UI remains read-only until the server
 // returns persisted settings and never treats an unconfirmed write as saved.
 (() => {
-  const API_BASE = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+  const API_BASE = (['localhost', '127.0.0.1'].includes(window.location.hostname) && window.location.port !== '3000')
     ? 'http://127.0.0.1:8000/api/admin'
     : '/api/admin';
   const FIELD_MAP = {

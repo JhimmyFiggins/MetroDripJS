@@ -1,6 +1,6 @@
 // Administrator dashboard: authenticated API data with explicit loading, empty, and failure states.
 (() => {
-  const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  const API_BASE = (['localhost', '127.0.0.1'].includes(window.location.hostname) && window.location.port !== '3000')
     ? 'http://127.0.0.1:8000/api/admin'
     : '/api/admin';
   const SESSION_KEY = 'metrodrip_active_user';
