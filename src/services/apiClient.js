@@ -19,7 +19,8 @@ export const BASE_URL =
   extraApiUrl ||
   (Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://127.0.0.1:8000');
 
-const REQUEST_TIMEOUT_MS = 15000;
+// Render free tier instances sleep after inactivity and can take 30-50s to wake up.
+const REQUEST_TIMEOUT_MS = 60000;
 
 let currentAuthToken = null;
 
@@ -81,6 +82,7 @@ function describeErrorPayload(data) {
 
 export async function apiFetch(path, { method = 'GET', body, auth = true, headers = {} } = {}) {
   const url = resolveApiUrl(path);
+  console.log('[apiFetch] requesting:', url);
   const apiOrigin = new URL(resolveApiUrl('/')).origin;
   const requestOrigin = new URL(url).origin;
   const suppliedAuthorization = Object.keys(headers).some(

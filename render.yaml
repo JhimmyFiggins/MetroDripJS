@@ -44,6 +44,30 @@ services:
       - key: PAYMONGO_WEBHOOK_SECRET
         sync: false
 
+  - type: web
+    name: metrodrip-consoles
+    runtime: static
+    plan: free
+    branch: archim
+    rootDir: web
+    publishPath: .
+    routes:
+      - type: rewrite
+        source: /admin/account/settings
+        destination: /admin/account-settings.html
+      - type: rewrite
+        source: /merchant/account/settings
+        destination: /merchant/account-settings.html
+      - type: rewrite
+        source: /api/*
+        destination: https://metrodripjs-q4ik.onrender.com/api/*
+      - type: rewrite
+        source: /login/
+        destination: https://metrodripjs-q4ik.onrender.com/login/
+      - type: rewrite
+        source: /logout/
+        destination: https://metrodripjs-q4ik.onrender.com/logout/
+
 databases:
   - name: metrodrip-postgres
     plan: free
