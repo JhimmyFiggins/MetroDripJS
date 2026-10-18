@@ -81,6 +81,7 @@ function describeErrorPayload(data) {
 
 export async function apiFetch(path, { method = 'GET', body, auth = true, headers = {} } = {}) {
   const url = resolveApiUrl(path);
+  console.log('[apiFetch] requesting:', url);
   const apiOrigin = new URL(resolveApiUrl('/')).origin;
   const requestOrigin = new URL(url).origin;
   const suppliedAuthorization = Object.keys(headers).some(

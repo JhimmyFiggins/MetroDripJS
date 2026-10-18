@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "python web/dev_server.py 3000",
-    "web:server": "python web/dev_server.py 3000",
+    "dev": "python3 web/dev_server.py 3000",
+    "web:server": "python3 web/dev_server.py 3000",
     "test:client": "node --test \"tests/client/*.test.mjs\"",
     "test:browser": "node tests/browser/run-console-layout.mjs",
     "test:browser:integration": "node tests/browser/run-console-integration.mjs",
