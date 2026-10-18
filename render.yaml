@@ -50,7 +50,7 @@ services:
     plan: free
     branch: archim
     rootDir: web
-    publishPath: .
+    staticPublishPath: .
     routes:
       - type: rewrite
         source: /admin/account/settings
@@ -58,15 +58,6 @@ services:
       - type: rewrite
         source: /merchant/account/settings
         destination: /merchant/account-settings.html
-      - type: rewrite
-        source: /api/*
-        destination: https://metrodripjs-q4ik.onrender.com/api/*
-      - type: rewrite
-        source: /login/
-        destination: https://metrodripjs-q4ik.onrender.com/login/
-      - type: rewrite
-        source: /logout/
-        destination: https://metrodripjs-q4ik.onrender.com/logout/
 
 databases:
   - name: metrodrip-postgres
