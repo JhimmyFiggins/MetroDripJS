@@ -47,7 +47,6 @@ services:
   - type: web
     name: metrodrip-consoles
     runtime: static
-    plan: free
     branch: archim
     rootDir: web
     staticPublishPath: .
