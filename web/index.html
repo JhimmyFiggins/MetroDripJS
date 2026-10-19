@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MetroDrip · Consoles & Portal</title>
-    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
@@ -13,18 +13,24 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="Registration/theme.css">
   <link rel="stylesheet" href="css/console.css">
+  <script src="Registration/theme.js"></script>
   <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
     body {
       background-color: var(--color-surface, #f4f4f2);
       color: var(--color-ink, #141414);
       font-family: var(--font-body, 'Inter', sans-serif);
       margin: 0;
-      padding: 40px 20px;
+      padding: clamp(16px, 4vw, 40px) clamp(12px, 3vw, 24px);
       display: flex;
       align-items: center;
       justify-content: center;
       min-height: 100vh;
-      box-sizing: border-box;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      transition: background-color 0.2s ease, color 0.2s ease;
     }
     .portal-container {
       max-width: 760px;
@@ -32,52 +38,78 @@
       background: var(--color-paper, #ffffff);
       border: 1px solid var(--color-border, #e0e0dc);
       border-radius: 8px;
-      padding: 36px;
+      padding: clamp(20px, 4.5vw, 36px);
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+      overflow: hidden;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
     }
     .portal-header {
       border-bottom: 2px solid var(--color-ink, #141414);
       padding-bottom: 18px;
-      margin-bottom: 28px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .portal-brand-block {
+      flex: 1;
+      min-width: 180px;
     }
     .portal-brand {
       font-family: var(--font-display, 'Anton', sans-serif);
-      font-size: 32px;
+      font-size: clamp(26px, 6vw, 34px);
       letter-spacing: 0.04em;
-      margin: 0 0 6px 0;
+      margin: 0 0 4px 0;
+      line-height: 1;
+      color: var(--color-ink, #141414);
     }
     .portal-brand span {
-      color: #7b8e1a;
+      color: var(--color-accent-text, #7b8e1a);
     }
     .portal-tagline {
       font-family: var(--font-mono, 'IBM Plex Mono', monospace);
-      font-size: 12px;
+      font-size: 11px;
       color: var(--color-muted, #71716e);
       margin: 0;
       text-transform: uppercase;
       letter-spacing: 0.08em;
     }
+    .portal-header .theme-switch-container {
+      align-self: center;
+    }
     .portal-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 20px;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+      gap: 18px;
       margin-top: 20px;
     }
     .portal-card {
       border: 1px solid var(--color-border, #e0e0dc);
       border-radius: 6px;
-      padding: 22px;
+      padding: clamp(16px, 4vw, 22px);
       background: var(--color-surface, #fafafa);
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      transition: transform 0.15s ease, border-color 0.15s ease;
+      transition: transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
       text-decoration: none;
       color: inherit;
+      min-width: 0;
+      overflow-wrap: break-word;
     }
     .portal-card:hover {
       transform: translateY(-2px);
       border-color: var(--color-ink, #141414);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+    }
+    .portal-card:active {
+      transform: translateY(0);
+    }
+    .portal-card:focus-visible {
+      outline: 2px solid var(--color-ink, #141414);
+      outline-offset: 2px;
     }
     .portal-card-role {
       font-family: var(--font-mono, 'IBM Plex Mono', monospace);
@@ -89,9 +121,10 @@
       margin-bottom: 8px;
     }
     .portal-card-title {
-      font-size: 18px;
+      font-size: clamp(18px, 4vw, 20px);
       font-weight: 700;
       margin: 0 0 8px 0;
+      color: var(--color-ink, #141414);
     }
     .portal-card-desc {
       font-size: 13px;
@@ -104,17 +137,81 @@
       font-size: 12px;
       font-weight: 700;
       color: var(--color-ink, #141414);
-      display: flex;
+      display: inline-flex;
       align-items: center;
       gap: 6px;
+      transition: transform 0.15s ease;
+    }
+    .portal-card:hover .portal-card-cta {
+      transform: translateX(3px);
+    }
+    .portal-footer {
+      margin-top: 26px;
+      padding-top: 18px;
+      border-top: 1px solid var(--color-border, #e0e0dc);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 12px;
+      font-family: var(--font-mono, 'IBM Plex Mono', monospace);
+      color: var(--color-muted, #71716e);
+    }
+    .portal-footer-links {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .portal-footer-link {
+      color: inherit;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      padding: 4px 6px;
+      border-radius: 3px;
+      transition: background-color 0.15s ease, color 0.15s ease;
+    }
+    .portal-footer-link:hover {
+      color: var(--color-ink, #141414);
+      background-color: var(--color-surface);
+    }
+    .portal-footer-version {
+      white-space: nowrap;
+    }
+    @media (max-width: 640px) {
+      .portal-grid {
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+    }
+    @media (max-width: 520px) {
+      .portal-header .theme-switch-container {
+        align-self: flex-start;
+      }
+      .portal-footer {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+      }
     }
   </style>
 </head>
 <body>
   <main class="portal-container">
     <header class="portal-header">
-      <h1 class="portal-brand">METRO<span>DRIP</span></h1>
-      <p class="portal-tagline">Console & Staff Portal</p>
+      <div class="portal-brand-block">
+        <h1 class="portal-brand">METRO<span>DRIP</span></h1>
+        <p class="portal-tagline">Console & Staff Portal</p>
+      </div>
+      <div class="theme-switch-container" role="group" aria-label="Color theme selector">
+        <button type="button" class="theme-toggle-btn is-active" data-theme-option="light" aria-pressed="true">
+          <span aria-hidden="true">☼</span> Light
+        </button>
+        <button type="button" class="theme-toggle-btn" data-theme-option="dark" aria-pressed="false">
+          <span aria-hidden="true">☾</span> Dark
+        </button>
+      </div>
     </header>
 
     <div class="portal-grid">
@@ -137,14 +234,15 @@
       </a>
     </div>
 
-    <div style="margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--color-border, #e0e0dc); display: flex; justify-content: space-between; font-size: 12px; font-family: var(--font-mono, monospace); color: var(--color-muted, #71716e);">
-      <div>
-        Staff Login:
-        <a href="Registration/screens/MerchantLoginScreen.html" style="color: inherit; margin-left: 6px; text-decoration: underline;">Merchant</a> ·
-        <a href="Registration/screens/AdminLoginScreen.html" style="color: inherit; margin-left: 6px; text-decoration: underline;">Administrator</a>
+    <footer class="portal-footer">
+      <div class="portal-footer-links">
+        <span>Staff Login:</span>
+        <a href="Registration/screens/MerchantLoginScreen.html" class="portal-footer-link">Merchant</a>
+        <span aria-hidden="true">·</span>
+        <a href="Registration/screens/AdminLoginScreen.html" class="portal-footer-link">Administrator</a>
       </div>
-      <div>MetroDrip v1.0.0</div>
-    </div>
+      <div class="portal-footer-version">MetroDrip v1.0.0</div>
+    </footer>
   </main>
 </body>
 </html>
