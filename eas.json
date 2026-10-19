@@ -8,7 +8,7 @@
       "developmentClient": false,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://metrodripjs.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://metrodripjs-q4ik.onrender.com"
       },
       "android": {
         "buildType": "apk"

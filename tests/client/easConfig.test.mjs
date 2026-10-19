@@ -10,7 +10,7 @@ const app = require(path.join(repoRoot, 'app.json')).expo;
 const eas = require(path.join(repoRoot, 'eas.json'));
 const configureExpo = require(path.join(repoRoot, 'app.config.js'));
 const packageJson = require(path.join(repoRoot, 'package.json'));
-const CANONICAL_PREVIEW_API_URL = 'https://metrodripjs.onrender.com';
+const CANONICAL_PREVIEW_API_URL = 'https://metrodripjs-q4ik.onrender.com';
 
 function resolvedConfig(apiUrl) {
   const previous = process.env.EXPO_PUBLIC_API_URL;
