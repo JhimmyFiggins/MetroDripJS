@@ -29,6 +29,8 @@ def env_list(name, default=''):
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+REPOSITORY_ROOT = BASE_DIR.parent
+CONSOLE_ROOT = Path(os.environ.get('DJANGO_CONSOLE_ROOT', REPOSITORY_ROOT / 'web'))
 
 
 def _load_env_file(path):

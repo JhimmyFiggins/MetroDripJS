@@ -1,8 +1,8 @@
 # MetroDripJS
 
-> **Release status: HOLD.** The approved target is one secured modular Django monolith on **one Render Free web service and one Render Free PostgreSQL database**, with no paid worker, cron, Redis/Key Value, disk, autoscaling, or plan upgrade. Checkout retains COD and adds PayMongo Hosted Checkout for available GCash, Maya, and card methods. See the controlling [plan](Project%20Guidelines/Plan%20and%20Goals.md), [architecture](Project%20Guidelines/Architecture%20and%20Operations.md), [backend contract](Project%20Guidelines/Backend%20Functionalities.md), [database plan](Project%20Guidelines/Database%20Structure.md), [ADRs](Project%20Guidelines/Decisions%20and%20Handover.md#active-architecture-decisions--2026-09-28), and [current release-blocker evidence](Project%20Guidelines/Release%20Blocker%20Verification%20-%202026-10-12.md).
+> **Academic-demo and production status: HOLD.** The 2026-10-19 audit found unsafe deploy-time staff credential seeding, a hosted console/API topology that cannot work as configured, and current client/browser test regressions. The no-paid target is one secured same-origin Django service, one no-cost PostgreSQL database, and a directly installed EAS Android APK. Start with the [current comprehensive audit and implementation plan](Project%20Guidelines/Comprehensive%20Repository%20Audit%20and%20Academic%20Demo%20Plan%20-%202026-10-19.md), then the controlling [plan](Project%20Guidelines/Plan%20and%20Goals.md), [architecture](Project%20Guidelines/Architecture%20and%20Operations.md), [backend contract](Project%20Guidelines/Backend%20Functionalities.md), [database plan](Project%20Guidelines/Database%20Structure.md), and [ADRs](Project%20Guidelines/Decisions%20and%20Handover.md#active-architecture-decisions--2026-09-28).
 
-MetroDripJS is an urban streetwear e-commerce platform with an Expo/React Native customer app and responsive merchant/admin web consoles. The active implementation path is `metrodrip_backend/`: one Django/DRF process containing identity, catalog, orders/payments, fulfillment, content, and staff-console APIs. Local development defaults to SQLite; the unapplied Render Blueprint wires that same application to one free PostgreSQL database.
+MetroDripJS is an urban streetwear e-commerce platform with an Expo/React Native customer app and responsive merchant/admin web consoles. The active implementation path is `metrodrip_backend/`: one Django/DRF process containing identity, catalog, orders/payments, fulfillment, content, and staff-console APIs. Local development defaults to SQLite. The repository Blueprint wires Django to a free PostgreSQL database but also declares the currently broken separate static console described in the audit; its exact relationship to the existing public services is unverified.
 
 ## Current modular-monolith setup
 
@@ -31,8 +31,11 @@ In another terminal, serve the consoles:
 
 ```powershell
 npm ci
+$env:BACKEND_URL = "http://127.0.0.1:8000"
 npm run dev
 ```
+
+On Bash, use `BACKEND_URL=http://127.0.0.1:8000 npm run dev`. Set this explicitly until the development server's unsafe public-backend default is repaired.
 
 Open the merchant or administrator login under `http://127.0.0.1:3000/Registration/screens/`. Both post credentials to `POST /login/`. Successful staff login returns an opaque bearer token plus the persisted `role` and `is_staff` values. The browser keeps the current account only in `sessionStorage`, sends `Authorization: Bearer <token>` to console APIs, and calls the role-specific logout endpoint to revoke the token. Server permissions currently enforce a coarse persisted-role boundary: `admin` for administrator APIs and `merchant` or `admin` for merchant APIs. Store-scoped ABAC, MFA challenges, and recent-authentication gates are not implemented and remain release work.
 
@@ -59,7 +62,7 @@ For the mocked Chromium console harness, first start `npm run dev`, then run `np
 
 ### Free-tier deployment boundary
 
-[`render.yaml`](render.yaml) is a review-only, unapplied Blueprint: previews are off, automatic deploys are off, and it declares exactly one free web service plus one free PostgreSQL database. No paid Render change is authorized. Render's free PostgreSQL lifecycle and missing managed backup guarantees make durable production storage a release **HOLD**; do not apply a paid upgrade as a workaround without new approval.
+Repository records label [`render.yaml`](render.yaml) review-only/unapplied, but public services exist and their exact association with this file and commit is unverified. The file is free-only, but it declares a Python service, a separate static console, and a PostgreSQL database; pins stale `archim`; leaves static-site auto-deploy implicit; and runs unsafe privileged seeding. Do not apply or resync it. The accepted target and repair sequence are in the [2026-10-19 audit](Project%20Guidelines/Comprehensive%20Repository%20Audit%20and%20Academic%20Demo%20Plan%20-%202026-10-19.md). No paid Render change is authorized.
 
 ## Historical five-service reference
 
@@ -230,13 +233,14 @@ cd services\catalog
 
 Authoritative project specifications and evidence statuses based on [AGENTS.md](AGENTS.md) are maintained in the [`Project Guidelines/`](Project%20Guidelines/) directory:
 
-1. [Plan and Goals](Project%20Guidelines/Plan%20and%20Goals.md) — Scope, personas, non-goals, functional/non-functional requirements, milestones, and risk register.
-2. [Design Prototype](Project%20Guidelines/Design%20Prototype.md) — User journeys (M01–M08), Figma canvas bindings, design tokens (Volt/Ink/Paper), adaptive responsive layouts, and WCAG standards.
-3. [Database Structure](Project%20Guidelines/Database%20Structure.md) — Current additive checkout/payment/inventory migrations, target PostgreSQL validation, indexes, lifecycle, and recovery gaps.
-4. [Backend Functionalities](Project%20Guidelines/Backend%20Functionalities.md) — Current endpoint shapes, opaque bearer authentication, staff role boundary, Hosted Checkout, webhook verification, expiry, and reconciliation behavior.
-5. [Architecture and Operations](Project%20Guidelines/Architecture%20and%20Operations.md) — Current modular-monolith topology, free-only Blueprint, security limits, operations, and rollback.
-6. [Verification and Evaluation](Project%20Guidelines/Verification%20and%20Evaluation.md) — Current rerun matrix separated from historical tests and external/native/live gaps.
-7. [Decisions and Handover](Project%20Guidelines/Decisions%20and%20Handover.md) — Active ADRs, implementation snapshot, exact paths, blockers, and cold-start continuation instructions.
-8. [AI Documentation Notes](Project%20Guidelines/AI%20Documentation%20Notes.md) — Compact retrieval map for locating authoritative project knowledge.
-9. [Tech Stack Setup Guide](Project%20Guidelines/Tech%20Stack%20Setup%20Guide.md) — Local setup, service launch, and troubleshooting guidance, with an [interactive companion](Project%20Guidelines/tech-stack-setup.html).
-10. [QA Audit and Implementation Report — 2026-10-11](Project%20Guidelines/QA%20Audit%20and%20Implementation%20Report%20-%202026-10-11.md) — Current end-to-end audit, implemented fixes, measured evidence, residual risks, and release blockers.
+1. [Comprehensive Repository Audit and Academic Demo Plan — 2026-10-19](Project%20Guidelines/Comprehensive%20Repository%20Audit%20and%20Academic%20Demo%20Plan%20-%202026-10-19.md) — Current whole-repository findings, remediation phases, free-tier strategy, verification checklist, and demo runbook.
+2. [Plan and Goals](Project%20Guidelines/Plan%20and%20Goals.md) — Scope, personas, non-goals, functional/non-functional requirements, milestones, and risk register.
+3. [Design Prototype](Project%20Guidelines/Design%20Prototype.md) — User journeys (M01–M08), Figma canvas bindings, design tokens (Volt/Ink/Paper), adaptive responsive layouts, and WCAG standards.
+4. [Database Structure](Project%20Guidelines/Database%20Structure.md) — Current additive checkout/payment/inventory migrations, target PostgreSQL validation, indexes, lifecycle, and recovery gaps.
+5. [Backend Functionalities](Project%20Guidelines/Backend%20Functionalities.md) — Current endpoint shapes, opaque bearer authentication, staff role boundary, Hosted Checkout, webhook verification, expiry, and reconciliation behavior.
+6. [Architecture and Operations](Project%20Guidelines/Architecture%20and%20Operations.md) — Current modular-monolith topology, free-only Blueprint, security limits, operations, and rollback.
+7. [Verification and Evaluation](Project%20Guidelines/Verification%20and%20Evaluation.md) — Current rerun matrix separated from historical tests and external/native/live gaps.
+8. [Decisions and Handover](Project%20Guidelines/Decisions%20and%20Handover.md) — Active ADRs, implementation snapshot, exact paths, blockers, and cold-start continuation instructions.
+9. [AI Documentation Notes](Project%20Guidelines/AI%20Documentation%20Notes.md) — Compact retrieval map for locating authoritative project knowledge.
+10. [Tech Stack Setup Guide](Project%20Guidelines/Tech%20Stack%20Setup%20Guide.md) — Local setup, service launch, and troubleshooting guidance, with an [interactive companion](Project%20Guidelines/tech-stack-setup.html).
+11. [QA Audit and Implementation Report — 2026-10-11](Project%20Guidelines/QA%20Audit%20and%20Implementation%20Report%20-%202026-10-11.md) — Prior dated audit, implemented fixes, measured evidence, residual risks, and release blockers.

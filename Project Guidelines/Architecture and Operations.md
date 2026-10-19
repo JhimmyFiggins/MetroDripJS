@@ -1,16 +1,18 @@
 # Architecture and Operations
 
-**Status:** Local modular-monolith/payment implementation and disposable PostgreSQL verification present; external and deployment verification pending
+**Status:** Academic-demo and production HOLD; active implementation exists, but hosted console integration, credential seeding, and current regression gates block release
 
-**Production target:** One Render Free Django web service + one Render Free PostgreSQL database
+**Current scheduled-demo target:** One same-origin Render Free Django web service + one Render Free PostgreSQL database + an EAS internal Android APK; Neon Free remains a conditional longer-lived alternative
 
-**Release status:** HOLD
+**Release status:** ACADEMIC DEMO HOLD and PRODUCTION HOLD
 
 **Controlling decisions:** [Decisions and Handover](Decisions%20and%20Handover.md#active-architecture-decisions--2026-09-28)
 
 ## 1. System context
 
-MetroDrip uses an Expo/React Native customer application and responsive merchant/admin web consoles. The active implementation path is the Django project in `metrodrip_backend/`: identity, catalog, orders/payments, fulfillment, content, and staff APIs deploy in one process. Local development defaults to SQLite. Fresh migration, legacy-shaped upgrade, rollback boundaries, backup/restore, and critical concurrency were verified on disposable PostgreSQL 16 on 2026-10-13; the connected Render database and deployment remain **UNVERIFIED**.
+MetroDrip uses an Expo/React Native customer application and responsive merchant/admin web consoles. The active implementation path is the Django project in `metrodrip_backend/`: identity, catalog, orders/payments, fulfillment, content, and staff APIs deploy in one process. Local development defaults to SQLite. Fresh migration, legacy-shaped upgrade, rollback boundaries, backup/restore, and critical concurrency were verified on disposable PostgreSQL 16 on 2026-10-13; they were not rerun on PostgreSQL during the 2026-10-19 audit. The connected Render database, deployed commit, PayMongo sandbox, and APK remain **UNVERIFIED**.
+
+The diagram below is the **target**, not the current Blueprint behavior:
 
 ```text
 Customer app ─────────────┐
@@ -29,7 +31,7 @@ The historical `gateway/`, `services/*`, and `docker-compose.microservices.yml` 
 
 ## 2. Implemented and planned internal boundaries
 
-The current implementation has Django app boundaries, but not every logical target entity below exists. In particular, payment code and tables currently live in the `orders` app; there are no store-membership, permission, refund, payment-transition, MFA-challenge, or reconciliation-lease models.
+The current implementation has Django app boundaries, but not every logical target entity below exists. Payment code, `OrdersPaymentTransition`, and related tables currently live in the `orders` app; there are no store-membership, explicit permission, refund, MFA-challenge, or reconciliation-lease models.
 
 | Module | Owns | May call | Must not do |
 |---|---|---|---|
@@ -44,10 +46,13 @@ Checkout currently coordinates the monolith's existing models directly. Multi-ta
 
 ## 3. Free-tier deployment contract
 
-The repository contains an **unapplied** [`render.yaml`](../render.yaml) with:
+The approved academic target is one Django service and one database. Repository records label [`render.yaml`](../render.yaml) review-only/unapplied, but public services exist and their exact association with this file and commit is unverified. The current file contains:
 
-1. **One web service** with `plan: free`, binding the platform-provided `PORT`, a `/health/` health check, preview generation off, and `autoDeployTrigger: off`.
-2. **One PostgreSQL database** with `plan: free`, exposed to the web service through `DATABASE_URL` and no public IP allowlist.
+1. A Python web service with `plan: free`, binding the platform-provided `PORT`, a `/health/` health check, preview generation off, and `autoDeployTrigger: off`.
+2. A separate static console service whose `autoDeployTrigger` is not explicitly disabled.
+3. One PostgreSQL database with `plan: free`, exposed to Django through `DATABASE_URL` and no public IP allowlist.
+
+This is a blocking divergence. The static console uses relative same-origin login/API paths, but the static service has no proxy to Django and production CORS has no console origin. Both services also pin `archim` while the audited/default `master` is one commit ahead. The recommended repair is to package and route the console assets through Django so browsers, API, CSRF policy, and callbacks share one origin. The alternative—an injected absolute API URL plus an exact CORS allowlist—adds a second deployable contract and is not preferred for this academic system.
 
 It must not add a background worker, cron job, Key Value/Redis instance, persistent disk, private service, autoscaling, high-availability database, read replica, or paid instance type. If Render no longer offers a required free resource or a configuration change prompts for billing, stop before applying it and record the deployment as blocked. Plan availability and limits must be checked against [Render's current free-tier documentation](https://render.com/docs/free) at deployment time.
 
@@ -56,7 +61,12 @@ It must not add a background worker, cron job, Key Value/Redis instance, persist
 - The web service may sleep and cold-start. Clients must use bounded timeouts and show retry-safe pending states rather than claim a payment failed solely because a request timed out.
 - There is no always-on worker or scheduler. Correctness cannot depend on a polling daemon, Celery, BullMQ, cron, Redis, or in-memory queues.
 - In-memory cache and process-local locks are optimizations only and cannot be sources of truth because the process can restart.
-- Render's current free PostgreSQL documentation describes a 1 GB limit, expiry after 30 days, a 14-day grace period, and no managed backups or connection pooling. Those constraints do not satisfy durable production storage/recovery requirements, so production release is **HOLD**. The Blueprint must remain unapplied unless an authorized reviewer accepts a non-production use; no paid upgrade may be applied without new approval.
+- Render's current free PostgreSQL documentation describes a 1 GB limit, expiry after 30 days, a 14-day grace period, and no managed backups or connection pooling. It is acceptable only as disposable synthetic-data infrastructure created within a scheduled academic-demo window and paired with a rehearsed logical export/restore. If continuous no-cost availability is required, Neon Free is the proposed alternative and must be tested from Render before selection. Production release remains **HOLD**; no paid upgrade may be applied without new approval.
+- Render's pre-deploy command is a paid-service feature. A free-service migration path must use backward-compatible migrations in the build or a guarded startup wrapper. It must never seed or reset staff credentials.
+
+### Android distribution
+
+The no-cost presentation artifact is a directly installed EAS internal APK, not a store release. The repository still needs `eas.json`, non-secret EAS project metadata, build-number policy, a preview profile with `android.buildType: apk` or internal distribution, the canonical `EXPO_PUBLIC_API_URL`, and physical-device evidence. EAS export or Expo Doctor is not an APK build.
 
 ## 4. Payment data flow
 
@@ -133,7 +143,7 @@ Rollback before the contract step is a code rollback plus continued use of expan
 ### Required environment variables
 
 - Django secret key and production security flags.
-- Internal `DATABASE_URL` supplied by Render.
+- `DATABASE_URL` supplied by the selected PostgreSQL provider. Prefer Render's internal connection for the scheduled Render-database profile; require TLS and smoke-test latency for an external provider.
 - PayMongo secret key, webhook secret, and explicit test/live mode for online methods/webhooks. Missing secrets fail the affected operation closed; they do not prevent COD-only local startup.
 - Public app/web return URLs and strict allowed hosts/origins.
 - Optional operational thresholds such as webhook timestamp tolerance and reconciliation minimum age.
@@ -148,7 +158,7 @@ Do not commit values. Production startup requires the Django secret. Online chec
 
 ### Payment incident sequence
 
-1. Stop exposing the affected online method through a reviewed client/server configuration or code change; dynamic provider capability configuration is not implemented. Do not alter already-paid orders.
+1. Stop exposing the affected online method through a reviewed client/server configuration or code change; capability discovery exists, but an operator-controlled verified-rail allowlist is not implemented. Do not alter already-paid orders.
 2. Preserve webhook inbox rows, provider references, payment/order state, and available audit data.
 3. Query pending/ambiguous attempts using redacted database/operator tooling and compare them with PayMongo under an explicitly authorized procedure. No reconciliation command exists yet.
 4. Apply fixes through idempotent transitions; never mark paid from a customer receipt alone.
@@ -156,4 +166,4 @@ Do not commit values. Production startup requires the Django secret. Online chec
 
 ## 9. Unverified external checks
 
-The following are **UNVERIFIED** until executed against the intended environment: Blueprint/deployed-commit inspection, production server boot from the candidate commit, connected PostgreSQL migration and rollback, hosted database retention/recovery, custom-domain TLS, connected cold-start/load behavior, PayMongo account activation for GCash/Maya/card, signed sandbox/live webhook delivery, real refunds, native deep-link behavior, and end-to-end payment on physical Android/iOS devices. Disposable PostgreSQL and one public Render health request are recorded in [Release Blocker Verification — 2026-10-12 to 2026-10-13](Release%20Blocker%20Verification%20-%202026-10-12.md); neither substitutes for connected acceptance. No payment or infrastructure spend is authorized by this document.
+The following are **UNVERIFIED** until executed against the intended environment: deployed-commit/service/database association, production server boot from the candidate commit, connected PostgreSQL migration and rollback, hosted database retention/recovery, custom-domain TLS, connected cold-start/load behavior, PayMongo account activation for GCash/Maya/card, signed sandbox webhook delivery, EAS build/signing/install, native return behavior, real screen-reader behavior, and end-to-end payment on a physical Android device. Current Blueprint JSON-Schema validation passed on 2026-10-19, but Render account/API validation and application did not occur. See the [2026-10-19 comprehensive audit](Comprehensive%20Repository%20Audit%20and%20Academic%20Demo%20Plan%20-%202026-10-19.md). No payment or infrastructure spend is authorized by this document.

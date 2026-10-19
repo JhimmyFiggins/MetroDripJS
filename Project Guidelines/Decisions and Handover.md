@@ -1,12 +1,12 @@
 # Decisions and Handover
 
-**Status:** Release HOLD; active modular-monolith/payment implementation handover
+**Status:** ACADEMIC DEMO HOLD and PRODUCTION HOLD; 2026-10-19 repository audit handover
 
 **Project:** MetroDripJS urban streetwear commerce platform
 
-**Current target:** One secured modular Django monolith + one Render Free PostgreSQL database
+**Current target:** One secured same-origin Django monolith + one no-cost PostgreSQL database + an EAS internal Android APK
 
-**Decision updated:** 2026-10-13
+**Decision updated:** 2026-10-19
 
 **Owner:** Core Engineering & Architecture Team  
 
@@ -19,12 +19,13 @@ These decisions supersede conflicting production-topology and payment-exclusion 
 | ADR | Context and alternatives | Decision | Consequences and controls | Status |
 |---|---|---|---|---|
 | **ADR-07: Free-tier modular monolith** | The five-service/gateway/database-per-service design exceeds the approved Render footprint and creates operational dependencies that do not fit a single free web service and database. Alternatives were keeping the distributed topology, adding paid private services/databases, or consolidating. | Deploy the `metrodrip_backend/` Django modular monolith with identity, catalog, orders/payments, fulfillment, content, and staff/audit boundaries to one web service and one database. | The monolith path is implemented locally; SQLite is the default developer engine. Disposable PostgreSQL migration/locking/restore passed on 2026-10-13; the connected Render database/deployment remain UNVERIFIED. **Supersedes ADR-01, ADR-02, and ADR-06 for production.** | Implemented locally; deployment HOLD |
-| **ADR-08: Free Render resources only** | Workers, cron, Redis/Key Value, disks, autoscaling, HA, and additional services may require payment. | Configure no paid Render resources. Do not apply any change that prompts for billing. `render.yaml` keeps previews and auto-deploy off and declares one free web service plus one free PostgreSQL database. | The Blueprint is unapplied. Render's current free PostgreSQL lifecycle and missing managed backups/pooling do not satisfy durable production storage, so production is HOLD. No paid workaround is authorized. | Approved; live configuration UNVERIFIED |
+| **ADR-08: Free Render resources only** | Workers, cron, Redis/Key Value, disks, autoscaling, HA, and additional services may require payment. | Configure no paid Render resources. Do not apply any change that prompts for billing. The approved target is one same-origin free Django service plus a no-cost PostgreSQL database. | The repository Blueprint, recorded as review-only/unapplied, has drifted: it declares an additional static console, pins `archim`, and leaves that service's auto-deploy implicit. Existing public services have not been tied to this file/SHA. Render Free PostgreSQL is disposable and not production-durable. No paid workaround is authorized. | Approved target; configuration remediation required |
 | **ADR-09: COD plus PayMongo Hosted Checkout** | COD-only conflicts with approved product requirements. Direct card/wallet entry increases PCI/privacy risk; a custom payment UI also adds client/provider complexity. | Retain COD and use PayMongo Hosted Checkout for GCash, Maya, and card. Domain `maya` maps to provider `paymaya`. | MetroDrip rejects PAN, CVV, wallet login/PIN, and OTP fields. The client consumes server capability discovery and fails unavailable online rails closed. Provider activation, sandbox/live payment, and refunds remain UNVERIFIED. **Supersedes the prior online-payment exclusion and expands ADR-04.** | Implemented locally; external flow UNVERIFIED |
 | **ADR-10: Provider-authoritative payment state** | Browser redirects/deep links can be forged, lost, repeated, or arrive before provider settlement. | A valid, deduplicated PayMongo paid webhook or an exact verified provider result from an owned status read may confirm payment; a redirect never marks paid. | Raw-body HMAC/timestamp verification, event ID/body-digest dedupe, amount/currency/mode/reference/fingerprint checks, row locking, and pending/recovery UX are implemented. Duplicate-delivery/out-of-order behavior passed on disposable PostgreSQL; real provider delivery remains UNVERIFIED. | Implemented locally; provider acceptance pending |
 | **ADR-11: No-worker recovery** | The free-tier constraint prevents a reliable always-on worker or scheduled cron. Alternatives were paid workers/cron, external scheduler, or request-driven recovery. | Keep webhook transitions synchronous. Use webhook inbox/idempotency, owned read reconciliation, one stale-expiry attempt per new checkout, and explicit operational inspection. | There is no monolith reconciliation/expiry management command or lease. Recovery can lag while idle and concurrent GETs can fan out. Add free-compatible maintenance tooling only after review; do not provision paid infrastructure. | Implemented with documented gaps |
 | **ADR-12: Exact money boundary** | Django models use two-decimal values; PayMongo expects integer minor units. Binary floats risk rounding errors. | Keep application amounts as `Decimal`, normalize to two decimals, convert to integer centavos only in the provider adapter, and verify paid amount plus `PHP` currency exactly. | Existing `DecimalField(10,2)` remains compatible. Any multi-currency or greater-precision change requires a new migration/ADR. This supersedes integer-only interpretations of ADR-03 for the active monolith. | Implemented locally |
 | **ADR-13: Expand/backfill/cutover/contract** | Consolidating multiple service schemas and a legacy monolith in one destructive migration would be hard to validate and roll back. | Use additive schema changes, resumable provenance-backed backfill, compatibility reads/routes, explicit validation, staged cutover, and later contract cleanup. | Temporary schema/code complexity is accepted to preserve rollback and legacy clients. Destructive cleanup needs separate authorization. | Approved |
+| **Proposed ADR-14: Academic demo release profile** | The project must demonstrate the integrated system without subscriptions, while Render Free PostgreSQL expires and app-store distribution is not required. Alternatives are a scheduled Render database, a longer-lived free external PostgreSQL provider, or paid production infrastructure. | Recommend one Django origin, a synthetic single-store dataset, Render Free PostgreSQL created inside a scheduled demo window, PayMongo test mode, and a directly installed EAS internal APK. Choose Neon Free only if continuous availability beyond 30 days is required and its external connection passes acceptance. | This is not production architecture. Database expiry, cold start, free quotas, manual recovery, and direct APK distribution must be stated during evaluation. | Proposed; owner must select database profile before implementation |
 
 ### Payment/provider rationale
 
@@ -51,24 +52,27 @@ The following records describe the earlier distributed baseline. ADR-01, ADR-02,
 
 ---
 
-## Active resume snapshot
+## Active resume snapshot — 2026-10-19
 
-- **Current objective:** execute the target-environment release gates documented in the 2026-10-11 QA report without creating paid Render resources or mutating production without authorization.
-- **Current code reality:** `metrodrip_backend/` is the active one-process implementation. Opaque token auth, persisted-role staff guards, Hosted Checkout, capability discovery, signed webhook processing, request-driven expiry/reconciliation, strict lost-create-response recovery, additive migrations, payment transition ledger, snapshots, and truthful console/API states are present. Store-scoped ABAC, MFA, recent-auth, refunds, and a reconciliation lease/command are not.
+- **Current objective:** execute the phased remediation and academic-demo gates in the [2026-10-19 comprehensive audit](Comprehensive%20Repository%20Audit%20and%20Academic%20Demo%20Plan%20-%202026-10-19.md) without creating paid resources or mutating hosted systems without authorization.
+- **Current code reality:** `metrodrip_backend/` is the active one-process implementation. Core identity, catalog, checkout/payment, fulfillment, content, and console APIs exist. The mobile app has real API integrations. Store-scoped ABAC, MFA, recent-auth, refunds, persistent mobile recovery, and a reconciliation lease/command are not implemented.
 - **Figma reality:** customer gaps `708:4544`, merchant gaps `709:5008`, admin gaps `710:4846`, ERD/topology `711:4544` with root `711:4545`, and customer state matrix `720:4544` with root `720:4545` were added. Merchant/admin `2FA ON` badges were changed to role-specific `VERIFIED SESSION`; stale label count was zero after validation.
 - **Payment decision:** COD plus PayMongo Hosted Checkout for GCash, Maya, and cards. Browser return is informational; a signed webhook or exact provider reconciliation establishes durable paid state.
 - **Data cleanup:** `fulfillment/0004_remove_seeded_demo_notifications.py` removes only the five exact notifications seeded by `0002`; reverse is intentionally a no-op.
-- **Infrastructure boundary:** the unapplied Blueprint declares one free web service and one free PostgreSQL database, with previews/auto-deploy off and no worker, cron, Redis/Key Value, disk, autoscaling, or paid plan. Free PostgreSQL durability/lifecycle is an explicit production release blocker.
-- **Release status:** HOLD. The 2026-10-13 rerun passed 81 Django tests on PostgreSQL, 77 plus 4 PostgreSQL-only skips on SQLite, 148 client tests, TypeScript, 64 mocked browser layouts, 7 real browser-to-Django checks, Axe on 4 pages, Expo Doctor 18/18, and all-platform export. PayMongo sandbox/live, native-device, real screen-reader, and connected Render inspection remain **UNVERIFIED**; the persistent SQLite database still has seven pending migrations.
+- **Infrastructure reality:** the current Blueprint declares a free Python service, a separate static console, and a free PostgreSQL database, all without paid resources. Both services pin stale `archim`; the static console cannot reach the API through its relative paths. The approved target remains one same-origin Django service.
+- **Security blocker:** `render.yaml` runs `seed_demo_staff`, which resets hardcoded administrator and merchant passwords on every deployment. Remove it and rotate/disable any affected hosted accounts before public use.
+- **Verification reality:** on current `master` `bc8407c`, TypeScript, Expo Doctor 18/18, Expo dependency/config checks, all-platform JS export, and Render JSON-Schema validation pass. Django ran 81 tests on temporary SQLite: 77 passed and 4 PostgreSQL-only tests skipped. The default client suite and browser state suite fail; current PostgreSQL, PayMongo sandbox, EAS build/install, physical-device, real screen-reader, and repaired deployed console flows are **UNVERIFIED**.
+- **Release status:** ACADEMIC DEMO HOLD and PRODUCTION HOLD.
 
 ### Required handover sequence
 
-1. Inspect the working tree and preserve unrelated changes, especially `.kilo/kilo.jsonc`.
+1. Inspect the working tree and preserve all unrelated user changes.
 2. Read the controlling ADRs above plus [Plan and Goals](Plan%20and%20Goals.md), [Backend Functionalities](Backend%20Functionalities.md), [Database Structure](Database%20Structure.md), and [Architecture and Operations](Architecture%20and%20Operations.md).
-3. Inspect the implemented slice before changing it: payment contract/models → provider adapter/webhook → client hosted handoff/recovery → staff auth/RBAC → console states → Blueprint.
-4. Use additive migrations and run `makemigrations --check`, Django checks/tests, client/type checks, mocked browser checks, Blueprint validation, and `git diff --check`.
-5. Before release, repeat the tested PostgreSQL backup/migration checks against the authorized target, then execute PayMongo sandbox/webhook delivery tests, native external-browser/deep-link checks, real screen-reader checks, and connected free-tier Render validation. The free database durability blocker must remain visible.
-6. Mark any provider, native, connected-PostgreSQL, or Render step not actually observed as **UNVERIFIED**. Do not deploy or charge/refund without explicit authority.
+3. Complete P0 first: remove privileged seeding, plan authorized account rotation, and select one canonical branch/origin/database profile.
+4. Restore the 148 client tests and browser state suite before implementing deployment or mobile recovery changes.
+5. Use additive migrations and run `makemigrations --check`, Django/PostgreSQL checks, client/type/browser checks, Expo checks, Blueprint validation, secret scanning, and `git diff --check`.
+6. Before a demo, execute connected PostgreSQL backup/migration checks, deployed staff/customer workflows, PayMongo sandbox/webhook delivery when claimed, EAS APK install, native return/recovery, and real screen-reader checks.
+7. Mark any provider, native, connected-PostgreSQL, or Render step not actually observed as **UNVERIFIED**. Do not deploy, rotate live secrets, or charge/refund without explicit authority.
 
 ### Resolved decisions and remaining gaps
 
@@ -79,6 +83,9 @@ The following records describe the earlier distributed baseline. ADR-01, ADR-02,
 | Active backend | `metrodrip_backend/` is the modular-monolith path; `services/*` and `gateway/` are historical comparison assets. |
 | Recovery | Synchronous idempotent webhook, owned read repair, and one-per-checkout stale cleanup are implemented; lease/maintenance command remains open. |
 | Database | One configured database path and additive migrations exist. Disposable PostgreSQL 16 migration/rollback/concurrency/restore passed on 2026-10-13; the persistent SQLite target awaits approval and connected PostgreSQL remains UNVERIFIED. |
+| Console hosting | Current split static/API deployment is broken. The controlling recommendation is same-origin console assets served by Django. |
+| Academic database profile | Render Free PostgreSQL is acceptable only for a scheduled disposable demo inside its 30-day lifetime; Neon Free is the proposed longer-lived alternative pending a decision and connectivity test. |
+| Mobile distribution | Direct EAS internal APK is the no-paid target. No `eas.json`, build, signing, installation, or device acceptance exists yet. |
 
 ## Historical resume snapshot
 

@@ -27,7 +27,7 @@ const base = 'http://127.0.0.1:3000';
 const corsHeaders = {
   'Access-Control-Allow-Origin': base,
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
 };
 
 const apiState = {
@@ -54,7 +54,6 @@ async function installFocusedApiRoutes() {
   await context.route('**/*', async route => {
     const request = route.request();
     const url = new URL(request.url());
-    if (url.origin === base) return route.continue();
     if (request.method() === 'OPTIONS') {
       return route.fulfill({ status: 204, headers: corsHeaders, body: '' });
     }
@@ -127,6 +126,19 @@ async function installFocusedApiRoutes() {
           : { error: 'QA simulated write failure' }),
       });
     }
+    const isBackendPath = (
+      url.pathname.startsWith('/api/')
+      || url.pathname.startsWith('/users/')
+      || ['/login/', '/logout/'].includes(url.pathname)
+    );
+    if (url.origin === base && isBackendPath) {
+      return route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: `Unexpected mocked API request: ${request.method()} ${url.pathname}` }),
+      });
+    }
+    if (url.origin === base) return route.continue();
     return route.abort();
   });
 }

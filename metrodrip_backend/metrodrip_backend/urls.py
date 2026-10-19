@@ -1,4 +1,6 @@
-from django.urls import path, include
+from django.urls import include, path, re_path
+
+from metrodrip_backend.console_views import console_file
 from orders.views import (
     CheckoutAPIView,
     HealthAPIView,
@@ -19,4 +21,11 @@ urlpatterns = [
     path('orders/', include('orders.urls')),
     path('', include('fulfillment.urls')),
     path('', include('identity.urls')),
+    path('', console_file, name='console-home'),
+    path('favicon.ico', console_file, {'asset_path': 'favicon.ico'}, name='console-favicon'),
+    re_path(
+        r'^(?P<asset_path>(?:Registration|admin|assets|css|js|merchant)(?:/.*)?)$',
+        console_file,
+        name='console-file',
+    ),
 ]

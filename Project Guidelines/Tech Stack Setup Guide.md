@@ -1,6 +1,6 @@
 # MetroDripJS Setup & Emulator Guide
 
-> **Architecture transition:** The approved production target is one secured modular Django monolith, one Render Free web service, and one Render Free PostgreSQL database. COD plus PayMongo Hosted Checkout for GCash, Maya, and cards is in scope. No paid Render resource, worker, cron, Redis/Key Value, disk, autoscaling, or upgrade is authorized. The microservice/Compose commands later in this guide reproduce the historical baseline for regression only; they are not the target deployment runbook. Follow [Architecture and Operations](Architecture%20and%20Operations.md) and the active [ADRs](Decisions%20and%20Handover.md#active-architecture-decisions--2026-09-28).
+> **Architecture transition:** The currently approved scheduled academic-demo profile is one secured same-origin Django monolith, one Render Free web service, and one Render Free PostgreSQL database. A longer-lived external free database remains a proposed alternative, not an approved switch. COD plus PayMongo Hosted Checkout for GCash, Maya, and cards is in scope. No paid Render resource, worker, cron, Redis/Key Value, disk, autoscaling, or upgrade is authorized. Production remains HOLD. The microservice/Compose commands later in this guide reproduce the historical baseline for regression only; they are not the target deployment runbook. Follow [Architecture and Operations](Architecture%20and%20Operations.md) and the active [ADRs](Decisions%20and%20Handover.md#active-architecture-decisions--2026-09-28).
 
 ## Current modular-monolith backend
 
@@ -67,7 +67,7 @@ Final counts are recorded only after the current rerun in [Verification and Eval
 
 For historical non-destructive API regression, run `python -B scripts/verify_microservices_e2e.py` from the repository root using an interpreter with the service dependencies installed. It uses disposable SQLite databases, synthetic fixtures, random loopback ports, and owned-process cleanup. It does not verify the active monolith, PostgreSQL, PayMongo, or Render. Do not run legacy seed commands as test setup: they can import existing application data.
 
-For mocked staff-console checks, install Chromium with `npx playwright install chromium`, start `npm run dev` in one terminal, and run `npm run test:browser` in another. The runner expects `127.0.0.1:3000`; it does not launch that server. It checks responsive layouts plus representative loading/default/empty/partial/error/retry/permission/fixture states, failed-write truthfulness, Escape dismissal, focus return, and Tab containment. API responses are mocked and external resources are blocked, so it does not verify browser-to-Django integration or native screens.
+For mocked staff-console checks, install Chromium with `npx playwright install chromium`, start `BACKEND_URL=http://127.0.0.1:8000 npm run dev` in one terminal (PowerShell: set `$env:BACKEND_URL` first), and run `npm run test:browser` in another. The runner expects `127.0.0.1:3000`; it does not launch that server. It checks responsive layouts plus representative loading/default/empty/partial/error/retry/permission/fixture states, failed-write truthfulness, Escape dismissal, focus return, and Tab containment. API responses are intended to be mocked and external resources blocked, but the current 2026-10-19 state-flow run fails because same-origin requests escape the mock; it does not verify browser-to-Django integration or native screens.
 
 | Setting | QA / Development Behavior |
 | --- | --- |
@@ -154,15 +154,16 @@ The project settings in `app.json` are pre-configured for Android emulator compa
 
 Start the emulator first, then execute either of the following scripts from the project root:
 
-#### Option A: Fast Development via Expo Go (Recommended)
+#### Option A: Fast Development via Expo Go
 ```sh
-npm run android
-# or: npx expo start --android
+npx expo start --android
 ```
-Expo CLI automatically detects the running emulator, installs Expo Go if needed, and streams the bundle directly.
+Expo CLI starts Metro and attempts to open the project in Expo Go. Confirm Expo Go is installed first; an occupied port or a running bundler does not prove the MetroDrip app opened.
 
 #### Option B: Native Prebuild & Build (`expo run:android`)
 ```sh
+npm run android
+# equivalent alias:
 npm run android:run
 # or: npx expo run:android
 ```
@@ -187,10 +188,10 @@ EXPO_PUBLIC_API_URL=http://10.0.2.2:8000
 
 | Command | Description |
 | --- | --- |
-| `npm run dev` | Start local web dev server on port 3000 (`python web/dev_server.py 3000`) |
+| `npm run dev` | Start the local console server on port 3000; set `BACKEND_URL=http://127.0.0.1:8000` explicitly until the unsafe remote default is repaired |
 | `npm start` | Start Metro bundler |
-| `npm run android` | Launch app on connected Android emulator or device |
-| `npm run android:run` | Build native Android app and deploy to emulator |
+| `npm run android` | Build the native Android app with `expo run:android` and deploy it to a connected emulator/device |
+| `npm run android:run` | Alias for the same native `expo run:android` build/deploy command |
 | `npm run web` | Run app in browser mode |
 | `npm run ios` | Run on iOS Simulator (macOS required) |
 
@@ -238,8 +239,11 @@ flowchart LR
 Use the repository server on the CORS-allowlisted development origin:
 
 ```powershell
+$env:BACKEND_URL = "http://127.0.0.1:8000"
 npm run dev
 ```
+
+On Bash, run `BACKEND_URL=http://127.0.0.1:8000 npm run dev`. Set the backend explicitly until `web/dev_server.py` is repaired; its current fallback points to a public Render backend and must not receive local credentials by accident.
 
 Open:
 
@@ -266,15 +270,17 @@ Open:
 
 ## Render free-only Blueprint
 
-[`render.yaml`](../render.yaml) is prepared for human review but has not been applied. It declares:
+Repository records describe [`render.yaml`](../render.yaml) as prepared for human review and unapplied. Public services now exist, but their exact association with this file and commit is unverified. The file currently declares:
 
 - preview generation off;
-- `autoDeployTrigger: off`;
 - one Python web service with `plan: free`;
+- one separate static console service;
 - one PostgreSQL database with `plan: free` and no public IP allowlist;
 - no worker, cron, Key Value/Redis, disk, autoscaling, HA, replica, or other paid resource.
 
-Do not apply the Blueprint if the dashboard asks for a paid resource. Render's current free PostgreSQL lifecycle (1 GB, expiry after 30 days, 14-day grace period, and no managed backups/pooling) does not satisfy durable production commerce requirements. Production release is therefore **HOLD** even though the file itself is free-only. Live Blueprint creation, database migration, cold-start behavior, and restore remain **UNVERIFIED**.
+**Do not apply the current Blueprint.** Both services pin stale `archim`; only the Python service explicitly disables auto-deploy; the static console cannot proxy its relative login/API calls to Django; and the build command resets hardcoded staff passwords. The accepted repair is one same-origin Django service, removal of privileged seeding, explicit deployment triggers, and the checklist in the [2026-10-19 comprehensive audit](Comprehensive%20Repository%20Audit%20and%20Academic%20Demo%20Plan%20-%202026-10-19.md).
+
+Render's current free PostgreSQL lifecycle (1 GB, expiry after 30 days, 14-day grace period, and no managed backups/pooling) is suitable only for a scheduled disposable academic demo with synthetic data and a rehearsed export/restore. It does not satisfy durable production commerce requirements. Production release remains **HOLD**.
 
 ---
 
@@ -340,4 +346,3 @@ docker compose -f docker-compose.microservices.yml up --build -d
 # Verify all services report healthy
 curl -i http://localhost:8000/health/
 ```
-

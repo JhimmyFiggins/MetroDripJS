@@ -8,6 +8,7 @@ from functools import partial
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 import urllib.request
 import urllib.error
+from urllib.parse import urlsplit
 
 # /save-favicon writes into web/assets. Only these names may be written, so a
 # crafted filename cannot escape the assets directory or overwrite arbitrary
@@ -19,9 +20,23 @@ ALLOWED_FAVICON_NAMES = re.compile(
 MAX_FAVICON_BYTES = 1024 * 1024
 ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
 
-BACKEND_URL = os.environ.get('BACKEND_URL', 'https://metrodripjs-q4ik.onrender.com').rstrip('/')
+BACKEND_URL = os.environ.get('BACKEND_URL', 'http://127.0.0.1:8000').rstrip('/')
+BACKEND_PATH_PREFIXES = ('/api/', '/users/')
+BACKEND_PATHS = {'/login/', '/logout/'}
 
 class DevHTTPRequestHandler(SimpleHTTPRequestHandler):
+    def _send_json(self, status_code, payload):
+        body = json.dumps(payload).encode('utf-8')
+        self.send_response(status_code)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _is_backend_request(self):
+        path = urlsplit(self.path).path
+        return path in BACKEND_PATHS or path.startswith(BACKEND_PATH_PREFIXES)
+
     def end_headers(self):
         # Force browsers to never cache static assets during development
         self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
@@ -53,16 +68,21 @@ class DevHTTPRequestHandler(SimpleHTTPRequestHandler):
         return super().translate_path(path)
 
     def _proxy_to_backend(self, method):
-        clean_path = self.path
-        target_url = f"{BACKEND_URL}{clean_path}"
-        length = int(self.headers.get('Content-Length') or 0)
-        body = self.rfile.read(length) if length > 0 else None
+        try:
+            length = int(self.headers.get('Content-Length') or 0)
+            if length < 0:
+                raise ValueError
+        except ValueError:
+            self._send_json(400, {'error': 'Invalid Content-Length'})
+            return
 
+        target_url = f"{BACKEND_URL}{self.path}"
+        body = self.rfile.read(length) if length > 0 else None
         req = urllib.request.Request(target_url, data=body, method=method)
         for key, value in self.headers.items():
             if key.lower() not in ('host', 'content-length'):
                 req.add_header(key, value)
-        req.add_header('Host', urllib.parse.urlparse(target_url).netloc)
+        req.add_header('Host', urlsplit(target_url).netloc)
 
         try:
             with urllib.request.urlopen(req, timeout=30) as resp:
@@ -87,13 +107,13 @@ class DevHTTPRequestHandler(SimpleHTTPRequestHandler):
             self._send_json(502, {'error': f'Failed to proxy request: {str(e)}'})
 
     def do_GET(self):
-        if self.path.startswith('/api/'):
+        if self._is_backend_request():
             self._proxy_to_backend('GET')
             return
         super().do_GET()
 
     def do_POST(self):
-        if self.path.startswith(('/api/', '/login/', '/logout/')):
+        if self._is_backend_request():
             self._proxy_to_backend('POST')
             return
         if self.path.split('?', 1)[0] != '/save-favicon':
@@ -151,9 +171,21 @@ class DevHTTPRequestHandler(SimpleHTTPRequestHandler):
         self._send_json(200, {'status': 'ok', 'saved': filename})
 
     def do_PUT(self):
+        if self._is_backend_request():
+            self._proxy_to_backend('PUT')
+            return
+        self._send_json(405, {'error': 'Method not allowed'})
+
+    def do_PATCH(self):
+        if self._is_backend_request():
+            self._proxy_to_backend('PATCH')
+            return
         self._send_json(405, {'error': 'Method not allowed'})
 
     def do_DELETE(self):
+        if self._is_backend_request():
+            self._proxy_to_backend('DELETE')
+            return
         self._send_json(405, {'error': 'Method not allowed'})
 
     def guess_type(self, path):
@@ -179,7 +211,10 @@ if __name__ == '__main__':
     web_root = os.path.dirname(os.path.abspath(__file__))
     handler = partial(DevHTTPRequestHandler, directory=web_root)
     httpd = HTTPServer((host, port), handler)
-    print(f"Dev server serving {web_root} on http://{host}:{port}/ with no-cache headers...")
+    print(
+        f"Dev server serving {web_root} on http://{host}:{port}/ with no-cache headers; "
+        f"proxying console API requests to {BACKEND_URL}..."
+    )
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

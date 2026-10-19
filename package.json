@@ -12,6 +12,8 @@
     "start": "expo start",
     "android": "expo run:android",
     "android:run": "expo run:android",
+    "eas:config:android:preview": "npx --yes eas-cli@25.2.0 config --platform android --profile preview --eas-json-only",
+    "eas:build:android:preview": "npx --yes eas-cli@25.2.0 build --platform android --profile preview",
     "ios": "expo run:ios",
     "web": "expo start --web"
   },

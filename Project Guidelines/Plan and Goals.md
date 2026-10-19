@@ -1,20 +1,20 @@
 # Plan and Goals
 
-**Status:** Approved scope; 2026-10-11 QA implementation and local regression cycle completed; release gates remain on hold
+**Status:** Approved core scope; 2026-10-19 repository audit found three immediate blockers plus essential-workflow gaps, and release gates remain on hold
 
 **Project:** MetroDripJS urban streetwear commerce platform
 
-**Target architecture:** Secured modular Django monolith on one Render Free web service and one Render Free PostgreSQL database
+**Current scheduled-demo target:** Secured same-origin Django modular monolith on one Render Free web service, one Render Free PostgreSQL database, and an EAS internal Android APK; an external free database remains conditional
 
-**Updated:** 2026-10-11
+**Updated:** 2026-10-19
 
-**Release status:** HOLD until production deployment gates pass
+**Release status:** ACADEMIC DEMO HOLD and PRODUCTION HOLD
 
 ## 1. Outcome and scope
 
 MetroDrip must support customer shopping, merchant operations, and administration without requiring paid infrastructure. The approved target consolidates the repository's Django capabilities into one deployable process while retaining explicit internal app boundaries for identity, catalog, orders, payments, fulfillment, content, and staff administration.
 
-The earlier five-service topology remains useful as a local reference and migration source, but it is not the approved Render production topology. The active implementation is now the `metrodrip_backend/` modular monolith. Local development defaults to SQLite; PostgreSQL and the unapplied free-only Render Blueprint remain verification targets. The controlling decisions are recorded in [Decisions and Handover](Decisions%20and%20Handover.md#active-architecture-decisions--2026-09-28).
+The earlier five-service topology remains useful as a local reference and migration source, but it is not the approved Render production topology. The active implementation is now the `metrodrip_backend/` modular monolith. Local development defaults to SQLite. Repository records label the free-only Blueprint unapplied, while public services exist; their exact configuration, database association, and deployed SHA are unverified. The file does not match the one-service target: it also declares a separate static console whose relative API calls cannot reach Django. The controlling findings and staged remediation are in the [2026-10-19 comprehensive audit](Comprehensive%20Repository%20Audit%20and%20Academic%20Demo%20Plan%20-%202026-10-19.md).
 
 ### Users
 
@@ -24,7 +24,7 @@ The earlier five-service topology remains useful as a local reference and migrat
 
 ### Approved outcomes
 
-1. Deploy one Django web service and one PostgreSQL database using Render's free-tier resources only.
+1. Deploy the currently approved scheduled-demo profile: one Django web service and one PostgreSQL database using Render's free-tier resources only. A free external database is a conditional alternative that requires acceptance of proposed ADR-14 and new connectivity/recovery evidence.
 2. Preserve domain boundaries inside the Django project rather than operating five separately deployed services and an API gateway.
 3. Keep COD and add PayMongo Hosted Checkout for GCash, Maya, and cards. Provide dynamic capability discovery (`GET /api/payments/capabilities/`) with client fallback and rail degradation.
 4. Never collect, log, persist, or proxy card PAN, CVV, wallet credentials, OTPs, or provider authentication data through MetroDrip forms or APIs.
@@ -56,15 +56,15 @@ The earlier five-service topology remains useful as a local reference and migrat
 
 | ID | Requirement | Acceptance and negative case | Status |
 |---|---|---|---|
-| FR-01 | A customer can choose COD, GCash, Maya, or card. | COD returns no redirect action. Online methods return an HTTPS PayMongo Hosted Checkout action when configured/accepted; they never silently fall back to COD. | Implemented and verified in mobile and backend suites |
+| FR-01 | A customer can choose COD, GCash, Maya, or card. | COD returns no redirect action. Online methods return an HTTPS PayMongo Hosted Checkout action when configured/accepted; they never silently fall back to COD. | Implemented in automated contracts; deployed COD and PayMongo sandbox E2E remain UNVERIFIED |
 | FR-02 | Checkout is idempotent. | Replaying the same key and normalized payload returns the same order/payment; another owner or changed payload returns `409`. | Implemented and verified in automated tests |
 | FR-03 | The server owns price, shipping, discounts, and stock calculations. | Client totals are ignored; inactive catalog, currency, or stock conflicts fail before payment confirmation. | Implemented and verified in checkout saga |
 | FR-04 | Online payment confirmation is provider-authoritative. | A redirect leaves the order pending. A verified, deduplicated paid event or bounded provider lookup must match session/reference/fingerprint/amount/currency. | Implemented locally; live provider webhook delivery UNVERIFIED |
-| FR-05 | A customer can recover an interrupted payment. | Owned status reads report durable state and may reconcile eligible payments once per 30 seconds; lost create responses can be bound only by a strictly matching signed paid event. | Implemented; verified in client invariant tests |
+| FR-05 | A customer can recover an interrupted payment. | Owned status reads report durable state and may reconcile eligible payments once per 30 seconds; lost create responses can be bound only by a strictly matching signed paid event. | Backend recovery exists; app-kill recovery is blocked by memory-only mobile state |
 | FR-06 | Staff access rejects caller-selected identity. | Opaque bearer auth and persisted coarse roles protect staff APIs. Store-level ownership, permission ABAC, MFA, and recent-auth gates are required before production maturity. | Coarse RBAC implemented; fine-grained controls open |
 | FR-07 | Provider-event and payment lifecycle outcomes are auditable. | An append-only `OrdersPaymentTransition` ledger records all lifecycle state changes (`CREATED` → `PENDING_PAYMENT` → `PAID`/`FAILED`/`EXPIRED`/`CANCELLED`) with trigger source and reason. | **Implemented & Verified** (Migration 0007, tested in backend suite) |
-| FR-08 | Dynamic payment capabilities discovery. | Client discovers supported rails and provider configuration state via `GET /api/payments/capabilities/` and degrades gracefully offline. | **Implemented & Verified** (API and React Native checkout integration) |
-| NFR-01 | Free-tier topology only. | Unapplied Blueprint contains one free web service and one free PostgreSQL database, previews/auto-deploy off, and no paid resource. | Configured, not applied; free database causes production HOLD |
+| FR-08 | Dynamic payment capabilities discovery. | Client discovers supported rails and provider configuration state via `GET /api/payments/capabilities/` and degrades gracefully offline. | Partially implemented; Payment Details can reselect hardcoded/unverified rails |
+| NFR-01 | Free-tier topology only. | Target contains one free Django web service and one no-cost PostgreSQL database, with no paid worker, cron, disk, Redis, autoscaling, or plan. | Current Blueprint is free-only but has a broken extra static-console origin and branch drift |
 | NFR-02 | One relational source of truth. | Active Django apps use one configured database and local ACID transactions. | Implemented; verified locally |
 | NFR-03 | Money is exact. | Application amounts use two-decimal `Decimal`; the adapter emits integer centavos and verifies exact `PHP` amount/currency. | Implemented and verified |
 | NFR-04 | Recovery is safe under cold starts and duplicate delivery. | Webhook processing is deduplicated and request-driven recovery preserves pending state without an always-running worker. | Implemented and verified |
@@ -72,7 +72,20 @@ The earlier five-service topology remains useful as a local reference and migrat
 | NFR-06 | Compatibility is explicit. | `/api/orders/checkout/` remains the active route and the unsafe legacy `POST /orders/` returns `410`; no undocumented `/api/v1` alias is claimed. | Implemented and verified |
 | NFR-07 | Responsive viewport resilience. | Zero horizontal overflow (`scrollWidth <= innerWidth`) across all 16 console routes at 320px, 390px, 768px, and 1280px breakpoints. | **Implemented & Verified** (64/64 layout checks pass in Headless Chrome) |
 
-## 3. Delivery roadmap
+## 3. Academic demonstration remediation track — 2026-10-19
+
+The executable plan, estimates, free-tier options, acceptance matrix, and presentation runbook are maintained in the [2026-10-19 comprehensive audit](Comprehensive%20Repository%20Audit%20and%20Academic%20Demo%20Plan%20-%202026-10-19.md). Its required sequence is:
+
+1. Remove deploy-time fixed privileged credentials and choose one canonical branch, backend, database, and origin.
+2. Restore all client/browser checks and protect them with CI.
+3. Serve the staff consoles and API from one Django origin, then prove deployed staff workflows and database readiness.
+4. Reconcile merchant variants/inventory with the mobile contract and add safe, non-credential demo data.
+5. Persist/revoke mobile sessions, cart, and pending orders; complete Hosted Checkout return/recovery.
+6. Build/install an EAS internal APK, execute hosted PostgreSQL/provider/device checks, and rehearse twice.
+
+The accepted academic scope is one shared store, synthetic data, test-mode payments, direct Android APK distribution, and explicitly deferred unavailable features. Production remains out of scope for the free-service profile.
+
+## 4. Prior delivery roadmap
 
 1. **Discovery and contracts**
    - Baseline active endpoints, models, migrations, auth behavior, and the unapplied Render Blueprint.
@@ -96,7 +109,7 @@ The earlier five-service topology remains useful as a local reference and migrat
    - Verify PayMongo sandbox flows and signed webhook retries; then separately verify approved live capabilities without charging real customers.
    - Validate the Render Blueprint/configuration without applying paid changes. Deploy only after explicit production authorization.
 
-## 4. Risks
+## 5. Risks
 
 | ID | Risk | Likelihood | Impact | Early signal | Mitigation | Owner | Status |
 |---|---|---|---|---|---|---|---|
@@ -104,10 +117,13 @@ The earlier five-service topology remains useful as a local reference and migrat
 | R-02 | Provider activation differs between test and live accounts. | Medium | High | Method absent or rejected in live mode | Current server fails closed; capability discovery and conditional display implemented; verify live method before exposure | Payments | Controlled |
 | R-03 | Duplicate or out-of-order webhooks regress payment state. | Medium | High | Repeated event IDs or terminal-to-nonterminal transition attempts | Event-ID/body-digest dedupe, row locking, invariant checks, and append-only `OrdersPaymentTransition` ledger | Backend | **Mitigated** |
 | R-04 | Inventory is held while an online payment remains pending. | Medium | High | Growing stale-pending/hold count | Thirty-minute expiry, one stale cleanup per new checkout, owned read repair, and an operational query | Orders | Controlled |
-| R-05 | Consolidation changes legacy API behavior. | Medium | High | Mobile contract or merchant console regressions | Preserve `/api/orders/checkout/`, retire unsafe `/orders/` with `410`, verified via 148 client invariant tests | Architecture | **Mitigated** |
+| R-05 | Consolidation changes legacy API behavior. | Medium | High | Mobile contract or merchant console regressions | Preserve `/api/orders/checkout/`, retire unsafe `/orders/` with `410`, repair the current 137/148 client result, and add merchant-variant-to-mobile E2E coverage | Architecture | Open regression |
 | R-06 | Render Free PostgreSQL expires and lacks managed backup/pooling needed for durable commerce storage. | High | High | Thirty-day lifecycle or restore requirement cannot be met | Keep production release on HOLD; rehearse logical export/restore for non-production; do not buy an upgrade without new approval | Platform | Open release blocker |
 | R-07 | A requested improvement requires a paid resource. | Medium | Medium | Blueprint validation or dashboard prompts for billing | Stop the change, retain free configuration, and record the paid option separately for explicit future approval | Platform | Controlled |
+| R-08 | Deploy-time fixed staff credentials expose privileged access. | High | High | Known seeded account authenticates after deploy | Remove automatic staff seed and rotate/disable affected hosted accounts before any public demo | Security/platform | Open blocker |
+| R-09 | Static console and Django API are on different origins without an API base/CORS contract. | High | High | Hosted login or `/api/*` returns static `404` | Adopt the same-origin Django target and run deployed-browser acceptance | Web/backend | Open blocker |
+| R-10 | Merchant-created variants cannot be selected in mobile. | High | High | Product appears but Add to Cart has no matching variant | Unify the backend variant contract and add merchant-to-mobile E2E coverage | Mobile/backend | Open blocker |
 
-## 5. Definition of done
+## 6. Definition of done
 
-This enhancement is complete only when code, Figma, database migrations, and documentation agree; all required automated checks pass; PostgreSQL migration/rollback and concurrent checkout behavior are exercised; sandbox online-payment paths and webhook retries are observed; no raw payment credentials appear in the client or server; Render configuration remains free-tier-only; and every unavailable external/native/live check is explicitly labeled **UNVERIFIED**. Release remains **HOLD** until those conditions are met.
+The academic demonstration is ready only when the three blockers in the 2026-10-19 audit are closed; code, configuration, database migrations, and documentation agree; all required automated checks pass; the essential customer/merchant/admin workflow succeeds against the deployed SHA and an installed APK; PostgreSQL migration/restore/concurrency and PayMongo sandbox behavior are observed when claimed; and unavailable external/native/live checks are explicitly labeled **UNVERIFIED**. Production remains **HOLD** because free services do not provide production durability or availability.

@@ -12,10 +12,17 @@ async (page) => {
   ];
   await page.context().unroute('**/*');
   await page.context().route('**/*', async route => {
-    const url = route.request().url();
-    if (url.startsWith(`${base}/`)) return route.continue();
-    if (/^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/.test(url)) {
-      const isProfile = /\/profile\/$/.test(url);
+    const request = route.request();
+    const url = new URL(request.url());
+    const isBackendPath = (
+      url.pathname.startsWith('/api/')
+      || url.pathname.startsWith('/users/')
+      || ['/login/', '/logout/'].includes(url.pathname)
+    );
+    const isLocalApiOrigin = ['127.0.0.1', 'localhost'].includes(url.hostname);
+    if (url.origin === base && !isBackendPath) return route.continue();
+    if (isBackendPath && isLocalApiOrigin && /^https?:$/.test(url.protocol)) {
+      const isProfile = /\/(?:profile|users\/me)\/$/.test(url.pathname) && request.method() === 'GET';
       return route.fulfill({
         status: isProfile ? 200 : 503,
         contentType: 'application/json',

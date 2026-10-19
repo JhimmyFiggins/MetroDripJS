@@ -15,10 +15,12 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.metrodrip.js"
+      "bundleIdentifier": "com.metrodrip.js",
+      "buildNumber": "1"
     },
     "android": {
       "package": "com.metrodrip.js",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./web/assets/favicon.png",
         "backgroundColor": "#141414"

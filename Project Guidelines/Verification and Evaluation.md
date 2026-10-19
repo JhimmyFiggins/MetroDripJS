@@ -1,8 +1,8 @@
 # Verification and Evaluation
 
-**Status:** Release HOLD; 2026-10-13 local and disposable-PostgreSQL rerun passed, external/native/connected-Render verification outstanding
+**Status:** ACADEMIC DEMO HOLD and PRODUCTION HOLD; 2026-10-19 audit found current client/browser failures and hosted integration blockers
 
-**Current authority:** [QA Audit and Implementation Report 2026-10-11](QA%20Audit%20and%20Implementation%20Report%20-%202026-10-11.md), this matrix, [QA Report 2026-09-28](QA%20Report%202026-09-28.md), and its unresolved [2026-09-27 coverage matrix](QA%20Report%202026-09-27.md)
+**Current authority:** [Comprehensive Repository Audit and Academic Demo Plan — 2026-10-19](Comprehensive%20Repository%20Audit%20and%20Academic%20Demo%20Plan%20-%202026-10-19.md), this matrix, and the dated prior QA reports retained below
 
 **Evidence rule:** An executed unit/mock/SQLite/static check is labeled separately from PostgreSQL, native-device, PayMongo, and Render evidence.
 
@@ -25,12 +25,32 @@
 | SEC-03 | Production settings | Django deploy check reports configuration warnings/errors without exposing secrets | Missing Django production secret prevents boot; missing PayMongo/webhook secret fails only the affected capability closed | Local production-like check completed with only HSTS subdomain/preload policy warnings; Render environment UNVERIFIED |
 | CAP-01 | Fail-closed unavailable features | Reset delivery, MFA, analytics, courier, eligibility, custom-role persistence, settings persistence, and account switching return documented `501`/`503`/`410` responses | No sample metrics, token, waybill, quote, role, setting, or switched identity is fabricated | Implemented; console/backend local reruns passed |
 | PERF-01 | Warm/cold behavior | Load test reports p50/p95/p99, error rate, query count, and cold-start separately against production-like PostgreSQL | Provider latency/timeouts and sleeping service do not cause duplicate orders/payments | Partial: bounded local PostgreSQL probe reports cold start, p50/p95/max, and zero errors; resource/query/connected capacity UNVERIFIED |
-| UI-01 | State coverage | Figma nodes `708:4544`, `709:5008`, `710:4846`, `711:4544/4545`, and `720:4544/4545` plus runtime source cover default/loading/empty/error/partial states | Session/permission/API/write/payment failures stay truthful and recoverable | Code, 148 client tests, Expo web export, and 64 mocked browser cases passed; native acceptance UNVERIFIED |
-| NATIVE-01 | Mobile return flow | Physical Android/iOS external browser/deep-link and foreground refresh return to the owned order | App kill, cancelled payment, offline return, stale session, and repeated link remain recoverable | UNVERIFIED |
-| RENDER-01 | Free-tier topology | Static parse confirms previews/auto-deploy off, one free web service, and one free PostgreSQL database | No worker, cron, Key Value/Redis, disk, autoscaling, HA, replica, or paid plan; stop if payment is requested | Static policy assertions passed; connected/live mutation not authorized |
+| UI-01 | State coverage | Figma nodes `708:4544`, `709:5008`, `710:4846`, `711:4544/4545`, and `720:4544/4545` plus runtime source cover default/loading/empty/error/partial states | Session/permission/API/write/payment failures stay truthful and recoverable | **Current regression:** 64 layout checks pass, but client POST/error-path tests and browser state flows fail; native acceptance UNVERIFIED |
+| NATIVE-01 | Mobile return flow | Physical Android external browser/app return and foreground refresh return to the owned order | App kill, cancelled payment, offline return, stale session, and repeated link remain recoverable | UNVERIFIED; no `eas.json`, APK, device install, persisted pending order, or app return link |
+| RENDER-01 | Free-tier topology | Schema/config confirms the approved same-origin free web service and no-cost database | No broken second origin, worker, cron, Key Value/Redis, disk, autoscaling, HA, replica, or paid plan; stop if payment is requested | **Current divergence:** Blueprint validates structurally but declares a separate static console, pins stale `archim`, and does not disable static auto-deploy explicitly |
 | RENDER-02 | Durable production database | Retention/backup/restore can satisfy approved RPO/RTO without an unauthorized paid change | Current free PostgreSQL expiry/no-managed-backup lifecycle is not represented as production durable | Release HOLD/blocker |
 | OPS-01 | Recovery/restore | Logical export restores to disposable PostgreSQL with integrity checks and a redacted incident/reconciliation procedure | No secret/payment/address leakage; restored ownership/money/payment invariants hold | PASS locally for custom-format dump/separate restore and key invariants; hosted recovery and structured correlation logging remain incomplete |
 | DATA-01 | Demo notification cleanup | Migration removes only the five exact `0002` demo rows and preserves nonmatching legitimate records | Reverse migration does not reintroduce fabricated notifications | Implemented migration; local test rerun passed; target application UNVERIFIED |
+
+## Current audit ledger — 2026-10-19
+
+These results supersede the 2026-10-13 ledger only for the current audited commit. Older PostgreSQL and integration evidence remains historical evidence and was not silently upgraded to a current pass.
+
+| Check | Command/environment | Current status |
+|---|---|---|
+| Revision/topology | `master` `bc8407c`; compare `archim` `6f537ce`; inspect `render.yaml` | Blueprint pins `archim`; separate static console cannot route relative login/API calls; production CORS has no console origin |
+| Privileged provisioning | Inspect build command and `seed_demo_staff` | **BLOCKER:** every deploy creates/resets fixed administrator and merchant passwords |
+| Active Django suite | Temporary SQLite execution | **81 run: 77 passed, 4 PostgreSQL-only skipped**; main audit used Python 3.14.6/Django 6.1.1 rather than declared versions, so target-runtime/PostgreSQL acceptance remains open |
+| Client/source contracts | `npm run test:client` | **FAIL:** 128 assertions passed, then harness could not spawn `python` |
+| Client/source contracts with Python selected | `PYTHON=python3 npm run test:client` | **FAIL:** 137/148 passed; 11 development-server POST/error-path failures due to missing `_send_json` |
+| TypeScript | `npx tsc --noEmit` | **PASS** |
+| Console browser harness | `npm run test:browser` | **FAIL:** 64 layout checks passed; state suite timed out because same-origin API traffic escaped its mock route |
+| Expo client | dependency check, Doctor, public config, isolated all-platform export | **PASS:** Doctor 18/18; export generated Android/iOS/web bundles; not an APK/native test |
+| Dependency audit | `npm audit --omit=dev` | 36 advisories: 0 critical, 24 high, 12 moderate; automatic fixes require incompatible framework changes |
+| Blueprint | YAML parse + current official Render JSON Schema | **PASS structurally**; Render CLI/account validation and apply UNVERIFIED |
+| Public probes | backend health, console root, console-origin API and CORS | Health/root returned `200`; console API returned `404`; backend omitted console-origin CORS; `/health/` does not query DB |
+| EAS/APK/device | Repository inspection and device availability | **UNVERIFIED:** no `eas.json`/project ID/build/install; no device connected during audit |
+| PayMongo | Source/contracts only | **UNVERIFIED:** no test checkout, enabled-rail confirmation, webhook delivery, or app return |
 
 ### Required execution order
 
@@ -46,7 +66,7 @@
 
 For every command or manual check record the date, git commit/worktree state, exact command/environment, fixtures/account mode, result, relevant artifact path, limitations, and cleanup. Redact secrets and personal/payment data. Do not upgrade a `PASS` from mocks/SQLite into provider/PostgreSQL/native/production proof.
 
-### Current rerun ledger — 2026-10-13
+## Prior rerun ledger — 2026-10-13
 
 These are observed local/disposable results. They do not replace native-device, provider, connected-database, or connected-Render acceptance.
 

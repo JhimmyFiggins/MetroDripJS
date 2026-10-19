@@ -1,18 +1,17 @@
 # This Blueprint intentionally uses only Render's free compute plans.
 # Applying it still requires an explicit human review in the Render Dashboard.
 previews:
-  generation: off
+  generation: "off"
 
 services:
   - type: web
     name: metrodripjs
     runtime: python
     plan: free
-    branch: archim
-    rootDir: metrodrip_backend
-    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate --noinput && python manage.py seed_demo_staff
-    startCommand: gunicorn metrodrip_backend.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --threads 2 --timeout 120 --access-logfile - --error-logfile -
-    autoDeployTrigger: off
+    branch: master
+    buildCommand: pip install -r metrodrip_backend/requirements.txt && python metrodrip_backend/manage.py collectstatic --noinput
+    startCommand: python metrodrip_backend/manage.py migrate --noinput && gunicorn --chdir metrodrip_backend metrodrip_backend.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --threads 2 --timeout 120 --access-logfile - --error-logfile -
+    autoDeployTrigger: "off"
     healthCheckPath: /health/
     envVars:
       - key: DATABASE_URL
@@ -43,20 +42,6 @@ services:
         sync: false
       - key: PAYMONGO_WEBHOOK_SECRET
         sync: false
-
-  - type: web
-    name: metrodrip-consoles
-    runtime: static
-    branch: archim
-    rootDir: web
-    staticPublishPath: .
-    routes:
-      - type: rewrite
-        source: /admin/account/settings
-        destination: /admin/account-settings.html
-      - type: rewrite
-        source: /merchant/account/settings
-        destination: /merchant/account-settings.html
 
 databases:
   - name: metrodrip-postgres

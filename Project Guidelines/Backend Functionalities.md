@@ -1,14 +1,16 @@
 # Backend Functionalities
 
-**Status:** Current implementation contract; transition ledger, snapshots, capabilities discovery, review trust controls, and 81 backend tests verified
+**Status:** Current implementation contract; core backend suite remains green on temporary SQLite, while hosted integration and target-environment acceptance remain blocked
 
-**Active runtime:** One Django/DRF application in `metrodrip_backend/`. Local development defaults to SQLite. The intended but unapplied Render deployment connects the same application to one free PostgreSQL database.
+**Active runtime:** One Django/DRF application in `metrodrip_backend/`. Local development defaults to SQLite. The intended academic deployment connects the same application and packaged staff consoles to one no-cost PostgreSQL database through one HTTPS origin.
 
 **Payment scope:** COD plus PayMongo Hosted Checkout for GCash, Maya, and cards with dynamic capability discovery
 
-**Updated:** 2026-10-13
+**Updated:** 2026-10-19
 
-**Release status:** HOLD
+**Release status:** ACADEMIC DEMO HOLD and PRODUCTION HOLD
+
+The API contract below remains authoritative. For current cross-client defects, unsafe deployment seeding, failed regression gates, and the remediation sequence, see the [2026-10-19 comprehensive audit](Comprehensive%20Repository%20Audit%20and%20Academic%20Demo%20Plan%20-%202026-10-19.md).
 
 ## 1. Current API conventions
 

@@ -1,16 +1,16 @@
 # Database Structure
 
-**Status:** Current additive schema implemented; transition ledger, snapshots, and migration 0007 verified
+**Status:** Current additive schema implemented; 2026-10-13 disposable-PostgreSQL evidence retained, but 2026-10-19 target-database acceptance was not rerun
 
 **Active local engine:** SQLite by default through `DATABASE_URL`
 
-**Approved deployment target:** One Render Free PostgreSQL database, not yet applied
+**Academic deployment profiles:** Render Free PostgreSQL for a scheduled disposable demo; proposed Neon Free alternative if availability must exceed Render's 30-day database lifetime
 
-**Updated:** 2026-10-05
+**Updated:** 2026-10-19
 
-**Release status:** HOLD
+**Release status:** ACADEMIC DEMO HOLD and PRODUCTION HOLD
 
-SQLite test success does not verify PostgreSQL row locks, query plans, uniqueness races, migration rollback, connection limits, retention, or restore.
+SQLite test success does not verify PostgreSQL row locks, query plans, uniqueness races, migration rollback, connection limits, retention, or restore. The database-profile decision, safe synthetic seed requirement, lifecycle controls, and current acceptance checklist are in the [2026-10-19 comprehensive audit](Comprehensive%20Repository%20Audit%20and%20Academic%20Demo%20Plan%20-%202026-10-19.md).
 
 ## 1. Current ownership and schema reality
 

@@ -8,8 +8,9 @@
 // filename onto web/assets and crash with a traceback on malformed JSON.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { createServer as createHttpServer } from 'node:http';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -19,6 +20,45 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const script = path.join(repoRoot, 'web', 'dev_server.py');
 const PORT = Number(process.env.CLIENT_DEV_SERVER_PORT || 34517);
 
+function findPython() {
+  const candidates = [];
+  if (process.env.PYTHON) candidates.push({ command: process.env.PYTHON, prefix: [] });
+  if (process.platform === 'win32') {
+    candidates.push({ command: 'py', prefix: ['-3'] }, { command: 'python', prefix: [] });
+  } else {
+    candidates.push({ command: 'python3', prefix: [] }, { command: 'python', prefix: [] });
+  }
+
+  for (const candidate of candidates) {
+    const result = spawnSync(candidate.command, [...candidate.prefix, '--version'], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    if (!result.error && result.status === 0) return candidate;
+  }
+  throw new Error('No usable Python 3 interpreter was found. Set PYTHON to its executable path.');
+}
+
+async function stopChild(child) {
+  if (!child || child.exitCode !== null || !child.pid) return;
+  await new Promise(resolve => {
+    const timeout = setTimeout(() => {
+      if (child.exitCode === null) child.kill('SIGKILL');
+      resolve();
+    }, 3000);
+    child.once('exit', () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+    child.kill();
+  });
+}
+
+async function closeHttpServer(httpServer) {
+  if (!httpServer?.listening) return;
+  await new Promise(resolve => httpServer.close(resolve));
+}
+
 function portAnswers(port) {
   return fetch(`http://127.0.0.1:${port}/index.html`, { signal: AbortSignal.timeout(1500) })
     .then(() => true)
@@ -27,31 +67,65 @@ function portAnswers(port) {
 
 const available = !(await portAnswers(PORT));
 let server = null;
+let backendServer = null;
+let startupError = null;
 
-if (available) {
-  // stdio is fully detached: reading the child's pipes would keep this process
-  // alive after the assertions finish, and closing them early kills the server.
-  server = spawn(process.env.PYTHON || 'python', ['-u', script, String(PORT)], {
-    cwd: repoRoot,
-    stdio: 'ignore',
-  });
-
-  const deadline = Date.now() + 20000;
-  for (;;) {
-    if (server.exitCode !== null) {
-      throw new Error(`dev server exited early with code ${server.exitCode}`);
-    }
-    if (await portAnswers(PORT)) break;
-    if (Date.now() > deadline) throw new Error('dev server did not start in time');
-    await new Promise((r) => setTimeout(r, 150));
-  }
-
-  server.unref();
+async function cleanup() {
+  await stopChild(server);
+  await closeHttpServer(backendServer);
 }
 
-test.after(() => {
-  server?.kill();
-});
+test.after(cleanup);
+
+if (available) {
+  try {
+    backendServer = createHttpServer((request, response) => {
+      const chunks = [];
+      request.on('data', chunk => chunks.push(chunk));
+      request.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf8');
+        response.writeHead(200, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({
+          method: request.method,
+          path: request.url,
+          body,
+          authorization: request.headers.authorization || null,
+        }));
+      });
+    });
+    await new Promise((resolve, reject) => {
+      backendServer.once('error', reject);
+      backendServer.listen(0, '127.0.0.1', resolve);
+    });
+    const backendAddress = backendServer.address();
+    const backendUrl = `http://127.0.0.1:${backendAddress.port}`;
+    const python = findPython();
+
+    server = spawn(python.command, [...python.prefix, '-u', script, String(PORT)], {
+      cwd: repoRoot,
+      env: { ...process.env, BACKEND_URL: backendUrl },
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    server.once('error', error => {
+      startupError = error;
+    });
+
+    const deadline = Date.now() + 20000;
+    for (;;) {
+      if (startupError) throw startupError;
+      if (server.exitCode !== null) {
+        throw new Error(`dev server exited early with code ${server.exitCode}`);
+      }
+      if (await portAnswers(PORT)) break;
+      if (Date.now() > deadline) throw new Error('dev server did not start in time');
+      await new Promise((r) => setTimeout(r, 150));
+    }
+  } catch (error) {
+    await cleanup();
+    throw error;
+  }
+}
 
 const skip = available ? false : `port ${PORT} is busy; another agent may be using it`;
 
@@ -176,6 +250,43 @@ test('an unknown POST path is a 404 JSON, not an empty body', { skip }, async ()
   assert.match(await res.text(), /Not found/);
 });
 
+test('console backend routes proxy every supported HTTP method and preserve JSON responses', { skip }, async () => {
+  const cases = [
+    ['GET', '/api/admin/users/?role=merchant', undefined],
+    ['POST', '/login/', JSON.stringify({ email: 'qa@example.invalid', password: 'synthetic' })],
+    ['GET', '/users/me/', undefined],
+    ['PUT', '/users/me/', JSON.stringify({ name: 'QA User' })],
+    ['PATCH', '/api/admin/users/3/', JSON.stringify({ is_active: false })],
+    ['DELETE', '/api/merchant/banners/9/', undefined],
+  ];
+
+  for (const [method, pathname, body] of cases) {
+    const response = await fetch(`http://127.0.0.1:${PORT}${pathname}`, {
+      method,
+      headers: {
+        Accept: 'application/json',
+        Authorization: 'Bearer qa-proxy-token',
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      ...(body ? { body } : {}),
+    });
+    assert.equal(response.status, 200, `${method} ${pathname}`);
+    assert.match(response.headers.get('content-type') || '', /application\/json/);
+    const echoed = await response.json();
+    assert.equal(echoed.method, method);
+    assert.equal(echoed.path, pathname);
+    assert.equal(echoed.body, body || '');
+    assert.equal(echoed.authorization, 'Bearer qa-proxy-token');
+  }
+});
+
+test('non-backend mutation routes return a structured method error', { skip }, async () => {
+  const response = await fetch(`http://127.0.0.1:${PORT}/index.html`, { method: 'PATCH' });
+  assert.equal(response.status, 405);
+  assert.match(response.headers.get('content-type') || '', /application\/json/);
+  assert.deepEqual(await response.json(), { error: 'Method not allowed' });
+});
+
 test('an empty body is a 400', { skip }, async () => {
   const res = await postFavicon(null, { raw: '' });
   assert.equal(res.status, 400);
@@ -184,12 +295,15 @@ test('an empty body is a 400', { skip }, async () => {
 test('a valid favicon name is still accepted, so the feature is not broken by the guard', { skip }, async () => {
   const assets = path.join(repoRoot, 'web', 'assets', 'favicon.png');
   const before = fs.existsSync(assets) ? fs.readFileSync(assets) : null;
-  const res = await postFavicon({ filename: 'favicon.png', data: 'data:image/png;base64,aGk=' });
-  assert.equal(res.status, 200);
-  assert.match(res.body, /"status":\s*"ok"/);
-  // Restore the real asset so the test leaves no side effect.
-  if (before) fs.writeFileSync(assets, before);
-  else fs.rmSync(assets, { force: true });
+  try {
+    const res = await postFavicon({ filename: 'favicon.png', data: 'data:image/png;base64,aGk=' });
+    assert.equal(res.status, 200);
+    assert.match(res.body, /"status":\s*"ok"/);
+  } finally {
+    // Restore the real asset even when an assertion fails.
+    if (before) fs.writeFileSync(assets, before);
+    else fs.rmSync(assets, { force: true });
+  }
 });
 
 // --- bind address -------------------------------------------------------------
@@ -219,4 +333,3 @@ test('the server is not reachable on a non-loopback interface', { skip: !availab
     assert.equal(reachable, false, `dev server accepted a connection on ${addr.address}`);
   }
 });
-

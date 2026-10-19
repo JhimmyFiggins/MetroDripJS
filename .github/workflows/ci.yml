@@ -1,0 +1,166 @@
+name: Repository verification
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verification-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  application:
+    name: Django, clients, browsers, and Expo
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: metrodrip_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d metrodrip_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/metrodrip_ci
+      DJANGO_DEBUG: "true"
+      EXPO_PUBLIC_API_URL: https://metrodripjs.onrender.com
+      PYTHON: python
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14.3"
+          cache: pip
+          cache-dependency-path: metrodrip_backend/requirements.txt
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r metrodrip_backend/requirements.txt
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Check Django schema and deployment assets
+        working-directory: metrodrip_backend
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+          python manage.py migrate --noinput
+          python manage.py collectstatic --noinput
+
+      - name: Run Django tests on PostgreSQL
+        working-directory: metrodrip_backend
+        run: python manage.py test --verbosity 2
+
+      - name: Run client and static checks
+        run: |
+          npm run test:client
+          npx tsc --noEmit
+          npx expo install --check
+          npx expo-doctor
+          npx expo config --type public
+
+      - name: Export Expo bundles
+        run: npx expo export --platform all --output-dir "$RUNNER_TEMP/metrodrip-export"
+
+      - name: Run mocked browser checks
+        shell: bash
+        run: |
+          npm run dev >"$RUNNER_TEMP/metrodrip-web.log" 2>&1 &
+          web_pid=$!
+          cleanup() {
+            kill "$web_pid" 2>/dev/null || true
+            wait "$web_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          ready=0
+          for _ in {1..60}; do
+            if curl --fail --silent --show-error http://127.0.0.1:3000/index.html >/dev/null; then
+              ready=1
+              break
+            fi
+            if ! kill -0 "$web_pid" 2>/dev/null; then
+              break
+            fi
+            sleep 0.5
+          done
+          if [[ "$ready" != "1" ]]; then
+            sed -n '1,200p' "$RUNNER_TEMP/metrodrip-web.log"
+            exit 1
+          fi
+          npm run test:browser
+          cleanup
+          trap - EXIT
+
+      - name: Run browser-to-Django integration checks
+        shell: bash
+        run: |
+          export QA_MANAGE_SERVERS=1
+          export QA_PYTHON=python
+          export QA_DATABASE_URL="$DATABASE_URL"
+          export QA_ADMIN_EMAIL=qa-admin@example.invalid
+          export QA_MERCHANT_EMAIL=qa-merchant@example.invalid
+          export QA_STAFF_PASSWORD="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+          npm run test:browser:integration
+
+  configuration:
+    name: Render and JSON configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14.3"
+
+      - name: Validate Render Blueprint against the current schema
+        run: |
+          python -m pip install check-jsonschema==0.38.2
+          check-jsonschema --schemafile https://render.com/schema/render.yaml.json render.yaml
+
+      - name: Validate JSON configuration
+        run: |
+          python -m json.tool app.json >/dev/null
+          python -m json.tool eas.json >/dev/null
+
+  secret-scan:
+    name: Current-tree secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Scan the checked-out tree with Gitleaks
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          --workdir /repo
+          ghcr.io/gitleaks/gitleaks@sha256:b109bc5f8f76a38196a3e413704fc5b9e3c32360bce4e4b603bd6f45b3721dbb
+          dir /repo --redact --no-banner

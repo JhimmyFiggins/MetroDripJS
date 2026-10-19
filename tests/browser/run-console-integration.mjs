@@ -14,9 +14,29 @@ const manageServers = process.env.QA_MANAGE_SERVERS === '1';
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const backendRoot = join(repoRoot, 'metrodrip_backend');
 const managedProcesses = [];
+const observedOrigins = new Set([new URL(webBase).origin, new URL(apiBase).origin]);
 
 if (!password) {
   throw new Error('QA_STAFF_PASSWORD is required; use a synthetic credential for the disposable QA database.');
+}
+
+function findPython(explicit = process.env.QA_PYTHON) {
+  const candidates = [];
+  if (explicit) candidates.push({ command: explicit, prefix: [] });
+  if (process.platform === 'win32') {
+    candidates.push({ command: 'py', prefix: ['-3'] }, { command: 'python', prefix: [] });
+  } else {
+    candidates.push({ command: 'python3', prefix: [] }, { command: 'python', prefix: [] });
+  }
+
+  for (const candidate of candidates) {
+    const result = spawnSync(candidate.command, [...candidate.prefix, '--version'], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    if (!result.error && result.status === 0) return candidate;
+  }
+  throw new Error('No usable Python 3 interpreter was found. Set QA_PYTHON to its executable path.');
 }
 
 async function assertPortAvailable(port) {
@@ -35,6 +55,10 @@ function startProcess(command, args, options) {
   };
   child.stdout.on('data', capture);
   child.stderr.on('data', capture);
+  child.once('error', error => {
+    child.spawnError = error;
+    capture(`spawn error: ${error.message}`);
+  });
   child.output = () => output;
   managedProcesses.push(child);
   return child;
@@ -56,7 +80,7 @@ async function waitForUrl(url, predicate) {
 
 async function stopManagedProcesses() {
   await Promise.all(managedProcesses.map(child => new Promise(resolve => {
-    if (child.exitCode !== null || child.killed) return resolve();
+    if (child.exitCode !== null || child.killed || !child.pid) return resolve();
     const timeout = setTimeout(() => {
       if (child.exitCode === null) child.kill('SIGKILL');
       resolve();
@@ -70,10 +94,10 @@ async function stopManagedProcesses() {
 }
 
 async function startManagedServers() {
-  const python = process.env.QA_PYTHON;
+  const python = findPython();
   const databaseUrl = process.env.QA_DATABASE_URL;
-  if (!python || !databaseUrl) {
-    throw new Error('QA_PYTHON and QA_DATABASE_URL are required when QA_MANAGE_SERVERS=1.');
+  if (!databaseUrl) {
+    throw new Error('QA_DATABASE_URL is required when QA_MANAGE_SERVERS=1.');
   }
   await assertPortAvailable(3000);
   await assertPortAvailable(8000);
@@ -83,6 +107,10 @@ async function startManagedServers() {
     DATABASE_URL: databaseUrl,
     DJANGO_SECRET_KEY: process.env.QA_DJANGO_SECRET_KEY || 'disposable-browser-integration-secret-with-more-than-fifty-characters-2026',
     DJANGO_DEBUG: 'true',
+    QA_ADMIN_EMAIL: adminEmail,
+    QA_MERCHANT_EMAIL: merchantEmail,
+    QA_STAFF_PASSWORD: password,
+    BACKEND_URL: apiBase,
   };
   const seedCode = `
 import os
@@ -110,7 +138,7 @@ for email, name, role in [
     user.save(update_fields=['password'])
 print('synthetic_staff_ready=2')
 `;
-  const seeded = spawnSync(python, ['manage.py', 'shell', '-c', seedCode], {
+  const seeded = spawnSync(python.command, [...python.prefix, 'manage.py', 'shell', '-c', seedCode], {
     cwd: backendRoot,
     env: serverEnv,
     encoding: 'utf8',
@@ -121,13 +149,13 @@ print('synthetic_staff_ready=2')
   }
 
   const backend = startProcess(
-    python,
-    ['manage.py', 'runserver', '127.0.0.1:8000', '--noreload'],
+    python.command,
+    [...python.prefix, 'manage.py', 'runserver', '127.0.0.1:8000', '--noreload'],
     { cwd: backendRoot, env: serverEnv },
   );
   const web = startProcess(
-    python,
-    ['web/dev_server.py', '3000'],
+    python.command,
+    [...python.prefix, 'web/dev_server.py', '3000'],
     { cwd: repoRoot, env: serverEnv },
   );
   try {
@@ -147,13 +175,19 @@ if (manageServers) {
   }
 }
 
-const browser = await (async () => {
-  try {
-    return await chromium.launch({ channel: process.env.PLAYWRIGHT_CHROME_CHANNEL || 'chrome', headless: true });
-  } catch {
-    return chromium.launch({ headless: true });
-  }
-})();
+let browser;
+try {
+  browser = await (async () => {
+    try {
+      return await chromium.launch({ channel: process.env.PLAYWRIGHT_CHROME_CHANNEL || 'chrome', headless: true });
+    } catch {
+      return chromium.launch({ headless: true });
+    }
+  })();
+} catch (error) {
+  await stopManagedProcesses();
+  throw error;
+}
 
 const failures = [];
 let accessibilityPagesChecked = 0;
@@ -204,6 +238,15 @@ async function newObservedPage() {
   return { context, page, localServerErrors };
 }
 
+function matchesApiResponse(response, pathname, method, { prefix = false } = {}) {
+  const url = new URL(response.url());
+  return (
+    observedOrigins.has(url.origin)
+    && (prefix ? url.pathname.startsWith(pathname) : url.pathname === pathname)
+    && response.request().method() === method
+  );
+}
+
 async function login(role, email) {
   const observed = await newObservedPage();
   const { page } = observed;
@@ -247,8 +290,7 @@ try {
 
   const admin = await login('admin', adminEmail);
   const adminUsersResponse = admin.page.waitForResponse(response => (
-    response.url() === `${apiBase}/api/admin/users/`
-    && response.request().method() === 'GET'
+    matchesApiResponse(response, '/api/admin/users/', 'GET')
   ));
   await admin.page.goto(`${webBase}/admin/users.html`);
   if ((await adminUsersResponse).status() !== 200) throw new Error('Admin users UI did not receive a 200 Django response.');
@@ -257,8 +299,7 @@ try {
 
   const merchant = await login('merchant', merchantEmail);
   const merchantOrdersResponse = merchant.page.waitForResponse(response => (
-    response.url().startsWith(`${apiBase}/api/merchant/orders/`)
-    && response.request().method() === 'GET'
+    matchesApiResponse(response, '/api/merchant/orders/', 'GET', { prefix: true })
   ));
   await merchant.page.goto(`${webBase}/merchant/orders.html`);
   if ((await merchantOrdersResponse).status() !== 200) throw new Error('Merchant orders UI did not receive a 200 Django response.');
