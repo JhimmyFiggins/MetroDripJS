@@ -1,5 +1,8 @@
 import csv
+import re
+import secrets
 from datetime import timedelta
+from django.conf import settings
 from django.http import HttpResponse
 from django.contrib.auth.hashers import make_password
 from django.utils import timezone
@@ -8,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from identity.authentication import CustomerTokenAuthentication
 from identity.permissions import IsAdminRole
-from .models import AccountsCustomer, AuditLog
+from .models import AccountsCustomer, AuditLog, PlatformSetting, CustomRole
 from fulfillment.models import ShippingShippingZone
 
 
@@ -358,6 +361,7 @@ class AdminRolesAPIView(AdminAPIView):
                 'description': 'Full access to user management, platform configurations, financial reports, and audit logs.',
                 'user_count': AccountsCustomer.objects.filter(role='admin').count(),
                 'permissions': ['read_all', 'write_all', 'manage_users', 'manage_settings', 'audit_trail'],
+                'is_custom': False,
             },
             {
                 'role': 'merchant',
@@ -365,6 +369,7 @@ class AdminRolesAPIView(AdminAPIView):
                 'description': 'Manage product catalog, inventory restock, fulfillment orders, and respond to customer reviews.',
                 'user_count': AccountsCustomer.objects.filter(role='merchant').count(),
                 'permissions': ['manage_catalog', 'manage_inventory', 'manage_orders', 'reply_reviews'],
+                'is_custom': False,
             },
             {
                 'role': 'customer',
@@ -372,35 +377,111 @@ class AdminRolesAPIView(AdminAPIView):
                 'description': 'Browse catalog, place drops and orders, save shipping addresses, and submit product reviews.',
                 'user_count': AccountsCustomer.objects.filter(role='customer').count(),
                 'permissions': ['browse_catalog', 'create_orders', 'submit_reviews'],
+                'is_custom': False,
             },
         ]
-        return Response(roles_summary)
+        custom_roles = [
+            {
+                'role': r.name,
+                'title': r.title,
+                'base_role': r.base_role,
+                'description': r.description or f"Custom staff role based on {r.base_role}.",
+                'user_count': AccountsCustomer.objects.filter(role=r.name).count(),
+                'permissions': r.permissions,
+                'is_custom': True,
+            }
+            for r in CustomRole.objects.all()
+        ]
+        return Response(roles_summary + custom_roles)
 
     def post(self, request):
-        return Response(
-            {
-                'error': 'Custom role persistence is not configured. No role was created.',
-                'code': 'role_persistence_unconfigured',
-            },
-            status=status.HTTP_501_NOT_IMPLEMENTED,
+        title = (request.data.get('title') or '').strip()
+        base_role = (request.data.get('base_role') or 'merchant').strip().lower()
+        permissions = request.data.get('permissions') or []
+
+        if not title:
+            return Response({'error': 'Role title is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        slug = re.sub(r'[^a-z0-9]+', '_', title.lower()).strip('_')
+        if not slug:
+            slug = f"role_{secrets.token_hex(4)}"
+
+        if CustomRole.objects.filter(name=slug).exists() or slug in ALLOWED_ACCOUNT_ROLES:
+            return Response({'error': f'A role with identifier "{slug}" already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        role = CustomRole.objects.create(
+            name=slug,
+            title=title,
+            base_role=base_role,
+            description=f"Custom staff role based on {base_role}.",
+            permissions=permissions,
         )
+        _audit(request, f"Created custom role {role.title}", "CustomRole", role.id)
+        return Response({
+            'id': role.id,
+            'role': role.name,
+            'title': role.title,
+            'base_role': role.base_role,
+            'permissions': role.permissions,
+            'user_count': 0,
+            'is_custom': True,
+        }, status=status.HTTP_201_CREATED)
 
 
 class AdminSettingsAPIView(AdminAPIView):
     def get(self, request):
-        return Response(
-            {
-                'error': 'Platform settings persistence is not configured.',
-                'code': 'settings_persistence_unconfigured',
-            },
-            status=status.HTTP_501_NOT_IMPLEMENTED,
-        )
+        setting = PlatformSetting.get_instance()
+        return Response({
+            'settings': {
+                'platform_name': setting.platform_name,
+                'support_email': setting.support_email,
+                'currency': setting.currency,
+                'timezone': setting.timezone,
+                'language': setting.language,
+                'date_format': setting.date_format,
+                'staff_mfa_policy': setting.staff_mfa_policy,
+                'session_timeout_minutes': str(setting.session_timeout_minutes),
+                'customer_registration': setting.customer_registration,
+                'maintenance_mode': setting.maintenance_mode,
+                'order_confirmation_emails': setting.order_confirmation_emails,
+                'sender_name': setting.sender_name,
+                'payment_methods': ['GCash', 'Maya', 'Card', 'COD'],
+                'payment_provider_mode': getattr(settings, 'PAYMONGO_MODE', 'test'),
+            }
+        })
 
     def patch(self, request):
-        return Response({
-            'error': 'Platform settings persistence is not configured. No settings were changed.',
-            'code': 'settings_persistence_unconfigured',
-        }, status=status.HTTP_501_NOT_IMPLEMENTED)
+        setting = PlatformSetting.get_instance()
+        allowed_fields = [
+            'platform_name',
+            'support_email',
+            'currency',
+            'timezone',
+            'language',
+            'date_format',
+            'staff_mfa_policy',
+            'session_timeout_minutes',
+            'customer_registration',
+            'maintenance_mode',
+            'order_confirmation_emails',
+            'sender_name',
+        ]
+        updated_fields = []
+        for field in allowed_fields:
+            if field in request.data:
+                val = str(request.data[field]).strip()
+                if field == 'support_email' and '@' not in val:
+                    return Response({'error': 'A valid support email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+                if field == 'platform_name' and not val:
+                    return Response({'error': 'Platform name cannot be empty.'}, status=status.HTTP_400_BAD_REQUEST)
+                setattr(setting, field, val)
+                updated_fields.append(field)
+
+        if updated_fields:
+            setting.save()
+            _audit(request, f"Updated platform settings ({', '.join(updated_fields)})", "PlatformSetting", setting.id)
+
+        return self.get(request)
 
 
 class AdminUserResetPasswordAPIView(AdminAPIView):

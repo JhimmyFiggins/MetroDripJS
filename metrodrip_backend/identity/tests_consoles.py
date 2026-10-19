@@ -340,25 +340,31 @@ class ConsolesAPITestCase(TestCase):
         res = self.client.post('/api/admin/roles/', {
             'role': 'dispatcher',
             'title': 'Warehouse Dispatcher',
+            'base_role': 'merchant',
             'description': 'Handles fulfillment packing and courier handoffs.',
             'permissions': ['manage_inventory', 'manage_orders'],
         }, format='json')
-        self.assertEqual(res.status_code, 501)
-        self.assertEqual(res.data['code'], 'role_persistence_unconfigured')
-        self.assertFalse(AuditLog.objects.filter(action__contains='Warehouse Dispatcher').exists())
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.data['title'], 'Warehouse Dispatcher')
+        self.assertEqual(res.data['is_custom'], True)
+        self.assertTrue(AuditLog.objects.filter(action__contains='Warehouse Dispatcher').exists())
 
     def test_admin_settings_get_and_patch(self):
         res = self.client.get('/api/admin/settings/')
-        self.assertEqual(res.status_code, 501)
-        self.assertEqual(res.data['code'], 'settings_persistence_unconfigured')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('settings', res.data)
+        self.assertEqual(res.data['settings']['platform_name'], 'MetroDrip')
+        self.assertEqual(res.data['settings']['currency'], 'PHP')
 
         res = self.client.patch('/api/admin/settings/', {
-            'free_shipping_threshold': 3000,
-            'standard_shipping_rate': 140,
+            'platform_name': 'MetroDrip Official',
+            'support_email': 'help@metrodrip.ph',
+            'currency': 'PHP',
         }, format='json')
-        self.assertEqual(res.status_code, 501)
-        self.assertEqual(res.data['code'], 'settings_persistence_unconfigured')
-        self.assertFalse(AuditLog.objects.filter(action__contains='free_shipping_threshold').exists())
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['settings']['platform_name'], 'MetroDrip Official')
+        self.assertEqual(res.data['settings']['support_email'], 'help@metrodrip.ph')
+        self.assertTrue(AuditLog.objects.filter(action__contains='platform_name').exists())
 
     def test_admin_user_reset_password(self):
         res = self.client.post(f'/api/admin/users/{self.customer.id}/reset-password/')
@@ -466,8 +472,7 @@ class ConsolesAPITestCase(TestCase):
             'role': '',
             'title': '',
         }, format='json')
-        self.assertEqual(res.status_code, 501)
-        self.assertEqual(res.data['code'], 'role_persistence_unconfigured')
+        self.assertEqual(res.status_code, 400)
 
     def test_admin_shipping_zones_negative(self):
         res = self.client.patch('/api/admin/shipping-zones/999999/', {'fee': 110}, format='json')

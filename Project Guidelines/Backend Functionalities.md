@@ -184,8 +184,8 @@ All listed scopes use `DatabaseScopedRateThrottle`: an atomic fixed-window count
 | Merchant analytics | `GET /api/merchant/analytics/` | `501 analytics_unconfigured`; no sample metrics returned |
 | Courier booking | `POST /api/merchant/shipments/` | `501 carrier_integration_unconfigured`; no waybill/tracking number generated |
 | Address-to-zone eligibility | `POST /api/merchant/shipping-zones/eligibility/` | `501 shipping_eligibility_unconfigured`; no fake quote returned |
-| Custom role creation | `POST /api/admin/roles/` | `501 role_persistence_unconfigured`; no role created |
-| Platform settings | `GET/PATCH /api/admin/settings/` | `501 settings_persistence_unconfigured`; no settings returned/changed |
+| Custom role creation | `POST /api/admin/roles/` | `201 created`; persisted in `identity_customrole` with audit log |
+| Platform settings | `GET/PATCH /api/admin/settings/` | `200 ok`; persisted in `identity_platformsetting` with audit log |
 | Client-side account switching | `GET/POST /api/admin/switch-user/` | `410 account_switching_retired`; sign out and authenticate explicitly |
 | Account discovery | `GET /check-customer/` | `410 account_discovery_retired` |
 

@@ -163,3 +163,44 @@ class AuditLog(models.Model):
     class Meta:
         db_table = 'identity_auditlog'
         ordering = ['-created_at']
+
+
+class PlatformSetting(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    platform_name = models.CharField(max_length=150, default='MetroDrip')
+    support_email = models.EmailField(max_length=254, default='support@metrodrip.ph')
+    currency = models.CharField(max_length=16, default='PHP')
+    timezone = models.CharField(max_length=64, default='Asia/Manila')
+    language = models.CharField(max_length=16, default='en')
+    date_format = models.CharField(max_length=32, default='YYYY-MM-DD')
+    staff_mfa_policy = models.CharField(max_length=32, default='optional')
+    session_timeout_minutes = models.CharField(max_length=16, default='60')
+    customer_registration = models.CharField(max_length=16, default='enabled')
+    maintenance_mode = models.CharField(max_length=16, default='off')
+    order_confirmation_emails = models.CharField(max_length=16, default='enabled')
+    sender_name = models.CharField(max_length=150, default='MetroDrip Orders')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'identity_platformsetting'
+
+    @classmethod
+    def get_instance(cls):
+        obj, _ = cls.objects.get_or_create(id=1)
+        return obj
+
+
+class CustomRole(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    name = models.CharField(max_length=64, unique=True)
+    title = models.CharField(max_length=100)
+    base_role = models.CharField(max_length=32, default='merchant')
+    description = models.TextField(blank=True, default='')
+    permissions = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'identity_customrole'
+        ordering = ['title']
+

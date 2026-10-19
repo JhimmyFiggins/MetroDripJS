@@ -102,14 +102,16 @@
   }
 
   function updateMetrics() {
+    const systemRoles = roles.filter(role => !role.is_custom);
+    const customRoles = roles.filter(role => role.is_custom);
     const staffCount = roles
       .filter(role => ['admin', 'merchant'].includes(String(role.role).toLowerCase()))
       .reduce((sum, role) => sum + Number(role.user_count || 0), 0);
     const merchant = roles.find(role => String(role.role).toLowerCase() === 'merchant');
     const values = {
-      'metric-system-roles': roles.length,
+      'metric-system-roles': systemRoles.length,
       'metric-staff-assigned': staffCount,
-      'metric-custom-roles': '—',
+      'metric-custom-roles': customRoles.length,
     };
     Object.entries(values).forEach(([id, value]) => {
       const element = document.getElementById(id);
@@ -117,6 +119,10 @@
     });
     const staffDetail = document.getElementById('metric-staff-detail');
     if (staffDetail) staffDetail.textContent = `${staffCount} staff account${staffCount === 1 ? '' : 's'} across system roles`;
+    const customDetail = document.getElementById('metric-custom-detail');
+    if (customDetail) {
+      customDetail.textContent = `${customRoles.length} custom staff role${customRoles.length === 1 ? '' : 's'} created`;
+    }
     const merchantAssignment = document.getElementById('merchant-role-assignment');
     if (merchantAssignment) {
       const count = Number(merchant?.user_count || 0);
@@ -159,7 +165,7 @@
       updateMetrics();
       setCreationEnabled(true);
       setSourceStatus('API CONNECTED', 'is-success');
-      setPageState('warning', 'System roles loaded', 'Custom roles are not persisted by this backend yet. An attempted create will remain unchanged unless the server confirms success.', { eyebrow: 'LIMITED CAPABILITY' });
+      setPageState('ready');
     } catch (error) {
       const denied = error.status === 401 || error.status === 403;
       roles = [];
