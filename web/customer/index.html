@@ -6,6 +6,9 @@
   <meta name="color-scheme" content="light dark">
   <title>MetroDrip customer</title>
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/customer/customer.css">
   <script>
     try {
@@ -18,40 +21,106 @@
 </head>
 <body>
   <a class="skip-link" href="#app">Skip to content</a>
+
   <header class="site-header">
-    <div class="header-bar">
-      <a class="brand" href="/customer/">METRO<span>DRIP</span></a>
-      <form class="header-search" id="header-search" role="search">
-        <label class="visually-hidden" for="catalog-search">Search products</label>
-        <input id="catalog-search" name="q" type="search" placeholder="Search the catalog" autocomplete="off">
-        <button type="submit">Search</button>
-      </form>
-      <div class="header-actions">
-        <button type="button" id="theme-toggle" aria-pressed="false">Dark theme</button>
-        <a class="icon-link" href="/customer/cart">Cart <span id="cart-count">0</span></a>
-        <a class="icon-link" id="account-link" href="/customer/sign-in">Sign in</a>
-        <button type="button" class="menu-button" id="menu-button" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    <div class="announcement-bar">
+      <div class="announcement-inner">
+        METRO MANILA STREETWEAR &nbsp;·&nbsp; GCASH, MAYA &amp; CARDS ACCEPTED
       </div>
     </div>
-    <nav class="site-nav" id="site-nav" aria-label="Customer">
-      <a href="/customer/">Home</a>
-      <a href="/customer/shop">Shop</a>
-      <a href="/customer/wishlist">Wishlist</a>
-      <a href="/customer/orders">Orders</a>
-      <a href="/customer/notifications">Notifications <span id="unread-count" hidden>0</span></a>
-      <a href="/customer/account">Account</a>
-      <a href="/customer/support">Support</a>
+    
+    <div class="header-bar">
+      <div class="header-brand-wrap">
+        <a class="brand" href="/customer/">METRO<span class="brand-drip">DRIP</span></a>
+      </div>
+
+      <nav class="desktop-main-links" aria-label="Main store links">
+        <a href="/customer/shop" class="desktop-nav-link">Shop</a>
+        <a href="/customer/shop?sort=newest" class="desktop-nav-link">New Arrivals</a>
+        <a href="/customer/team" class="desktop-nav-link">Our Team</a>
+        <a href="/customer/support" class="desktop-nav-link">Help</a>
+      </nav>
+
+      <form class="header-search" id="header-search" role="search">
+        <label class="visually-hidden" for="catalog-search">Search products</label>
+        <span class="search-icon" aria-hidden="true">🔍</span>
+        <input id="catalog-search" name="q" type="search" placeholder="Search products…" autocomplete="off">
+        <button type="submit" class="visually-hidden">Search</button>
+      </form>
+
+      <div class="header-actions">
+        <button type="button" id="theme-toggle" class="header-btn theme-toggle-btn" aria-pressed="false" title="Toggle theme">
+          <span class="theme-icon" aria-hidden="true">☼</span>
+          <span class="theme-text">Theme</span>
+        </button>
+        <a class="header-btn header-bag-btn" href="/customer/cart" id="bag-link">
+          Bag (<span id="cart-count">0</span>)
+        </a>
+        <a class="header-btn header-account-btn" id="account-link" href="/customer/sign-in">Sign in</a>
+        <button type="button" class="menu-button" id="menu-button" aria-expanded="false" aria-controls="site-nav" aria-label="Toggle navigation menu">
+          <span class="menu-icon-bar"></span>
+          <span class="menu-icon-bar"></span>
+          <span class="menu-icon-bar"></span>
+        </button>
+      </div>
+    </div>
+
+    <nav class="site-nav" id="site-nav" aria-label="Customer Navigation">
+      <div class="site-nav-inner">
+        <a href="/customer/">Home</a>
+        <a href="/customer/shop">Shop All</a>
+        <a href="/customer/shop?sort=newest">New Arrivals</a>
+        <a href="/customer/wishlist">Wishlist</a>
+        <a href="/customer/orders">Orders &amp; Tracking</a>
+        <a href="/customer/notifications">Notifications <span id="unread-count" hidden>0</span></a>
+        <a href="/customer/account">My Account</a>
+        <a href="/customer/support">Help &amp; FAQ</a>
+        <a href="/customer/team">Our Team</a>
+        <a href="/" class="staff-link">Staff Portal ↗</a>
+      </div>
     </nav>
   </header>
+
   <div id="status" class="status-live" role="status" aria-live="polite"></div>
+
   <main id="app" tabindex="-1">
     <h1>MetroDrip customer</h1>
-    <p>Loading the shop from the MetroDrip server.</p>
+    <p>Loading the shop from the MetroDrip server…</p>
   </main>
+
   <footer class="site-footer">
-    <p>MetroDrip customer shop. Prices, stock, and payment status come from the server.</p>
-    <p><a href="/">Staff portal</a> · <a href="/customer/team">About</a></p>
+    <div class="footer-inner">
+      <div class="footer-columns">
+        <div class="footer-col footer-col-brand">
+          <h2 class="footer-brand">METRODRIP</h2>
+          <p class="footer-tagline">Designed for the City.<br>Every piece is designed in Metro Manila.</p>
+        </div>
+        <div class="footer-col">
+          <h3 class="footer-heading">Explore</h3>
+          <ul class="footer-link-list">
+            <li><a href="/customer/shop">Shop all</a></li>
+            <li><a href="/customer/shop?sort=newest">New arrivals</a></li>
+            <li><a href="/customer/team">Our team</a></li>
+            <li><a href="/customer/wishlist">Wishlist</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h3 class="footer-heading">Customer care</h3>
+          <ul class="footer-link-list">
+            <li><a href="/customer/support">Help &amp; FAQ</a></li>
+            <li><a href="/customer/orders">Orders &amp; tracking</a></li>
+            <li><a href="/customer/account">My account</a></li>
+            <li><a href="/">Staff portal</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-meta">
+        <p class="footer-copyright">© 2026 MetroDrip</p>
+        <p class="footer-locale">PHILIPPINES &nbsp;/&nbsp; PHP ₱</p>
+      </div>
+    </div>
   </footer>
+
   <script type="module" src="/customer/app.js"></script>
 </body>
 </html>
