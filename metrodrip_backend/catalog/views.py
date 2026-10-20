@@ -6,7 +6,9 @@ from rest_framework.renderers import JSONRenderer
 from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
 
+from django.utils import timezone
 from .models import CatalogProduct, CatalogCategory, CatalogProductVariant, InventoryStockEntry
+from content.models import CmsHomepageBanner
 from orders.models import OrdersOrder, OrdersOrderLine, ReviewsReview
 from identity.models import AccountsCustomer
 from identity.authentication import CustomerAuthentication
@@ -284,3 +286,43 @@ class ProductReviewsAPIView(APIView):
                 'status': review.status,
             }
         }, status=status.HTTP_201_CREATED)
+
+
+class PublicBannersAPIView(APIView):
+    """Public customer and storefront endpoint returning active published banners."""
+    authentication_classes = []
+    permission_classes = []
+    renderer_classes = [JSONRenderer]
+
+    def get(self, request):
+        now = timezone.now()
+        qs = CmsHomepageBanner.objects.filter(is_active=True)
+
+        # Exclude scheduled banners whose starts_at is in the future
+        qs = qs.filter(Q(starts_at__isnull=True) | Q(starts_at__lte=now))
+        # Exclude expired banners whose ends_at is in the past
+        qs = qs.filter(Q(ends_at__isnull=True) | Q(ends_at__gt=now))
+
+        placement = request.query_params.get('placement')
+        if placement:
+            placement = placement.strip().lower()
+            qs = qs.filter(placement__iexact=placement)
+
+        banners = qs.order_by('order', 'id')
+        data = [
+            {
+                'id': banner.id,
+                'title': banner.title,
+                'headline': banner.headline or banner.title,
+                'subtext': banner.subtext or '',
+                'button_label': banner.button_label or 'Shop Now',
+                'placement': banner.placement,
+                'placement_label': banner.get_placement_display(),
+                'image_url': banner.image_url or '',
+                'link_url': banner.link_url or '/shop',
+                'order': banner.order,
+            }
+            for banner in banners
+        ]
+        return Response(data)
+

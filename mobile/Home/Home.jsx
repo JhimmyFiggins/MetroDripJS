@@ -24,12 +24,23 @@ export default function Home({ navigation, route }) {
     const [currentCategory, setCurrentCategory] = useState(1);
     const [categoriesLoading, setCategoriesLoading] = useState(true);
     const [showTopSection, setShowTopSection] = useState(true);
+    const [heroBanner, setHeroBanner] = useState(null);
 
     useEffect(() => {
             apiFetch('/categories/', { auth: false })
                 .then(data => setCategoryList(data))
                 .catch(error => console.error('Failed to load categories:', error))
                 .finally(() => setCategoriesLoading(false));
+
+            apiFetch('/banners/?placement=homepage_hero', { auth: false })
+                .then(data => {
+                    if (Array.isArray(data) && data.length > 0) {
+                        setHeroBanner(data[0]);
+                    } else {
+                        setHeroBanner(null);
+                    }
+                })
+                .catch(() => setHeroBanner(null));
         }, []);
 
     // const handleSelectProduct = (id) => {
@@ -53,18 +64,22 @@ export default function Home({ navigation, route }) {
                 <>
                 <HomeHeader/>
                 <View style={styles.HeroBanner}>
-                    <Text style={styles.HeroBannerUpper}>Metro Manila Streetwear</Text>
+                    <Text style={styles.HeroBannerUpper}>
+                        {heroBanner?.subtext || 'Metro Manila Streetwear'}
+                    </Text>
                     <Text style={styles.HeroBannerTitle}>
-                        Urban Style Redefined
+                        {heroBanner?.headline || 'Urban Style Redefined'}
                     </Text>
 
                     <TouchableOpacity
-                        accessibilityLabel="Shop the latest drop"
+                        accessibilityLabel={heroBanner?.button_label || "Shop the latest drop"}
                         accessibilityRole="button"
                         style={styles.HeroLowerButton}
                         onPress={() => navigation.navigate('Shop')}
                     >
-                        <Text style={styles.HeroBannerLower}>Shop the drop →</Text>
+                        <Text style={styles.HeroBannerLower}>
+                            {heroBanner?.button_label ? `${heroBanner.button_label} →` : 'Shop the drop →'}
+                        </Text>
                     </TouchableOpacity>
                 </View>
 

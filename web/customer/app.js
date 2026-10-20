@@ -265,27 +265,52 @@ async function signIn(email, password) {
 
 async function renderHome() {
   document.title = 'MetroDrip customer';
-  const [categories, products] = await Promise.all([
-    api('/categories/', { auth: false }),
-    api('/products/?sort=newest', { auth: false }),
+  const [categories, products, heroBanners] = await Promise.all([
+    api('/categories/', { auth: false }).catch(() => []),
+    api('/products/?sort=newest', { auth: false }).catch(() => []),
+    api('/banners/?placement=homepage_hero', { auth: false }).catch(() => []),
   ]);
   const categoryList = Array.isArray(categories) ? categories : [];
   const productList = Array.isArray(products) ? products : [];
   const featured = productList.filter((product) => product.is_featured).slice(0, 8);
   const arrivals = (featured.length ? featured : productList).slice(0, 8);
 
+  const heroBanner = Array.isArray(heroBanners) && heroBanners.length > 0 ? heroBanners[0] : null;
+
+  const heroTitleContent = heroBanner?.headline
+    ? heroBanner.headline
+    : ['Urban Style', el('br'), 'Redefined'];
+  const heroSubtitleContent = heroBanner?.subtext || 'Designed for the City';
+  const heroCtaLabel = heroBanner?.button_label ? `${heroBanner.button_label} →` : 'Shop Now →';
+  const heroCtaHref = heroBanner?.link_url
+    ? (heroBanner.link_url.startsWith('http') || heroBanner.link_url.startsWith('//')
+      ? heroBanner.link_url
+      : customerHref(heroBanner.link_url))
+    : customerHref('/shop');
+
+  const artworkCard = heroBanner?.image_url
+    ? el('div', {
+        class: 'hero-artwork-card',
+        style: `background-image: linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.7)), url('${heroBanner.image_url}'); background-size: cover; background-position: center;`,
+      }, [
+        el('div', { class: 'artwork-big-logo' }, 'MD'),
+        el('div', { class: 'artwork-tagline' }, heroBanner.title || 'BUILT FOR THE STREETS'),
+        el('div', { class: 'artwork-origin' }, 'METRODRIP / MANILA'),
+      ])
+    : el('div', { class: 'hero-artwork-card' }, [
+        el('div', { class: 'artwork-big-logo' }, 'MD'),
+        el('div', { class: 'artwork-tagline' }, 'BUILT FOR THE STREETS'),
+        el('div', { class: 'artwork-origin' }, 'METRODRIP / MANILA'),
+      ]);
+
   const hero = el('div', { class: 'homepage-hero' }, [
     el('div', { class: 'hero-copy' }, [
       el('div', { class: 'hero-eyebrow' }, 'METRO MANILA STREETWEAR'),
-      el('h1', { class: 'hero-title' }, ['Urban Style', el('br'), 'Redefined']),
-      el('p', { class: 'hero-subtitle' }, 'Designed for the City'),
-      el('a', { class: 'hero-cta', href: customerHref('/shop') }, 'Shop Now →'),
+      el('h1', { class: 'hero-title' }, heroTitleContent),
+      el('p', { class: 'hero-subtitle' }, heroSubtitleContent),
+      el('a', { class: 'hero-cta', href: heroCtaHref }, heroCtaLabel),
     ]),
-    el('div', { class: 'hero-artwork-card' }, [
-      el('div', { class: 'artwork-big-logo' }, 'MD'),
-      el('div', { class: 'artwork-tagline' }, 'BUILT FOR THE STREETS'),
-      el('div', { class: 'artwork-origin' }, 'METRODRIP / MANILA'),
-    ]),
+    artworkCard,
   ]);
 
   const categoryBar = el('div', { class: 'category-bar' }, [
@@ -403,6 +428,7 @@ async function renderShop() {
     el('div', { class: 'sort-select-wrap' }, [
       el('select', {
         name: 'sort',
+        'aria-label': 'Sort products',
         onchange: (event) => {
           const next = new URLSearchParams(location.search);
           const val = event.target.value;
@@ -653,7 +679,9 @@ function reviewSection(product, payload) {
 async function renderCart() {
   document.title = 'Your Bag · MetroDrip customer';
   if (state.cart.length === 0) {
-    return page('Your bag is empty', 'Add items from our catalog to get started. Your bag draft stays in this browser tab for 12 hours.', el('a', { class: 'btn btn-primary', href: customerHref('/shop') }, 'Browse shop'));
+    const node = page('Your bag is empty', 'Add items from our catalog to get started. Your bag draft stays in this browser tab for 12 hours.', el('a', { class: 'btn btn-primary', href: customerHref('/shop') }, 'Browse shop'));
+    node.classList.add('cart-page');
+    return node;
   }
   const itemsNodes = [];
   let subtotalCents = 0;

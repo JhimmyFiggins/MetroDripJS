@@ -6,6 +6,7 @@ from .views import (
     ProductVariantListAPIView,
     VariantStockAPIView,
     ProductReviewsAPIView,
+    PublicBannersAPIView,
 )
 
 urlpatterns = [
@@ -27,4 +28,7 @@ urlpatterns = [
         ProductReviewsAPIView.as_view(),
         name='product-reviews',
     ),
+    path('banners/', PublicBannersAPIView.as_view(), name='public-banners'),
+    path('api/banners/', PublicBannersAPIView.as_view(), name='api-public-banners'),
+    path('api/content/banners/', PublicBannersAPIView.as_view(), name='api-content-banners'),
 ]
