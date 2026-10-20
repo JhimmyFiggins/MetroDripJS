@@ -40,11 +40,22 @@ function findPython(explicit = process.env.QA_PYTHON) {
 }
 
 async function assertPortAvailable(port) {
-  await new Promise((resolve, reject) => {
-    const server = createServer();
-    server.once('error', error => reject(new Error(`Loopback port ${port} is unavailable: ${error.code || error.message}`)));
-    server.listen(port, '127.0.0.1', () => server.close(resolve));
-  });
+  const deadline = Date.now() + 8000;
+  while (true) {
+    try {
+      await new Promise((resolve, reject) => {
+        const server = createServer();
+        server.once('error', reject);
+        server.listen(port, '127.0.0.1', () => server.close(resolve));
+      });
+      return;
+    } catch (error) {
+      if (Date.now() >= deadline) {
+        throw new Error(`Loopback port ${port} is unavailable: ${error.code || error.message}`);
+      }
+      await new Promise(r => setTimeout(r, 250));
+    }
+  }
 }
 
 function startProcess(command, args, options) {
