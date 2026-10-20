@@ -11,6 +11,8 @@ import path from 'node:path';
 import { statSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+delete process.env.EXPO_PUBLIC_API_URL;
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const stubs = path.join(here, '..', 'stubs');
 
