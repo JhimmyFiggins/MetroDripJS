@@ -160,10 +160,24 @@
     ['btn-open-add-user', 'btn-submit-add-user', 'btn-export-csv', 'btn-save-shipping-zones']
       .forEach((id) => {
         const control = document.getElementById(id);
-        if (control) control.disabled = !enabled;
+        if (control) {
+          control.disabled = !enabled;
+          control.setAttribute('aria-disabled', String(!enabled));
+          if (!enabled) {
+            control.setAttribute('disabled', '');
+          } else {
+            control.removeAttribute('disabled');
+          }
+        }
       });
     document.querySelectorAll('.btn-toggle-status').forEach((button) => {
       button.disabled = !enabled;
+      button.setAttribute('aria-disabled', String(!enabled));
+      if (!enabled) {
+        button.setAttribute('disabled', '');
+      } else {
+        button.removeAttribute('disabled');
+      }
     });
   }
 

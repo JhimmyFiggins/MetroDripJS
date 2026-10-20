@@ -88,7 +88,11 @@ export default function ProductCards({ selectedCategory, onSelectProduct, produc
                     >
                         <Image
                             accessibilityLabel={item.name}
-                            source={require('../assets/products/Men\'s Round T-shirt.webp')}
+                            source={
+                                item.image_url
+                                    ? { uri: item.image_url }
+                                    : require('../assets/products/Men\'s Round T-shirt.webp')
+                            }
                             style={styles.productImage}
                         />
                         <Text style={styles.productDetails}>
