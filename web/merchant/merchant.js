@@ -509,8 +509,13 @@
       category: String(raw.category || 'Uncategorized'),
       variantsCount: Number(raw.variants_count ?? raw.variant_count ?? 1),
       stock: Number(raw.stock ?? 0),
+      totalStock: Number(raw.total_stock ?? raw.stock ?? 0),
+      reservedStock: Number(raw.reserved_stock ?? 0),
+      availableStock: Number(raw.available_stock ?? raw.stock ?? 0),
       price: Number(raw.price ?? String(raw.price_formatted || '').replace(/[^0-9.-]/g, '') ?? 0),
       sku: String(raw.sku || ''),
+      imageUrl: String(raw.image_url || ''),
+      media: Array.isArray(raw.media) ? raw.media : [],
       isActive: raw.is_active !== undefined ? Boolean(raw.is_active) : String(raw.status || 'Active').toLowerCase() === 'active',
       description: String(raw.description || ''),
     };
@@ -528,13 +533,21 @@
     }
     tbody.innerHTML = catalogProducts.map((product) => {
       const status = product.isActive ? 'active' : 'inactive';
+      const initialLetter = escapeHtml((product.name.charAt(0) || 'P').toUpperCase());
+      const thumbContent = product.imageUrl
+        ? `<div class="product-thumb-container" style="width:36px;height:36px;border-radius:6px;overflow:hidden;background:var(--color-surface, #1e1e1e);display:flex;align-items:center;justify-content:center;border:1px solid var(--color-border, #333);">
+             <img src="${escapeHtml(product.imageUrl)}" alt="${escapeHtml(product.name)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+             <div class="product-thumb-letter" style="display:none;width:100%;height:100%;align-items:center;justify-content:center;" aria-hidden="true">${initialLetter}</div>
+           </div>`
+        : `<div class="product-thumb-letter" aria-hidden="true">${initialLetter}</div>`;
+
       return `
         <tr data-product-id="${product.id}" data-category="${categoryKey(product.category)}" data-status="${status}">
-          <td><div class="product-thumb-letter" aria-hidden="true">${escapeHtml(product.name.charAt(0).toUpperCase() || 'P')}</div></td>
+          <td>${thumbContent}</td>
           <td class="td-strong">${escapeHtml(product.name)}</td>
           <td class="td-mono td-muted">${escapeHtml(product.category)}</td>
           <td class="td-mono">${product.variantsCount.toLocaleString()}</td>
-          <td class="td-mono td-strong"${product.stock <= 5 ? ' style="color: var(--color-danger);"' : ''}>${product.stock.toLocaleString()}</td>
+          <td class="td-mono td-strong"${product.stock <= 5 ? ' style="color: var(--color-danger);"' : ''} title="Available: ${product.availableStock} · Reserved: ${product.reservedStock}">${product.stock.toLocaleString()}</td>
           <td class="td-mono td-strong">${escapeHtml(money(product.price))}</td>
           <td><span class="status-pill ${status}">${product.isActive ? 'Active' : 'Inactive'}</span></td>
           <td><button type="button" class="btn btn-secondary btn-sm btn-edit-product" data-product-id="${product.id}">Edit</button></td>
@@ -833,9 +846,32 @@
     document.getElementById('add-prod-name')?.focus();
   }
 
+  const addProdMediaInput = document.getElementById('add-prod-media');
+  const addProdMediaPreview = document.getElementById('add-prod-media-preview');
+  const addProdMediaImg = document.getElementById('add-prod-media-img');
+
+  addProdMediaInput?.addEventListener('change', () => {
+    const file = addProdMediaInput.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (addProdMediaImg && addProdMediaPreview) {
+          addProdMediaImg.src = e.target.result;
+          addProdMediaPreview.style.display = 'block';
+        }
+      };
+      reader.readAsDataURL(file);
+    } else {
+      if (addProdMediaPreview) addProdMediaPreview.style.display = 'none';
+      if (addProdMediaImg) addProdMediaImg.src = '';
+    }
+  });
+
   function closeAddProductModal() {
     if (modalAddProduct) modalAddProduct.hidden = true;
     formAddProduct?.reset();
+    if (addProdMediaPreview) addProdMediaPreview.style.display = 'none';
+    if (addProdMediaImg) addProdMediaImg.src = '';
     clearActiveModal();
     btnOpenAddProduct?.focus();
   }
@@ -873,6 +909,31 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, category, price, stock, sku, description }),
       });
+
+      const mediaFile = addProdMediaInput?.files?.[0];
+      if (mediaFile && created?.id) {
+        try {
+          const mediaForm = new FormData();
+          mediaForm.append('file', mediaFile);
+          mediaForm.append('alt_text', `${created.name} primary image`);
+          const session = activeMerchantSession();
+          const uploadRes = await fetch(`${API_BASE}/products/${created.id}/media/`, {
+            method: 'POST',
+            headers: {
+              Accept: 'application/json',
+              Authorization: `Bearer ${session.token}`,
+            },
+            body: mediaForm,
+          });
+          if (uploadRes.ok) {
+            const mediaData = await uploadRes.json();
+            created.image_url = mediaData.url;
+          }
+        } catch (mediaErr) {
+          console.warn('Image upload deferred:', mediaErr);
+        }
+      }
+
       catalogProducts.unshift(normalizeProduct(created));
       catalogProductsLoaded = true;
       renderProducts();
@@ -895,6 +956,136 @@
       control.disabled = disabled;
     });
   }
+
+  let currentProductMediaList = [];
+
+  function renderEditGallery(mediaList) {
+    const grid = document.getElementById('edit-prod-gallery-grid');
+    if (!grid) return;
+    currentProductMediaList = Array.isArray(mediaList) ? mediaList : [];
+    if (!currentProductMediaList.length) {
+      grid.innerHTML = '<p style="font-size: 12px; color: var(--color-muted); margin: 0;">No images uploaded yet.</p>';
+      return;
+    }
+    grid.innerHTML = currentProductMediaList.map((m) => {
+      const isPrimary = m.is_primary;
+      return `
+        <div class="edit-media-card" data-media-id="${m.id}" style="position: relative; width: 90px; border-radius: 6px; border: 2px solid ${isPrimary ? 'var(--color-primary, #00E676)' : 'var(--color-border, #333)'}; overflow: hidden; background: var(--color-surface, #1e1e1e); display: flex; flex-direction: column;">
+          <div style="width: 100%; height: 70px; overflow: hidden; background: #000; display: flex; align-items: center; justify-content: center;">
+            <img src="${escapeHtml(m.url)}" alt="${escapeHtml(m.alt_text || 'Product image')}" style="width: 100%; height: 100%; object-fit: cover;">
+          </div>
+          <div style="padding: 4px; display: flex; flex-direction: column; gap: 4px; background: rgba(0,0,0,0.6);">
+            ${isPrimary
+              ? '<span style="font-size: 9px; font-weight: 700; color: var(--color-primary, #00E676); text-align: center; text-transform: uppercase;">Primary</span>'
+              : `<button type="button" class="btn btn-secondary btn-sm btn-set-primary-media" data-media-id="${m.id}" style="font-size: 9px; padding: 2px 4px; line-height: 1;">Set Main</button>`
+            }
+            <button type="button" class="btn-delete-media" data-media-id="${m.id}" aria-label="Delete image" style="background: none; border: none; color: var(--color-danger, #ff5252); font-size: 10px; cursor: pointer; padding: 2px; text-align: center;">✕ Remove</button>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  const btnUploadProductImage = document.getElementById('btn-upload-product-image');
+  const editProdFileInput = document.getElementById('edit-prod-file-input');
+  const editProdUploadStatus = document.getElementById('edit-prod-upload-status');
+  const editProdGalleryGrid = document.getElementById('edit-prod-gallery-grid');
+
+  btnUploadProductImage?.addEventListener('click', () => {
+    editProdFileInput?.click();
+  });
+
+  editProdFileInput?.addEventListener('change', async () => {
+    const file = editProdFileInput.files?.[0];
+    if (!file || !currentEditingProductId) return;
+    if (editProdUploadStatus) editProdUploadStatus.textContent = 'Uploading image…';
+    try {
+      const mediaForm = new FormData();
+      mediaForm.append('file', file);
+      mediaForm.append('alt_text', 'Product gallery image');
+      const session = activeMerchantSession();
+      const res = await fetch(`${API_BASE}/products/${currentEditingProductId}/media/`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${session.token}`,
+        },
+        body: mediaForm,
+      });
+      if (!res.ok) {
+        throw await responseError(res, 'Failed to upload image.');
+      }
+      const newMedia = await res.json();
+      if (newMedia.is_primary) {
+        currentProductMediaList.forEach((m) => { m.is_primary = false; });
+      }
+      currentProductMediaList.push(newMedia);
+      renderEditGallery(currentProductMediaList);
+      editProdFileInput.value = '';
+      if (editProdUploadStatus) editProdUploadStatus.textContent = 'Image uploaded successfully.';
+
+      // Update in catalogProducts table
+      const prodIndex = catalogProducts.findIndex((p) => p.id === currentEditingProductId);
+      if (prodIndex !== -1 && newMedia.is_primary) {
+        catalogProducts[prodIndex].imageUrl = newMedia.url;
+        renderProducts();
+      }
+      showToast('Image uploaded and added to product gallery.');
+    } catch (err) {
+      if (editProdUploadStatus) editProdUploadStatus.textContent = err.message || 'Upload failed.';
+      showToast(err.message || 'Upload failed.', 'error');
+    }
+  });
+
+  editProdGalleryGrid?.addEventListener('click', async (event) => {
+    const setPrimaryBtn = event.target.closest('.btn-set-primary-media');
+    if (setPrimaryBtn && currentEditingProductId) {
+      const mediaId = Number(setPrimaryBtn.dataset.mediaId);
+      try {
+        const updated = await requestJson(`/products/${currentEditingProductId}/media/${mediaId}/`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_primary: true }),
+        });
+        currentProductMediaList.forEach((m) => {
+          m.is_primary = (m.id === mediaId);
+        });
+        renderEditGallery(currentProductMediaList);
+
+        const prodIndex = catalogProducts.findIndex((p) => p.id === currentEditingProductId);
+        if (prodIndex !== -1) {
+          catalogProducts[prodIndex].imageUrl = updated.url;
+          renderProducts();
+        }
+        showToast('Primary image updated.');
+      } catch (err) {
+        showToast(err.message || 'Failed to set primary image.', 'error');
+      }
+      return;
+    }
+
+    const deleteBtn = event.target.closest('.btn-delete-media');
+    if (deleteBtn && currentEditingProductId) {
+      const mediaId = Number(deleteBtn.dataset.mediaId);
+      try {
+        await authorizedFetch(`/products/${currentEditingProductId}/media/${mediaId}/`, {
+          method: 'DELETE',
+        });
+        currentProductMediaList = currentProductMediaList.filter((m) => m.id !== mediaId);
+        const refreshed = await requestJson(`/products/${currentEditingProductId}/`);
+        currentProductMediaList = refreshed.media || [];
+        renderEditGallery(currentProductMediaList);
+
+        const prodIndex = catalogProducts.findIndex((p) => p.id === currentEditingProductId);
+        if (prodIndex !== -1) {
+          catalogProducts[prodIndex].imageUrl = refreshed.image_url || '';
+          renderProducts();
+        }
+        showToast('Image removed from gallery.');
+      } catch (err) {
+        showToast(err.message || 'Failed to remove image.', 'error');
+      }
+    }
+  });
 
   async function openEditProductModal(productId) {
     if (!modalEditProduct || !productId) return;
@@ -919,6 +1110,8 @@
       document.getElementById('edit-prod-sku').value = product.sku;
       document.getElementById('edit-prod-status').value = product.is_active ? 'active' : 'inactive';
       document.getElementById('edit-prod-desc').value = product.description || '';
+      renderEditGallery(product.media || []);
+      if (editProdUploadStatus) editProdUploadStatus.textContent = 'Max 12 images, 8 MiB each (JPG, PNG, WebP)';
       setEditFormDisabled(false);
       setPageState('ready');
       document.getElementById('edit-prod-name')?.focus();
@@ -933,6 +1126,9 @@
     if (modalEditProduct) modalEditProduct.hidden = true;
     formEditProduct?.reset();
     currentEditingProductId = null;
+    renderEditGallery([]);
+    if (editProdFileInput) editProdFileInput.value = '';
+    if (editProdUploadStatus) editProdUploadStatus.textContent = 'Max 12 images, 8 MiB each (JPG, PNG, WebP)';
     clearActiveModal();
   }
 

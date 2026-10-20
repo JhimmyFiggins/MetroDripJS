@@ -589,21 +589,52 @@ async function renderProduct(route) {
 
   if (selected) refreshVariant(selected);
 
-  const mainMedia = el('div', { class: 'pdp-main-media' }, [
-    image
-      ? el('img', { src: image, alt: `${product.name} product image` })
-      : el('div', { class: 'artwork-fallback' }, [
-          el('span', { class: 'artwork-initial' }, initial),
-          el('span', { class: 'artwork-sub' }, categoryName),
-        ]),
-  ]);
+  const mediaList = Array.isArray(product.media) ? product.media.filter(m => usableImageUrl(m.url)) : [];
+  let currentMainUrl = image || (mediaList[0] ? usableImageUrl(mediaList[0].url) : '');
+
+  const mainMediaImg = currentMainUrl
+    ? el('img', { src: currentMainUrl, alt: `${product.name} product image`, fetchpriority: 'high' })
+    : el('div', { class: 'artwork-fallback' }, [
+        el('span', { class: 'artwork-initial' }, initial),
+        el('span', { class: 'artwork-sub' }, categoryName),
+      ]);
+
+  const mainMedia = el('div', { class: 'pdp-main-media' }, [mainMediaImg]);
+
+  let galleryThumbnails = null;
+  if (mediaList.length > 1) {
+    galleryThumbnails = el('div', { class: 'pdp-gallery-strip', style: 'display: flex; gap: 8px; margin-top: 10px; overflow-x: auto; padding-bottom: 4px;' }, mediaList.map((m) => {
+      const mUrl = usableImageUrl(m.url);
+      const isSelected = mUrl === currentMainUrl;
+      const thumbBtn = el('button', {
+        type: 'button',
+        class: `pdp-thumb-btn ${isSelected ? 'is-active' : ''}`,
+        style: `width: 60px; height: 60px; border-radius: 6px; border: 2px solid ${isSelected ? 'var(--color-primary, #00E676)' : 'transparent'}; overflow: hidden; padding: 0; background: var(--color-surface, #1e1e1e); cursor: pointer; flex-shrink: 0;`,
+        'aria-label': m.alt_text || 'View product image',
+        onclick: () => {
+          if (mainMediaImg.tagName === 'IMG') {
+            mainMediaImg.src = mUrl;
+          }
+          galleryThumbnails.querySelectorAll('.pdp-thumb-btn').forEach((b) => {
+            b.classList.remove('is-active');
+            b.style.borderColor = 'transparent';
+          });
+          thumbBtn.classList.add('is-active');
+          thumbBtn.style.borderColor = 'var(--color-primary, #00E676)';
+        },
+      }, [
+        el('img', { src: mUrl, alt: m.alt_text || '', style: 'width: 100%; height: 100%; object-fit: cover;' }),
+      ]);
+      return thumbBtn;
+    }));
+  }
 
   const infoPanel = el('div', { class: 'pdp-info-panel' }, [
     el('h3', {}, 'Made for everyday movement'),
     el('p', {}, product.description || 'Heavyweight fleece, garment-dyed streetwear essentials designed in Metro Manila.'),
   ]);
 
-  const leftGalleryCol = el('div', { class: 'pdp-gallery-col' }, [mainMedia, infoPanel]);
+  const leftGalleryCol = el('div', { class: 'pdp-gallery-col' }, [mainMedia, galleryThumbnails, infoPanel].filter(Boolean));
 
   const detailsCol = el('div', { class: 'pdp-details-col' }, [
     el('div', { class: 'pdp-cat-tag' }, categoryName),

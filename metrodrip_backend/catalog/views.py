@@ -27,7 +27,7 @@ class ProductListAPIView(ListAPIView):
     renderer_classes = [JSONRenderer]
 
     def get_queryset(self):
-        qs = CatalogProduct.objects.filter(is_active=True)
+        qs = CatalogProduct.objects.filter(is_active=True).prefetch_related('media')
 
         category_param = self.request.query_params.get('category')
         if category_param and category_param not in ['0', 'all', 'All']:
@@ -77,7 +77,7 @@ class ProductListAPIView(ListAPIView):
 
 
 class ProductDetailAPIView(RetrieveAPIView):
-    queryset = CatalogProduct.objects.filter(is_active=True)
+    queryset = CatalogProduct.objects.filter(is_active=True).prefetch_related('media')
     serializer_class = ProductSerializer
     renderer_classes = [JSONRenderer]
 

@@ -35,12 +35,14 @@ export default function ProductDetails({
     const [selectedFit, setSelectedFit] = useState(null);
     const [activeDotIndex, setActiveDotIndex] = useState(0);
 
-    const selectedVariant = variants.find(
+    const matchedVariant = variants.find(
         variant =>
-        variant.attributes.color === selectedColor &&
-        variant.attributes.size === selectedSize &&
-        variant.attributes.fit === selectedFit
+        variant.attributes &&
+        (!selectedColor || variant.attributes.color === selectedColor) &&
+        (!selectedSize || variant.attributes.size === selectedSize) &&
+        (!selectedFit || variant.attributes.fit === selectedFit)
     );
+    const selectedVariant = matchedVariant || (variants.length > 0 ? variants[0] : null);
 
     // Stock
     const [stock, setStock] = useState(null);
@@ -64,15 +66,20 @@ export default function ProductDetails({
                 const data = await productService.getProductById(productId);
                 setProduct(data);
                 
-                // Extract options with safe fallbacks
-                const colors = data.colors && data.colors.length > 0 ? data.colors : ['Black', 'White'];
-                const sizes = data.sizes && data.sizes.length > 0 ? data.sizes : ['S', 'M', 'L'];
-                const fits = data.fits && data.fits.length > 0 ? data.fits : (data.fit ? [data.fit] : ['Regular']);
-
-                // Set default selections
-                setSelectedColor(colors[0]);
-                setSelectedSize(sizes[0]);
-                setSelectedFit(fits[0]);
+                // Extract options if product defines them or variants have attributes
+                const hasVariantAttributes = data.variants && data.variants.some(v => v.attributes && Object.keys(v.attributes).length > 0);
+                if (hasVariantAttributes) {
+                    const colors = data.colors && data.colors.length > 0 ? data.colors : ['Black', 'White'];
+                    const sizes = data.sizes && data.sizes.length > 0 ? data.sizes : ['S', 'M', 'L'];
+                    const fits = data.fits && data.fits.length > 0 ? data.fits : (data.fit ? [data.fit] : ['Regular']);
+                    setSelectedColor(colors[0]);
+                    setSelectedSize(sizes[0]);
+                    setSelectedFit(fits[0]);
+                } else {
+                    setSelectedColor(null);
+                    setSelectedSize(null);
+                    setSelectedFit(null);
+                }
             } catch (error) {
                 console.error('Error fetching product details:', error);
             } finally {
@@ -165,25 +172,23 @@ export default function ProductDetails({
 
     // Colors, Sizes, and Fits lists derived from variants
     const sizes = [...new Set(
-        variants.map(variant => variant.attributes.size)
+        variants.map(variant => variant.attributes && variant.attributes.size).filter(Boolean)
     )];
 
     const fits = [...new Set(
-        variants.map(variant => variant.attributes.fit)
+        variants.map(variant => variant.attributes && variant.attributes.fit).filter(Boolean)
     )];
 
     const colorsList = variants
-        .filter(variant => variant.color_hex)
+        .filter(variant => variant.color_hex || (variant.attributes && variant.attributes.color))
         .map(variant => ({
-            name: variant.color_name,
-            hex_code: variant.color_hex,
+            name: variant.color_name || (variant.attributes && variant.attributes.color) || 'Default',
+            hex_code: variant.color_hex || '#000000',
         }))
         .filter(
             (color, index, self) =>
                 index === self.findIndex(c => c.name === color.name)
         );
-
-    
 
     // const fitsList = product.fits && product.fits.length > 0 ? product.fits : (product.fit ? [product.fit] : ['Regular']);
     const fitsList = fits;
@@ -219,22 +224,22 @@ export default function ProductDetails({
         }
         if (!product) return;
         const productItem = {
-            id: `${product.id || productId}-${selectedColor || 'Default'}-${selectedSize || 'M'}-${selectedFit || 'Regular'}`,
+            id: `${product.id || productId}-${selectedColor || 'Default'}-${selectedSize || 'Default'}-${selectedFit || 'Default'}`,
             variantId: selectedVariant.id,
-            fit: selectedVariant.fit,
+            fit: selectedVariant.fit || selectedFit || 'Regular',
             sku: selectedVariant.sku,
             stock: stock.available_stock,
             productId: product.id || productId,
             name: product.product_name || product.name || 'MetroDrip Product',
-            size: selectedSize || 'M',
-            color: selectedColor || 'Black',
+            size: selectedSize || 'One Size',
+            color: selectedColor || 'Standard',
             fit: selectedFit || 'Regular',
             price: (
                 parseFloat(product.base_price || 0) +
                 parseFloat(selectedVariant?.price_adjustment || 0)
             ).toFixed(2),
             quantity: 1,
-            image: 'https://via.placeholder.com/300x350',
+            image: product.image_url || 'https://via.placeholder.com/300x350',
         };
         addToCart(productItem);
         navigation.navigate('Cart');
@@ -269,7 +274,13 @@ export default function ProductDetails({
             {/* Image Carousel */}
             <View style={styles.imageContainer}>
                 <Image
-                    source={require("../assets/products/Men's Round T-shirt.webp")}
+                    source={
+                        product.image_url
+                            ? { uri: product.image_url }
+                            : (product.images && product.images.length > 0 && product.images[0].url
+                                ? { uri: product.images[0].url }
+                                : require("../assets/products/Men's Round T-shirt.webp"))
+                    }
                     style={styles.imagePlaceholder}
                     resizeMode="contain"
                 />
@@ -292,118 +303,99 @@ export default function ProductDetails({
             <Text style={styles.description}>{product.description}</Text>
 
             {/* Color Selector */}
-            <View style={styles.selectorRow}>
-                <Text style={styles.selectorLabel}>Color</Text>
-                <Text style={styles.selectorValue}>{selectedColor}</Text>
-            </View>
-
-            {/* Color Options */}
-            <View style={styles.colorOptions}>
-                {colorsList.map((color, index) => {
-                    const isSelected = selectedColor === color.name;
-
-                    return (
-                        <TouchableOpacity
-                            key={index}
-                            style={[
-                                styles.colorSwatch,
-                                { backgroundColor: color.hex_code },
-                                isSelected && styles.selectedColorSwatch
-                            ]}
-                            onPress={() => setSelectedColor(color.name)}
-                        >
-                            {isSelected && (
-                                <View
+            {colorsList.length > 0 && (
+                <>
+                    <View style={styles.selectorRow}>
+                        <Text style={styles.selectorLabel}>Color</Text>
+                        <Text style={styles.selectorValue}>{selectedColor}</Text>
+                    </View>
+                    <View style={styles.colorOptions}>
+                        {colorsList.map((color, index) => {
+                            const isSelected = selectedColor === color.name;
+                            return (
+                                <TouchableOpacity
+                                    key={index}
                                     style={[
-                                        styles.colorInnerRing,
-                                        {
-                                            backgroundColor:
-                                                color.hex_code.toLowerCase() === '#ffffff'
-                                                    ? '#000'
-                                                    : '#FFF'
-                                        }
+                                        styles.colorSwatch,
+                                        { backgroundColor: color.hex_code },
+                                        isSelected && styles.selectedColorSwatch
                                     ]}
-                                />
-                            )}
-                        </TouchableOpacity>
-                    );
-                })}
-            </View>
+                                    onPress={() => setSelectedColor(color.name)}
+                                >
+                                    {isSelected && (
+                                        <View
+                                            style={[
+                                                styles.colorInnerRing,
+                                                {
+                                                    backgroundColor:
+                                                        color.hex_code.toLowerCase() === '#ffffff'
+                                                            ? '#000'
+                                                            : '#FFF'
+                                                }
+                                            ]}
+                                        />
+                                    )}
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                </>
+            )}
 
             {/* Size Selector */}
-            <View style={styles.selectorRow}>
-                <Text style={styles.selectorLabel}>Size</Text>
-
-                <View style={styles.sizeOptions}>
-                    {sizes.map((size) => (
-                        <TouchableOpacity
-                            key={size}
-                            style={[
-                                styles.sizeButton,
-                                selectedSize === size && styles.selectedSizeButton
-                            ]}
-                            onPress={() => setSelectedSize(size)}
-                        >
-                            <Text style={[
-                                styles.sizeButtonText,
-                                selectedSize === size && styles.selectedSizeButtonText
-                            ]}>
-                                {size}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
+            {sizes.length > 0 && (
+                <View style={styles.selectorRow}>
+                    <Text style={styles.selectorLabel}>Size</Text>
+                    <View style={styles.sizeOptions}>
+                        {sizes.map((size) => (
+                            <TouchableOpacity
+                                key={size}
+                                style={[
+                                    styles.sizeButton,
+                                    selectedSize === size && styles.selectedSizeButton
+                                ]}
+                                onPress={() => setSelectedSize(size)}
+                            >
+                                <Text style={[
+                                    styles.sizeButtonText,
+                                    selectedSize === size && styles.selectedSizeButtonText
+                                ]}>
+                                    {size}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
                 </View>
-            </View>
-
-            {/* Size Options */}
-
-            {/* <View style={styles.sizeOptions}>
-                {sizesList.map((size) => (
-                    <TouchableOpacity
-                        key={size}
-                        style={[
-                            styles.sizeButton,
-                            selectedSize === size && styles.selectedSizeButton
-                        ]}
-                        onPress={() => setSelectedSize(size)}
-                    >
-                        <Text style={[
-                            styles.sizeButtonText,
-                            selectedSize === size && styles.selectedSizeButtonText
-                        ]}>
-                            {size}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </View> */}
-
+            )}
 
             {/* Fit Selector */}
-            <View style={styles.selectorRow}>
-                <Text style={styles.selectorLabel}>Fit</Text>
-                <Text style={styles.selectorValue}>{selectedFit}</Text>
-            </View>
-
-            {/* Fit Options */}
-            <View style={styles.fitOptions}>
-                {fitsList.map((fit) => (
-                    <TouchableOpacity
-                        key={fit}
-                        style={[
-                            styles.fitButton,
-                            selectedFit === fit && styles.selectedFitButton
-                        ]}
-                        onPress={() => setSelectedFit(fit)}
-                    >
-                        <Text style={[
-                            styles.fitButtonText,
-                            selectedFit === fit && styles.selectedFitButtonText
-                        ]}>
-                            {fit}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
+            {fitsList.length > 0 && (
+                <>
+                    <View style={styles.selectorRow}>
+                        <Text style={styles.selectorLabel}>Fit</Text>
+                        <Text style={styles.selectorValue}>{selectedFit}</Text>
+                    </View>
+                    <View style={styles.fitOptions}>
+                        {fitsList.map((fit) => (
+                            <TouchableOpacity
+                                key={fit}
+                                style={[
+                                    styles.fitButton,
+                                    selectedFit === fit && styles.selectedFitButton
+                                ]}
+                                onPress={() => setSelectedFit(fit)}
+                            >
+                                <Text style={[
+                                    styles.fitButtonText,
+                                    selectedFit === fit && styles.selectedFitButtonText
+                                ]}>
+                                    {fit}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </>
+            )}
 
 
             {/* Stock Warning */}

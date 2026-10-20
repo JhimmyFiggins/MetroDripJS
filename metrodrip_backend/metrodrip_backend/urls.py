@@ -1,4 +1,6 @@
+from django.conf import settings
 from django.urls import include, path, re_path
+from django.views.static import serve
 
 from fulfillment.customer_views import CustomerShippingZonesAPIView
 from metrodrip_backend.console_views import console_file
@@ -29,5 +31,11 @@ urlpatterns = [
         r'^(?P<asset_path>(?:Registration|admin|assets|css|js|merchant|customer)(?:/.*)?)$',
         console_file,
         name='console-file',
+    ),
+    re_path(
+        r'^media/(?P<path>.*)$',
+        serve,
+        {'document_root': settings.MEDIA_ROOT},
+        name='media-file',
     ),
 ]

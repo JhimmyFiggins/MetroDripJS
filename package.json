@@ -9,6 +9,7 @@
     "test:browser": "node tests/browser/run-console-layout.mjs",
     "test:customer": "node tests/browser/run-customer-integration.mjs",
     "test:merchant:banners": "node tests/browser/run-merchant-banners.mjs",
+    "test:merchant:catalog": "node tests/browser/run-merchant-catalog.mjs",
     "test:browser:integration": "node tests/browser/run-console-integration.mjs",
     "test:load:local": "node tests/performance/run-local-api-smoke.mjs",
     "start": "expo start",

@@ -23,6 +23,7 @@ ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
 BACKEND_URL = os.environ.get('BACKEND_URL', 'http://127.0.0.1:8000').rstrip('/')
 BACKEND_PATH_PREFIXES = (
     '/api/',
+    '/media/',
     '/users/',
     '/products/',
     '/categories/',

@@ -4,9 +4,28 @@ from .models import (
     CatalogCategory, 
     CatalogProductVariant, 
     InventoryStockEntry,
+    CatalogProductMedia,
 )
 
+class ProductMediaSerializer(serializers.ModelSerializer):
+    url = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = CatalogProductMedia
+        fields = [
+            'id',
+            'url',
+            'alt_text',
+            'sort_order',
+            'is_primary',
+            'mime_type',
+            'byte_size',
+            'created_at',
+        ]
+
 class ProductSerializer(serializers.ModelSerializer):
+    media = ProductMediaSerializer(many=True, read_only=True)
+
     class Meta:
         model = CatalogProduct
         fields = [
@@ -15,6 +34,7 @@ class ProductSerializer(serializers.ModelSerializer):
             'name',
             'description',
             'image_url',
+            'media',
             'category',
             'base_price',
             'currency',

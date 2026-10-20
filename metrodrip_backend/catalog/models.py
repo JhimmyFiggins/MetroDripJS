@@ -308,3 +308,45 @@ class InventoryStockMovement(models.Model):
         ordering = ['-created_at']
 
 
+class CatalogProductMedia(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    product = models.ForeignKey(
+        CatalogProduct,
+        on_delete=models.CASCADE,
+        db_column='product_id',
+        related_name='media'
+    )
+    variant = models.ForeignKey(
+        CatalogProductVariant,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='variant_id',
+        related_name='media'
+    )
+    file = models.FileField(upload_to='products/%Y/%m/', max_length=500)
+    alt_text = models.CharField(max_length=255, blank=True, default='')
+    sort_order = models.PositiveIntegerField(default=0)
+    is_primary = models.BooleanField(default=False)
+    mime_type = models.CharField(max_length=50, default='image/jpeg')
+    byte_size = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'catalog_product_media'
+        ordering = ['sort_order', 'id']
+        indexes = [
+            models.Index(fields=['product', 'is_primary']),
+            models.Index(fields=['product', 'sort_order']),
+        ]
+
+    @property
+    def url(self):
+        try:
+            return self.file.url
+        except Exception:
+            return ''
+
+
+
