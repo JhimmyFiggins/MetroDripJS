@@ -199,9 +199,9 @@
               <p class="td-muted" style="font-size: 11px; margin-top: 4px;" id="detail-user-activity">Account activity unavailable.</p>
             </div>
             <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px;">
-              <button type="button" class="btn btn-primary" id="btn-save-user-role" disabled>Save role</button>
-              <button type="button" class="btn btn-secondary" id="btn-reset-password" disabled>Reset password</button>
-              <button type="button" class="btn btn-secondary" id="btn-toggle-suspend" style="border-color: var(--color-danger); color: var(--color-danger);" disabled>Suspend account</button>
+              <button type="button" class="btn btn-primary" id="btn-save-user-role" disabled aria-disabled="true">Save role</button>
+              <button type="button" class="btn btn-secondary" id="btn-reset-password" disabled aria-disabled="true">Reset password</button>
+              <button type="button" class="btn btn-secondary btn-danger-outline" id="btn-toggle-suspend" disabled aria-disabled="true">Suspend account</button>
             </div>
           </div>
         </section>
@@ -229,7 +229,7 @@
             </div>
             <p class="td-muted" style="font-size: 11px;">Creates the staff account through the administrator API. Invitation delivery is not claimed by this screen.</p>
             <div>
-              <button type="submit" class="btn btn-primary" id="btn-send-invite" disabled>Create staff account</button>
+              <button type="submit" class="btn btn-primary" id="btn-send-invite" disabled aria-disabled="true">Create staff account</button>
             </div>
           </form>
         </section>
