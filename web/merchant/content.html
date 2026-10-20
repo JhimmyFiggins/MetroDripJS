@@ -126,8 +126,32 @@
 
       <!-- Storefront Placements Table -->
       <section class="panel-card" aria-labelledby="heading-storefront-placements">
-        <div class="panel-header">
+        <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center;">
           <h2 class="panel-title" id="heading-storefront-placements">Storefront placements</h2>
+          <span class="td-mono" style="font-size:11px; color:var(--color-muted);" id="placements-count-label">Loading...</span>
+        </div>
+        <!-- Search and Filter Toolbar -->
+        <div class="table-toolbar">
+          <div style="flex: 1; min-width: 200px; max-width: 320px;">
+            <input type="search" class="form-input" id="filter-banner-search" placeholder="Search title or headline..." aria-label="Search banners">
+          </div>
+          <div class="table-toolbar-filters">
+            <select class="form-select" id="filter-banner-status" aria-label="Filter by status" style="font-size:12px; padding:6px 10px;">
+              <option value="all">All statuses</option>
+              <option value="Live">Live</option>
+              <option value="Scheduled">Scheduled</option>
+              <option value="Draft">Draft</option>
+              <option value="Ended">Ended</option>
+            </select>
+            <select class="form-select" id="filter-banner-placement" aria-label="Filter by placement" style="font-size:12px; padding:6px 10px;">
+              <option value="all">All placements</option>
+              <option value="homepage_hero">Homepage hero</option>
+              <option value="homepage_secondary">Homepage secondary</option>
+              <option value="announcement_bar">Announcement bar</option>
+              <option value="category_banner">Category banner</option>
+              <option value="checkout_footer">Checkout footer</option>
+            </select>
+          </div>
         </div>
         <div class="table-responsive">
           <table class="data-table" id="table-placements" aria-label="Placements list">
@@ -147,16 +171,38 @@
         </div>
       </section>
 
-      <!-- 2-Column Grid: Banner Editor + Desktop Live Preview -->
+      <!-- 2-Column Grid: Banner Editor + Desktop/Mobile Live Preview -->
       <div class="panel-grid-2col" style="margin-top: 24px;">
         <!-- Left: Edit banner form -->
         <section class="panel-card" id="card-banner-editor" aria-labelledby="heading-banner-editor">
-          <div class="panel-header">
-            <h2 class="panel-title" id="heading-banner-editor">Edit homepage hero</h2>
+          <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <h2 class="panel-title" id="heading-banner-editor">Edit banner</h2>
+              <p id="banner-editor-editing-notice" style="margin:3px 0 0; font-size:12px; color:var(--color-muted);">Select a banner above to edit.</p>
+            </div>
+            <div id="banner-editor-status-wrap">
+              <span id="banner-editor-badge" class="status-pill status-active">Live</span>
+            </div>
           </div>
           <form id="form-banner-editor" style="padding: 18px; display: flex; flex-direction: column; gap: 14px;">
             <div class="form-group">
-              <label class="form-label" for="input-banner-headline">Headline</label>
+              <label class="form-label" for="input-banner-title">Campaign title *</label>
+              <input type="text" class="form-input" id="input-banner-title" placeholder="Campaign name" required maxlength="200">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="select-banner-placement">Placement location</label>
+              <select class="form-select" id="select-banner-placement">
+                <option value="homepage_hero">Homepage hero (Synchronized on Web & Mobile)</option>
+                <option value="homepage_secondary">Homepage secondary</option>
+                <option value="announcement_bar">Announcement bar</option>
+                <option value="category_banner">Category banner</option>
+                <option value="checkout_footer">Checkout footer</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="input-banner-headline">Headline *</label>
               <input type="text" class="form-input" id="input-banner-headline" placeholder="Display headline" required maxlength="200">
             </div>
 
@@ -176,16 +222,27 @@
               </div>
             </div>
 
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px;">
+              <div class="form-group">
+                <label class="form-label" for="input-banner-image-url">Image URL (optional)</label>
+                <input type="text" class="form-input" id="input-banner-image-url" placeholder="https://... or /assets/banners/... (optional)" maxlength="254">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="input-banner-order">Display priority</label>
+                <input type="number" class="form-input" id="input-banner-order" min="0" max="32767" value="1" title="Lower number = higher display priority">
+              </div>
+            </div>
+
             <div class="form-group">
-              <label class="form-label" for="select-banner-schedule">Schedule</label>
+              <label class="form-label" for="select-banner-schedule">Schedule & visibility</label>
               <select class="form-select" id="select-banner-schedule">
-                <option value="always">Always on</option>
+                <option value="always">Live immediately (Always on)</option>
                 <option value="scheduled">Scheduled window</option>
-                <option value="draft">Draft (hidden)</option>
+                <option value="draft">Draft (Unpublished)</option>
               </select>
             </div>
 
-            <div id="banner-schedule-fields" hidden style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div id="banner-schedule-fields" class="schedule-fields-grid" hidden>
               <div class="form-group">
                 <label class="form-label" for="input-banner-starts-at">Starts at</label>
                 <input type="datetime-local" class="form-input" id="input-banner-starts-at" data-schedule-start>
@@ -196,28 +253,36 @@
               </div>
             </div>
 
-            <div style="display: flex; gap: 10px; margin-top: 6px;">
-              <button type="button" class="btn btn-primary" id="btn-save-draft">Save draft</button>
-              <button type="submit" class="btn btn-secondary" id="btn-publish-banner">Publish banner</button>
+            <div style="display: flex; gap: 10px; margin-top: 6px; align-items: center;">
+              <button type="submit" class="btn btn-primary" id="btn-publish-banner">Save & Publish</button>
+              <button type="button" class="btn btn-secondary" id="btn-save-draft">Save Draft</button>
+              <button type="button" class="btn btn-secondary" id="btn-revert-banner" disabled>Revert</button>
+              <button type="button" class="btn" id="btn-delete-banner" style="margin-left:auto; color:var(--color-danger); border:1px solid var(--color-danger); background:transparent;" disabled>Delete</button>
             </div>
           </form>
         </section>
 
-        <!-- Right: Live Real-time Desktop Preview Card -->
-        <section class="panel-card" aria-labelledby="heading-desktop-preview">
-          <div class="panel-header">
-            <h2 class="panel-title" id="heading-desktop-preview">Desktop preview</h2>
+        <!-- Right: Live Real-time Desktop/Mobile Preview Card -->
+        <section class="panel-card" aria-labelledby="heading-preview-section">
+          <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center;">
+            <h2 class="panel-title" id="heading-preview-section">Storefront preview</h2>
+            <div class="preview-viewport-toggle" role="group" aria-label="Preview viewport toggle">
+              <button type="button" class="preview-viewport-btn is-active" id="btn-preview-desktop">Desktop</button>
+              <button type="button" class="preview-viewport-btn" id="btn-preview-mobile">Mobile</button>
+            </div>
           </div>
           <div style="padding: 18px;">
-            <div class="banner-preview-box" id="banner-preview-card">
-              <p class="banner-preview-brand">METRODRIP</p>
-              <h3 class="banner-preview-headline" id="preview-headline">SELECT A BANNER</h3>
-              <p class="banner-preview-sub" id="preview-subtext">No supporting text</p>
-              <span class="banner-preview-cta" id="preview-cta-button">No CTA</span>
+            <div class="banner-preview-wrapper" id="banner-preview-wrapper">
+              <div class="banner-preview-box" id="banner-preview-card">
+                <p class="banner-preview-brand">METRODRIP</p>
+                <h3 class="banner-preview-headline" id="preview-headline">SELECT A BANNER</h3>
+                <p class="banner-preview-sub" id="preview-subtext">No supporting text</p>
+                <span class="banner-preview-cta" id="preview-cta-button">No CTA</span>
+              </div>
             </div>
             <div style="margin-top: 14px; font-size: 11px; color: var(--color-muted); line-height: 1.5;">
-              <p style="margin: 0; font-weight: 600;">Homepage hero · Typography banner</p>
-              <p style="margin: 2px 0 0 0;">Publishing replaces the current hero in this placement.</p>
+              <p style="margin: 0; font-weight: 600;" id="preview-placement-info">Homepage hero · Live sync on Customer Web & Mobile</p>
+              <p style="margin: 2px 0 0 0;" id="preview-destination-info">Destination: /shop</p>
             </div>
           </div>
         </section>
@@ -234,35 +299,45 @@
       </div>
       <form id="form-new-banner" style="padding: 18px; display: flex; flex-direction: column; gap: 12px;">
         <div class="form-group">
-          <label class="form-label" for="new-banner-name">Banner campaign title</label>
-          <input type="text" class="form-input" id="new-banner-name" placeholder="e.g. Midnight Cyber Drop" required>
+          <label class="form-label" for="new-banner-name">Banner campaign title *</label>
+          <input type="text" class="form-input" id="new-banner-name" placeholder="e.g. Midnight Cyber Drop" required maxlength="200">
         </div>
         <div class="form-group">
           <label class="form-label" for="new-banner-placement">Placement location</label>
           <select class="form-select" id="new-banner-placement" required>
-            <option value="Homepage hero">Homepage hero</option>
-            <option value="Homepage secondary">Homepage secondary</option>
-            <option value="Announcement bar">Announcement bar</option>
-            <option value="Category banner">Category banner</option>
-            <option value="Checkout footer">Checkout footer</option>
+            <option value="homepage_hero">Homepage hero (Live on Web & Mobile)</option>
+            <option value="homepage_secondary">Homepage secondary</option>
+            <option value="announcement_bar">Announcement bar</option>
+            <option value="category_banner">Category banner</option>
+            <option value="checkout_footer">Checkout footer</option>
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label" for="new-banner-headline">Display headline</label>
-          <input type="text" class="form-input" id="new-banner-headline" placeholder="e.g. MIDNIGHT CYBER DROP" required>
+          <label class="form-label" for="new-banner-headline">Display headline *</label>
+          <input type="text" class="form-input" id="new-banner-headline" placeholder="e.g. MIDNIGHT CYBER DROP" required maxlength="200">
         </div>
         <div class="form-group">
           <label class="form-label" for="new-banner-subtext">Supporting text</label>
-          <input type="text" class="form-input" id="new-banner-subtext" placeholder="e.g. Limited to 150 pieces worldwide" required>
+          <input type="text" class="form-input" id="new-banner-subtext" placeholder="e.g. Limited to 150 pieces worldwide" maxlength="255">
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
           <div class="form-group">
             <label class="form-label" for="new-banner-cta">Button label</label>
-            <input type="text" class="form-input" id="new-banner-cta" value="Shop Now" required>
+            <input type="text" class="form-input" id="new-banner-cta" value="Shop Now" maxlength="50">
           </div>
           <div class="form-group">
             <label class="form-label" for="new-banner-link">Target URL</label>
-            <input type="text" class="form-input" id="new-banner-link" value="/collections/midnight" required>
+            <input type="text" class="form-input" id="new-banner-link" value="/shop" required maxlength="200">
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label class="form-label" for="new-banner-image-url">Image URL (optional)</label>
+            <input type="text" class="form-input" id="new-banner-image-url" placeholder="https://... (optional)" maxlength="254">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="new-banner-order">Priority</label>
+            <input type="number" class="form-input" id="new-banner-order" min="0" max="32767" value="1">
           </div>
         </div>
         <div class="form-group">
@@ -273,7 +348,7 @@
             <option value="Scheduled">Scheduled</option>
           </select>
         </div>
-        <div id="new-banner-schedule-fields" hidden style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div id="new-banner-schedule-fields" class="schedule-fields-grid" hidden>
           <div class="form-group">
             <label class="form-label" for="new-banner-starts-at">Starts at</label>
             <input type="datetime-local" class="form-input" id="new-banner-starts-at" data-schedule-start>

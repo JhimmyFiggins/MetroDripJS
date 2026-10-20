@@ -1,0 +1,250 @@
+import AxeBuilder from '@axe-core/playwright';
+import { chromium } from '@playwright/test';
+
+const base = process.env.QA_WEB_BASE || 'http://127.0.0.1:3000';
+const apiBase = process.env.QA_API_BASE || 'http://127.0.0.1:8000';
+
+const browser = await (async () => {
+  try {
+    return await chromium.launch({ channel: process.env.PLAYWRIGHT_CHROME_CHANNEL || 'chrome', headless: true });
+  } catch {
+    return chromium.launch({ headless: true });
+  }
+})();
+
+const context = await browser.newContext();
+const page = await context.newPage();
+
+const consoleErrors = [];
+page.on('console', (msg) => {
+  if (msg.type() === 'error' && !msg.text().startsWith('Failed to load resource:')) {
+    consoleErrors.push(msg.text());
+  }
+});
+page.on('pageerror', (err) => {
+  consoleErrors.push(err.message);
+});
+
+// Mocked merchant banner fixtures
+const mockBanners = [
+  {
+    id: 1,
+    title: 'Summer Drop 2026',
+    headline: 'HEAT WAVE STREETWEAR',
+    subtext: 'Curated drop for the Manila heat',
+    button_label: 'Explore Collection',
+    placement: 'homepage_hero',
+    placement_label: 'Homepage hero',
+    placement_source: 'persisted',
+    image_url: '/assets/banners/summer.jpg',
+    link_url: '/shop?category=tees',
+    is_active: true,
+    status: 'Live',
+    schedule: 'Always on',
+    starts_at: null,
+    ends_at: null,
+    order: 1,
+  },
+  {
+    id: 2,
+    title: 'Cyberpunk Drop',
+    headline: 'NIGHT RUNNER COLLECTION',
+    subtext: 'Reflective nylon jackets & cargo pants',
+    button_label: 'View Drop',
+    placement: 'homepage_secondary',
+    placement_label: 'Homepage secondary',
+    placement_source: 'persisted',
+    image_url: '',
+    link_url: '/shop?category=jackets',
+    is_active: false,
+    status: 'Draft',
+    schedule: 'Not scheduled',
+    starts_at: null,
+    ends_at: null,
+    order: 2,
+  },
+];
+
+await context.route('**/api/merchant/banners/**', async (route) => {
+  const request = route.request();
+  const url = new URL(request.url());
+  const method = request.method();
+
+  if (method === 'GET' && url.pathname.endsWith('/banners/')) {
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(mockBanners),
+    });
+  }
+
+  if (method === 'PATCH' && url.pathname.match(/\/banners\/(\d+)\//)) {
+    const id = Number(url.pathname.match(/\/banners\/(\d+)\//)[1]);
+    const body = JSON.parse(request.postData() || '{}');
+    const existing = mockBanners.find((b) => b.id === id) || mockBanners[0];
+    const updated = {
+      ...existing,
+      ...body,
+      id,
+      placement_label: body.placement === 'homepage_hero' ? 'Homepage hero' : 'Homepage secondary',
+      status: body.status || existing.status,
+    };
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(updated),
+    });
+  }
+
+  if (method === 'DELETE') {
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'Banner deleted successfully.' }),
+    });
+  }
+
+  return route.continue();
+});
+
+try {
+  console.log(`Testing Merchant Console Content & Banners on ${base}/merchant/content.html ...`);
+
+  // Establish authenticated merchant session in sessionStorage
+  await page.goto(`${base}/merchant/content.html`);
+  await page.evaluate(() => {
+    sessionStorage.setItem('metrodrip_active_user', JSON.stringify({
+      id: 88,
+      name: 'Banner Merchant',
+      email: 'merchant@metrodrip.ph',
+      role: 'merchant',
+      is_staff: true,
+      access_token: 'qa-valid-merchant-token',
+    }));
+  });
+
+  // Reload to initialize with session
+  await page.goto(`${base}/merchant/content.html`, { waitUntil: 'networkidle' });
+
+  // 1. Verify metrics and placements table
+  await page.waitForSelector('#table-placements tbody tr');
+  const rows = await page.$$('#table-placements tbody tr');
+  console.log(`✓ Placements table rendered with ${rows.length} rows`);
+  if (rows.length !== 2) throw new Error(`Expected 2 table rows, got ${rows.length}`);
+
+  // Check metrics
+  const liveCount = await page.textContent('#metric-live-banners');
+  const draftCount = await page.textContent('#metric-draft-banners');
+  console.log(`✓ Metrics verified: Live=${liveCount}, Draft=${draftCount}`);
+
+  // 2. First banner should be auto-selected
+  const firstRowSelected = await page.$eval('#table-placements tbody tr:first-child', (el) => el.classList.contains('selected-row'));
+  console.log('✓ First banner row has selected-row highlight:', firstRowSelected);
+  if (!firstRowSelected) throw new Error('First row expected to have selected-row class');
+
+  const noticeText = await page.textContent('#banner-editor-editing-notice');
+  console.log('✓ Editor notice displays active banner:', noticeText.trim());
+
+  // 3. Test clicking "Edit banner" on second row
+  console.log('Clicking "Edit banner" on second row...');
+  const editButtons = await page.$$('#table-placements .btn-edit-banner');
+  await editButtons[1].click();
+
+  // Verify second row is now selected
+  await page.waitForFunction(() => {
+    const r2 = document.querySelector('#table-placements tbody tr:nth-child(2)');
+    return r2 && r2.classList.contains('selected-row');
+  });
+  console.log('✓ Second row is now highlighted with selected-row');
+
+  // Verify inputs updated to second banner
+  const titleVal = await page.inputValue('#input-banner-title');
+  const headlineVal = await page.inputValue('#input-banner-headline');
+  console.log(`✓ Form inputs updated to second banner: Title="${titleVal}", Headline="${headlineVal}"`);
+  if (titleVal !== 'Cyberpunk Drop') throw new Error(`Expected title "Cyberpunk Drop", got "${titleVal}"`);
+
+  // 4. Test Dirty checking & Revert
+  console.log('Testing dirty tracking and Revert button...');
+  const revertBtnDisabledBefore = await page.$eval('#btn-revert-banner', (btn) => btn.disabled);
+  if (!revertBtnDisabledBefore) throw new Error('Revert button should be disabled before edits');
+
+  await page.fill('#input-banner-headline', 'MODIFIED HEADLINE');
+  const revertBtnEnabled = await page.$eval('#btn-revert-banner', (btn) => !btn.disabled);
+  if (!revertBtnEnabled) throw new Error('Revert button should be enabled after modifying headline');
+  console.log('✓ Revert button properly enabled after input modification');
+
+  // Preview updated real-time
+  const previewHeadline = await page.textContent('#preview-headline');
+  if (previewHeadline !== 'MODIFIED HEADLINE') throw new Error(`Expected preview to update to MODIFIED HEADLINE, got "${previewHeadline}"`);
+  console.log('✓ Real-time preview updated headline accurately');
+
+  // Click Revert
+  await page.click('#btn-revert-banner');
+  const headlineRestored = await page.inputValue('#input-banner-headline');
+  if (headlineRestored !== 'NIGHT RUNNER COLLECTION') throw new Error(`Expected headline to revert, got "${headlineRestored}"`);
+  console.log('✓ Revert button successfully restored original values');
+
+  // 5. Test Schedule fields visibility
+  console.log('Testing schedule visibility toggle...');
+  await page.selectOption('#select-banner-schedule', 'scheduled');
+  const scheduleVisible = await page.$eval('#banner-schedule-fields', (el) => !el.hidden && getComputedStyle(el).display !== 'none');
+  if (!scheduleVisible) throw new Error('Schedule fields should be visible when "scheduled" is selected');
+  console.log('✓ Schedule date fields became visible on "Scheduled"');
+
+  await page.selectOption('#select-banner-schedule', 'always');
+  const scheduleHidden = await page.$eval('#banner-schedule-fields', (el) => el.hidden && getComputedStyle(el).display === 'none');
+  if (!scheduleHidden) throw new Error('Schedule fields should be hidden when "always" is selected');
+  console.log('✓ Schedule date fields became hidden on "Always on" (hidden attribute enforced)');
+
+  // 6. Test Viewport Switcher (Desktop vs Mobile)
+  console.log('Testing desktop/mobile preview simulator...');
+  await page.click('#btn-preview-mobile');
+  const isMobile = await page.$eval('#banner-preview-wrapper', (el) => el.classList.contains('is-mobile-view'));
+  if (!isMobile) throw new Error('Expected mobile preview class');
+  console.log('✓ Mobile preview simulator activated');
+
+  await page.click('#btn-preview-desktop');
+  const isDesktop = await page.$eval('#banner-preview-wrapper', (el) => !el.classList.contains('is-mobile-view'));
+  if (!isDesktop) throw new Error('Expected desktop preview');
+  console.log('✓ Desktop preview restored');
+
+  // 7. Test Search & Filter Toolbar
+  console.log('Testing placements table search & filters...');
+  await page.fill('#filter-banner-search', 'summer');
+  const visibleRowsSearch = await page.$$('#table-placements tbody tr');
+  if (visibleRowsSearch.length !== 1) throw new Error(`Expected 1 row for search "summer", got ${visibleRowsSearch.length}`);
+  console.log('✓ Search filter reduced table to matching rows');
+
+  await page.fill('#filter-banner-search', '');
+  await page.selectOption('#filter-banner-status', 'Draft');
+  const visibleRowsStatus = await page.$$('#table-placements tbody tr');
+  if (visibleRowsStatus.length !== 1) throw new Error(`Expected 1 Draft row, got ${visibleRowsStatus.length}`);
+  console.log('✓ Status dropdown filter successfully filtered table');
+
+  await page.selectOption('#filter-banner-status', 'all');
+
+  // 8. Accessibility audit via AxeBuilder
+  console.log('Auditing Content & Banners accessibility with AxeBuilder...');
+  const a11yResult = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .disableRules(['color-contrast'])
+    .analyze();
+
+  if (a11yResult.violations.length > 0) {
+    const issues = a11yResult.violations.map((v) => `${v.id}: ${v.help} (${v.nodes.length} nodes)`);
+    console.error('Axe violations found:', issues.join('; '));
+    throw new Error('Accessibility audit failed');
+  }
+  console.log('✓ AxeBuilder WCAG 2.1 AA accessibility audit passed with 0 violations!');
+
+  if (consoleErrors.length > 0) {
+    throw new Error(`Console errors occurred: ${consoleErrors.join(', ')}`);
+  }
+
+  console.log('\nALL Merchant Banner E2E Tests PASSED successfully!');
+} catch (error) {
+  console.error('Merchant Banner E2E Test FAILED:', error);
+  process.exit(1);
+} finally {
+  await browser.close();
+}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-import { ScrollView, StyleSheet, Text, View, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, ImageBackground, Linking } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { fonts } from '../../src/theme/font';
 
@@ -57,31 +57,70 @@ export default function Home({ navigation, route }) {
         setSelectedProductId(null);
         setShowTopSection(true); // Show header and search again
     };
+
+    const handleHeroPress = () => {
+        const link = heroBanner?.link_url;
+        if (link) {
+            if (link.startsWith('http://') || link.startsWith('https://')) {
+                Linking.openURL(link).catch(() => {});
+                return;
+            }
+            const matchProduct = link.match(/\/products\/(\d+)/);
+            if (matchProduct) {
+                navigation.navigate('ProductDetails', { selectedProductId: parseInt(matchProduct[1], 10) });
+                return;
+            }
+            if (link.includes('cart')) {
+                navigation.navigate('Cart');
+                return;
+            }
+            if (link.includes('saved') || link.includes('wishlist')) {
+                navigation.navigate('Saved');
+                return;
+            }
+        }
+        navigation.navigate('Shop');
+    };
+
+    const bannerContent = (
+        <View style={heroBanner?.image_url ? styles.HeroBannerWithOverlay : styles.HeroBanner}>
+            <Text style={styles.HeroBannerUpper}>
+                {heroBanner?.subtext || 'Metro Manila Streetwear'}
+            </Text>
+            <Text style={styles.HeroBannerTitle}>
+                {heroBanner?.headline || 'Urban Style Redefined'}
+            </Text>
+
+            <TouchableOpacity
+                accessibilityLabel={heroBanner?.button_label || "Shop the latest drop"}
+                accessibilityRole="button"
+                style={styles.HeroLowerButton}
+                onPress={handleHeroPress}
+            >
+                <Text style={styles.HeroBannerLower}>
+                    {heroBanner?.button_label ? `${heroBanner.button_label} →` : 'Shop the drop →'}
+                </Text>
+            </TouchableOpacity>
+        </View>
+    );
+
     return (
         <SafeAreaProvider style={styles.Container}>
             <StatusBar style="dark" />
             {showTopSection && (
                 <>
                 <HomeHeader/>
-                <View style={styles.HeroBanner}>
-                    <Text style={styles.HeroBannerUpper}>
-                        {heroBanner?.subtext || 'Metro Manila Streetwear'}
-                    </Text>
-                    <Text style={styles.HeroBannerTitle}>
-                        {heroBanner?.headline || 'Urban Style Redefined'}
-                    </Text>
-
-                    <TouchableOpacity
-                        accessibilityLabel={heroBanner?.button_label || "Shop the latest drop"}
-                        accessibilityRole="button"
-                        style={styles.HeroLowerButton}
-                        onPress={() => navigation.navigate('Shop')}
+                {heroBanner?.image_url ? (
+                    <ImageBackground
+                        source={{ uri: heroBanner.image_url }}
+                        style={styles.HeroBannerImageBg}
+                        resizeMode="cover"
                     >
-                        <Text style={styles.HeroBannerLower}>
-                            {heroBanner?.button_label ? `${heroBanner.button_label} →` : 'Shop the drop →'}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
+                        {bannerContent}
+                    </ImageBackground>
+                ) : (
+                    bannerContent
+                )}
 
                 <View style={styles.CategorySection}>
                     {categoriesLoading ? (
@@ -177,6 +216,15 @@ const styles = StyleSheet.create({
     HeroBanner: {
         width: '100%',
         backgroundColor: '#141414',
+        paddingHorizontal: 20,
+        paddingVertical: 24,
+    },
+    HeroBannerImageBg: {
+        width: '100%',
+    },
+    HeroBannerWithOverlay: {
+        width: '100%',
+        backgroundColor: 'rgba(20, 20, 20, 0.72)',
         paddingHorizontal: 20,
         paddingVertical: 24,
     },
