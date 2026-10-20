@@ -50,6 +50,7 @@ def record_payment_transition(
         created_at=now,
     )
 
+from .capabilities import hosted_method_available
 from .paymongo import PayMongoClient, PayMongoError, pesos_to_centavos, verified_paid_payment
 
 
@@ -587,8 +588,8 @@ def _ensure_provider_session(order, payment, customer, provider_client=None):
         _expire_order(order, provider_client=provider_client)
         raise CheckoutError('This checkout expired. Start a new checkout.', status_code=409, code='checkout_expired')
 
-    client = provider_client or PayMongoClient()
     try:
+        client = provider_client or PayMongoClient()
         provider_ref, checkout_url = client.create_checkout_session(
             order,
             payment,
@@ -656,6 +657,17 @@ def execute_checkout(customer, payload, provider_client=None):
             )
         payment = existing.payments.order_by('-created_at').first()
         return (*_ensure_provider_session(existing, payment, customer, provider_client), True)
+
+    if (
+        provider_client is None
+        and checkout['payment_method'] in ONLINE_METHODS
+        and not hosted_method_available(checkout['payment_method'])
+    ):
+        raise CheckoutError(
+            'This payment method is not available.',
+            status_code=422,
+            code='payment_method_unavailable',
+        )
 
     try:
         with transaction.atomic():

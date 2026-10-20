@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>MetroDrip customer</title>
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/customer/customer.css">
+  <script>
+    try {
+      var storedTheme = localStorage.getItem('metrodrip.customer.theme');
+      if (storedTheme === 'dark' || storedTheme === 'light') {
+        document.documentElement.dataset.theme = storedTheme;
+      }
+    } catch (error) {}
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#app">Skip to content</a>
+  <header class="site-header">
+    <div class="header-bar">
+      <a class="brand" href="/customer/">METRO<span>DRIP</span></a>
+      <form class="header-search" id="header-search" role="search">
+        <label class="visually-hidden" for="catalog-search">Search products</label>
+        <input id="catalog-search" name="q" type="search" placeholder="Search the catalog" autocomplete="off">
+        <button type="submit">Search</button>
+      </form>
+      <div class="header-actions">
+        <button type="button" id="theme-toggle" aria-pressed="false">Dark theme</button>
+        <a class="icon-link" href="/customer/cart">Cart <span id="cart-count">0</span></a>
+        <a class="icon-link" id="account-link" href="/customer/sign-in">Sign in</a>
+        <button type="button" class="menu-button" id="menu-button" aria-expanded="false" aria-controls="site-nav">Menu</button>
+      </div>
+    </div>
+    <nav class="site-nav" id="site-nav" aria-label="Customer">
+      <a href="/customer/">Home</a>
+      <a href="/customer/shop">Shop</a>
+      <a href="/customer/wishlist">Wishlist</a>
+      <a href="/customer/orders">Orders</a>
+      <a href="/customer/notifications">Notifications <span id="unread-count" hidden>0</span></a>
+      <a href="/customer/account">Account</a>
+      <a href="/customer/support">Support</a>
+    </nav>
+  </header>
+  <div id="status" class="status-live" role="status" aria-live="polite"></div>
+  <main id="app" tabindex="-1">
+    <h1>MetroDrip customer</h1>
+    <p>Loading the shop from the MetroDrip server.</p>
+  </main>
+  <footer class="site-footer">
+    <p>MetroDrip customer shop. Prices, stock, and payment status come from the server.</p>
+    <p><a href="/">Staff portal</a> · <a href="/customer/team">About</a></p>
+  </footer>
+  <script type="module" src="/customer/app.js"></script>
+</body>
+</html>

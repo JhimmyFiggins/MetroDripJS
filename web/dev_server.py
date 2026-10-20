@@ -21,8 +21,23 @@ MAX_FAVICON_BYTES = 1024 * 1024
 ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
 
 BACKEND_URL = os.environ.get('BACKEND_URL', 'http://127.0.0.1:8000').rstrip('/')
-BACKEND_PATH_PREFIXES = ('/api/', '/users/')
+BACKEND_PATH_PREFIXES = (
+    '/api/',
+    '/users/',
+    '/products/',
+    '/categories/',
+    '/variants/',
+    '/orders/',
+    '/wishlist/',
+    '/notifications/',
+    '/profile/',
+    '/signup/',
+    '/forgot-password/',
+    '/password-reset/',
+    '/payment/',
+)
 BACKEND_PATHS = {'/login/', '/logout/'}
+CUSTOMER_STATIC_SUFFIXES = {'.css', '.html', '.ico', '.js', '.png', '.svg'}
 
 class DevHTTPRequestHandler(SimpleHTTPRequestHandler):
     def _send_json(self, status_code, payload):
@@ -57,6 +72,10 @@ class DevHTTPRequestHandler(SimpleHTTPRequestHandler):
             path = '/assets/favicon.png'
         elif clean_path in ('/favicon.svg',):
             path = '/assets/favicon.svg'
+        elif clean_path == '/customer' or clean_path.startswith('/customer/'):
+            suffix = os.path.splitext(clean_path)[1].lower()
+            if suffix not in CUSTOMER_STATIC_SUFFIXES:
+                path = '/customer/index.html'
         elif clean_path.startswith(('/admin/css/', '/merchant/css/')):
             path = path.replace('/admin/css/', '/css/').replace('/merchant/css/', '/css/')
         elif clean_path.startswith(('/admin/js/', '/merchant/js/')):

@@ -10,6 +10,7 @@ from .models import OrdersOrder, OrdersPayment
 from fulfillment.models import ShippingShipment
 from identity.authentication import CustomerTokenAuthentication
 from identity.throttling import DatabaseScopedRateThrottle
+from .capabilities import payment_capabilities
 from .checkout import (
     CheckoutError,
     cancel_checkout,
@@ -36,62 +37,7 @@ class PaymentCapabilitiesAPIView(APIView):
     renderer_classes = [JSONRenderer]
 
     def get(self, request):
-        mode = getattr(settings, 'PAYMONGO_MODE', 'test').lower()
-        has_secret = bool(getattr(settings, 'PAYMONGO_SECRET_KEY', ''))
-        has_webhook = bool(getattr(settings, 'PAYMONGO_WEBHOOK_SECRET', ''))
-        provider_ready = has_secret and has_webhook
-
-        methods = [
-            {
-                'id': 'cod',
-                'name': 'Cash on Delivery',
-                'description': 'Pay in cash upon delivery to your doorstep.',
-                'type': 'offline',
-                'available': True,
-                'min_amount': '1.00',
-                'max_amount': '50000.00',
-                'currencies': ['PHP'],
-            },
-            {
-                'id': 'gcash',
-                'name': 'GCash',
-                'description': 'Instant e-wallet payment via PayMongo Hosted Checkout.',
-                'type': 'hosted',
-                'available': provider_ready,
-                'min_amount': '100.00',
-                'max_amount': '50000.00',
-                'currencies': ['PHP'],
-            },
-            {
-                'id': 'maya',
-                'name': 'Maya',
-                'description': 'Pay via Maya wallet or QR via PayMongo Hosted Checkout.',
-                'type': 'hosted',
-                'available': provider_ready,
-                'min_amount': '100.00',
-                'max_amount': '50000.00',
-                'currencies': ['PHP'],
-            },
-            {
-                'id': 'card',
-                'name': 'Credit / Debit Card',
-                'description': 'Visa, Mastercard, JCB via PayMongo Hosted Checkout.',
-                'type': 'hosted',
-                'available': provider_ready,
-                'min_amount': '100.00',
-                'max_amount': '100000.00',
-                'currencies': ['PHP'],
-            },
-        ]
-
-        return Response({
-            'currency': 'PHP',
-            'provider': 'paymongo',
-            'mode': mode,
-            'provider_ready': provider_ready,
-            'methods': methods,
-            'ttl_seconds': 1800,
-        }, status=status.HTTP_200_OK)
+        return Response(payment_capabilities(), status=status.HTTP_200_OK)
 
 
 
@@ -236,10 +182,20 @@ class PaymentReturnAPIView(APIView):
             if cancelled
             else 'Return to MetroDrip. Your order will update after secure provider confirmation.'
         )
+        raw_order_id = request.query_params.get('order_id') or ''
+        order_link = ''
+        if raw_order_id.isdigit():
+            order_id = int(raw_order_id)
+            if 0 < order_id < 10**18:
+                order_link = (
+                    f'<p><a href="/customer/orders/{order_id}">'
+                    'View this order in your MetroDrip account</a></p>'
+                )
         response = HttpResponse(
             '<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>MetroDrip payment</title><body><main><h1>{heading}</h1><p>{message}</p>'
-            '<p>You can safely close this tab.</p></main></body></html>',
+            f'{order_link}'
+            '<p>This page does not confirm payment.</p></main></body></html>',
             content_type='text/html; charset=utf-8',
         )
         response['Cache-Control'] = 'no-store'

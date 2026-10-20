@@ -13,6 +13,9 @@ class ConsoleFileViewIntegrationTests(SimpleTestCase):
             ('/', b'Console & Staff Portal'),
             ('/admin/', b'Administrator Console'),
             ('/merchant/', b'Merchant Console'),
+            ('/customer/', b'MetroDrip customer'),
+            ('/customer/shop', b'MetroDrip customer'),
+            ('/customer/products/12', b'MetroDrip customer'),
         )
 
         for url, expected_content in cases:

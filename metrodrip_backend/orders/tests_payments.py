@@ -72,6 +72,7 @@ class RecordingPayMongoClient(PayMongoClient):
     PAYMONGO_SECRET_KEY='sk_test_example',
     PAYMONGO_WEBHOOK_SECRET='whsec_test_example',
     PAYMONGO_MODE='test',
+    PAYMONGO_ENABLED_METHODS='gcash,maya,card',
 )
 class HostedCheckoutAPITest(TestCase):
     def setUp(self):
