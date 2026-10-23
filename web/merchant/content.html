@@ -233,6 +233,138 @@
               </div>
             </div>
 
+            <!-- Hero Artwork Customization (Active when placement is homepage_hero) -->
+            <fieldset class="hero-artwork-section" id="section-hero-artwork" aria-labelledby="legend-hero-artwork">
+              <div class="hero-artwork-header">
+                <legend class="hero-artwork-title" id="legend-hero-artwork">Hero Promotional Artwork</legend>
+                <span class="status-pill status-active" id="artwork-status-pill">Homepage Hero Only</span>
+              </div>
+
+              <!-- Artwork Mode Selection -->
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" id="label-artwork-mode-radios">Artwork format mode</label>
+                <div class="artwork-mode-radios" role="radiogroup" aria-labelledby="label-artwork-mode-radios">
+                  <label class="artwork-mode-tab is-selected" id="label-mode-graphic">
+                    <input type="radio" name="artwork_mode" id="radio-mode-graphic" value="graphic" checked>
+                    <span>Customizable Graphic</span>
+                  </label>
+                  <label class="artwork-mode-tab" id="label-mode-image">
+                    <input type="radio" name="artwork_mode" id="radio-mode-image" value="image">
+                    <span>Custom Image Upload</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Panel A: Custom Image Upload -->
+              <div id="panel-artwork-image" class="artwork-panel" hidden>
+                <div class="artwork-image-dropzone" id="artwork-dropzone">
+                  <input type="file" id="input-artwork-file" accept="image/jpeg,image/png,image/webp" style="position:absolute; width:1px; height:1px; opacity:0;" aria-label="Upload promotional hero image">
+                  <div id="artwork-upload-idle">
+                    <p style="margin:0 0 6px 0; font-size:13px; font-weight:600;">Upload Promotional Image</p>
+                    <p style="margin:0 0 10px 0; font-size:11px; color:var(--color-muted);">Drag and drop or select a JPEG, PNG, or WebP file (Max 5 MiB)</p>
+                    <button type="button" class="btn btn-secondary btn-sm" id="btn-browse-artwork-file">Select Image File</button>
+                  </div>
+                  <div id="artwork-uploading-indicator" hidden>
+                    <p style="margin:0; font-size:12px; color:var(--color-primary); font-weight:600;">Uploading image to server...</p>
+                  </div>
+                </div>
+
+                <div id="artwork-image-details" class="artwork-image-card" style="margin-top: 10px;" hidden>
+                  <img id="artwork-image-preview-thumb" src="" alt="Hero Artwork Thumbnail" class="artwork-image-thumb">
+                  <div style="flex: 1; min-width: 0;">
+                    <p id="artwork-image-filename" style="margin: 0; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">No file uploaded</p>
+                    <p id="artwork-image-filesize" style="margin: 2px 0 0 0; font-size: 11px; color: var(--color-muted); font-family: var(--font-mono);">—</p>
+                  </div>
+                  <div style="display: flex; gap: 6px;">
+                    <button type="button" class="btn btn-secondary btn-sm" id="btn-replace-artwork-image">Replace</button>
+                    <button type="button" class="btn btn-sm" id="btn-remove-artwork-image" style="color:var(--color-danger); border:1px solid var(--color-danger); background:transparent;">Remove</button>
+                  </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                  <div class="form-group">
+                    <label class="form-label" for="select-artwork-image-fit">Image Fit</label>
+                    <select class="form-select" id="select-artwork-image-fit">
+                      <option value="cover" selected>Cover (Fill container)</option>
+                      <option value="contain">Contain (Fit full artwork)</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="input-artwork-direct-url">Artwork Image Path</label>
+                    <input type="text" class="form-input" id="input-artwork-direct-url" placeholder="/media/banners/... or HTTPS" maxlength="254">
+                  </div>
+                </div>
+
+                <div id="artwork-upload-error" class="form-error" style="margin-top: 6px; font-size: 12px; color: var(--color-danger);" role="alert" hidden></div>
+              </div>
+
+              <!-- Panel B: Customizable Graphic -->
+              <div id="panel-artwork-graphic" class="artwork-panel">
+                <div class="form-group">
+                  <label class="form-label" for="input-graphic-text-main">Main Lettering *</label>
+                  <input type="text" class="form-input" id="input-graphic-text-main" placeholder="MD" maxlength="50" value="MD">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                  <div class="form-group">
+                    <label class="form-label" for="input-graphic-text-tagline">Tagline</label>
+                    <input type="text" class="form-input" id="input-graphic-text-tagline" placeholder="BUILT FOR THE STREETS" maxlength="100" value="BUILT FOR THE STREETS">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="input-graphic-text-sub">Supporting Brand Text</label>
+                    <input type="text" class="form-input" id="input-graphic-text-sub" placeholder="METRODRIP / MANILA" maxlength="100" value="METRODRIP / MANILA">
+                  </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                  <div class="form-group">
+                    <label class="form-label" for="input-graphic-bg-color">Background Color</label>
+                    <div class="artwork-color-control">
+                      <input type="color" id="picker-graphic-bg-color" value="#d3ee42" title="Choose background color" aria-label="Background color picker">
+                      <input type="text" class="form-input" id="input-graphic-bg-color" value="#d3ee42" maxlength="32">
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="input-graphic-text-color">Text Color</label>
+                    <div class="artwork-color-control">
+                      <input type="color" id="picker-graphic-text-color" value="#141414" title="Choose text color" aria-label="Text color picker">
+                      <input type="text" class="form-input" id="input-graphic-text-color" value="#141414" maxlength="32">
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="input-graphic-accent-color">Accent Color</label>
+                    <div class="artwork-color-control">
+                      <input type="color" id="picker-graphic-accent-color" value="#141414" title="Choose accent color" aria-label="Accent color picker">
+                      <input type="text" class="form-input" id="input-graphic-accent-color" value="#141414" maxlength="32">
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                  <div class="form-group">
+                    <label class="form-label" for="select-graphic-alignment">Text Alignment</label>
+                    <select class="form-select" id="select-graphic-alignment">
+                      <option value="left" selected>Left</option>
+                      <option value="center">Center</option>
+                      <option value="right">Right</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="select-graphic-font-size">Typography Scale</label>
+                    <select class="form-select" id="select-graphic-font-size">
+                      <option value="small">Compact</option>
+                      <option value="normal" selected>Normal (Brand standard)</option>
+                      <option value="large">Prominent</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; margin-top: 4px;">
+                  <button type="button" class="btn btn-secondary btn-sm" id="btn-restore-graphic-defaults">Restore default design</button>
+                </div>
+              </div>
+            </fieldset>
+
             <div class="form-group">
               <label class="form-label" for="select-banner-schedule">Schedule & visibility</label>
               <select class="form-select" id="select-banner-schedule">
@@ -273,11 +405,21 @@
           </div>
           <div style="padding: 18px;">
             <div class="banner-preview-wrapper" id="banner-preview-wrapper">
-              <div class="banner-preview-box" id="banner-preview-card">
-                <p class="banner-preview-brand">METRODRIP</p>
-                <h3 class="banner-preview-headline" id="preview-headline">SELECT A BANNER</h3>
-                <p class="banner-preview-sub" id="preview-subtext">No supporting text</p>
-                <span class="banner-preview-cta" id="preview-cta-button">No CTA</span>
+              <div class="banner-preview-box is-hero-layout" id="banner-preview-card">
+                <span class="preview-draft-pill" id="preview-draft-pill" hidden>DRAFT</span>
+                <div class="hero-preview-left" id="hero-preview-left">
+                  <p class="banner-preview-brand">METRODRIP</p>
+                  <h3 class="banner-preview-headline" id="preview-headline">SELECT A BANNER</h3>
+                  <p class="banner-preview-sub" id="preview-subtext">No supporting text</p>
+                  <span class="banner-preview-cta" id="preview-cta-button">No CTA</span>
+                </div>
+                <div class="hero-preview-right" id="hero-preview-right">
+                  <div class="preview-artwork-card" id="preview-artwork-card">
+                    <div class="preview-logo-text" id="preview-artwork-main">MD</div>
+                    <div class="preview-tagline-text" id="preview-artwork-tagline">BUILT FOR THE STREETS</div>
+                    <div class="preview-sub-text" id="preview-artwork-sub">METRODRIP / MANILA</div>
+                  </div>
+                </div>
               </div>
             </div>
             <div style="margin-top: 14px; font-size: 11px; color: var(--color-muted); line-height: 1.5;">

@@ -1,9 +1,14 @@
 import csv
+import os
+import re
+import uuid
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlsplit
+from django.core.files.storage import default_storage
 from django.http import HttpResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from django.utils.text import get_valid_filename
 from django.db import transaction
 from django.db.models import Sum
 from rest_framework.views import APIView
@@ -1288,6 +1293,44 @@ def _banner_status(banner, now=None):
     return 'Live'
 
 
+HEX_COLOR_REGEX = re.compile(r'^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$')
+SUPPORTED_ARTWORK_MODES = {'graphic', 'image'}
+SUPPORTED_ALIGNMENTS = {'left', 'center', 'right'}
+SUPPORTED_FONT_SIZES = {'small', 'normal', 'large'}
+SUPPORTED_IMAGE_FITS = {'cover', 'contain'}
+
+
+def _clean_hex_color(value, field, default='#141414'):
+    if value in (None, ''):
+        return default
+    if not isinstance(value, str):
+        raise ValueError(f'{field} must be a valid hex color string (e.g. #d3ee42).')
+    cleaned = value.strip()
+    if not HEX_COLOR_REGEX.match(cleaned):
+        raise ValueError(f'{field} must be a valid hex color (e.g. #d3ee42 or #141414).')
+    return cleaned
+
+
+def _clean_choice(value, field, supported_choices, default):
+    if value in (None, ''):
+        return default
+    if not isinstance(value, str):
+        raise ValueError(f'{field} must be one of {", ".join(sorted(supported_choices))}.')
+    cleaned = value.strip().lower()
+    if cleaned not in supported_choices:
+        raise ValueError(f'{field} must be one of {", ".join(sorted(supported_choices))}.')
+    return cleaned
+
+
+def _clean_graphic_text(value, field, max_length, default=''):
+    if value in (None, ''):
+        return default
+    cleaned = _clean_banner_text(value, field, max_length, required=False)
+    if '<' in cleaned or '>' in cleaned:
+        raise ValueError(f'{field} contains invalid characters.')
+    return cleaned
+
+
 def _serialize_banner(banner):
     state = _banner_status(banner)
     if state == 'Scheduled':
@@ -1317,6 +1360,16 @@ def _serialize_banner(banner):
         'starts_at': banner.starts_at.isoformat() if banner.starts_at else None,
         'ends_at': banner.ends_at.isoformat() if banner.ends_at else None,
         'order': banner.order,
+        'artwork_mode': getattr(banner, 'artwork_mode', 'graphic') or 'graphic',
+        'graphic_text_main': getattr(banner, 'graphic_text_main', 'MD') if getattr(banner, 'graphic_text_main', None) is not None else 'MD',
+        'graphic_text_tagline': getattr(banner, 'graphic_text_tagline', 'BUILT FOR THE STREETS') if getattr(banner, 'graphic_text_tagline', None) is not None else 'BUILT FOR THE STREETS',
+        'graphic_text_sub': getattr(banner, 'graphic_text_sub', 'METRODRIP / MANILA') if getattr(banner, 'graphic_text_sub', None) is not None else 'METRODRIP / MANILA',
+        'graphic_bg_color': getattr(banner, 'graphic_bg_color', '#d3ee42') or '#d3ee42',
+        'graphic_text_color': getattr(banner, 'graphic_text_color', '#141414') or '#141414',
+        'graphic_accent_color': getattr(banner, 'graphic_accent_color', '#141414') or '#141414',
+        'graphic_alignment': getattr(banner, 'graphic_alignment', 'left') or 'left',
+        'graphic_font_size': getattr(banner, 'graphic_font_size', 'normal') or 'normal',
+        'image_fit': getattr(banner, 'image_fit', 'cover') or 'cover',
     }
 
 
@@ -1335,6 +1388,16 @@ class MerchantBannersAPIView(MerchantAPIView):
             placement = _normalize_banner_placement(request.data.get('placement', 'homepage_hero'))
             link_url = _clean_banner_url(request.data.get('link_url', '/shop'), 'link_url', 200)
             image_url = _clean_banner_url(request.data.get('image_url', ''), 'image_url', 254, allow_blank=True)
+            artwork_mode = _clean_choice(request.data.get('artwork_mode'), 'artwork_mode', SUPPORTED_ARTWORK_MODES, 'graphic')
+            graphic_text_main = _clean_graphic_text(request.data.get('graphic_text_main', 'MD'), 'graphic_text_main', 50, 'MD')
+            graphic_text_tagline = _clean_graphic_text(request.data.get('graphic_text_tagline', 'BUILT FOR THE STREETS'), 'graphic_text_tagline', 100, 'BUILT FOR THE STREETS')
+            graphic_text_sub = _clean_graphic_text(request.data.get('graphic_text_sub', 'METRODRIP / MANILA'), 'graphic_text_sub', 100, 'METRODRIP / MANILA')
+            graphic_bg_color = _clean_hex_color(request.data.get('graphic_bg_color', '#d3ee42'), 'graphic_bg_color', '#d3ee42')
+            graphic_text_color = _clean_hex_color(request.data.get('graphic_text_color', '#141414'), 'graphic_text_color', '#141414')
+            graphic_accent_color = _clean_hex_color(request.data.get('graphic_accent_color', '#141414'), 'graphic_accent_color', '#141414')
+            graphic_alignment = _clean_choice(request.data.get('graphic_alignment'), 'graphic_alignment', SUPPORTED_ALIGNMENTS, 'left')
+            graphic_font_size = _clean_choice(request.data.get('graphic_font_size'), 'graphic_font_size', SUPPORTED_FONT_SIZES, 'normal')
+            image_fit = _clean_choice(request.data.get('image_fit'), 'image_fit', SUPPORTED_IMAGE_FITS, 'cover')
             raw_order = request.data.get('order', 1)
             if isinstance(raw_order, bool):
                 raise ValueError('order must be an integer from 0 to 32767.')
@@ -1376,6 +1439,16 @@ class MerchantBannersAPIView(MerchantAPIView):
             starts_at=starts_at,
             ends_at=ends_at,
             order=order,
+            artwork_mode=artwork_mode,
+            graphic_text_main=graphic_text_main,
+            graphic_text_tagline=graphic_text_tagline,
+            graphic_text_sub=graphic_text_sub,
+            graphic_bg_color=graphic_bg_color,
+            graphic_text_color=graphic_text_color,
+            graphic_accent_color=graphic_accent_color,
+            graphic_alignment=graphic_alignment,
+            graphic_font_size=graphic_font_size,
+            image_fit=image_fit,
         )
         return Response(_serialize_banner(banner), status=status.HTTP_201_CREATED)
 
@@ -1403,6 +1476,26 @@ class MerchantBannerDetailAPIView(MerchantAPIView):
                 banner.link_url = _clean_banner_url(data['link_url'], 'link_url', 200)
             if 'image_url' in data:
                 banner.image_url = _clean_banner_url(data['image_url'], 'image_url', 254, allow_blank=True)
+            if 'artwork_mode' in data:
+                banner.artwork_mode = _clean_choice(data['artwork_mode'], 'artwork_mode', SUPPORTED_ARTWORK_MODES, 'graphic')
+            if 'graphic_text_main' in data:
+                banner.graphic_text_main = _clean_graphic_text(data['graphic_text_main'], 'graphic_text_main', 50, 'MD')
+            if 'graphic_text_tagline' in data:
+                banner.graphic_text_tagline = _clean_graphic_text(data['graphic_text_tagline'], 'graphic_text_tagline', 100, 'BUILT FOR THE STREETS')
+            if 'graphic_text_sub' in data:
+                banner.graphic_text_sub = _clean_graphic_text(data['graphic_text_sub'], 'graphic_text_sub', 100, 'METRODRIP / MANILA')
+            if 'graphic_bg_color' in data:
+                banner.graphic_bg_color = _clean_hex_color(data['graphic_bg_color'], 'graphic_bg_color', '#d3ee42')
+            if 'graphic_text_color' in data:
+                banner.graphic_text_color = _clean_hex_color(data['graphic_text_color'], 'graphic_text_color', '#141414')
+            if 'graphic_accent_color' in data:
+                banner.graphic_accent_color = _clean_hex_color(data['graphic_accent_color'], 'graphic_accent_color', '#141414')
+            if 'graphic_alignment' in data:
+                banner.graphic_alignment = _clean_choice(data['graphic_alignment'], 'graphic_alignment', SUPPORTED_ALIGNMENTS, 'left')
+            if 'graphic_font_size' in data:
+                banner.graphic_font_size = _clean_choice(data['graphic_font_size'], 'graphic_font_size', SUPPORTED_FONT_SIZES, 'normal')
+            if 'image_fit' in data:
+                banner.image_fit = _clean_choice(data['image_fit'], 'image_fit', SUPPORTED_IMAGE_FITS, 'cover')
             if 'order' in data:
                 if isinstance(data['order'], bool):
                     raise ValueError('order must be an integer from 0 to 32767.')
@@ -1455,3 +1548,37 @@ class MerchantBannerDetailAPIView(MerchantAPIView):
             return Response({'message': 'Banner deleted successfully.'})
         except CmsHomepageBanner.DoesNotExist:
             return Response({'error': 'Banner not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class MerchantBannerUploadAPIView(MerchantAPIView):
+    def post(self, request):
+        file = request.FILES.get('file') or request.FILES.get('image')
+        if not file:
+            return Response({'error': 'An image file is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if file.size > 5 * 1024 * 1024:
+            return Response({'error': 'Image file size exceeds the 5 MiB limit.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        mime_type = _detect_image_mime(file)
+        if not mime_type:
+            return Response(
+                {'error': 'Invalid image format. Only JPG, PNG, and WebP images are permitted.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ext = mime_type.split('/')[-1].replace('jpeg', 'jpg')
+        now_str = timezone.now().strftime('%Y%m%d_%H%M%S')
+        unique_token = uuid.uuid4().hex[:10]
+        raw_name = file.name or 'banner_upload'
+        safe_base = os.path.splitext(get_valid_filename(raw_name))[0][:40] or 'banner'
+        filename = f'banners/{now_str}_{unique_token}_{safe_base}.{ext}'
+
+        saved_path = default_storage.save(filename, file)
+        file_url = default_storage.url(saved_path)
+
+        return Response({
+            'url': file_url,
+            'mime_type': mime_type,
+            'byte_size': file.size,
+            'filename': os.path.basename(saved_path),
+        }, status=status.HTTP_201_CREATED)

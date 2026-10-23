@@ -21,6 +21,7 @@ from .merchant_views import (
     MerchantShippingEligibilityAPIView,
     MerchantBannersAPIView,
     MerchantBannerDetailAPIView,
+    MerchantBannerUploadAPIView,
 )
 from identity.views import LogoutAPIView
 
@@ -47,6 +48,7 @@ urlpatterns = [
     path('shipping-zones/<int:pk>/', MerchantShippingZonesAPIView.as_view(), name='merchant-shipping-zones-detail'),
     path('shipping-zones/eligibility/', MerchantShippingEligibilityAPIView.as_view(), name='merchant-shipping-eligibility'),
     path('banners/', MerchantBannersAPIView.as_view(), name='merchant-banners'),
+    path('banners/upload/', MerchantBannerUploadAPIView.as_view(), name='merchant-banner-upload'),
     path('banners/<int:pk>/', MerchantBannerDetailAPIView.as_view(), name='merchant-banner-detail'),
     path('analytics/', MerchantAnalyticsAPIView.as_view(), name='merchant-analytics'),
     path('logout/', LogoutAPIView.as_view(), name='merchant-logout'),

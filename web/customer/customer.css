@@ -590,6 +590,36 @@ button, input, select, textarea {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  position: relative;
+  overflow: hidden;
+  min-height: 280px;
+}
+
+.hero-artwork-card.hero-artwork-image-mode {
+  padding: 0;
+  background-color: #141414;
+}
+
+.hero-artwork-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  display: block;
+}
+
+.hero-artwork-card.align-left {
+  align-items: flex-start;
+  text-align: left;
+}
+
+.hero-artwork-card.align-center {
+  align-items: center;
+  text-align: center;
+}
+
+.hero-artwork-card.align-right {
+  align-items: flex-end;
+  text-align: right;
 }
 
 .artwork-big-logo {
@@ -598,6 +628,18 @@ button, input, select, textarea {
   line-height: 0.9;
   letter-spacing: -0.02em;
   margin: 0 0 8px;
+}
+
+.artwork-big-logo.font-size-small {
+  font-size: clamp(54px, 7vw, 90px);
+}
+
+.artwork-big-logo.font-size-normal {
+  font-size: clamp(80px, 10vw, 130px);
+}
+
+.artwork-big-logo.font-size-large {
+  font-size: clamp(100px, 13vw, 160px);
 }
 
 .artwork-tagline {
@@ -1563,6 +1605,31 @@ button, input, select, textarea {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
+  }
+}
+
+@media (max-width: 360px) {
+  .header-bar {
+    padding: 0 8px;
+    gap: 4px;
+  }
+  .brand {
+    font-size: 18px;
+    letter-spacing: 0;
+  }
+  .header-actions {
+    gap: 4px;
+  }
+  .header-bag-btn,
+  .theme-toggle-btn {
+    padding: 8px 6px;
+    min-width: 0;
+    font-size: 12px;
+  }
+  .menu-button {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
   }
 }
 

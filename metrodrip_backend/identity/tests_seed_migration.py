@@ -1,9 +1,19 @@
+from runpy import run_module
+
 from django.db import connection, migrations
 from django.db.migrations.loader import MigrationLoader
 from django.test import TestCase
 
 
 class TestCustomerSeedMigrationTests(TestCase):
+    def test_seed_module_has_no_fixture_or_import_side_effects(self):
+        with self.assertNumQueries(0):
+            namespace = run_module('identity.migrations.0002_seed_test_customer')
+        self.assertEqual(
+            {name for name in namespace if not name.startswith('__')},
+            {'migrations', 'Migration'},
+        )
+
     def test_seed_operation_creates_no_customer_and_preserves_graph(self):
         loader = MigrationLoader(None)
         key = ('identity', '0002_seed_test_customer')

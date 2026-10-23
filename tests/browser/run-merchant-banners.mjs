@@ -36,7 +36,17 @@ const mockBanners = [
     placement: 'homepage_hero',
     placement_label: 'Homepage hero',
     placement_source: 'persisted',
+    artwork_mode: 'graphic',
+    graphic_text_main: 'MD',
+    graphic_text_tagline: 'BUILT FOR THE STREETS',
+    graphic_text_sub: 'METRODRIP / MANILA',
+    graphic_bg_color: '#d3ee42',
+    graphic_text_color: '#141414',
+    graphic_accent_color: '#141414',
+    graphic_alignment: 'center',
+    graphic_font_size: 'normal',
     image_url: '/assets/banners/summer.jpg',
+    image_fit: 'cover',
     link_url: '/shop?category=tees',
     is_active: true,
     status: 'Live',
@@ -54,7 +64,17 @@ const mockBanners = [
     placement: 'homepage_secondary',
     placement_label: 'Homepage secondary',
     placement_source: 'persisted',
+    artwork_mode: 'graphic',
+    graphic_text_main: 'MD',
+    graphic_text_tagline: 'BUILT FOR THE STREETS',
+    graphic_text_sub: 'METRODRIP / MANILA',
+    graphic_bg_color: '#d3ee42',
+    graphic_text_color: '#141414',
+    graphic_accent_color: '#141414',
+    graphic_alignment: 'center',
+    graphic_font_size: 'normal',
     image_url: '',
+    image_fit: 'cover',
     link_url: '/shop?category=jackets',
     is_active: false,
     status: 'Draft',
@@ -69,6 +89,19 @@ await context.route('**/api/merchant/banners/**', async (route) => {
   const request = route.request();
   const url = new URL(request.url());
   const method = request.method();
+
+  if (method === 'POST' && url.pathname.includes('/banners/upload/')) {
+    return route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        url: '/media/banners/merchant_hero_upload.webp',
+        filename: 'merchant_hero_upload.webp',
+        size: 15420,
+        mime: 'image/webp',
+      }),
+    });
+  }
 
   if (method === 'GET' && url.pathname.endsWith('/banners/')) {
     return route.fulfill({
@@ -145,6 +178,63 @@ try {
   const noticeText = await page.textContent('#banner-editor-editing-notice');
   console.log('✓ Editor notice displays active banner:', noticeText.trim());
 
+  // 2b. Hero Artwork Customization section for homepage_hero
+  console.log('Verifying Hero Artwork Customization section for homepage_hero...');
+  const artworkSectionVisible = await page.$eval('#section-hero-artwork', (el) => !el.hidden && getComputedStyle(el).display !== 'none');
+  if (!artworkSectionVisible) throw new Error('Expected #section-hero-artwork to be visible for homepage_hero');
+  console.log('✓ Hero Artwork Customization section is visible');
+
+  // Verify graphic mode active by default
+  const isGraphicChecked = await page.$eval('#radio-mode-graphic', (el) => el.checked);
+  if (!isGraphicChecked) throw new Error('Expected graphic mode radio to be checked');
+  const graphicMainText = await page.inputValue('#input-graphic-text-main');
+  console.log(`✓ Graphic tab active with default main text "${graphicMainText}"`);
+  if (graphicMainText !== 'MD') throw new Error(`Expected main text "MD", got "${graphicMainText}"`);
+
+  // Verify real-time preview shows right-side graphic artwork
+  const previewMain = await page.textContent('#preview-artwork-main');
+  const previewTagline = await page.textContent('#preview-artwork-tagline');
+  console.log(`✓ Storefront preview reflects graphic artwork: "${previewMain}" / "${previewTagline}"`);
+  if (previewMain !== 'MD') throw new Error(`Expected preview main "MD", got "${previewMain}"`);
+
+  // Test modifying graphic design fields
+  console.log('Testing graphic design customization inputs and real-time preview...');
+  await page.fill('#input-graphic-text-main', 'QC');
+  await page.fill('#input-graphic-text-tagline', 'QUEZON CITY METRO');
+  await page.fill('#input-graphic-bg-color', '#ff3366');
+  // Trigger change event for color picker
+  await page.$eval('#input-graphic-bg-color', (el) => el.dispatchEvent(new Event('input', { bubbles: true })));
+
+  const updatedPreviewMain = await page.textContent('#preview-artwork-main');
+  const updatedPreviewTagline = await page.textContent('#preview-artwork-tagline');
+  if (updatedPreviewMain !== 'QC' || updatedPreviewTagline !== 'QUEZON CITY METRO') {
+    throw new Error(`Preview failed to update: main="${updatedPreviewMain}", tagline="${updatedPreviewTagline}"`);
+  }
+  console.log('✓ Storefront preview instantly updated with customized graphic text and colors');
+
+  // Test mode switching to Custom Image (Mode A)
+  console.log('Testing artwork mode switching to Custom Image (Mode A)...');
+  await page.click('#label-mode-image');
+  const isImageChecked = await page.$eval('#radio-mode-image', (el) => el.checked);
+  const isImagePanelVisible = await page.$eval('#panel-artwork-image', (el) => !el.hidden && getComputedStyle(el).display !== 'none');
+  const isGraphicPanelHidden = await page.$eval('#panel-artwork-graphic', (el) => el.hidden || getComputedStyle(el).display === 'none');
+  if (!isImageChecked || !isImagePanelVisible || !isGraphicPanelHidden) {
+    throw new Error('Image mode radio or panels failed to toggle properly');
+  }
+  console.log('✓ Switched to Custom Image mode; panel toggled cleanly');
+
+  // Switch back to Mode B and verify preserved settings
+  await page.click('#label-mode-graphic');
+  const preservedMain = await page.inputValue('#input-graphic-text-main');
+  if (preservedMain !== 'QC') throw new Error(`Settings were not preserved across mode switch: "${preservedMain}"`);
+  console.log('✓ Preserved graphic settings across mode toggle');
+
+  // Revert changes back to original
+  await page.click('#btn-revert-banner');
+  const revertedMain = await page.inputValue('#input-graphic-text-main');
+  if (revertedMain !== 'MD') throw new Error(`Revert failed to restore graphic text: "${revertedMain}"`);
+  console.log('✓ Revert successfully restored graphic design settings');
+
   // 3. Test clicking "Edit banner" on second row
   console.log('Clicking "Edit banner" on second row...');
   const editButtons = await page.$$('#table-placements .btn-edit-banner');
@@ -156,6 +246,11 @@ try {
     return r2 && r2.classList.contains('selected-row');
   });
   console.log('✓ Second row is now highlighted with selected-row');
+
+  // Verify hero artwork section is hidden for non-hero placements
+  const artworkSectionHiddenForSecondary = await page.$eval('#section-hero-artwork', (el) => el.hidden || getComputedStyle(el).display === 'none');
+  if (!artworkSectionHiddenForSecondary) throw new Error('Expected #section-hero-artwork to be hidden for non-hero banner');
+  console.log('✓ Hero Artwork Customization section is cleanly hidden for non-hero placements');
 
   // Verify inputs updated to second banner
   const titleVal = await page.inputValue('#input-banner-title');

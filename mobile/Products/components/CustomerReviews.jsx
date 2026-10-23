@@ -134,7 +134,7 @@ export default function CustomerReviews({ productId }) {
               style={styles.seeAllButton}
             >
               <Text style={styles.seeAllText}>
-                {showAll ? 'Show less' : `See all ${stats.count} →`}
+                {showAll ? 'Show less' : `See all ${stats.count}`}
               </Text>
             </TouchableOpacity>
           </View>

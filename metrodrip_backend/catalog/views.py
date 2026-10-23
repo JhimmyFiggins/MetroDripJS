@@ -321,6 +321,16 @@ class PublicBannersAPIView(APIView):
                 'image_url': banner.image_url or '',
                 'link_url': banner.link_url or '/shop',
                 'order': banner.order,
+                'artwork_mode': getattr(banner, 'artwork_mode', 'graphic') or 'graphic',
+                'graphic_text_main': getattr(banner, 'graphic_text_main', 'MD') if getattr(banner, 'graphic_text_main', None) is not None else 'MD',
+                'graphic_text_tagline': getattr(banner, 'graphic_text_tagline', 'BUILT FOR THE STREETS') if getattr(banner, 'graphic_text_tagline', None) is not None else 'BUILT FOR THE STREETS',
+                'graphic_text_sub': getattr(banner, 'graphic_text_sub', 'METRODRIP / MANILA') if getattr(banner, 'graphic_text_sub', None) is not None else 'METRODRIP / MANILA',
+                'graphic_bg_color': getattr(banner, 'graphic_bg_color', '#d3ee42') or '#d3ee42',
+                'graphic_text_color': getattr(banner, 'graphic_text_color', '#141414') or '#141414',
+                'graphic_accent_color': getattr(banner, 'graphic_accent_color', '#141414') or '#141414',
+                'graphic_alignment': getattr(banner, 'graphic_alignment', 'left') or 'left',
+                'graphic_font_size': getattr(banner, 'graphic_font_size', 'normal') or 'normal',
+                'image_fit': getattr(banner, 'image_fit', 'cover') or 'cover',
             }
             for banner in banners
         ]
