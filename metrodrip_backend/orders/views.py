@@ -1,3 +1,5 @@
+import re
+
 from django.conf import settings
 from django.http import HttpResponse
 from rest_framework.views import APIView
@@ -71,6 +73,26 @@ class CheckoutAPIView(APIView):
     renderer_classes = [JSONRenderer]
     throttle_classes = [DatabaseScopedRateThrottle]
     throttle_scope = 'checkout'
+
+    def get(self, request):
+        key = request.query_params.get('idempotency_key')
+        if not isinstance(key, str) or not 8 <= len(key) <= 128 or not re.fullmatch(r'[A-Za-z0-9._:-]+', key):
+            return Response(
+                {'error': 'A valid idempotency key is required.', 'code': 'invalid_idempotency_key'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        order = OrdersOrder.objects.filter(
+            customer_id=request.user.id,
+            checkout_idempotency_key=key,
+        ).first()
+        payment = order.payments.order_by('-created_at').first() if order else None
+        if not payment:
+            return Response({'error': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Recovery observes the saved outcome; only explicit checkout/payment
+        # operations may create sessions, reconcile payments, or expire holds.
+        return Response(serialize_checkout(order, payment), status=status.HTTP_200_OK)
 
     def post(self, request):
         try:

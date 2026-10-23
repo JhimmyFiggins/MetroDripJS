@@ -1,6 +1,6 @@
 # Decisions and Handover
 
-**Status:** ACADEMIC DEMO HOLD and PRODUCTION HOLD; 2026-10-19 repository audit handover
+**Status:** ACADEMIC DEMO HOLD and PRODUCTION HOLD; 2026-10-22 active customer QA checkpoint
 
 **Project:** MetroDripJS urban streetwear commerce platform
 
@@ -11,6 +11,20 @@
 **Owner:** Core Engineering & Architecture Team  
 
 ---
+
+## Active customer QA checkpoint - 2026-10-22
+
+Previous workers hit usage limits. This documentation-only checkpoint preserves their reported evidence and resume scope; no tests were rerun for this entry.
+
+- **Baseline and scope:** Base `84a6bafa440cd913c7bd91c963364790e56e4502`; local branch `fix/customer-qa-20261022`. Customer QA and local fixes only; no deployment.
+- **Pre-fix verified evidence:** Node customer tests passed 6/6; `tsc` reported 0 diagnostics. These results do not verify subsequent fixes.
+- **Environment and interrupted checks:** Django environment lacks WhiteNoise/Gunicorn. Installed Django 6.1.2 / DRF 3.18.3 differ from pins 5.2.16 / 3.18.1. Full Django/browser resume was interrupted, not passed.
+- **Source-confirmed checkout findings:** Uncertain retries and idempotency-key resets risk duplicate checkout; cancelled/unbound provider results can resurrect state; retry can bypass a disabled payment rail.
+- **Source-confirmed customer findings:** Cross-session stale rendering/authentication failures; product-detail-page (PDP) variant async race; warehouse-summed availability conflicts with the single-reservation contract.
+- **Source-confirmed UI/test findings:** Hardcoded ratings, swallowed writes, unlabeled inputs, and a warn-only accessibility harness remain findings, not verified repairs.
+- **Credential finding:** The existing fixed privileged-account credential in `seed_demo_staff` source, invoked by `render.yaml`, remains source-only evidence. Existing accounts and credential validity are UNVERIFIED. Record paths/types only, never values; no secret reads were performed for this checkpoint.
+- **Current implementation ownership:** Workers own only the orders checkout lifecycle and customer session/API boundary. Fixes are not complete until their test results are available and reviewed.
+- **Next:** Resume recovery, variant, stock, and regression-test work; resolve environment gaps and complete Django/browser verification; update the canonical [Verification and Evaluation](Verification%20and%20Evaluation.md) ledger with actual results. Release remains **HOLD** for both academic demo and production.
 
 ## Active architecture decisions — 2026-09-28
 

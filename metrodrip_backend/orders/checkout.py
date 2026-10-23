@@ -507,11 +507,15 @@ def _build_order(customer, checkout, fingerprint):
     )
 
     for variant, quantity, unit_price, line_total in priced_items:
-        stock = InventoryStockEntry.objects.select_for_update().filter(
+        stock_rows = InventoryStockEntry.objects.select_for_update().filter(
             product=variant.product,
             variant=variant,
-        ).order_by('warehouse_id', 'id').first()
-        if not stock or stock.quantity - stock.reserved_quantity < quantity:
+        ).order_by('warehouse_id', 'id')
+        stock = next(
+            (row for row in stock_rows if row.quantity - row.reserved_quantity >= quantity),
+            None,
+        )
+        if stock is None:
             raise CheckoutError(
                 f'{variant.product.name} no longer has enough stock.',
                 status_code=409,
@@ -581,12 +585,31 @@ def _build_order(customer, checkout, fingerprint):
     return order, payment, False
 
 
+def _checkout_is_pending(order, payment):
+    return (
+        order.status in {'pending_payment', 'payment_setup_failed'}
+        and not order.cancelled_at
+        and payment.status in {'awaiting_payment', 'setup_failed'}
+    )
+
+
 def _ensure_provider_session(order, payment, customer, provider_client=None):
-    if payment.method not in ONLINE_METHODS or payment.provider_ref:
+    if payment.method not in ONLINE_METHODS:
         return order, payment
+    with transaction.atomic():
+        payment = OrdersPayment.objects.select_for_update().get(pk=payment.pk)
+        order = OrdersOrder.objects.select_for_update().get(pk=order.pk)
+        if payment.provider_ref or not _checkout_is_pending(order, payment):
+            return order, payment
     if order.reservation_expires_at and order.reservation_expires_at <= timezone.now():
         _expire_order(order, provider_client=provider_client)
         raise CheckoutError('This checkout expired. Start a new checkout.', status_code=409, code='checkout_expired')
+    if provider_client is None and not hosted_method_available(payment.method):
+        raise CheckoutError(
+            'This payment method is not available.',
+            status_code=422,
+            code='payment_method_unavailable',
+        )
 
     try:
         client = provider_client or PayMongoClient()
@@ -602,7 +625,11 @@ def _ensure_provider_session(order, payment, customer, provider_client=None):
         with transaction.atomic():
             locked_payment = OrdersPayment.objects.select_for_update().get(pk=payment.pk)
             locked_order = OrdersOrder.objects.select_for_update().get(pk=order.pk)
-            if locked_payment.status == 'paid' or locked_payment.provider_ref:
+            if locked_payment.provider_ref or not _checkout_is_pending(locked_order, locked_payment):
+                return locked_order, locked_payment
+            if locked_order.reservation_expires_at and locked_order.reservation_expires_at <= timezone.now():
+                locked_order = _expire_order(locked_order, provider_client=provider_client)
+                locked_payment.refresh_from_db()
                 return locked_order, locked_payment
             from_status = locked_payment.status
             locked_payment.status = 'setup_failed'
@@ -633,15 +660,38 @@ def _ensure_provider_session(order, payment, customer, provider_client=None):
             return locked_order, locked_payment
         if locked_payment.provider_ref:
             return locked_order, locked_payment
+        if (
+            _checkout_is_pending(locked_order, locked_payment)
+            and locked_order.reservation_expires_at
+            and locked_order.reservation_expires_at <= timezone.now()
+        ):
+            locked_order = _expire_order(locked_order, provider_client=client)
+            locked_payment.refresh_from_db()
         locked_payment.provider_ref = provider_ref
-        locked_payment.checkout_url = checkout_url
-        locked_payment.status = 'awaiting_payment'
-        locked_payment.failure_code = None
         locked_payment.updated_at = now
-        locked_payment.save(update_fields=['provider_ref', 'checkout_url', 'status', 'failure_code', 'updated_at'])
-        locked_order.status = 'pending_payment'
-        locked_order.updated_at = now
-        locked_order.save(update_fields=['status', 'updated_at'])
+        if _checkout_is_pending(locked_order, locked_payment):
+            locked_payment.checkout_url = checkout_url
+            locked_payment.status = 'awaiting_payment'
+            locked_payment.failure_code = None
+            locked_payment.save(update_fields=['provider_ref', 'checkout_url', 'status', 'failure_code', 'updated_at'])
+            locked_order.status = 'pending_payment'
+            locked_order.updated_at = now
+            locked_order.save(update_fields=['status', 'updated_at'])
+            return locked_order, locked_payment
+        # Keep the orphan reference for reconciliation, but never expose its URL
+        # or reopen a checkout whose holds were released during provider setup.
+        locked_payment.save(update_fields=['provider_ref', 'updated_at'])
+
+    try:
+        client.expire_checkout_session(provider_ref)
+    except PayMongoError:
+        with transaction.atomic():
+            locked_payment = OrdersPayment.objects.select_for_update().get(pk=payment.pk)
+            locked_order = OrdersOrder.objects.select_for_update().get(pk=order.pk)
+            if locked_payment.status != 'paid' and locked_payment.provider_ref == provider_ref:
+                locked_payment.failure_code = 'provider_expiry_unconfirmed'
+                locked_payment.updated_at = timezone.now()
+                locked_payment.save(update_fields=['failure_code', 'updated_at'])
     return locked_order, locked_payment
 
 
@@ -828,7 +878,13 @@ def cancel_checkout(order, provider_client=None):
 def serialize_checkout(order, payment, is_replay=False):
     address = getattr(order, 'shipping_address', None)
     payment_action = None
-    if payment.method in ONLINE_METHODS and payment.checkout_url and payment.status == 'awaiting_payment':
+    if (
+        payment.method in ONLINE_METHODS
+        and payment.checkout_url
+        and payment.status == 'awaiting_payment'
+        and _checkout_is_pending(order, payment)
+        and (not order.reservation_expires_at or order.reservation_expires_at > timezone.now())
+    ):
         payment_action = {
             'type': 'redirect',
             'url': payment.checkout_url,

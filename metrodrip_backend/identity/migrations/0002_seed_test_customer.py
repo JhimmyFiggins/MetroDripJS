@@ -28,5 +28,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(create_test_customer),
+        # Preserve migration history without provisioning a fixed-login customer.
+        # Previously seeded accounts require separately authorized remediation.
+        migrations.RunPython(migrations.RunPython.noop),
     ]

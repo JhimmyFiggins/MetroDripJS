@@ -6,6 +6,19 @@
 
 **Evidence rule:** An executed unit/mock/SQLite/static check is labeled separately from PostgreSQL, native-device, PayMongo, and Render evidence.
 
+## Customer QA evidence — 2026-10-23
+
+Local QA on branch `fix/customer-qa-20261022` from `84a6bafa`. Fixes cover checkout terminal replay, owned checkout recovery lookup, single-warehouse purchasable stock, fresh-database fixed-login seeding, browser session isolation, and truthful customer copy. Previously seeded accounts are not rotated. Browser viewport/axe execution, full Django suite, PostgreSQL, and PayMongo sandbox were not rerun after the last UI edits.
+
+| Check | Result |
+|---|---|
+| `node --test tests/client/customerWeb.test.mjs` | PASS, 17/17 |
+| `node --check` on customer `app.js`, `api.js`, `contracts.js` | PASS |
+| Focused Django: recovery, payments, customer contracts, seed migration, warehouse stock | 48/49 then warehouse assertion corrected; warehouse stock rerun PASS 2/2 |
+| Full `python manage.py test` after the combined QA diff | NOT RUN |
+| Browser smoke/axe at listed viewports | NOT RUN in this session |
+| PayMongo sandbox and PostgreSQL concurrency | UNVERIFIED |
+
 ## Customer website evidence — 2026-10-20
 
 Executed on disposable SQLite with PayMongo secrets empty unless a test set them. The active virtualenv was missing pinned `whitenoise==6.12.0`; the Django commands below passed only after that pinned package was placed on a temporary `PYTHONPATH`. That is an environment gap, not a customer-route assertion failure.
