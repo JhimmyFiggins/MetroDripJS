@@ -112,7 +112,6 @@ function MenuRow({ icon, label, meta, onPress }) {
       <Text style={styles.menuIcon}>{icon}</Text>
       <Text style={styles.menuLabel}>{label}</Text>
       {meta ? <Text style={styles.menuMeta}>{meta}</Text> : null}
-      <Text style={styles.menuChevron}>›</Text>
     </TouchableOpacity>
   );
 }

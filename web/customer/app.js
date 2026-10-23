@@ -62,6 +62,8 @@ function rememberAttempt(attempt) {
     sessionStorage.setItem(CHECKOUT_ATTEMPT_KEY, JSON.stringify({
       key: attempt.key,
       fingerprint: attempt.fingerprint,
+      ownerId: attempt.ownerId || null,
+      orderId: attempt.orderId || null,
     }));
   } catch {
     announce('This browser did not keep the checkout retry key. Do not refresh during submission.');
@@ -71,7 +73,14 @@ function rememberAttempt(attempt) {
 function storedAttempt() {
   try {
     const raw = JSON.parse(sessionStorage.getItem(CHECKOUT_ATTEMPT_KEY) || 'null');
-    if (raw && typeof raw.key === 'string' && typeof raw.fingerprint === 'string') return raw;
+    if (raw && typeof raw.key === 'string' && typeof raw.fingerprint === 'string') {
+      return {
+        key: raw.key,
+        fingerprint: raw.fingerprint,
+        ownerId: raw.ownerId || null,
+        orderId: raw.orderId || null,
+      };
+    }
   } catch {
     return null;
   }
@@ -85,7 +94,10 @@ function changeSession(session, token = null) {
     announce('Your session expired. Please sign in again.');
   });
   state.session = session;
-  clearAttempt();
+  if (state.attempt) state.attempt.payload = null;
+  const stored = storedAttempt();
+  if (stored?.ownerId && session?.id && String(stored.ownerId) !== String(session.id)) clearAttempt();
+  else state.attempt = null;
   app.replaceChildren();
   paintChrome();
 }
@@ -222,7 +234,7 @@ function productCard(product) {
       el('span', { class: 'product-card-cat' }, categoryName),
       el('h3', { class: 'product-card-title' }, product.name || 'Untitled product'),
       el('p', { class: 'product-card-price' }, money(product.base_price)),
-      el('div', { class: 'product-card-cta' }, 'View product →'),
+      el('div', { class: 'product-card-cta' }, 'View product'),
     ]),
   ]);
 }
@@ -353,27 +365,81 @@ async function renderHome() {
     ? heroBanner.headline
     : ['Urban Style', el('br'), 'Redefined'];
   const heroSubtitleContent = heroBanner?.subtext || 'Designed for the City';
-  const heroCtaLabel = heroBanner?.button_label ? `${heroBanner.button_label} →` : 'Shop Now →';
+  const heroCtaLabel = heroBanner?.button_label || 'Shop Now';
   const heroCtaHref = heroBanner?.link_url
     ? (heroBanner.link_url.startsWith('http') || heroBanner.link_url.startsWith('//')
       ? heroBanner.link_url
       : customerHref(heroBanner.link_url))
     : customerHref('/shop');
 
-  const artworkCard = heroBanner?.image_url
-    ? el('div', {
-        class: 'hero-artwork-card',
-        style: `background-image: linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.7)), url('${heroBanner.image_url}'); background-size: cover; background-position: center;`,
-      }, [
-        el('div', { class: 'artwork-big-logo' }, 'MD'),
-        el('div', { class: 'artwork-tagline' }, heroBanner.title || 'BUILT FOR THE STREETS'),
-        el('div', { class: 'artwork-origin' }, 'METRODRIP / MANILA'),
-      ])
-    : el('div', { class: 'hero-artwork-card' }, [
-        el('div', { class: 'artwork-big-logo' }, 'MD'),
-        el('div', { class: 'artwork-tagline' }, 'BUILT FOR THE STREETS'),
-        el('div', { class: 'artwork-origin' }, 'METRODRIP / MANILA'),
-      ]);
+  const artworkMode = heroBanner?.artwork_mode || (heroBanner?.image_url ? 'image' : 'graphic');
+
+  let artworkCard;
+  if (artworkMode === 'image' && heroBanner?.image_url) {
+    const fit = heroBanner.image_fit === 'contain' ? 'contain' : 'cover';
+    const fallbackGraphic = el('div', { class: 'hero-artwork-fallback', style: 'display: none; width: 100%; padding: 36px 32px;' }, [
+      el('div', { class: 'artwork-big-logo' }, heroBanner?.graphic_text_main || 'MD'),
+      el('div', { class: 'artwork-tagline' }, heroBanner?.graphic_text_tagline || 'BUILT FOR THE STREETS'),
+      el('div', { class: 'artwork-origin' }, heroBanner?.graphic_text_sub || 'METRODRIP / MANILA'),
+    ]);
+    const imgEl = el('img', {
+      src: heroBanner.image_url,
+      alt: heroBanner.headline || heroBanner.title || 'MetroDrip Hero Promotional Artwork',
+      class: 'hero-artwork-img',
+      style: `width: 100%; height: 100%; object-fit: ${fit}; display: block;`,
+    });
+    imgEl.addEventListener('error', () => {
+      imgEl.style.display = 'none';
+      fallbackGraphic.style.display = 'flex';
+      fallbackGraphic.style.flexDirection = 'column';
+      fallbackGraphic.style.justifyContent = 'center';
+      if (artworkCard) {
+        artworkCard.style.padding = '';
+        artworkCard.style.backgroundColor = heroBanner?.graphic_bg_color || 'var(--volt)';
+        artworkCard.style.color = heroBanner?.graphic_text_color || '#141414';
+      }
+    });
+    artworkCard = el('div', {
+      class: 'hero-artwork-card hero-artwork-image-mode',
+      style: 'padding: 0; overflow: hidden; background: #141414; display: flex; align-items: center; justify-content: center;',
+    }, [
+      imgEl,
+      fallbackGraphic,
+    ]);
+  } else if (artworkMode === 'graphic' || !heroBanner) {
+    const mainText = heroBanner?.graphic_text_main ?? 'MD';
+    const taglineText = heroBanner?.graphic_text_tagline ?? 'BUILT FOR THE STREETS';
+    const subText = heroBanner?.graphic_text_sub ?? 'METRODRIP / MANILA';
+    const bgColor = heroBanner?.graphic_bg_color || 'var(--volt)';
+    const textColor = heroBanner?.graphic_text_color || '#141414';
+    const accentColor = heroBanner?.graphic_accent_color || textColor;
+    const alignment = heroBanner?.graphic_alignment || 'left';
+    const fontSize = heroBanner?.graphic_font_size || 'normal';
+
+    const cardStyles = [
+      `background-color: ${bgColor}`,
+      `color: ${textColor}`,
+      `text-align: ${alignment}`,
+      alignment === 'center' ? 'align-items: center' : alignment === 'right' ? 'align-items: flex-end' : 'align-items: flex-start',
+    ].join('; ');
+
+    const logoClass = `artwork-big-logo font-size-${fontSize}`;
+
+    artworkCard = el('div', {
+      class: `hero-artwork-card hero-artwork-graphic-mode align-${alignment}`,
+      style: cardStyles,
+    }, [
+      el('div', { class: logoClass, style: `color: ${textColor};` }, mainText),
+      el('div', { class: 'artwork-tagline', style: `color: ${textColor};` }, taglineText),
+      el('div', { class: 'artwork-origin', style: `color: ${accentColor};` }, subText),
+    ]);
+  } else {
+    artworkCard = el('div', { class: 'hero-artwork-card' }, [
+      el('div', { class: 'artwork-big-logo' }, 'MD'),
+      el('div', { class: 'artwork-tagline' }, 'BUILT FOR THE STREETS'),
+      el('div', { class: 'artwork-origin' }, 'METRODRIP / MANILA'),
+    ]);
+  }
 
   const hero = el('div', { class: 'homepage-hero' }, [
     el('div', { class: 'hero-copy' }, [
@@ -386,16 +452,16 @@ async function renderHome() {
   ]);
 
   const categoryBar = el('div', { class: 'category-bar' }, [
-    el('a', { class: 'category-pill', href: customerHref('/shop') }, 'All Products →'),
+    el('a', { class: 'category-pill', href: customerHref('/shop') }, 'All Products'),
     ...categoryList.map((category) => el('a', {
       class: 'category-pill',
       href: customerHref(`/shop?category=${encodeURIComponent(category.slug || category.id)}`),
-    }, `${category.name} →`)),
+    }, category.name)),
   ]);
 
   const sectionHeader = el('div', { class: 'section-header' }, [
     el('h2', { class: 'section-title' }, 'New Arrivals'),
-    el('a', { class: 'section-link', href: customerHref('/shop?sort=newest') }, 'View all →'),
+    el('a', { class: 'section-link', href: customerHref('/shop?sort=newest') }, 'View all'),
   ]);
 
   const grid = arrivals.length
@@ -407,7 +473,7 @@ async function renderHome() {
       el('h2', { class: 'brand-story-title' }, 'Built for the Streets'),
       el('p', { class: 'brand-story-desc' }, 'Every piece is designed in Metro Manila — from concept to cut.'),
     ]),
-    el('a', { class: 'btn btn-secondary', href: customerHref('/team') }, 'Meet the team →'),
+    el('a', { class: 'btn btn-secondary', href: customerHref('/team') }, 'Meet the team'),
   ]);
 
   return el('section', { class: 'page home-page' }, [
@@ -544,6 +610,7 @@ async function renderProduct(route, scope) {
   ]);
   const variantList = Array.isArray(variants) ? variants : [];
   let selected = variantList[0] || null;
+  let stockRequest = 0;
   const image = usableImageUrl(product.image_url);
   const initial = (product.name || 'M').charAt(0).toUpperCase();
   const categoryName = getCategoryName(product);
@@ -564,6 +631,7 @@ async function renderProduct(route, scope) {
 
   async function refreshVariant(variant) {
     if (!isCurrent(scope)) return;
+    const requestId = ++stockRequest;
     selected = variant;
     for (const button of variantButtons.querySelectorAll('button')) {
       const active = button.dataset.id === String(variant?.id);
@@ -585,7 +653,7 @@ async function renderProduct(route, scope) {
     stockText.classList.remove('is-low');
     try {
       const rows = await api(`/variants/${variant.id}/stock/`, { auth: false });
-      if (!isCurrent(scope)) return;
+      if (!isCurrent(scope) || requestId !== stockRequest || selected?.id !== variant.id) return;
       const available = Array.isArray(rows)
         ? purchasableStock(rows)
         : 0;
@@ -612,29 +680,33 @@ async function renderProduct(route, scope) {
 
   add.addEventListener('click', async () => {
     if (!isCurrent(scope)) return;
+    const variant = selected;
     const quantity = Number(qty.value);
-    if (!selected || !Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) {
+    if (!variant || !Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) {
       announce('Enter a quantity from 1 to 5.');
       return;
     }
-    const rows = await api(`/variants/${selected.id}/stock/`, { auth: false });
-    if (!isCurrent(scope)) return;
-      const available = purchasableStock(rows);
-    const existing = state.cart.find((line) => line.variant_id === selected.id);
+    const rows = await api(`/variants/${variant.id}/stock/`, { auth: false });
+    if (!isCurrent(scope) || selected?.id !== variant.id) {
+      announce('The selected variant changed before stock was confirmed. Nothing was added.');
+      return;
+    }
+    const available = purchasableStock(rows);
+    const existing = state.cart.find((line) => line.variant_id === variant.id);
     if (quantity + (existing?.quantity || 0) > Math.min(MAX_QUANTITY, available)) {
       announce('That quantity is above the available stock or the 5-item limit.');
       return;
     }
     const line = {
-      variant_id: selected.id,
+      variant_id: variant.id,
       product_id: product.id,
       quantity: quantity + (existing?.quantity || 0),
       name: product.name,
-      label: variantLabel(selected),
+      label: variantLabel(variant),
       unit_hint: priceText.textContent,
     };
     state.cart = existing
-      ? state.cart.map((item) => item.variant_id === selected.id ? line : item)
+      ? state.cart.map((item) => item.variant_id === variant.id ? line : item)
       : state.cart.concat(line);
     saveCart();
     announce(`${product.name} added to cart.`);
@@ -853,9 +925,9 @@ async function renderCart(_route, scope) {
       el('span', {}, 'Estimated Total'),
       el('span', { class: 'summary-total-price' }, formatCentavos(totalCents)),
     ]),
-    el('a', { class: 'btn btn-primary btn-full', href: customerHref('/checkout') }, 'Check out →'),
+    el('a', { class: 'btn btn-primary btn-full', href: customerHref('/checkout') }, 'Check out'),
     el('p', { class: 'summary-note' }, 'Guest checkout available. Pay with GCash, Maya, or card.'),
-    el('a', { href: customerHref('/shop'), style: 'font-size:14px; text-align:center; color:var(--muted);' }, '← Continue shopping'),
+    el('a', { href: customerHref('/shop'), style: 'font-size:14px; text-align:center; color:var(--muted);' }, 'Continue shopping'),
   ]);
 
   return el('section', { class: 'page cart-page' }, [
@@ -872,11 +944,12 @@ async function renderCart(_route, scope) {
 async function renderCheckout(_route, scope) {
   if (!state.session) return signInPanel(customerHref('/checkout'));
   const stored = storedAttempt();
-  if (stored) {
+  if (stored?.ownerId && String(stored.ownerId) !== String(state.session.id)) {
+    clearAttempt();
+  } else if (stored) {
     try {
       const recovered = await request(`/api/orders/checkout/?idempotency_key=${encodeURIComponent(stored.key)}`, {}, scope);
-      if (recovered.payment_status === 'paid' || recovered.payment_method === 'cod') {
-        state.attempt = stored;
+      if (String(recovered.id) === String(stored.orderId) && (recovered.payment_status === 'paid' || recovered.payment_method === 'cod') && stored.fingerprint === cartFingerprint(state.cart)) {
         retainConfirmed(recovered);
       }
       clearAttempt();
@@ -884,6 +957,8 @@ async function renderCheckout(_route, scope) {
       return el('p', {}, 'Opening the recovered order.');
     } catch (error) {
       if (!(error instanceof ApiError) || error.status !== 404) throw error;
+      state.attempt = { ...stored, ownerId: state.session.id, payload: null };
+      announce('No completed order was found for the saved checkout key. Retry keeps that key. Start a new checkout only after confirming the previous attempt was not placed.');
     }
   }
   const [zonesPayload, capabilitiesPayload, profile] = await Promise.all([
@@ -934,7 +1009,8 @@ async function renderCheckout(_route, scope) {
       ])),
     ]),
     el('p', { class: 'muted', style: 'font-size:13px;' }, 'The server calculates the PHP total and delivery fee. Card details never touch MetroDrip servers.'),
-    el('button', { class: 'btn btn-primary btn-full', type: 'submit', disabled: zones.length === 0 }, 'Proceed to Payment →'),
+    el('button', { class: 'btn btn-primary btn-full', type: 'submit', disabled: zones.length === 0 }, 'Proceed to Payment'),
+    state.attempt ? el('button', { class: 'btn btn-secondary btn-full', type: 'button', onclick: () => { clearAttempt(); announce('Saved checkout key cleared. The next submission starts a new checkout.'); } }, 'Start a new checkout') : null,
   ]);
 
   const summary = el('div', { class: 'summary-card' }, [
@@ -980,7 +1056,13 @@ async function submitCheckout(event, form, methods, scope) {
         method,
         idempotencyKey: state.attempt?.key || newIdempotencyKey(),
       });
-      rememberAttempt({ key: payload.idempotency_key, fingerprint, payload });
+      rememberAttempt({
+        key: payload.idempotency_key,
+        fingerprint,
+        payload,
+        ownerId: state.session?.id || null,
+        orderId: state.attempt?.orderId || null,
+      });
     } catch (error) {
       announce(error.message);
       return;
@@ -996,7 +1078,7 @@ async function submitCheckout(event, form, methods, scope) {
       retainConfirmed(order);
       clearAttempt();
     } else {
-      rememberAttempt({ ...state.attempt, orderId: order.id });
+      rememberAttempt({ ...state.attempt, orderId: order.id, ownerId: state.session?.id || state.attempt.ownerId });
     }
     const action = order.payment_action;
     if (action?.type === 'redirect') {
@@ -1069,7 +1151,8 @@ async function renderOrder(route, scope) {
   } catch (error) {
     trackingError = error;
   }
-  if ((order.payment_status === 'paid' || order.payment_method === 'cod') && storedAttempt()?.fingerprint === cartFingerprint(state.cart)) {
+  const savedAttempt = storedAttempt();
+  if (savedAttempt && String(savedAttempt.orderId) === String(order.id) && savedAttempt.fingerprint === cartFingerprint(state.cart) && (order.payment_status === 'paid' || order.payment_method === 'cod')) {
     retainConfirmed(order);
     clearAttempt();
   }
@@ -1282,13 +1365,9 @@ async function renderSignIn(_route, scope) {
     ]),
     field('Email *', 'email', ''),
     secretField('Password *', 'password'),
-    el('button', { class: 'btn btn-primary btn-full', type: 'submit' }, 'Sign in →'),
-    el('button', { class: 'btn btn-secondary btn-full', type: 'button', onclick: () => navigate(customerHref('/shop')) }, 'Continue as guest'),
-    el('p', { class: 'muted', style: 'font-size:13px; text-align:center; margin:8px 0 0;' }, [
-      'Bought as a guest before? ',
-      el('a', { href: customerHref('/sign-up'), style: 'color:var(--ink); text-decoration:underline;' }, 'Create an account'),
-      ' to keep past orders.',
-    ]),
+    el('button', { class: 'btn btn-primary btn-full', type: 'submit' }, 'Sign in'),
+    el('button', { class: 'btn btn-secondary btn-full', type: 'button', onclick: () => navigate(customerHref('/shop')) }, 'Browse without signing in'),
+    el('p', { class: 'muted', style: 'font-size:13px; text-align:center; margin:8px 0 0;' }, 'Checkout requires a customer account. Browsing does not place an order.'),
   ]);
 
   return el('section', { class: 'page auth-page' }, [
@@ -1327,8 +1406,8 @@ async function renderSignUp(_route, scope) {
     field('Full name *', 'name', ''),
     field('Email *', 'email', ''),
     secretField('Password *', 'password'),
-    el('button', { class: 'btn btn-primary btn-full', type: 'submit' }, 'Create account →'),
-    el('button', { class: 'btn btn-secondary btn-full', type: 'button', onclick: () => navigate(customerHref('/shop')) }, 'Continue as guest'),
+    el('button', { class: 'btn btn-primary btn-full', type: 'submit' }, 'Create account'),
+    el('button', { class: 'btn btn-secondary btn-full', type: 'button', onclick: () => navigate(customerHref('/shop')) }, 'Browse without signing in'),
   ]);
 
   return el('section', { class: 'page auth-page' }, [

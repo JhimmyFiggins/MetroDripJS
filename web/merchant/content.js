@@ -192,6 +192,143 @@
     fields.querySelector('[data-schedule-start]')?.toggleAttribute('required', scheduled);
   }
 
+  function getSelectedArtworkMode() {
+    return document.querySelector('input[name="artwork_mode"]:checked')?.value || 'graphic';
+  }
+
+  function setArtworkMode(mode) {
+    const radioGraphic = byId('radio-mode-graphic');
+    const radioImage = byId('radio-mode-image');
+    if (mode === 'image') {
+      if (radioImage) radioImage.checked = true;
+      byId('label-mode-image')?.classList.add('is-selected');
+      byId('label-mode-graphic')?.classList.remove('is-selected');
+      byId('panel-artwork-image')?.removeAttribute('hidden');
+      byId('panel-artwork-graphic')?.setAttribute('hidden', '');
+    } else {
+      if (radioGraphic) radioGraphic.checked = true;
+      byId('label-mode-graphic')?.classList.add('is-selected');
+      byId('label-mode-image')?.classList.remove('is-selected');
+      byId('panel-artwork-graphic')?.removeAttribute('hidden');
+      byId('panel-artwork-image')?.setAttribute('hidden', '');
+    }
+  }
+
+  function displayArtworkImageDetails(url, name, sizeBytes) {
+    const details = byId('artwork-image-details');
+    const thumb = byId('artwork-image-preview-thumb');
+    const filename = byId('artwork-image-filename');
+    const filesize = byId('artwork-image-filesize');
+    if (!url) {
+      if (details) details.hidden = true;
+      if (thumb) thumb.src = '';
+      if (filename) filename.textContent = 'No file uploaded';
+      if (filesize) filesize.textContent = '—';
+      return;
+    }
+    if (details) details.hidden = false;
+    if (thumb) thumb.src = url;
+    if (filename) filename.textContent = name || url.split('/').pop() || 'uploaded-image';
+    if (filesize) {
+      filesize.textContent = sizeBytes ? `${(sizeBytes / 1024).toFixed(1)} KB` : 'Uploaded image';
+    }
+  }
+
+  async function uploadArtworkImage(file) {
+    if (!file) return;
+    const errorEl = byId('artwork-upload-error');
+    if (errorEl) {
+      errorEl.hidden = true;
+      errorEl.textContent = '';
+    }
+
+    const validMimes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!validMimes.includes(file.type)) {
+      const msg = 'Invalid file format. Please upload a JPG, PNG, or WebP image.';
+      if (errorEl) {
+        errorEl.hidden = false;
+        errorEl.textContent = msg;
+      }
+      showToast(msg, 'error');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      const msg = 'File exceeds the 5 MiB size limit.';
+      if (errorEl) {
+        errorEl.hidden = false;
+        errorEl.textContent = msg;
+      }
+      showToast(msg, 'error');
+      return;
+    }
+
+    const current = session();
+    if (!current) {
+      showToast('Session expired. Please sign in again.', 'error');
+      return;
+    }
+
+    const idleBox = byId('artwork-upload-idle');
+    const loadingBox = byId('artwork-uploading-indicator');
+    const browseBtn = byId('btn-browse-artwork-file');
+    if (idleBox) idleBox.hidden = true;
+    if (loadingBox) loadingBox.hidden = false;
+    if (browseBtn) browseBtn.disabled = true;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch(`${API_BASE}/banners/upload/`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${current.access_token}`,
+        },
+        body: formData,
+      });
+
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(result?.error || `Upload failed (${response.status})`);
+      }
+
+      const url = result.url;
+      if (byId('input-banner-image-url')) byId('input-banner-image-url').value = url;
+      if (byId('input-artwork-direct-url')) byId('input-artwork-direct-url').value = url;
+      displayArtworkImageDetails(url, file.name, file.size);
+      updatePreview();
+      showToast('Hero promotional image uploaded successfully.');
+    } catch (err) {
+      if (errorEl) {
+        errorEl.hidden = false;
+        errorEl.textContent = err.message || 'Image upload failed.';
+      }
+      showToast(err.message || 'Image upload failed.', 'error');
+    } finally {
+      if (idleBox) idleBox.hidden = false;
+      if (loadingBox) loadingBox.hidden = true;
+      if (browseBtn) browseBtn.disabled = false;
+    }
+  }
+
+  function resetGraphicDefaults() {
+    if (byId('input-graphic-text-main')) byId('input-graphic-text-main').value = 'MD';
+    if (byId('input-graphic-text-tagline')) byId('input-graphic-text-tagline').value = 'BUILT FOR THE STREETS';
+    if (byId('input-graphic-text-sub')) byId('input-graphic-text-sub').value = 'METRODRIP / MANILA';
+    if (byId('input-graphic-bg-color')) byId('input-graphic-bg-color').value = '#d3ee42';
+    if (byId('picker-graphic-bg-color')) byId('picker-graphic-bg-color').value = '#d3ee42';
+    if (byId('input-graphic-text-color')) byId('input-graphic-text-color').value = '#141414';
+    if (byId('picker-graphic-text-color')) byId('picker-graphic-text-color').value = '#141414';
+    if (byId('input-graphic-accent-color')) byId('input-graphic-accent-color').value = '#141414';
+    if (byId('picker-graphic-accent-color')) byId('picker-graphic-accent-color').value = '#141414';
+    if (byId('select-graphic-alignment')) byId('select-graphic-alignment').value = 'left';
+    if (byId('select-graphic-font-size')) byId('select-graphic-font-size').value = 'normal';
+    updatePreview();
+    showToast('Branded graphic design reset to defaults.');
+  }
+
   function isFormDirty() {
     if (!originalSnapshot) return false;
     const current = {
@@ -206,6 +343,16 @@
       schedule: byId('select-banner-schedule')?.value || 'always',
       starts_at: byId('input-banner-starts-at')?.value || '',
       ends_at: byId('input-banner-ends-at')?.value || '',
+      artwork_mode: getSelectedArtworkMode(),
+      graphic_text_main: byId('input-graphic-text-main')?.value.trim() || 'MD',
+      graphic_text_tagline: byId('input-graphic-text-tagline')?.value.trim() || 'BUILT FOR THE STREETS',
+      graphic_text_sub: byId('input-graphic-text-sub')?.value.trim() || 'METRODRIP / MANILA',
+      graphic_bg_color: byId('input-graphic-bg-color')?.value.trim().toLowerCase() || '#d3ee42',
+      graphic_text_color: byId('input-graphic-text-color')?.value.trim().toLowerCase() || '#141414',
+      graphic_accent_color: byId('input-graphic-accent-color')?.value.trim().toLowerCase() || '#141414',
+      graphic_alignment: byId('select-graphic-alignment')?.value || 'left',
+      graphic_font_size: byId('select-graphic-font-size')?.value || 'normal',
+      image_fit: byId('select-artwork-image-fit')?.value || 'cover',
     };
     return Object.keys(current).some((k) => current[k] !== originalSnapshot[k]);
   }
@@ -224,19 +371,88 @@
     const imageUrl = byId('input-banner-image-url')?.value.trim() || '';
     const destination = byId('input-banner-destination')?.value.trim() || '/shop';
     const placementVal = byId('select-banner-placement')?.value || 'homepage_hero';
+    const isHero = placementVal === 'homepage_hero';
 
     byId('preview-headline').textContent = headline.toUpperCase();
     byId('preview-subtext').textContent = subtext;
     byId('preview-cta-button').textContent = buttonLabel;
 
+    // Toggle hero artwork section visibility in form
+    const heroSection = byId('section-hero-artwork');
+    if (heroSection) {
+      heroSection.hidden = !isHero;
+    }
+
     const previewCard = byId('banner-preview-card');
+    const heroRight = byId('hero-preview-right');
+    const artworkCard = byId('preview-artwork-card');
+
     if (previewCard) {
-      if (imageUrl && (imageUrl.startsWith('http') || imageUrl.startsWith('/'))) {
-        previewCard.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.7)), url('${imageUrl}')`;
-        previewCard.classList.add('has-image');
-      } else {
+      if (isHero) {
+        previewCard.classList.add('is-hero-layout');
+        if (heroRight) heroRight.hidden = false;
         previewCard.style.backgroundImage = '';
-        previewCard.classList.remove('has-image');
+      } else {
+        previewCard.classList.remove('is-hero-layout');
+        if (heroRight) heroRight.hidden = true;
+        if (imageUrl && (imageUrl.startsWith('http') || imageUrl.startsWith('/'))) {
+          previewCard.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.35), rgba(0,0,0,0.7)), url('${imageUrl}')`;
+          previewCard.classList.add('has-image');
+        } else {
+          previewCard.style.backgroundImage = '';
+          previewCard.classList.remove('has-image');
+        }
+      }
+    }
+
+    // Hero right-side artwork preview
+    if (isHero && artworkCard) {
+      const mode = getSelectedArtworkMode();
+      const fit = byId('select-artwork-image-fit')?.value || 'cover';
+      const mainText = byId('input-graphic-text-main')?.value.trim() || 'MD';
+      const tagline = byId('input-graphic-text-tagline')?.value.trim() || 'BUILT FOR THE STREETS';
+      const sub = byId('input-graphic-text-sub')?.value.trim() || 'METRODRIP / MANILA';
+      const bgColor = byId('input-graphic-bg-color')?.value.trim() || '#d3ee42';
+      const textColor = byId('input-graphic-text-color')?.value.trim() || '#141414';
+      const accentColor = byId('input-graphic-accent-color')?.value.trim() || '#141414';
+      const alignment = byId('select-graphic-alignment')?.value || 'left';
+      const fontSize = byId('select-graphic-font-size')?.value || 'normal';
+
+      artworkCard.className = `preview-artwork-card align-${alignment} font-${fontSize}`;
+
+      if (mode === 'image' && imageUrl) {
+        artworkCard.classList.add('is-image-mode');
+        artworkCard.style.backgroundImage = `url('${imageUrl}')`;
+        artworkCard.style.backgroundSize = fit;
+        artworkCard.style.backgroundColor = '#141414';
+        if (byId('preview-artwork-main')) byId('preview-artwork-main').style.display = 'none';
+        if (byId('preview-artwork-tagline')) byId('preview-artwork-tagline').style.display = 'none';
+        if (byId('preview-artwork-sub')) byId('preview-artwork-sub').style.display = 'none';
+      } else {
+        artworkCard.classList.remove('is-image-mode');
+        artworkCard.style.backgroundImage = '';
+        artworkCard.style.backgroundColor = bgColor;
+        artworkCard.style.color = textColor;
+
+        const mainEl = byId('preview-artwork-main');
+        const tagEl = byId('preview-artwork-tagline');
+        const subEl = byId('preview-artwork-sub');
+
+        if (mainEl) {
+          mainEl.style.display = '';
+          mainEl.style.color = textColor;
+          mainEl.textContent = mainText;
+        }
+        if (tagEl) {
+          tagEl.style.display = '';
+          tagEl.style.color = textColor;
+          tagEl.textContent = tagline;
+        }
+        if (subEl) {
+          subEl.style.display = '';
+          subEl.style.color = accentColor;
+          subEl.textContent = sub;
+        }
       }
     }
 
@@ -247,6 +463,25 @@
     if (placeInfo) {
       const placeName = placements[placementVal] || 'Storefront placement';
       placeInfo.textContent = `${placeName} · Live sync on Customer Web & Mobile`;
+    }
+
+    // Draft indicator pill
+    const draftPill = byId('preview-draft-pill');
+    if (draftPill) {
+      const scheduleSelect = byId('select-banner-schedule');
+      const isDraftStatus = scheduleSelect?.value === 'draft';
+      const dirty = isFormDirty();
+      if (dirty) {
+        draftPill.hidden = false;
+        draftPill.textContent = 'UNSAVED CHANGES';
+        draftPill.style.color = '#ffaa00';
+      } else if (isDraftStatus) {
+        draftPill.hidden = false;
+        draftPill.textContent = 'DRAFT';
+        draftPill.style.color = '#a0a0a0';
+      } else {
+        draftPill.hidden = true;
+      }
     }
 
     // Toggle revert button enabled state based on dirty status
@@ -288,7 +523,15 @@
         'input-banner-order',
         'input-banner-starts-at',
         'input-banner-ends-at',
+        'input-artwork-direct-url',
+        'input-graphic-text-main',
+        'input-graphic-text-tagline',
+        'input-graphic-text-sub',
+        'input-graphic-bg-color',
+        'input-graphic-text-color',
+        'input-graphic-accent-color',
       ].forEach((field) => { if (byId(field)) byId(field).value = ''; });
+      displayArtworkImageDetails('', '', null);
       updatePreview();
       renderTable();
       return;
@@ -317,6 +560,40 @@
     byId('input-banner-starts-at').value = startsAtVal;
     byId('input-banner-ends-at').value = endsAtVal;
 
+    // Load artwork settings
+    const mode = banner.artwork_mode || (banner.image_url ? 'image' : 'graphic');
+    setArtworkMode(mode);
+
+    const mainText = banner.graphic_text_main ?? 'MD';
+    const tagline = banner.graphic_text_tagline ?? 'BUILT FOR THE STREETS';
+    const subText = banner.graphic_text_sub ?? 'METRODRIP / MANILA';
+    const bgColor = banner.graphic_bg_color || '#d3ee42';
+    const textColor = banner.graphic_text_color || '#141414';
+    const accentColor = banner.graphic_accent_color || '#141414';
+    const alignment = banner.graphic_alignment || 'left';
+    const fontSize = banner.graphic_font_size || 'normal';
+    const imageFit = banner.image_fit || 'cover';
+
+    if (byId('input-graphic-text-main')) byId('input-graphic-text-main').value = mainText;
+    if (byId('input-graphic-text-tagline')) byId('input-graphic-text-tagline').value = tagline;
+    if (byId('input-graphic-text-sub')) byId('input-graphic-text-sub').value = subText;
+    if (byId('input-graphic-bg-color')) byId('input-graphic-bg-color').value = bgColor;
+    if (byId('picker-graphic-bg-color')) byId('picker-graphic-bg-color').value = bgColor;
+    if (byId('input-graphic-text-color')) byId('input-graphic-text-color').value = textColor;
+    if (byId('picker-graphic-text-color')) byId('picker-graphic-text-color').value = textColor;
+    if (byId('input-graphic-accent-color')) byId('input-graphic-accent-color').value = accentColor;
+    if (byId('picker-graphic-accent-color')) byId('picker-graphic-accent-color').value = accentColor;
+    if (byId('select-graphic-alignment')) byId('select-graphic-alignment').value = alignment;
+    if (byId('select-graphic-font-size')) byId('select-graphic-font-size').value = fontSize;
+    if (byId('select-artwork-image-fit')) byId('select-artwork-image-fit').value = imageFit;
+    if (byId('input-artwork-direct-url')) byId('input-artwork-direct-url').value = banner.image_url || '';
+
+    if (banner.image_url) {
+      displayArtworkImageDetails(banner.image_url, banner.image_url.split('/').pop(), null);
+    } else {
+      displayArtworkImageDetails('', '', null);
+    }
+
     // Snapshot for dirty checking & revert
     originalSnapshot = {
       title: banner.title || '',
@@ -330,6 +607,16 @@
       schedule: scheduleSelect.value,
       starts_at: startsAtVal,
       ends_at: endsAtVal,
+      artwork_mode: mode,
+      graphic_text_main: mainText,
+      graphic_text_tagline: tagline,
+      graphic_text_sub: subText,
+      graphic_bg_color: bgColor.toLowerCase(),
+      graphic_text_color: textColor.toLowerCase(),
+      graphic_accent_color: accentColor.toLowerCase(),
+      graphic_alignment: alignment,
+      graphic_font_size: fontSize,
+      image_fit: imageFit,
     };
 
     updateScheduleVisibility();
@@ -356,6 +643,23 @@
     byId('input-banner-starts-at').value = originalSnapshot.starts_at;
     byId('input-banner-ends-at').value = originalSnapshot.ends_at;
 
+    setArtworkMode(originalSnapshot.artwork_mode);
+    if (byId('input-graphic-text-main')) byId('input-graphic-text-main').value = originalSnapshot.graphic_text_main;
+    if (byId('input-graphic-text-tagline')) byId('input-graphic-text-tagline').value = originalSnapshot.graphic_text_tagline;
+    if (byId('input-graphic-text-sub')) byId('input-graphic-text-sub').value = originalSnapshot.graphic_text_sub;
+    if (byId('input-graphic-bg-color')) byId('input-graphic-bg-color').value = originalSnapshot.graphic_bg_color;
+    if (byId('picker-graphic-bg-color')) byId('picker-graphic-bg-color').value = originalSnapshot.graphic_bg_color;
+    if (byId('input-graphic-text-color')) byId('input-graphic-text-color').value = originalSnapshot.graphic_text_color;
+    if (byId('picker-graphic-text-color')) byId('picker-graphic-text-color').value = originalSnapshot.graphic_text_color;
+    if (byId('input-graphic-accent-color')) byId('input-graphic-accent-color').value = originalSnapshot.graphic_accent_color;
+    if (byId('picker-graphic-accent-color')) byId('picker-graphic-accent-color').value = originalSnapshot.graphic_accent_color;
+    if (byId('select-graphic-alignment')) byId('select-graphic-alignment').value = originalSnapshot.graphic_alignment;
+    if (byId('select-graphic-font-size')) byId('select-graphic-font-size').value = originalSnapshot.graphic_font_size;
+    if (byId('select-artwork-image-fit')) byId('select-artwork-image-fit').value = originalSnapshot.image_fit;
+    if (byId('input-artwork-direct-url')) byId('input-artwork-direct-url').value = originalSnapshot.image_url;
+
+    displayArtworkImageDetails(originalSnapshot.image_url, originalSnapshot.image_url.split('/').pop(), null);
+
     updateScheduleVisibility();
     updatePreview();
     showToast('Changes reverted to saved banner state.');
@@ -372,6 +676,16 @@
       image_url: byId('input-banner-image-url').value.trim(),
       order: parseInt(byId('input-banner-order').value, 10) || 1,
       status,
+      artwork_mode: getSelectedArtworkMode(),
+      graphic_text_main: byId('input-graphic-text-main')?.value.trim() || 'MD',
+      graphic_text_tagline: byId('input-graphic-text-tagline')?.value.trim() || 'BUILT FOR THE STREETS',
+      graphic_text_sub: byId('input-graphic-text-sub')?.value.trim() || 'METRODRIP / MANILA',
+      graphic_bg_color: byId('input-graphic-bg-color')?.value.trim() || '#d3ee42',
+      graphic_text_color: byId('input-graphic-text-color')?.value.trim() || '#141414',
+      graphic_accent_color: byId('input-graphic-accent-color')?.value.trim() || '#141414',
+      graphic_alignment: byId('select-graphic-alignment')?.value || 'left',
+      graphic_font_size: byId('select-graphic-font-size')?.value || 'normal',
+      image_fit: byId('select-artwork-image-fit')?.value || 'cover',
     };
     if (status === 'Scheduled') {
       payload.starts_at = toIso(byId('input-banner-starts-at').value);
@@ -475,10 +789,115 @@
       'input-banner-destination',
       'input-banner-image-url',
       'input-banner-order',
+      'input-graphic-text-main',
+      'input-graphic-text-tagline',
+      'input-graphic-text-sub',
+      'input-graphic-bg-color',
+      'input-graphic-text-color',
+      'input-graphic-accent-color',
+      'select-graphic-alignment',
+      'select-graphic-font-size',
+      'select-artwork-image-fit',
+      'input-artwork-direct-url',
     ].forEach((id) => {
       byId(id)?.addEventListener('input', updatePreview);
       byId(id)?.addEventListener('change', updatePreview);
     });
+
+    // Sync direct URL field with image_url
+    byId('input-artwork-direct-url')?.addEventListener('input', () => {
+      const val = byId('input-artwork-direct-url').value.trim();
+      if (byId('input-banner-image-url')) byId('input-banner-image-url').value = val;
+      displayArtworkImageDetails(val, val.split('/').pop(), null);
+      updatePreview();
+    });
+
+    byId('input-banner-image-url')?.addEventListener('input', () => {
+      const val = byId('input-banner-image-url').value.trim();
+      if (byId('input-artwork-direct-url')) byId('input-artwork-direct-url').value = val;
+      displayArtworkImageDetails(val, val.split('/').pop(), null);
+      updatePreview();
+    });
+
+    // Artwork mode switcher radio listeners
+    document.querySelectorAll('input[name="artwork_mode"]').forEach((radio) => {
+      radio.addEventListener('change', () => {
+        setArtworkMode(radio.value);
+        updatePreview();
+      });
+    });
+
+    // Color pickers synchronization
+    [
+      ['picker-graphic-bg-color', 'input-graphic-bg-color'],
+      ['picker-graphic-text-color', 'input-graphic-text-color'],
+      ['picker-graphic-accent-color', 'input-graphic-accent-color'],
+    ].forEach(([pickerId, inputId]) => {
+      const picker = byId(pickerId);
+      const textInput = byId(inputId);
+      if (picker && textInput) {
+        picker.addEventListener('input', () => {
+          textInput.value = picker.value;
+          updatePreview();
+        });
+        textInput.addEventListener('input', () => {
+          if (/^#[0-9a-fA-F]{6}$/.test(textInput.value.trim())) {
+            picker.value = textInput.value.trim();
+          }
+          updatePreview();
+        });
+      }
+    });
+
+    // Image upload trigger and file handling
+    const fileInput = byId('input-artwork-file');
+    byId('btn-browse-artwork-file')?.addEventListener('click', () => fileInput?.click());
+    byId('btn-replace-artwork-image')?.addEventListener('click', () => fileInput?.click());
+
+    fileInput?.addEventListener('change', (event) => {
+      const file = event.target.files?.[0];
+      if (file) {
+        uploadArtworkImage(file);
+      }
+    });
+
+    // Remove image button
+    byId('btn-remove-artwork-image')?.addEventListener('click', () => {
+      if (byId('input-banner-image-url')) byId('input-banner-image-url').value = '';
+      if (byId('input-artwork-direct-url')) byId('input-artwork-direct-url').value = '';
+      if (fileInput) fileInput.value = '';
+      displayArtworkImageDetails('', '', null);
+      updatePreview();
+      showToast('Image removed.');
+    });
+
+    // Drag and drop onto upload dropzone
+    const dropzone = byId('artwork-dropzone');
+    if (dropzone) {
+      ['dragenter', 'dragover'].forEach((eventName) => {
+        dropzone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.add('is-dragover');
+        });
+      });
+      ['dragleave', 'drop'].forEach((eventName) => {
+        dropzone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.remove('is-dragover');
+        });
+      });
+      dropzone.addEventListener('drop', (e) => {
+        const file = e.dataTransfer?.files?.[0];
+        if (file) {
+          uploadArtworkImage(file);
+        }
+      });
+    }
+
+    // Restore graphic defaults button
+    byId('btn-restore-graphic-defaults')?.addEventListener('click', resetGraphicDefaults);
 
     // Schedule visibility toggles
     byId('select-banner-schedule')?.addEventListener('change', () => {

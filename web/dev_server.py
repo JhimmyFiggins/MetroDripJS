@@ -24,6 +24,7 @@ BACKEND_URL = os.environ.get('BACKEND_URL', 'http://127.0.0.1:8000').rstrip('/')
 BACKEND_PATH_PREFIXES = (
     '/api/',
     '/media/',
+    '/banners/',
     '/users/',
     '/products/',
     '/categories/',
@@ -125,6 +126,12 @@ class DevHTTPRequestHandler(SimpleHTTPRequestHandler):
             self.wfile.write(err_data)
         except Exception as e:
             self._send_json(502, {'error': f'Failed to proxy request: {str(e)}'})
+
+    def do_HEAD(self):
+        if self._is_backend_request():
+            self._proxy_to_backend('HEAD')
+            return
+        super().do_HEAD()
 
     def do_GET(self):
         if self._is_backend_request():

@@ -6,6 +6,17 @@
 
 **Evidence rule:** An executed unit/mock/SQLite/static check is labeled separately from PostgreSQL, native-device, PayMongo, and Render evidence.
 
+## Remaining-task evidence — 2026-10-23
+
+| Check | Result |
+|---|---|
+| `node --test tests/client/customerWeb.test.mjs` | PASS, 17/17 |
+| Targeted Django seed, warehouse, recovery, and customer contracts | PASS, 18/18 on Django 5.2.16 and disposable SQLite |
+| Full `python manage.py test` | 116 passed, 1 error, 4 skipped. The error was an empty return URL overriding the HTTPS default. Blank return URLs now fall back to the default. The affected Maya mapping test was rerun and passed. The other 115 passing tests were not all rerun after that one-line settings change. |
+| `orders.tests_postgres_concurrency` on disposable PostgreSQL 16.15 | PASS, 3/3. Socket-only owned cluster. Throttle concurrency test was not repeated there. |
+| `node tests/browser/run-customer-qa.mjs` | PASS after the 320px header rule was ordered after the 600px rule. This is a local smoke check, not axe, screen-reader, or Figma coverage. |
+| PayMongo sandbox, live Figma, hosted account rotation | NOT RUN. No provider, design-connector, or hosted-account authorization was available. |
+
 ## Customer QA evidence — 2026-10-23
 
 Local QA on branch `fix/customer-qa-20261022` from `84a6bafa`. Fixes cover checkout terminal replay, owned checkout recovery lookup, single-warehouse purchasable stock, fresh-database fixed-login seeding, browser session isolation, and truthful customer copy. Previously seeded accounts are not rotated. Browser viewport/axe execution, full Django suite, PostgreSQL, and PayMongo sandbox were not rerun after the last UI edits.

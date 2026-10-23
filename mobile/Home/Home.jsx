@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-import { ScrollView, StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, ImageBackground, Linking } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, Image, ImageBackground, Linking } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { fonts } from '../../src/theme/font';
 
@@ -25,6 +25,7 @@ export default function Home({ navigation, route }) {
     const [categoriesLoading, setCategoriesLoading] = useState(true);
     const [showTopSection, setShowTopSection] = useState(true);
     const [heroBanner, setHeroBanner] = useState(null);
+    const [imageError, setImageError] = useState(false);
 
     useEffect(() => {
             apiFetch('/categories/', { auth: false })
@@ -36,6 +37,7 @@ export default function Home({ navigation, route }) {
                 .then(data => {
                     if (Array.isArray(data) && data.length > 0) {
                         setHeroBanner(data[0]);
+                        setImageError(false);
                     } else {
                         setHeroBanner(null);
                     }
@@ -82,14 +84,70 @@ export default function Home({ navigation, route }) {
         navigation.navigate('Shop');
     };
 
+    // Determine legacy image background vs modern hero artwork card
+    const isLegacyImageBg = !heroBanner?.artwork_mode && !!heroBanner?.image_url && !imageError;
+    const showArtworkCard = heroBanner?.artwork_mode === 'graphic' || heroBanner?.artwork_mode === 'image';
+
     const bannerContent = (
-        <View style={heroBanner?.image_url ? styles.HeroBannerWithOverlay : styles.HeroBanner}>
+        <View style={isLegacyImageBg ? styles.HeroBannerWithOverlay : styles.HeroBanner}>
             <Text style={styles.HeroBannerUpper}>
                 {heroBanner?.subtext || 'Metro Manila Streetwear'}
             </Text>
             <Text style={styles.HeroBannerTitle}>
                 {heroBanner?.headline || 'Urban Style Redefined'}
             </Text>
+
+            {/* Configurable Hero Artwork Component for Mobile */}
+            {showArtworkCard && (
+                heroBanner?.artwork_mode === 'image' && heroBanner?.image_url && !imageError ? (
+                    <View style={styles.ArtworkCard}>
+                        <Image
+                            source={{ uri: heroBanner.image_url }}
+                            style={[
+                                styles.ArtworkImage,
+                                { resizeMode: heroBanner?.image_fit === 'contain' ? 'contain' : 'cover' }
+                            ]}
+                            onError={() => setImageError(true)}
+                            accessibilityLabel={heroBanner?.headline || 'Hero Promotion Artwork'}
+                        />
+                    </View>
+                ) : (
+                    <View style={[
+                        styles.GraphicArtworkCard,
+                        {
+                            backgroundColor: heroBanner?.graphic_bg_color || '#D3EE42',
+                            alignItems: heroBanner?.graphic_alignment === 'left' ? 'flex-start' : heroBanner?.graphic_alignment === 'right' ? 'flex-end' : 'center',
+                        }
+                    ]}>
+                        <Text style={[
+                            styles.GraphicArtworkMain,
+                            { color: heroBanner?.graphic_text_color || '#141414' },
+                            heroBanner?.graphic_font_size === 'small' && styles.GraphicFontSmall,
+                            heroBanner?.graphic_font_size === 'large' && styles.GraphicFontLarge,
+                        ]}>
+                            {heroBanner?.graphic_text_main || 'MD'}
+                        </Text>
+                        <Text style={[
+                            styles.GraphicArtworkTagline,
+                            {
+                                color: heroBanner?.graphic_text_color || '#141414',
+                                textAlign: heroBanner?.graphic_alignment || 'center',
+                            }
+                        ]}>
+                            {heroBanner?.graphic_text_tagline || 'BUILT FOR THE STREETS'}
+                        </Text>
+                        <Text style={[
+                            styles.GraphicArtworkSub,
+                            {
+                                color: heroBanner?.graphic_accent_color || heroBanner?.graphic_text_color || '#141414',
+                                textAlign: heroBanner?.graphic_alignment || 'center',
+                            }
+                        ]}>
+                            {heroBanner?.graphic_text_sub || 'METRODRIP / MANILA'}
+                        </Text>
+                    </View>
+                )
+            )}
 
             <TouchableOpacity
                 accessibilityLabel={heroBanner?.button_label || "Shop the latest drop"}
@@ -98,7 +156,7 @@ export default function Home({ navigation, route }) {
                 onPress={handleHeroPress}
             >
                 <Text style={styles.HeroBannerLower}>
-                    {heroBanner?.button_label ? `${heroBanner.button_label} →` : 'Shop the drop →'}
+                    {heroBanner?.button_label || 'Shop the drop'}
                 </Text>
             </TouchableOpacity>
         </View>
@@ -110,11 +168,12 @@ export default function Home({ navigation, route }) {
             {showTopSection && (
                 <>
                 <HomeHeader/>
-                {heroBanner?.image_url ? (
+                {isLegacyImageBg ? (
                     <ImageBackground
                         source={{ uri: heroBanner.image_url }}
                         style={styles.HeroBannerImageBg}
                         resizeMode="cover"
+                        onError={() => setImageError(true)}
                     >
                         {bannerContent}
                     </ImageBackground>
@@ -254,6 +313,56 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontFamily: fonts.interBold,
         textAlign: 'center',
+    },
+    ArtworkCard: {
+        width: '100%',
+        height: 160,
+        borderRadius: 14,
+        overflow: 'hidden',
+        marginBottom: 16,
+        backgroundColor: '#1E1E1E',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    ArtworkImage: {
+        width: '100%',
+        height: '100%',
+    },
+    GraphicArtworkCard: {
+        width: '100%',
+        borderRadius: 14,
+        paddingVertical: 18,
+        paddingHorizontal: 16,
+        marginBottom: 16,
+        justifyContent: 'center',
+    },
+    GraphicArtworkMain: {
+        fontSize: 32,
+        fontFamily: fonts.interBold,
+        letterSpacing: -0.5,
+        lineHeight: 36,
+        marginBottom: 4,
+    },
+    GraphicArtworkTagline: {
+        fontSize: 13,
+        fontFamily: fonts.interBold,
+        letterSpacing: 0.5,
+        textTransform: 'uppercase',
+        marginBottom: 4,
+    },
+    GraphicArtworkSub: {
+        fontSize: 10,
+        fontFamily: fonts.interSemiBold,
+        letterSpacing: 1,
+        textTransform: 'uppercase',
+    },
+    GraphicFontSmall: {
+        fontSize: 24,
+        lineHeight: 28,
+    },
+    GraphicFontLarge: {
+        fontSize: 40,
+        lineHeight: 44,
     },
     CategorySection: {
         paddingVertical: 15,

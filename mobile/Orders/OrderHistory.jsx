@@ -165,7 +165,6 @@ export default function OrderHistory() {
       >
         <View style={styles.orderTopRow}>
           <Text numberOfLines={1} style={styles.orderNumber}>{number}</Text>
-          <Text accessibilityElementsHidden importantForAccessibility="no" style={styles.chevron}>›</Text>
         </View>
         <Text style={styles.orderDetails}>
           {count} {count === 1 ? 'item' : 'items'} · {total} · {formatKnownDate(order?.created_at)}
