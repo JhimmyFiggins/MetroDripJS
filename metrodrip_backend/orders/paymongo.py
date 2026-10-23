@@ -96,12 +96,12 @@ class PayMongoClient:
         success_url = getattr(
             settings,
             'PAYMONGO_SUCCESS_URL',
-            'https://metrodripjs.onrender.com/payment/return?result=success',
+            'https://metrodripjs-q4ik.onrender.com/payment/return?result=success',
         )
         cancel_url = getattr(
             settings,
             'PAYMONGO_CANCEL_URL',
-            'https://metrodripjs.onrender.com/payment/return?result=cancelled',
+            'https://metrodripjs-q4ik.onrender.com/payment/return?result=cancelled',
         )
         if any(
             urllib.parse.urlparse(url).scheme != 'https'

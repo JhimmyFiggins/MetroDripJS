@@ -281,9 +281,9 @@ PAYMONGO_WEBHOOK_TOLERANCE_SECONDS = int(
 )
 PAYMONGO_WEBHOOK_MAX_BYTES = int(os.environ.get('PAYMONGO_WEBHOOK_MAX_BYTES', '262144'))
 PAYMONGO_SUCCESS_URL = os.environ.get('PAYMONGO_SUCCESS_URL', '').strip() or (
-    'https://metrodripjs.onrender.com/payment/return?result=success'
+    'https://metrodripjs-q4ik.onrender.com/payment/return?result=success'
 )
 PAYMONGO_CANCEL_URL = os.environ.get('PAYMONGO_CANCEL_URL', '').strip() or (
-    'https://metrodripjs.onrender.com/payment/return?result=cancelled'
+    'https://metrodripjs-q4ik.onrender.com/payment/return?result=cancelled'
 )
 CUSTOMER_TOKEN_TTL_SECONDS = int(os.environ.get('CUSTOMER_TOKEN_TTL_SECONDS', '2592000'))

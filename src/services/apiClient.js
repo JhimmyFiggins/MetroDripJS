@@ -65,7 +65,15 @@ export class ApiError extends Error {
 // Forms render `error.message`, so a bare status string hides the real reason a
 // login or checkout was rejected.
 function describeErrorPayload(data) {
-  if (typeof data === 'string') return data.trim() || null;
+  if (typeof data === 'string') {
+    const trimmed = data.trim();
+    if (!trimmed) return null;
+    // Guard: do not leak raw HTML documents (e.g. 500/502 gateway error pages) into UI messages
+    if (trimmed.startsWith('<') || trimmed.toLowerCase().includes('<!doctype html>')) {
+      return null;
+    }
+    return trimmed;
+  }
   if (!data || typeof data !== 'object') return null;
 
   const direct = data.error || data.detail || data.message;

@@ -94,10 +94,10 @@ export default function SignupScreen({ navigation }) {
       if (error instanceof ApiError && error.status > 0) {
         Alert.alert(
           'Sign Up Failed',
-          (error.data && error.data.error) || 'Unable to create account.'
+          error.message || (error.data && error.data.error) || 'Unable to create account.'
         );
       } else {
-        Alert.alert('Error', 'Unable to connect to the server.');
+        Alert.alert('Error', error?.message || 'Unable to connect to the server.');
       }
     } finally {
       setLoading(false);

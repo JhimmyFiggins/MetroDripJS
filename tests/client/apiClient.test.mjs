@@ -145,6 +145,22 @@ test('an empty error body still falls back to a status line', async () => {
   });
 });
 
+test('HTML error documents fall back to a clean status line without leaking markup', async () => {
+  installFetch().respond(() => ({
+    status: 500,
+    text: '<!doctype html><html lang="en"><head><title>Server Error (500)</title></head><body><h1>Server Error (500)</h1><p></p></body></html>',
+  }));
+
+  await assert.rejects(apiFetch('/signup/'), (err) => {
+    assert.ok(err instanceof ApiError);
+    assert.equal(err.status, 500);
+    assert.doesNotMatch(err.message, /<!doctype html>/i);
+    assert.doesNotMatch(err.message, /<title>/i);
+    assert.match(err.message, /Request failed with status 500\./);
+    return true;
+  });
+});
+
 test('DRF field errors are flattened into a message a login form can show', async () => {
   installFetch().reply({ email: ['Enter a valid email address.'] }, 400);
 
