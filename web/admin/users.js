@@ -140,13 +140,37 @@
     ['btn-open-add-user', 'btn-save-user-role', 'btn-reset-password', 'btn-toggle-suspend', 'btn-send-invite', 'btn-submit-add-user']
       .forEach(id => {
         const element = document.getElementById(id);
-        if (element) element.disabled = !writesEnabled || (['btn-save-user-role', 'btn-reset-password', 'btn-toggle-suspend'].includes(id) && !selectedUserId);
+        if (element) {
+          const isDisabled = !writesEnabled || (['btn-save-user-role', 'btn-reset-password', 'btn-toggle-suspend'].includes(id) && !selectedUserId);
+          element.disabled = isDisabled;
+          element.setAttribute('aria-disabled', String(isDisabled));
+          if (isDisabled) {
+            element.setAttribute('disabled', '');
+          } else {
+            element.removeAttribute('disabled');
+          }
+        }
       });
     document.querySelectorAll('#form-invite-staff input, #form-invite-staff select').forEach(control => {
       control.disabled = !writesEnabled;
+      control.setAttribute('aria-disabled', String(!writesEnabled));
+      if (!writesEnabled) {
+        control.setAttribute('disabled', '');
+      } else {
+        control.removeAttribute('disabled');
+      }
     });
     const roleSelect = document.getElementById('detail-user-role');
-    if (roleSelect) roleSelect.disabled = !writesEnabled || !selectedUserId;
+    if (roleSelect) {
+      const isDisabled = !writesEnabled || !selectedUserId;
+      roleSelect.disabled = isDisabled;
+      roleSelect.setAttribute('aria-disabled', String(isDisabled));
+      if (isDisabled) {
+        roleSelect.setAttribute('disabled', '');
+      } else {
+        roleSelect.removeAttribute('disabled');
+      }
+    }
   }
 
   function setTableLoading() {

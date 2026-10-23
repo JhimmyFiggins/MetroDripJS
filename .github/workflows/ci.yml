@@ -89,11 +89,12 @@ jobs:
       - name: Run mocked browser checks
         shell: bash
         run: |
-          npm run dev >"$RUNNER_TEMP/metrodrip-web.log" 2>&1 &
+          python web/dev_server.py 3000 >"$RUNNER_TEMP/metrodrip-web.log" 2>&1 &
           web_pid=$!
           cleanup() {
             kill "$web_pid" 2>/dev/null || true
             wait "$web_pid" 2>/dev/null || true
+            pkill -f "dev_server.py" 2>/dev/null || true
           }
           trap cleanup EXIT
           ready=0
@@ -118,6 +119,8 @@ jobs:
       - name: Run browser-to-Django integration checks
         shell: bash
         run: |
+          pkill -f "dev_server.py" 2>/dev/null || true
+          pkill -f "manage.py runserver" 2>/dev/null || true
           export QA_MANAGE_SERVERS=1
           export QA_PYTHON=python
           export QA_DATABASE_URL="$DATABASE_URL"

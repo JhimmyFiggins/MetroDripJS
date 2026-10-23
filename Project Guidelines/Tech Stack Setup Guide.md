@@ -188,7 +188,7 @@ EXPO_PUBLIC_API_URL=http://10.0.2.2:8000
 
 | Command | Description |
 | --- | --- |
-| `npm run dev` | Start the local console server on port 3000; set `BACKEND_URL=http://127.0.0.1:8000` explicitly until the unsafe remote default is repaired |
+| `npm run dev` | Start the local console server on `127.0.0.1:3000`. It proxies API calls to `BACKEND_URL`, which defaults to `http://127.0.0.1:8000`. Open the customer shop at `http://127.0.0.1:8000/customer/` when Django is running, or through the dev server at `http://127.0.0.1:3000/customer/`. |
 | `npm start` | Start Metro bundler |
 | `npm run android` | Build the native Android app with `expo run:android` and deploy it to a connected emulator/device |
 | `npm run android:run` | Alias for the same native `expo run:android` build/deploy command |
@@ -243,7 +243,7 @@ $env:BACKEND_URL = "http://127.0.0.1:8000"
 npm run dev
 ```
 
-On Bash, run `BACKEND_URL=http://127.0.0.1:8000 npm run dev`. Set the backend explicitly until `web/dev_server.py` is repaired; its current fallback points to a public Render backend and must not receive local credentials by accident.
+On Bash, run `npm run dev`. The dev server binds to `127.0.0.1` and defaults `BACKEND_URL` to `http://127.0.0.1:8000`. Set `BACKEND_URL` only when the API is intentionally on another local origin. Do not point it at a public backend with local credentials.
 
 Open:
 

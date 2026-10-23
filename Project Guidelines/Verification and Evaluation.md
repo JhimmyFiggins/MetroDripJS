@@ -6,6 +6,21 @@
 
 **Evidence rule:** An executed unit/mock/SQLite/static check is labeled separately from PostgreSQL, native-device, PayMongo, and Render evidence.
 
+## Customer website evidence — 2026-10-20
+
+Executed on disposable SQLite with PayMongo secrets empty unless a test set them. The active virtualenv was missing pinned `whitenoise==6.12.0`; the Django commands below passed only after that pinned package was placed on a temporary `PYTHONPATH`. That is an environment gap, not a customer-route assertion failure.
+
+| Check | Result |
+|---|---|
+| `node --test tests/client/customerWeb.test.mjs` | PASS, 6/6 |
+| `python manage.py test orders.tests_customer_contracts metrodrip_backend.tests_console_views orders.tests_transitions_and_snapshots` | PASS, 18/18 with temporary WhiteNoise import path |
+| `python manage.py test orders.tests_payments.HostedCheckoutAPITest` | PASS, 26/26 with the same import path and explicit test allowlist |
+| Browser layout/accessibility at 320/390/768/1280/1440, light/dark | UNVERIFIED |
+| Live Figma screenshot comparison | UNVERIFIED; no design connector returned frames |
+| PostgreSQL checkout concurrency for this change | UNVERIFIED; no PostgreSQL executable in the session |
+| PayMongo sandbox redirect/webhook | UNVERIFIED |
+| Full `npm run test:client` and staff browser suite | Not rerun in this change |
+
 ## Current implementation verification matrix
 
 | ID | Requirement / risk | Required check and positive result | Negative/failure case | Status |

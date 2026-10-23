@@ -162,3 +162,22 @@ Skeletons reserve final geometry and use reduced-motion behavior. Empty states e
 | **Mobile Adaptive Capability Selector** | `mobile/Checkout/src/screens/CheckoutScreen.jsx`, `PaymentOption.jsx` | Dynamic discovery via `GET /api/payments/capabilities/`; 12px radius cards; `#F7FBE8` tint selected fill with 2px `#141414` border; 20px radio with 9px `#D3EE42` center dot; 0.48 opacity degraded rail with "Unavailable" badge; 50px `#D3EE42` CTA button. |
 | **Privileged Staff Action Step-Up Modal** | `web/merchant/orders.html`, `orders.js` | Accessible cancellation confirmation dialog; `rgba(20,20,20,0.65)` backdrop blur; `#C2282D` destructive button; `#F2F2EF` cancel button; keyboard trap and focus restoration. |
 | **Responsive Viewports Audit** | `tests/browser/run-console-layout.mjs` | **64 / 64 checks passed** in Headless Chrome 154 across 16 routes at 320px, 390px, 768px, and 1280px with zero horizontal scroll overflow. |
+
+## 7. Customer website — 2026-10-20
+
+The browser shop is `web/customer/`. It uses the approved Volt `#D3EE42`, Ink `#141414`, Paper `#F2F2EF`, Anton/Inter/IBM Plex Mono direction, semantic landmarks, visible focus, 44px targets, and a light/dark token switch. Live Figma frame screenshots were not available in the implementation session, so pixel fidelity to nodes such as Home `6:2`, Shop `8:2`, Product `9:2`, Cart `10:2`, and Checkout `11:2` is **UNVERIFIED**. The table below records route and behavior coverage, not a visual sign-off.
+
+| Priority | Supplied Figma anchor | Browser route | Outcome |
+|---|---|---|---|
+| P0 | Home `6:2` | `/customer/` | Server categories and newest products. No sample catalog. |
+| P0 | Shop `8:2` | `/customer/shop` | Server search, category, attribute filters, and supported sorts. Empty and error states. No fake page count. |
+| P0 | Product `9:2` | `/customer/products/{id}` | Real variant ids, stock, price adjustment, reviews, wishlist. Missing attributes are not invented. |
+| P0 | Cart `10:2`, empty `611:4319` | `/customer/cart` | Variant quantities, removal, stock recheck. Draft expires after 12 hours. |
+| P0 | Checkout `11:2` | `/customer/checkout` | Auth gate, server zones, allowlisted payment methods, server total. |
+| P0 | COD / confirmation | `/customer/orders/{id}` | COD stays due on delivery. Redirect is not paid. |
+| P0 | Sign in `13:2`, create account `611:4005` | `/customer/sign-in`, `/customer/sign-up` | Customer role only. Signup does not create a session. |
+| P1 | Account, orders, wishlist, notifications | `/customer/account`, `/orders`, `/wishlist`, `/notifications` | Owned API records only. |
+| P1 | My reviews `611:3885` | `/customer/reviews` | Account-wide list is deferred; product reviews stay on the product page. |
+| P1 | Hosted GCash/Maya/card | Checkout redirect | Shown only when capabilities mark the rail available. URL must be `https://checkout.paymongo.com`. |
+| P2 | Support `13:82`, team `46:2` | `/customer/support`, `/customer/team` | No fake form success or unpublished staff biographies. |
+| P2 | Forgot password | `/customer/forgot-password` | Unavailable. No reset email is sent. |

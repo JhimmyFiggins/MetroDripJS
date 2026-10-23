@@ -10,12 +10,13 @@
 
 ## 1. System context
 
-MetroDrip uses an Expo/React Native customer application and responsive merchant/admin web consoles. The active implementation path is the Django project in `metrodrip_backend/`: identity, catalog, orders/payments, fulfillment, content, and staff APIs deploy in one process. Local development defaults to SQLite. Fresh migration, legacy-shaped upgrade, rollback boundaries, backup/restore, and critical concurrency were verified on disposable PostgreSQL 16 on 2026-10-13; they were not rerun on PostgreSQL during the 2026-10-19 audit. The connected Render database, deployed commit, PayMongo sandbox, and APK remain **UNVERIFIED**.
+MetroDrip uses an Expo/React Native customer application, a same-origin browser customer shop at `/customer/`, and responsive merchant/admin web consoles. The active implementation path is the Django project in `metrodrip_backend/`: identity, catalog, orders/payments, fulfillment, content, and staff APIs deploy in one process. Local development defaults to SQLite. Fresh migration, legacy-shaped upgrade, rollback boundaries, backup/restore, and critical concurrency were verified on disposable PostgreSQL 16 on 2026-10-13; they were not rerun on PostgreSQL during the 2026-10-19 audit. The connected Render database, deployed commit, PayMongo sandbox, and APK remain **UNVERIFIED**.
 
 The diagram below is the **target**, not the current Blueprint behavior:
 
 ```text
 Customer app ─────────────┐
+Customer website /customer ┤
 Merchant console ─────────┼── HTTPS ──> Render Free web service
 Admin console ────────────┘               Django + DRF
                                               │

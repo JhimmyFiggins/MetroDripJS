@@ -17,6 +17,7 @@ from catalog.models import (
     CatalogCategory,
     InventoryStockEntry,
     InventoryStockMovement,
+    CatalogProductMedia,
 )
 from orders.models import (
     OrdersOrder,
@@ -39,6 +40,32 @@ def _parse_boolean(value):
     if isinstance(value, bool):
         return value
     raise ValueError('must be a boolean')
+
+
+def _detect_image_mime(file_obj):
+    """
+    Zero-dependency magic byte validation for JPEG, PNG, and WebP.
+    Rejects SVGs, HTML, script polyglots, executable headers, and corrupt files.
+    """
+    initial_pos = file_obj.tell() if hasattr(file_obj, 'tell') else 0
+    header = file_obj.read(16)
+    if hasattr(file_obj, 'seek'):
+        file_obj.seek(initial_pos)
+
+    if len(header) < 12:
+        return None
+
+    # JPEG starts with FF D8 FF
+    if header.startswith(b'\xff\xd8\xff'):
+        return 'image/jpeg'
+    # PNG starts with 89 50 4E 47 0D 0A 1A 0A
+    if header.startswith(b'\x89PNG\r\n\x1a\n'):
+        return 'image/png'
+    # WebP: 'RIFF' at 0..4 and 'WEBP' at 8..12
+    if header.startswith(b'RIFF') and header[8:12] == b'WEBP':
+        return 'image/webp'
+
+    return None
 
 
 class MerchantDashboardAPIView(MerchantAPIView):
@@ -109,18 +136,24 @@ class MerchantDashboardAPIView(MerchantAPIView):
 
 class MerchantProductsAPIView(MerchantAPIView):
     def get(self, request):
-        products = CatalogProduct.objects.all().select_related('category').prefetch_related('variants', 'stock_entries')
+        products = CatalogProduct.objects.all().select_related('category').prefetch_related('variants', 'stock_entries', 'media')
         data = []
         for p in products:
             total_stock = sum(e.quantity for e in p.stock_entries.all())
+            reserved_stock = sum(e.reserved_quantity for e in p.stock_entries.all())
+            available_stock = sum(max(0, e.quantity - e.reserved_quantity) for e in p.stock_entries.all())
             variant_count = p.variants.count()
             data.append({
                 'id': p.id,
                 'name': p.name,
                 'category': p.category.name if p.category else None,
                 'sku': p.sku,
+                'image_url': p.image_url or '',
                 'variants_count': variant_count,
                 'stock': total_stock,
+                'total_stock': total_stock,
+                'reserved_stock': reserved_stock,
+                'available_stock': available_stock,
                 'price': int(p.base_price),
                 'price_formatted': f"₱{int(p.base_price):,}",
                 'is_active': p.is_active,
@@ -234,20 +267,39 @@ class MerchantProductsAPIView(MerchantAPIView):
 class MerchantProductDetailAPIView(MerchantAPIView):
     def get(self, request, pk):
         try:
-            product = CatalogProduct.objects.select_related('category').prefetch_related('variants', 'stock_entries').get(pk=pk)
+            product = CatalogProduct.objects.select_related('category').prefetch_related('variants', 'stock_entries', 'media').get(pk=pk)
         except CatalogProduct.DoesNotExist:
             return Response({'error': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         total_stock = sum(e.quantity for e in product.stock_entries.all())
+        reserved_stock = sum(e.reserved_quantity for e in product.stock_entries.all())
+        available_stock = sum(max(0, e.quantity - e.reserved_quantity) for e in product.stock_entries.all())
+        media_list = [
+            {
+                'id': m.id,
+                'url': m.url,
+                'alt_text': m.alt_text,
+                'sort_order': m.sort_order,
+                'is_primary': m.is_primary,
+                'mime_type': m.mime_type,
+                'byte_size': m.byte_size,
+            }
+            for m in product.media.all().order_by('sort_order', 'id')
+        ]
         return Response({
             'id': product.id,
             'name': product.name,
             'sku': product.sku,
+            'image_url': product.image_url or '',
+            'media': media_list,
             'category': product.category.name if product.category else None,
             'category_id': product.category.id if product.category else None,
             'price': int(product.base_price),
             'price_formatted': f"₱{int(product.base_price):,}",
             'stock': total_stock,
+            'total_stock': total_stock,
+            'reserved_stock': reserved_stock,
+            'available_stock': available_stock,
             'is_active': product.is_active,
             'status': 'Active' if product.is_active else 'Inactive',
             'description': product.description or '',
@@ -387,15 +439,37 @@ class MerchantProductDetailAPIView(MerchantAPIView):
                         reason='manual_adjustment',
                     )
 
-        total_stock = sum(e.quantity for e in InventoryStockEntry.objects.filter(product=product))
+        product.refresh_from_db()
+        stock_entries = list(product.stock_entries.all())
+        total_stock = sum(e.quantity for e in stock_entries)
+        reserved_stock = sum(e.reserved_quantity for e in stock_entries)
+        available_stock = sum(max(0, e.quantity - e.reserved_quantity) for e in stock_entries)
+        media_list = [
+            {
+                'id': m.id,
+                'url': m.url,
+                'alt_text': m.alt_text,
+                'sort_order': m.sort_order,
+                'is_primary': m.is_primary,
+                'mime_type': m.mime_type,
+                'byte_size': m.byte_size,
+            }
+            for m in product.media.all().order_by('sort_order', 'id')
+        ]
         return Response({
             'id': product.id,
             'name': product.name,
             'sku': product.sku,
+            'image_url': product.image_url or '',
+            'media': media_list,
             'category': product.category.name if product.category else None,
+            'category_id': product.category.id if product.category else None,
             'price': int(product.base_price),
             'price_formatted': f"₱{int(product.base_price):,}",
             'stock': total_stock,
+            'total_stock': total_stock,
+            'reserved_stock': reserved_stock,
+            'available_stock': available_stock,
             'is_active': product.is_active,
             'status': 'Active' if product.is_active else 'Inactive',
             'description': product.description or '',
@@ -409,6 +483,182 @@ class MerchantProductDetailAPIView(MerchantAPIView):
             return Response({'message': f'Product #{pk} deactivated successfully.'})
         except CatalogProduct.DoesNotExist:
             return Response({'error': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class MerchantProductMediaAPIView(MerchantAPIView):
+    def get(self, request, pk):
+        try:
+            product = CatalogProduct.objects.get(pk=pk)
+        except CatalogProduct.DoesNotExist:
+            return Response({'error': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        media_items = product.media.all().order_by('sort_order', 'id')
+        data = [
+            {
+                'id': m.id,
+                'url': m.url,
+                'alt_text': m.alt_text,
+                'sort_order': m.sort_order,
+                'is_primary': m.is_primary,
+                'mime_type': m.mime_type,
+                'byte_size': m.byte_size,
+                'created_at': m.created_at,
+            }
+            for m in media_items
+        ]
+        return Response(data)
+
+    def post(self, request, pk):
+        try:
+            product = CatalogProduct.objects.get(pk=pk)
+        except CatalogProduct.DoesNotExist:
+            return Response({'error': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if product.media.count() >= 12:
+            return Response({'error': 'Maximum of 12 images allowed per product.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        file = request.FILES.get('file') or request.FILES.get('image')
+        if not file:
+            return Response({'error': 'An image file is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if file.size > 8 * 1024 * 1024:
+            return Response({'error': 'Image file size exceeds the 8 MiB limit.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        mime_type = _detect_image_mime(file)
+        if not mime_type:
+            return Response(
+                {'error': 'Invalid image format. Only JPG, PNG, and WebP images are permitted.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        alt_text = request.data.get('alt_text', '')
+        if not isinstance(alt_text, str):
+            alt_text = ''
+        alt_text = alt_text.strip()[:255]
+
+        req_is_primary = request.data.get('is_primary')
+        is_primary = (req_is_primary in (True, 'true', 'True', '1', 1)) or (product.media.count() == 0)
+
+        sort_order_raw = request.data.get('sort_order')
+        try:
+            sort_order = int(sort_order_raw) if sort_order_raw is not None else product.media.count()
+        except (ValueError, TypeError):
+            sort_order = product.media.count()
+
+        with transaction.atomic():
+            if is_primary:
+                product.media.filter(is_primary=True).update(is_primary=False)
+
+            media = CatalogProductMedia.objects.create(
+                product=product,
+                file=file,
+                alt_text=alt_text,
+                sort_order=sort_order,
+                is_primary=is_primary,
+                mime_type=mime_type,
+                byte_size=file.size,
+            )
+
+            if is_primary:
+                product.image_url = media.url
+                product.updated_at = timezone.now()
+                product.save(update_fields=['image_url', 'updated_at'])
+
+        return Response({
+            'id': media.id,
+            'url': media.url,
+            'alt_text': media.alt_text,
+            'sort_order': media.sort_order,
+            'is_primary': media.is_primary,
+            'mime_type': media.mime_type,
+            'byte_size': media.byte_size,
+            'created_at': media.created_at,
+        }, status=status.HTTP_201_CREATED)
+
+
+class MerchantProductMediaDetailAPIView(MerchantAPIView):
+    def patch(self, request, pk, media_id):
+        try:
+            product = CatalogProduct.objects.get(pk=pk)
+            media = CatalogProductMedia.objects.get(product=product, id=media_id)
+        except (CatalogProduct.DoesNotExist, CatalogProductMedia.DoesNotExist):
+            return Response({'error': 'Media item not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        data = request.data
+        with transaction.atomic():
+            if 'alt_text' in data:
+                alt = data['alt_text']
+                media.alt_text = str(alt).strip()[:255] if alt else ''
+
+            if 'sort_order' in data:
+                try:
+                    media.sort_order = max(0, int(data['sort_order']))
+                except (ValueError, TypeError):
+                    pass
+
+            if 'is_primary' in data:
+                make_primary = data['is_primary'] in (True, 'true', 'True', '1', 1)
+                if make_primary:
+                    product.media.exclude(id=media.id).filter(is_primary=True).update(is_primary=False)
+                    media.is_primary = True
+                    product.image_url = media.url
+                    product.updated_at = timezone.now()
+                    product.save(update_fields=['image_url', 'updated_at'])
+                else:
+                    if media.is_primary:
+                        media.is_primary = False
+                        other_media = product.media.exclude(id=media.id).order_by('sort_order', 'id').first()
+                        if other_media:
+                            other_media.is_primary = True
+                            other_media.save(update_fields=['is_primary'])
+                            product.image_url = other_media.url
+                        else:
+                            product.image_url = ''
+                        product.updated_at = timezone.now()
+                        product.save(update_fields=['image_url', 'updated_at'])
+
+            media.updated_at = timezone.now()
+            media.save()
+
+        return Response({
+            'id': media.id,
+            'url': media.url,
+            'alt_text': media.alt_text,
+            'sort_order': media.sort_order,
+            'is_primary': media.is_primary,
+            'mime_type': media.mime_type,
+            'byte_size': media.byte_size,
+        })
+
+    def delete(self, request, pk, media_id):
+        try:
+            product = CatalogProduct.objects.get(pk=pk)
+            media = CatalogProductMedia.objects.get(product=product, id=media_id)
+        except (CatalogProduct.DoesNotExist, CatalogProductMedia.DoesNotExist):
+            return Response({'error': 'Media item not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        was_primary = media.is_primary
+        with transaction.atomic():
+            try:
+                if media.file:
+                    media.file.delete(save=False)
+            except Exception:
+                pass
+
+            media.delete()
+
+            if was_primary:
+                next_media = product.media.order_by('sort_order', 'id').first()
+                if next_media:
+                    next_media.is_primary = True
+                    next_media.save(update_fields=['is_primary'])
+                    product.image_url = next_media.url
+                else:
+                    product.image_url = ''
+                product.updated_at = timezone.now()
+                product.save(update_fields=['image_url', 'updated_at'])
+
+        return Response({'message': 'Media removed successfully.'}, status=status.HTTP_200_OK)
 
 
 class MerchantCategoriesAPIView(MerchantAPIView):

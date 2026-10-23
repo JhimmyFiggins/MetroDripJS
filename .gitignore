@@ -10,6 +10,7 @@ __pycache__/
 .venv/
 venv/
 metrodrip_backend/staticfiles/
+metrodrip_backend/media/
 
 # Expo
 .expo/

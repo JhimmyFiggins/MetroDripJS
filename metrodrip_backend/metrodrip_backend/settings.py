@@ -222,6 +222,8 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = Path(os.environ.get('DJANGO_STATIC_ROOT', BASE_DIR / 'staticfiles'))
+MEDIA_URL = '/media/'
+MEDIA_ROOT = Path(os.environ.get('DJANGO_MEDIA_ROOT', BASE_DIR / 'media'))
 STORAGES = {
     'default': {
         'BACKEND': 'django.core.files.storage.FileSystemStorage',
@@ -270,6 +272,9 @@ else:
 PAYMONGO_SECRET_KEY = os.environ.get('PAYMONGO_SECRET_KEY', '')
 PAYMONGO_WEBHOOK_SECRET = os.environ.get('PAYMONGO_WEBHOOK_SECRET', '')
 PAYMONGO_MODE = os.environ.get('PAYMONGO_MODE', 'test').lower()
+# Explicit hosted-rail allowlist. Empty disables GCash, Maya, and card even
+# when PayMongo secrets are present. Example: gcash,maya,card
+PAYMONGO_ENABLED_METHODS = os.environ.get('PAYMONGO_ENABLED_METHODS', '')
 PAYMONGO_TIMEOUT_SECONDS = int(os.environ.get('PAYMONGO_TIMEOUT_SECONDS', '8'))
 PAYMONGO_WEBHOOK_TOLERANCE_SECONDS = int(
     os.environ.get('PAYMONGO_WEBHOOK_TOLERANCE_SECONDS', '300')

@@ -27,6 +27,16 @@ These decisions supersede conflicting production-topology and payment-exclusion 
 | **ADR-13: Expand/backfill/cutover/contract** | Consolidating multiple service schemas and a legacy monolith in one destructive migration would be hard to validate and roll back. | Use additive schema changes, resumable provenance-backed backfill, compatibility reads/routes, explicit validation, staged cutover, and later contract cleanup. | Temporary schema/code complexity is accepted to preserve rollback and legacy clients. Destructive cleanup needs separate authorization. | Approved |
 | **Proposed ADR-14: Academic demo release profile** | The project must demonstrate the integrated system without subscriptions, while Render Free PostgreSQL expires and app-store distribution is not required. Alternatives are a scheduled Render database, a longer-lived free external PostgreSQL provider, or paid production infrastructure. | Recommend one Django origin, a synthetic single-store dataset, Render Free PostgreSQL created inside a scheduled demo window, PayMongo test mode, and a directly installed EAS internal APK. Choose Neon Free only if continuous availability beyond 30 days is required and its external connection passes acceptance. | This is not production architecture. Database expiry, cold start, free quotas, manual recovery, and direct APK distribution must be stated during evaluation. | Proposed; owner must select database profile before implementation |
 
+### ADR-15: Customer website packaging — 2026-10-20
+
+| Field | Record |
+|---|---|
+| Status | Accepted for local implementation; release remains HOLD |
+| Context | The customer shop must share Django APIs and avoid colliding with unprefixed routes such as `/products/` and `/orders/`. Expo's package `main` is `index.js`, so a root `index.web.js` does not replace the native entry. `expo export` also deletes its output directory and is not a safe writer into `web/`. |
+| Decision | Serve a browser-native customer UI from `web/customer/` at `/customer/` through the existing Django console file view. Reuse installed fonts/tokens and same-origin fetch. Do not add a router, bundler, or styling framework. Keep the bearer token in memory. Allow a 12-hour sessionStorage cart draft of variant ids and quantities only. |
+| Alternatives | Dedicated Expo web project; React DOM entry behind a new bundler; putting customer routes on `/shop` or `/products/{id}`. Rejected because of native-entry collision, new dependencies, or API shadowing. |
+| Consequences | Deep links refresh through the SPA shell. Online rails stay off until `PAYMONGO_ENABLED_METHODS` names them. Live Figma frame inspection was not available in this session, so visual fidelity to the Figma file is UNVERIFIED. Deployment, PostgreSQL, and PayMongo sandbox remain separate gates. |
+
 ### Payment/provider rationale
 
 Hosted Checkout is the approved integration surface because PayMongo owns the sensitive payment-entry UI and returns a hosted HTTPS action while MetroDrip retains authoritative orders, totals, idempotency, and payment state. The server stores provider references, the hosted action, and minimal event evidence, not payment credentials. The current UI consumes `GET /api/payments/capabilities/`; an unavailable or unknown online method fails closed and is not silently changed to COD.

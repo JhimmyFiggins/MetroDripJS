@@ -4,9 +4,9 @@
 
 **Active runtime:** One Django/DRF application in `metrodrip_backend/`. Local development defaults to SQLite. The intended academic deployment connects the same application and packaged staff consoles to one no-cost PostgreSQL database through one HTTPS origin.
 
-**Payment scope:** COD plus PayMongo Hosted Checkout for GCash, Maya, and cards with dynamic capability discovery
+**Payment scope:** COD plus PayMongo Hosted Checkout for GCash, Maya, and cards. Hosted rails are offered only when explicitly allowlisted and provider configuration is present.
 
-**Updated:** 2026-10-19
+**Updated:** 2026-10-20
 
 **Release status:** ACADEMIC DEMO HOLD and PRODUCTION HOLD
 
@@ -173,6 +173,13 @@ Checkout locks stock rows, creates the order/address/line/payment/reservation re
 | `payment_webhook` | `300/min` | `POST /api/payments/paymongo/webhook/` |
 
 All listed scopes use `DatabaseScopedRateThrottle`: an atomic fixed-window counter shared through the configured database across Gunicorn workers. The database stores a SHA-256 digest of the DRF identity key, not the raw user/IP key. Prune inactive identities with `python manage.py prune_rate_limit_buckets`; app-level limits do not replace provider or edge protection against volumetric traffic.
+
+## Customer browser contract — 2026-10-20
+
+- The customer website is `web/customer/`, served by Django at `/customer/`. Extensionless paths such as `/customer/shop` and `/customer/products/12` return `web/customer/index.html`. This namespace does not replace `/products/`, `/orders/`, `/login/`, or staff console routes.
+- `GET /api/shipping-zones/` is public and read-only. It returns `{ "currency": "PHP", "zones": [{ "id", "name", "fee" }] }` for `is_active=True` rows. `fee` is the stored whole-peso integer rendered as a two-decimal string. Checkout still selects an active zone by `delivery_zone` name and calculates shipping itself.
+- Hosted payment availability is fail-closed. `provider_ready` means PayMongo mode is `test` or `live` and both server secrets are present. A hosted method is `available` only when `provider_ready` is true and its id is in `PAYMONGO_ENABLED_METHODS` (`gcash`, `maya`, `card`; `paymaya` maps to `maya`). An empty allowlist leaves GCash, Maya, and card unavailable even if secrets exist.
+- A new online checkout whose method is unavailable returns `422 payment_method_unavailable` before an order or stock hold is created. Constructing the PayMongo client after an allowed checkout raises a checkout error instead of an uncaught 500.
 
 ## 7. Fail-closed capabilities
 

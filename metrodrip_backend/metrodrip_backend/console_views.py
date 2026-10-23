@@ -6,7 +6,7 @@ from django.http import FileResponse, Http404
 from django.views.decorators.http import require_safe
 
 
-_PUBLIC_PREFIXES = frozenset({'Registration', 'admin', 'assets', 'css', 'js', 'merchant'})
+_PUBLIC_PREFIXES = frozenset({'Registration', 'admin', 'assets', 'css', 'js', 'merchant', 'customer'})
 _PUBLIC_SUFFIXES = frozenset({'.css', '.html', '.ico', '.js', '.png', '.svg'})
 _CLEAN_PATH_ALIASES = {
     'admin/account/settings': 'admin/account-settings.html',
@@ -34,6 +34,13 @@ def _public_relative_path(requested_path):
     relative_path = PurePosixPath(normalized_path)
     if relative_path.parts[0] not in _PUBLIC_PREFIXES:
         raise Http404
+
+    if relative_path.parts[0] == 'customer':
+        if not relative_path.suffix:
+            return PurePosixPath('customer/index.html')
+        if relative_path.suffix.lower() not in _PUBLIC_SUFFIXES:
+            raise Http404
+        return relative_path
 
     alias = _CLEAN_PATH_ALIASES.get(normalized_path)
     if alias:

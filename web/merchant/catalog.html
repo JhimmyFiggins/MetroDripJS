@@ -330,6 +330,16 @@
             <label class="form-label" for="add-prod-desc">Description</label>
             <textarea class="form-textarea" id="add-prod-desc" name="description" rows="2" placeholder="Fabric, fit details and care instructions..."></textarea>
           </div>
+          <div class="form-group">
+            <label class="form-label" for="add-prod-media">Product Image (optional)</label>
+            <input class="form-input" id="add-prod-media" name="file" type="file" accept="image/jpeg,image/png,image/webp">
+            <span class="form-label" style="text-transform: none; font-size: 11px; color: var(--color-muted); margin-top: 4px;">
+              JPG, PNG, or WebP up to 8 MiB.
+            </span>
+            <div id="add-prod-media-preview" style="margin-top: 8px; display: none;">
+              <img id="add-prod-media-img" src="" alt="Selected product image preview" style="max-height: 90px; border-radius: 6px; border: 1px solid var(--color-border); object-fit: contain;">
+            </div>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" id="btn-cancel-product-modal">Cancel</button>
@@ -462,6 +472,19 @@
           <div class="form-group">
             <label class="form-label" for="edit-prod-desc">Description</label>
             <textarea class="form-textarea" id="edit-prod-desc" name="description" rows="2" placeholder="Fabric, fit details and care instructions..."></textarea>
+          </div>
+          <div class="form-group" style="margin-top: 12px; border-top: 1px solid var(--color-border); padding-top: 12px;">
+            <label class="form-label" id="label-edit-prod-media">Product Media & Gallery</label>
+            <div id="edit-prod-media-container" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;" aria-labelledby="label-edit-prod-media">
+              <div id="edit-prod-gallery-grid" style="display: flex; flex-wrap: wrap; gap: 10px; min-height: 48px; align-items: center;">
+                <!-- Media thumbnails rendered by merchant.js -->
+              </div>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+              <input type="file" id="edit-prod-file-input" accept="image/jpeg,image/png,image/webp" style="display: none;" aria-label="Upload product image">
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-upload-product-image">+ Upload Image</button>
+              <span id="edit-prod-upload-status" style="font-size: 11px; color: var(--color-muted);">Max 12 images, 8 MiB each (JPG, PNG, WebP)</span>
+            </div>
           </div>
         </div>
         <div class="modal-footer">
