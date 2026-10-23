@@ -1,9 +1,11 @@
-import { api, ApiError, setAuthToken } from './api.js';
+import { api, ApiError, getAuthSnapshot, isAuthCurrent, setAuthToken } from './api.js';
 import {
   CART_STORAGE_KEY,
+  CHECKOUT_ATTEMPT_KEY,
   MAX_QUANTITY,
   THEME_STORAGE_KEY,
   buildCheckoutPayload,
+  cartFingerprint,
   cartRecord,
   customerHref,
   formatCentavos,
@@ -11,6 +13,7 @@ import {
   normalizeCapabilities,
   normalizeCart,
   parseCustomerPath,
+  purchasableStock,
   safeCustomerPath,
   toCentavos,
   trustedCheckoutUrl,
@@ -25,7 +28,7 @@ const menuButton = document.querySelector('#menu-button');
 const themeButton = document.querySelector('#theme-toggle');
 const cartCountNode = document.querySelector('#cart-count');
 const accountLink = document.querySelector('#account-link');
-const unreadNode = document.querySelector('#unread-count');
+const unreadNodes = () => document.querySelectorAll('[data-unread-count]');
 const searchForm = document.querySelector('#header-search');
 
 const state = {
@@ -33,6 +36,81 @@ const state = {
   cart: [],
   attempt: null,
 };
+let navigationGeneration = 0;
+let loginGeneration = 0;
+
+function viewSnapshot() {
+  return { auth: getAuthSnapshot(), navigation: navigationGeneration };
+}
+
+function isCurrent(scope) {
+  return scope.navigation === navigationGeneration && isAuthCurrent(scope.auth);
+}
+
+function clearAttempt() {
+  state.attempt = null;
+  try {
+    sessionStorage.removeItem(CHECKOUT_ATTEMPT_KEY);
+  } catch {
+    /* storage is optional for recovery */
+  }
+}
+
+function rememberAttempt(attempt) {
+  state.attempt = attempt;
+  try {
+    sessionStorage.setItem(CHECKOUT_ATTEMPT_KEY, JSON.stringify({
+      key: attempt.key,
+      fingerprint: attempt.fingerprint,
+    }));
+  } catch {
+    announce('This browser did not keep the checkout retry key. Do not refresh during submission.');
+  }
+}
+
+function storedAttempt() {
+  try {
+    const raw = JSON.parse(sessionStorage.getItem(CHECKOUT_ATTEMPT_KEY) || 'null');
+    if (raw && typeof raw.key === 'string' && typeof raw.fingerprint === 'string') return raw;
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function changeSession(session, token = null) {
+  setAuthToken(token, () => {
+    changeSession(null);
+    render();
+    announce('Your session expired. Please sign in again.');
+  });
+  state.session = session;
+  clearAttempt();
+  app.replaceChildren();
+  paintChrome();
+}
+
+async function request(path, options, scope) {
+  if (!isCurrent(scope)) throw new Error('This view is no longer current.');
+  const data = await api(path, { ...options, authSnapshot: scope.auth });
+  if (!isCurrent(scope)) throw new Error('This view is no longer current.');
+  return data;
+}
+
+async function runAction(scope, control, action) {
+  if (!isCurrent(scope) || control.disabled) return;
+  control.disabled = true;
+  control.setAttribute('aria-busy', 'true');
+  try {
+    await action();
+  } catch (error) {
+    if (isCurrent(scope)) announce(error.message);
+  } finally {
+    // Clean up this action's control, never a control from a newer view.
+    control.disabled = false;
+    control.removeAttribute('aria-busy');
+  }
+}
 
 const pages = {
   home: renderHome,
@@ -82,14 +160,13 @@ function announce(message) {
 
 function errorPanel(error) {
   const status = error instanceof ApiError ? error.status : 0;
-  const title = status === 401 || status === 403 ? 'Sign-in required' : status === 0 ? 'Connection problem' : 'Something went wrong';
+  const title = status === 401 ? 'Sign-in required' : status === 403 ? 'Access denied' : status === 0 ? 'Connection problem' : 'Something went wrong';
   return page(title, error?.message || 'The request failed.', status === 401
     ? el('a', { class: 'btn btn-primary', href: customerHref('/sign-in') }, 'Sign in')
     : el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => render() }, 'Retry'));
 }
 
 function page(title, lede, ...nodes) {
-  document.title = `${title} · MetroDrip customer`;
   return el('section', { class: 'page' }, [
     el('h1', { tabindex: '-1' }, title),
     lede ? el('p', { class: 'lede' }, lede) : null,
@@ -200,32 +277,27 @@ function navigate(path, { replace = false } = {}) {
   render();
 }
 
-async function read(path, options) {
-  try {
-    return await api(path, options);
-  } catch (error) {
-    if (error instanceof ApiError && (error.status === 401 || error.status === 403) && state.session) {
-      setAuthToken(null);
-      state.session = null;
-      paintChrome();
-      announce('Your session expired or this account cannot view that record.');
-    }
-    throw error;
-  }
-}
-
 async function refreshUnread() {
+  const authSnapshot = getAuthSnapshot();
   if (!state.session) {
-    unreadNode.hidden = true;
+    for (const node of unreadNodes()) {
+      node.hidden = true;
+      node.textContent = '';
+    }
     return;
   }
   try {
-    const data = await api('/notifications/');
+    const data = await api('/notifications/', { authSnapshot });
+    if (!isAuthCurrent(authSnapshot)) return;
     const count = Number(data?.unread_count || 0);
-    unreadNode.hidden = count < 1;
-    unreadNode.textContent = String(count);
+    for (const node of unreadNodes()) {
+      node.hidden = count < 1;
+      node.textContent = String(count);
+    }
   } catch {
-    unreadNode.hidden = true;
+    if (isAuthCurrent(authSnapshot)) {
+      for (const node of unreadNodes()) node.hidden = true;
+    }
   }
 }
 
@@ -240,31 +312,31 @@ function signInPanel(nextPath) {
   );
 }
 
-function requireSession(nextPath) {
+function requireSession(nextPath, scope) {
+  if (!isCurrent(scope)) return false;
   if (state.session) return true;
   navigate(`${customerHref('/sign-in')}?next=${encodeURIComponent(nextPath)}`);
   return false;
 }
 
-async function signIn(email, password) {
+async function signIn(email, password, scope) {
+  const generation = ++loginGeneration;
   const data = await api('/login/', { method: 'POST', auth: false, body: { email, password } });
   const token = data.access_token || data.token;
-  if (data.role !== 'customer') {
+  if (!isCurrent(scope) || generation !== loginGeneration || data.role !== 'customer') {
     if (token) {
-      setAuthToken(token);
-      try { await api('/logout/', { method: 'POST' }); } catch { /* revoke best effort */ }
-      setAuthToken(null);
+      try { await api('/logout/', { method: 'POST', authSnapshot: { token } }); } catch { /* unaccepted token: revoke best effort */ }
     }
+    if (!isCurrent(scope) || generation !== loginGeneration) return null;
     throw new Error('This shop accepts customer accounts only. Merchant and admin accounts stay on the staff portal.');
   }
-  setAuthToken(token);
-  state.session = { id: data.id, name: data.name, email: data.email, role: data.role, phone: data.phone || '', addresses: data.addresses };
-  paintChrome();
+  if (!token) throw new Error('Sign-in did not return a customer token. Please try again.');
+  changeSession({ id: data.id, name: data.name, email: data.email, role: data.role, phone: data.phone || '', addresses: data.addresses }, token);
   refreshUnread();
+  return viewSnapshot();
 }
 
 async function renderHome() {
-  document.title = 'MetroDrip customer';
   const [categories, products, heroBanners] = await Promise.all([
     api('/categories/', { auth: false }).catch(() => []),
     api('/products/?sort=newest', { auth: false }).catch(() => []),
@@ -348,7 +420,6 @@ async function renderHome() {
 }
 
 async function renderShop() {
-  document.title = 'Shop · MetroDrip customer';
   const params = new URLSearchParams(location.search);
   const query = new URLSearchParams();
   for (const key of ['search', 'category', 'size', 'color', 'fit', 'sort']) {
@@ -373,9 +444,12 @@ async function renderShop() {
   const form = el('form', { class: 'filters-sidebar', onsubmit: (event) => {
     event.preventDefault();
     const data = new FormData(form);
-    const next = new URLSearchParams();
-    for (const [key, value] of data.entries()) if (String(value).trim()) next.set(key, String(value).trim());
-    navigate(`${customerHref('/shop')}?${next.toString()}`);
+    const next = new URLSearchParams(location.search);
+    for (const key of ['search', 'size', 'color', 'fit']) next.delete(key);
+    for (const [key, value] of data.entries()) {
+      if (['search', 'size', 'color', 'fit'].includes(key) && String(value).trim()) next.set(key, String(value).trim());
+    }
+    navigate(`${customerHref('/shop')}${next.size ? `?${next}` : ''}`);
   } }, [
     el('h2', { class: 'filters-title' }, 'Filters'),
     el('div', { class: 'filter-group' }, [
@@ -402,23 +476,9 @@ async function renderShop() {
       ]),
     ]),
     field('Search keyword', 'search', params.get('search') || ''),
-    selectField('Size', 'size', params.get('size') || '', [
-      ['', 'All sizes'],
-      ['XS', 'XS'],
-      ['S', 'S'],
-      ['M', 'M'],
-      ['L', 'L'],
-      ['XL', 'XL'],
-      ['XXL', 'XXL'],
-    ]),
-    selectField('Fit', 'fit', params.get('fit') || '', [
-      ['', 'All fits'],
-      ['Slim', 'Slim'],
-      ['Regular', 'Regular'],
-      ['Oversized', 'Oversized'],
-      ['Boxy', 'Boxy'],
-    ]),
-    field('Color', 'color', params.get('color') || ''),
+    field('Size attribute', 'size', params.get('size') || '', 'Matches a stored variant size. It does not invent sizes.'),
+    field('Fit attribute', 'fit', params.get('fit') || '', 'Matches a stored fit attribute.'),
+    field('Color', 'color', params.get('color') || '', 'Matches a stored color name.'),
     el('button', { class: 'btn btn-primary btn-full', type: 'submit' }, 'Apply Filters'),
     el('button', { class: 'btn btn-secondary btn-full', type: 'button', onclick: () => navigate(customerHref('/shop')) }, 'Clear filters'),
   ]);
@@ -476,7 +536,7 @@ function selectField(label, name, selected, choices) {
   ]);
 }
 
-async function renderProduct(route) {
+async function renderProduct(route, scope) {
   const [product, variants, reviews] = await Promise.all([
     api(`/products/${route.id}/`, { auth: false }),
     api(`/products/${route.id}/variants/`, { auth: false }),
@@ -488,11 +548,9 @@ async function renderProduct(route) {
   const initial = (product.name || 'M').charAt(0).toUpperCase();
   const categoryName = getCategoryName(product);
 
-  document.title = `${product.name || 'Product'} · MetroDrip customer`;
-
   const stockText = el('p', { class: 'pdp-stock-status' }, 'Select a variant to check stock.');
   const priceText = el('p', { class: 'pdp-price' }, money(product.base_price));
-  const qty = el('input', { class: 'pdp-qty-input', type: 'number', min: '1', max: String(MAX_QUANTITY), value: '1', inputmode: 'numeric' });
+  const qty = el('input', { class: 'pdp-qty-input', type: 'number', min: '1', max: String(MAX_QUANTITY), value: '1', inputmode: 'numeric', 'aria-label': 'Quantity' });
   const add = el('button', { class: 'btn btn-primary pdp-add-btn', type: 'button', disabled: !selected }, `Add to Bag · ${priceText.textContent}`);
   const wish = el('button', { class: 'btn btn-secondary', type: 'button' }, 'Save to wishlist');
 
@@ -505,6 +563,7 @@ async function renderProduct(route) {
   }, variantLabel(variant))));
 
   async function refreshVariant(variant) {
+    if (!isCurrent(scope)) return;
     selected = variant;
     for (const button of variantButtons.querySelectorAll('button')) {
       const active = button.dataset.id === String(variant?.id);
@@ -526,8 +585,9 @@ async function renderProduct(route) {
     stockText.classList.remove('is-low');
     try {
       const rows = await api(`/variants/${variant.id}/stock/`, { auth: false });
+      if (!isCurrent(scope)) return;
       const available = Array.isArray(rows)
-        ? rows.reduce((sum, row) => sum + Number(row.available_stock || 0), 0)
+        ? purchasableStock(rows)
         : 0;
       if (available > 0) {
         if (available <= 5) {
@@ -544,19 +604,22 @@ async function renderProduct(route) {
       qty.max = String(Math.min(MAX_QUANTITY, Math.max(available, 1)));
       add.disabled = available < 1;
     } catch (error) {
+      if (!isCurrent(scope)) return;
       stockText.textContent = error.message;
       add.disabled = true;
     }
   }
 
   add.addEventListener('click', async () => {
+    if (!isCurrent(scope)) return;
     const quantity = Number(qty.value);
     if (!selected || !Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) {
       announce('Enter a quantity from 1 to 5.');
       return;
     }
     const rows = await api(`/variants/${selected.id}/stock/`, { auth: false });
-    const available = Array.isArray(rows) ? rows.reduce((sum, row) => sum + Number(row.available_stock || 0), 0) : 0;
+    if (!isCurrent(scope)) return;
+      const available = purchasableStock(rows);
     const existing = state.cart.find((line) => line.variant_id === selected.id);
     if (quantity + (existing?.quantity || 0) > Math.min(MAX_QUANTITY, available)) {
       announce('That quantity is above the available stock or the 5-item limit.');
@@ -577,14 +640,13 @@ async function renderProduct(route) {
     announce(`${product.name} added to cart.`);
   });
 
-  wish.addEventListener('click', async () => {
-    if (!requireSession(customerHref(`/products/${product.id}`))) return;
-    try {
-      await api('/wishlist/', { method: 'POST', body: { product_ref: product.id } });
+  wish.addEventListener('click', () => {
+    if (!requireSession(customerHref(`/products/${product.id}`), scope)) return;
+    return runAction(scope, wish, async () => {
+      await request('/wishlist/', { method: 'POST', body: { product_ref: product.id } }, scope);
+      if (!isCurrent(scope)) return;
       announce('Saved to your wishlist.');
-    } catch (error) {
-      announce(error.message);
-    }
+    });
   });
 
   if (selected) refreshVariant(selected);
@@ -631,7 +693,7 @@ async function renderProduct(route) {
 
   const infoPanel = el('div', { class: 'pdp-info-panel' }, [
     el('h3', {}, 'Made for everyday movement'),
-    el('p', {}, product.description || 'Heavyweight fleece, garment-dyed streetwear essentials designed in Metro Manila.'),
+    el('p', {}, product.description || 'No description was returned for this product.'),
   ]);
 
   const leftGalleryCol = el('div', { class: 'pdp-gallery-col' }, [mainMedia, galleryThumbnails, infoPanel].filter(Boolean));
@@ -640,8 +702,10 @@ async function renderProduct(route) {
     el('div', { class: 'pdp-cat-tag' }, categoryName),
     el('h1', { class: 'pdp-title' }, product.name || 'Product'),
     priceText,
-    el('div', { class: 'pdp-rating-summary' }, '★★★★★ 4.6 · 23 reviews'),
-    el('p', { class: 'pdp-sku' }, product.sku ? `SKU: ${product.sku}` : 'SKU: MD-001'),
+    el('p', { class: 'pdp-rating-summary' }, reviews?.stats?.count
+      ? `${reviews.stats.average} average from ${reviews.stats.count} approved review${reviews.stats.count === 1 ? '' : 's'}`
+      : 'No approved reviews yet.'),
+    el('p', { class: 'pdp-sku' }, product.sku ? `SKU: ${product.sku}` : 'No SKU returned'),
     el('div', { class: 'pdp-option-group' }, [
       el('span', { class: 'pdp-option-header' }, 'Available Variants'),
       variantButtons,
@@ -653,7 +717,7 @@ async function renderProduct(route) {
 
   const reviewBlock = reviews?.error
     ? notice('error', `Reviews could not be loaded. ${reviews.error.message}`)
-    : reviewSection(product, reviews);
+    : reviewSection(product, reviews, scope);
 
   return el('section', { class: 'page pdp-page' }, [
     breadcrumbs(
@@ -667,23 +731,22 @@ async function renderProduct(route) {
   ]);
 }
 
-function reviewSection(product, payload) {
+function reviewSection(product, payload, scope) {
   const reviews = Array.isArray(payload?.reviews) ? payload.reviews : [];
   const average = payload?.stats?.count ? payload.stats.average : null;
   const form = el('form', { class: 'pdp-info-panel', onsubmit: async (event) => {
     event.preventDefault();
-    if (!requireSession(customerHref(`/products/${product.id}`))) return;
-    const data = new FormData(form);
-    try {
-      await api(`/products/${product.id}/reviews/`, {
+    if (!requireSession(customerHref(`/products/${product.id}`), scope)) return;
+    return runAction(scope, form.querySelector('button[type="submit"]'), async () => {
+      const data = new FormData(form);
+      await request(`/products/${product.id}/reviews/`, {
         method: 'POST',
         body: { rating: Number(data.get('rating')), comment: String(data.get('comment') || '') },
-      });
+      }, scope);
+      if (!isCurrent(scope)) return;
       announce('Review submitted. It appears after the server approves it.');
       render();
-    } catch (error) {
-      announce(error.message);
-    }
+    });
   } }, [
     el('h3', {}, 'Write a review'),
     el('p', { class: 'muted' }, 'A delivered purchase is required. The server decides eligibility.'),
@@ -707,8 +770,7 @@ function reviewSection(product, payload) {
   ]);
 }
 
-async function renderCart() {
-  document.title = 'Your Bag · MetroDrip customer';
+async function renderCart(_route, scope) {
   if (state.cart.length === 0) {
     const node = page('Your bag is empty', 'Add items from our catalog to get started. Your bag draft stays in this browser tab for 12 hours.', el('a', { class: 'btn btn-primary', href: customerHref('/shop') }, 'Browse shop'));
     node.classList.add('cart-page');
@@ -721,7 +783,7 @@ async function renderCart() {
     let stockNote = 'Stock not rechecked';
     try {
       const rows = await api(`/variants/${line.variant_id}/stock/`, { auth: false });
-      const available = Array.isArray(rows) ? rows.reduce((sum, row) => sum + Number(row.available_stock || 0), 0) : 0;
+    const available = purchasableStock(rows);
       stockNote = available >= line.quantity ? `${available} available` : `Only ${available} available now`;
     } catch (error) {
       stockNote = error.message;
@@ -730,7 +792,14 @@ async function renderCart() {
     const priceCents = toCentavos(line.unit_hint?.replace(/[^\d.]/g, '') || '0') || 0;
     subtotalCents += priceCents * line.quantity;
 
-    const qty = el('input', { class: 'pdp-qty-input', type: 'number', min: '1', max: String(MAX_QUANTITY), value: String(line.quantity) });
+    const qty = el('input', {
+      class: 'pdp-qty-input',
+      type: 'number',
+      min: '1',
+      max: String(MAX_QUANTITY),
+      value: String(line.quantity),
+      'aria-label': `Quantity for ${line.name || 'saved item'}`,
+    });
     const initial = (line.name || 'M').charAt(0).toUpperCase();
 
     itemsNodes.push(el('div', { class: 'cart-item-row' }, [
@@ -743,6 +812,7 @@ async function renderCart() {
       el('div', { style: 'display:flex; align-items:center; gap:8px;' }, [
         qty,
         el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => {
+          if (!isCurrent(scope)) return;
           const quantity = Number(qty.value);
           if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) {
             announce('Quantity must be a whole number from 1 to 5.');
@@ -756,6 +826,7 @@ async function renderCart() {
       el('div', { style: 'display:flex; flex-direction:column; align-items:flex-end; gap:6px;' }, [
         el('div', { class: 'cart-item-price' }, line.unit_hint || '₱0'),
         el('button', { style: 'background:none; border:none; color:var(--danger); cursor:pointer; font-size:13px; text-decoration:underline;', type: 'button', onclick: () => {
+          if (!isCurrent(scope)) return;
           state.cart = state.cart.filter((item) => item.variant_id !== line.variant_id);
           saveCart();
           announce('Item removed from your bag.');
@@ -798,13 +869,27 @@ async function renderCart() {
   ]);
 }
 
-async function renderCheckout() {
-  document.title = 'Checkout · MetroDrip customer';
+async function renderCheckout(_route, scope) {
   if (!state.session) return signInPanel(customerHref('/checkout'));
+  const stored = storedAttempt();
+  if (stored) {
+    try {
+      const recovered = await request(`/api/orders/checkout/?idempotency_key=${encodeURIComponent(stored.key)}`, {}, scope);
+      if (recovered.payment_status === 'paid' || recovered.payment_method === 'cod') {
+        state.attempt = stored;
+        retainConfirmed(recovered);
+      }
+      clearAttempt();
+      navigate(customerHref(`/orders/${recovered.id}`), { replace: true });
+      return el('p', {}, 'Opening the recovered order.');
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 404) throw error;
+    }
+  }
   const [zonesPayload, capabilitiesPayload, profile] = await Promise.all([
     api('/api/shipping-zones/', { auth: false }),
     api('/api/payments/capabilities/', { auth: false }).catch((error) => ({ error })),
-    read('/profile/').catch(() => state.session),
+    request('/profile/', {}, scope),
   ]);
   const zones = Array.isArray(zonesPayload?.zones) ? zonesPayload.zones : [];
   const methods = capabilitiesPayload?.error
@@ -812,7 +897,7 @@ async function renderCheckout() {
     : normalizeCapabilities(capabilitiesPayload);
   const saved = profile?.addresses && typeof profile.addresses === 'object' && !Array.isArray(profile.addresses) ? profile.addresses : {};
 
-  const form = el('form', { class: 'checkout-form-card', onsubmit: (event) => submitCheckout(event, form, methods) }, [
+  const form = el('form', { class: 'checkout-form-card', onsubmit: (event) => submitCheckout(event, form, methods, scope) }, [
     capabilitiesPayload?.error ? notice('error', 'Payment options could not be loaded. Online methods stay off.') : null,
     zones.length ? null : notice('error', 'No active delivery zone was returned, so checkout cannot quote shipping.'),
     el('h2', { class: 'checkout-section-title' }, '1. Shipping details'),
@@ -858,7 +943,7 @@ async function renderCheckout() {
       el('span', {}, `${item.name} × ${item.quantity}`),
       el('span', { class: 'mono' }, item.unit_hint || ''),
     ]))),
-    el('p', { class: 'summary-note' }, 'Payment handled securely by PayMongo. GCash, Maya, and cards supported on verified rails.'),
+    el('p', { class: 'summary-note' }, 'Online payment opens only for a rail the server currently marks available.'),
   ]);
 
   return el('section', { class: 'page checkout-page' }, [
@@ -869,9 +954,11 @@ async function renderCheckout() {
   ]);
 }
 
-async function submitCheckout(event, form, methods) {
+async function submitCheckout(event, form, methods, scope) {
   event.preventDefault();
+  if (!requireSession(customerHref('/checkout'), scope)) return;
   const button = form.querySelector('button[type="submit"]');
+  if (button.disabled) return;
   const data = new FormData(form);
   const method = String(data.get('payment_method') || '');
   const selected = methods.find((item) => item.id === method);
@@ -879,26 +966,38 @@ async function submitCheckout(event, form, methods) {
     announce('Choose an enabled payment method.');
     return;
   }
-  if (!state.attempt) state.attempt = { key: newIdempotencyKey() };
-  let payload;
-  try {
-    payload = buildCheckoutPayload({
-      lines: state.cart,
-      address: Object.fromEntries(data.entries()),
-      zoneName: String(data.get('delivery_zone') || ''),
-      method,
-      idempotencyKey: state.attempt.key,
-    });
-  } catch (error) {
-    announce(error.message);
+  const fingerprint = cartFingerprint(state.cart);
+  if (state.attempt?.fingerprint && state.attempt.fingerprint !== fingerprint) {
+    announce('The cart changed after the last checkout attempt. Recover that attempt before starting another.');
     return;
   }
+  if (!state.attempt?.payload) {
+    try {
+      const payload = buildCheckoutPayload({
+        lines: state.cart,
+        address: Object.fromEntries(data.entries()),
+        zoneName: String(data.get('delivery_zone') || ''),
+        method,
+        idempotencyKey: state.attempt?.key || newIdempotencyKey(),
+      });
+      rememberAttempt({ key: payload.idempotency_key, fingerprint, payload });
+    } catch (error) {
+      announce(error.message);
+      return;
+    }
+  }
+  const payload = state.attempt.payload;
   button.disabled = true;
   announce('Submitting checkout…');
   try {
-    const order = await api('/api/orders/checkout/', { method: 'POST', body: payload });
-    state.attempt = null;
-    if (order.payment_status === 'paid' || order.payment_method === 'cod') retainConfirmed(order);
+    const order = await request('/api/orders/checkout/', { method: 'POST', body: payload }, scope);
+    if (!isCurrent(scope)) return;
+    if (order.payment_status === 'paid' || order.payment_method === 'cod') {
+      retainConfirmed(order);
+      clearAttempt();
+    } else {
+      rememberAttempt({ ...state.attempt, orderId: order.id });
+    }
     const action = order.payment_action;
     if (action?.type === 'redirect') {
       if (!trustedCheckoutUrl(action.url)) {
@@ -913,13 +1012,18 @@ async function submitCheckout(event, form, methods) {
     announce(order.payment_method === 'cod' ? 'Order placed. Payment is due on delivery.' : 'Checkout response received.');
     navigate(customerHref(`/orders/${order.id}`));
   } catch (error) {
-    button.disabled = false;
+    if (!isCurrent(scope)) return;
     if (error instanceof ApiError && error.status === 0) {
       announce(`${error.message} Retry will reuse the same checkout key.`);
       return;
     }
-    if (error instanceof ApiError && error.data?.code === 'idempotency_conflict') state.attempt = null;
+    if (error instanceof ApiError && error.data?.code === 'idempotency_conflict' && state.attempt?.key) {
+      announce('That checkout key already belongs to another attempt. It was not replaced with a new order.');
+      return;
+    }
     announce(error.message);
+  } finally {
+    button.disabled = false;
   }
 }
 
@@ -932,10 +1036,9 @@ function retainConfirmed(order) {
   saveCart();
 }
 
-async function renderOrders() {
-  document.title = 'Orders · MetroDrip customer';
+async function renderOrders(_route, scope) {
   if (!state.session) return signInPanel(customerHref('/orders'));
-  const orders = await read('/orders/');
+  const orders = await request('/orders/', {}, scope);
   const list = Array.isArray(orders) ? orders : [];
   if (!list.length) return page('Orders', 'No owned orders were returned. This list shows the latest records that have a payment.', el('a', { class: 'btn btn-primary', href: customerHref('/shop') }, 'Shop collection'));
   return page('Orders', 'Only your orders are returned. Complete payment status and tracking come from the server.', el('div', { class: 'summary-card' }, [
@@ -951,21 +1054,24 @@ async function renderOrders() {
   ]));
 }
 
-async function renderOrder(route) {
-  document.title = `Order #${route.id} · MetroDrip customer`;
+async function renderOrder(route, scope) {
   if (!state.session) return signInPanel(customerHref(`/orders/${route.id}`));
   let order;
   let trackingError = null;
   try {
-    order = await read(`/orders/${route.id}/`);
+    order = await request(`/orders/${route.id}/`, {}, scope);
   } catch (error) {
     return errorPanel(error);
   }
   let tracking = null;
   try {
-    tracking = await read(`/orders/${route.id}/tracking/`);
+    tracking = await request(`/orders/${route.id}/tracking/`, {}, scope);
   } catch (error) {
     trackingError = error;
+  }
+  if ((order.payment_status === 'paid' || order.payment_method === 'cod') && storedAttempt()?.fingerprint === cartFingerprint(state.cart)) {
+    retainConfirmed(order);
+    clearAttempt();
   }
   const action = order.payment_action;
   const canContinue = action?.type === 'redirect' && trustedCheckoutUrl(action.url);
@@ -984,7 +1090,7 @@ async function renderOrder(route) {
       action?.url && !canContinue ? notice('error', 'A payment link was present but rejected because it is not PayMongo hosted checkout.') : null,
       el('div', { style: 'display:flex; gap:10px; margin-top:12px;' }, [
         el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => render() }, 'Refresh status'),
-        canCancel ? el('button', { class: 'btn btn-danger', type: 'button', onclick: () => cancelOrder(route.id) }, 'Cancel unpaid checkout') : null,
+        canCancel ? el('button', { class: 'btn btn-danger', type: 'button', onclick: (event) => cancelOrder(route.id, scope, event.currentTarget) }, 'Cancel unpaid checkout') : null,
       ]),
     ]),
     el('h2', { class: 'section-title', style: 'font-size:24px; margin-bottom:12px;' }, 'Items in order'),
@@ -1006,45 +1112,42 @@ function trackingBlock(tracking) {
   ]);
 }
 
-async function cancelOrder(id) {
-  const confirmed = await openDialog('Cancel this unpaid checkout?', 'Stock stays reserved until the server confirms cancellation.');
-  if (!confirmed) return;
-  try {
-    await api(`/orders/${id}/cancel/`, { method: 'POST', body: {} });
+async function cancelOrder(id, scope, button) {
+  return runAction(scope, button, async () => {
+    const confirmed = await openDialog('Cancel this unpaid checkout?', 'Stock stays reserved until the server confirms cancellation.');
+    if (!confirmed || !isCurrent(scope)) return;
+    await request(`/orders/${id}/cancel/`, { method: 'POST', body: {} }, scope);
+    if (!isCurrent(scope)) return;
     announce('Cancellation request confirmed by the server.');
     render();
-  } catch (error) {
-    announce(error.message);
-  }
+  });
 }
 
-async function renderAccount() {
-  document.title = 'Account · MetroDrip customer';
+async function renderAccount(_route, scope) {
   if (!state.session) return signInPanel(customerHref('/account'));
-  const profile = await read('/profile/');
+  const profile = await request('/profile/', {}, scope);
   const addresses = profile.addresses;
   const addressNote = Array.isArray(addresses)
     ? 'Saved addresses are a list. This page will not rewrite that shape.'
     : 'Profile address text uses the same addresses.address field as the mobile app.';
   const form = el('form', { class: 'summary-card', onsubmit: async (event) => {
     event.preventDefault();
-    const data = new FormData(form);
-    const body = {
-      name: String(data.get('name') || ''),
-      email: String(data.get('email') || ''),
-      phone: String(data.get('phone') || ''),
-    };
-    if (!Array.isArray(addresses)) {
-      const current = addresses && typeof addresses === 'object' ? addresses : {};
-      body.addresses = { ...current, address: String(data.get('address') || '') };
-    }
-    try {
-      await api('/profile/', { method: 'PUT', body });
+    return runAction(scope, form.querySelector('button[type="submit"]'), async () => {
+      const data = new FormData(form);
+      const body = {
+        name: String(data.get('name') || ''),
+        email: String(data.get('email') || ''),
+        phone: String(data.get('phone') || ''),
+      };
+      if (!Array.isArray(addresses)) {
+        const current = addresses && typeof addresses === 'object' ? addresses : {};
+        body.addresses = { ...current, address: String(data.get('address') || '') };
+      }
+      await request('/profile/', { method: 'PUT', body }, scope);
+      if (!isCurrent(scope)) return;
       announce('Profile saved.');
       render();
-    } catch (error) {
-      announce(error.message);
-    }
+    });
   } }, [
     el('h3', { class: 'summary-title' }, 'Customer Profile'),
     field('Name', 'name', profile.name || ''),
@@ -1064,24 +1167,30 @@ async function renderAccount() {
       el('a', { class: 'btn btn-secondary', href: customerHref('/orders') }, 'My Orders'),
       el('a', { class: 'btn btn-secondary', href: customerHref('/wishlist') }, 'Wishlist'),
       el('a', { class: 'btn btn-secondary', href: customerHref('/reviews') }, 'Reviews'),
-      el('button', { class: 'btn btn-danger', type: 'button', onclick: signOut }, 'Sign out'),
+      el('button', { class: 'btn btn-danger', type: 'button', onclick: () => signOut(scope) }, 'Sign out'),
     ]),
   ]);
 }
 
-async function signOut() {
-  try { await api('/logout/', { method: 'POST' }); } catch { /* local session still ends */ }
-  setAuthToken(null);
-  state.session = null;
+async function signOut(scope) {
+  if (!isCurrent(scope) || !state.session) return;
+  const authSnapshot = scope.auth;
+  changeSession(null);
+  const signedOut = getAuthSnapshot();
   announce('Signed out of this browser session.');
-  paintChrome();
   navigate(customerHref('/'));
+  try {
+    await api('/logout/', { method: 'POST', authSnapshot });
+  } catch {
+    if (isAuthCurrent(signedOut)) {
+      announce('Signed out locally, but server revocation could not be confirmed. The previous token may remain valid until it expires.');
+    }
+  }
 }
 
-async function renderWishlist() {
-  document.title = 'Wishlist · MetroDrip customer';
+async function renderWishlist(_route, scope) {
   if (!state.session) return signInPanel(customerHref('/wishlist'));
-  const items = await read('/wishlist/');
+  const items = await request('/wishlist/', {}, scope);
   const list = Array.isArray(items) ? items : [];
   if (!list.length) return page('Wishlist is empty', 'Saved products appear after you add one from a product page.', el('a', { class: 'btn btn-primary', href: customerHref('/shop') }, 'Explore streetwear'));
   return page('Wishlist', 'This list is your account’s saved products.', el('div', { class: 'grid' }, list.map((item) => el('article', { class: 'product-card' }, [
@@ -1093,41 +1202,44 @@ async function renderWishlist() {
       el('p', { class: 'product-card-price' }, money(item.price)),
       el('div', { style: 'display:flex; gap:8px;' }, [
         el('a', { class: 'btn btn-secondary', href: customerHref(`/products/${item.product_ref}`) }, 'View product'),
-        el('button', { class: 'btn btn-danger', type: 'button', onclick: async () => {
-          await api(`/wishlist/?product_ref=${encodeURIComponent(item.product_ref)}`, { method: 'DELETE' });
+        el('button', { class: 'btn btn-danger', type: 'button', onclick: (event) => runAction(scope, event.currentTarget, async () => {
+          await request(`/wishlist/?product_ref=${encodeURIComponent(item.product_ref)}`, { method: 'DELETE' }, scope);
+          if (!isCurrent(scope)) return;
           announce('Removed from wishlist.');
           render();
-        } }, 'Remove'),
+        }) }, 'Remove'),
       ]),
     ]),
   ]))));
 }
 
-async function renderNotifications() {
-  document.title = 'Notifications · MetroDrip customer';
+async function renderNotifications(_route, scope) {
   if (!state.session) return signInPanel(customerHref('/notifications'));
   let data;
   try {
-    data = await read('/notifications/');
+    data = await request('/notifications/', {}, scope);
   } catch (error) {
     return page('Notifications unavailable', error.message, el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => render() }, 'Retry'));
   }
   const results = Array.isArray(data?.results) ? data.results : [];
   if (!results.length) return page('No notifications', 'The server returned an empty owned list, not a hidden error.');
-  return page('Notifications', `${data.unread_count || 0} unread.`, el('button', { class: 'btn btn-secondary', style: 'margin-bottom:16px;', type: 'button', onclick: async () => {
-    await api('/notifications/read-all/', { method: 'POST', body: {} });
+  return page('Notifications', `${data.unread_count || 0} unread.`, el('button', { class: 'btn btn-secondary', style: 'margin-bottom:16px;', type: 'button', onclick: (event) => runAction(scope, event.currentTarget, async () => {
+    await request('/notifications/read-all/', { method: 'POST', body: {} }, scope);
+    if (!isCurrent(scope)) return;
     announce('All visible notifications marked read.');
     refreshUnread();
     render();
-  } }, 'Mark all read'), el('div', { style: 'display:flex; flex-direction:column; gap:12px;' }, results.map((item) => el('article', { class: 'summary-card' }, [
+  }) }, 'Mark all read'), el('div', { style: 'display:flex; flex-direction:column; gap:12px;' }, results.map((item) => el('article', { class: 'summary-card' }, [
     el('h3', { style: 'margin:0; font-size:18px;' }, item.title || 'Notification'),
     el('p', { style: 'margin:6px 0;' }, item.body || ''),
     el('p', { class: 'mono', style: 'font-size:12px; color:var(--muted); margin:0 0 8px;' }, item.is_read ? 'Read' : 'Unread'),
-    item.is_read ? null : el('button', { class: 'btn btn-secondary', type: 'button', onclick: async () => {
-      await api(`/notifications/${item.id}/read/`, { method: 'POST', body: {} });
+    item.is_read ? null : el('button', { class: 'btn btn-secondary', type: 'button', onclick: (event) => runAction(scope, event.currentTarget, async () => {
+      await request(`/notifications/${item.id}/read/`, { method: 'POST', body: {} }, scope);
+      if (!isCurrent(scope)) return;
+      announce('Notification marked read.');
       refreshUnread();
       render();
-    } }, 'Mark read'),
+    }) }, 'Mark read'),
   ]))));
 }
 
@@ -1143,8 +1255,7 @@ async function renderTeam() {
   return page('Our Team', 'Every piece is designed in Metro Manila — from concept to cut. MetroDrip brings high-concept streetwear crafted for everyday urban mobility.');
 }
 
-async function renderSignIn() {
-  document.title = 'Sign In · MetroDrip customer';
+async function renderSignIn(_route, scope) {
   const next = safeCustomerPath(new URLSearchParams(location.search).get('next') || customerHref('/'));
   
   const brandPanel = el('div', { class: 'auth-brand-panel' }, [
@@ -1155,14 +1266,13 @@ async function renderSignIn() {
 
   const form = el('form', { class: 'auth-form-card', onsubmit: async (event) => {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    try {
-      await signIn(String(data.get('email') || ''), String(data.get('password') || ''));
+    return runAction(scope, form.querySelector('button[type="submit"]'), async () => {
+      const data = new FormData(form);
+      const signedIn = await signIn(String(data.get('email') || ''), String(data.get('password') || ''), scope);
+      if (!signedIn || !isCurrent(signedIn)) return;
       announce('Signed in.');
       navigate(next, { replace: true });
-    } catch (error) {
-      announce(error.message);
-    }
+    });
   } }, [
     el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Welcome back'),
     el('p', { class: 'muted', style: 'margin:0 0 12px;' }, 'Sign in to your MetroDrip account.'),
@@ -1187,8 +1297,7 @@ async function renderSignIn() {
   ]);
 }
 
-async function renderSignUp() {
-  document.title = 'Create Account · MetroDrip customer';
+async function renderSignUp(_route, scope) {
   const brandPanel = el('div', { class: 'auth-brand-panel' }, [
     el('h2', { class: 'auth-brand-name' }, 'METRODRIP'),
     el('p', { class: 'auth-brand-tagline' }, ['Join the', el('br'), 'movement.']),
@@ -1197,18 +1306,17 @@ async function renderSignUp() {
 
   const form = el('form', { class: 'auth-form-card', onsubmit: async (event) => {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    try {
-      await api('/signup/', { method: 'POST', auth: false, body: {
+    return runAction(scope, form.querySelector('button[type="submit"]'), async () => {
+      const data = new FormData(form);
+      await request('/signup/', { method: 'POST', auth: false, body: {
         name: String(data.get('name') || ''),
         email: String(data.get('email') || ''),
         password: String(data.get('password') || ''),
-      } });
+      } }, scope);
+      if (!isCurrent(scope)) return;
       announce('Account created. Sign in to continue.');
       navigate(customerHref('/sign-in'));
-    } catch (error) {
-      announce(error.message);
-    }
+    });
   } }, [
     el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Create account'),
     el('p', { class: 'muted', style: 'margin:0 0 12px;' }, 'Password rules come from the server.'),
@@ -1254,8 +1362,10 @@ function openDialog(title, body) {
     };
     confirm.addEventListener('click', () => finish(true));
     cancel.addEventListener('click', () => finish(false));
+    const heading = el('h2', { id: 'customer-dialog-title', style: 'font-family:var(--font-display); font-size:24px; margin:0 0 12px;' }, title);
+    dialog.setAttribute('aria-labelledby', 'customer-dialog-title');
     dialog.append(
-      el('h2', { style: 'font-family:var(--font-display); font-size:24px; margin:0 0 12px;' }, title),
+      heading,
       el('p', { class: 'muted', style: 'margin:0 0 20px;' }, body),
       el('div', { style: 'display:flex; justify-content:flex-end; gap:10px;' }, [cancel, confirm])
     );
@@ -1270,17 +1380,23 @@ function openDialog(title, body) {
 }
 
 async function render() {
+  navigationGeneration += 1;
+  const scope = viewSnapshot();
   const route = parseCustomerPath(location.pathname);
   paintChrome();
   app.replaceChildren(el('p', { class: 'loading' }, 'Loading…'));
+  let node;
   try {
     const view = pages[route.name] || pages['not-found'];
-    const node = await view(route);
-    app.replaceChildren(node);
-    app.focus({ preventScroll: true });
+    node = await view(route, scope);
   } catch (error) {
-    app.replaceChildren(errorPanel(error));
+    if (!isCurrent(scope)) return;
+    node = errorPanel(error);
   }
+  if (!isCurrent(scope)) return;
+  document.title = route.name === 'home' ? 'MetroDrip customer' : `${node.querySelector('h1')?.textContent || 'Shop'} · MetroDrip customer`;
+  app.replaceChildren(node);
+  app.focus({ preventScroll: true });
 }
 
 document.addEventListener('click', (event) => {

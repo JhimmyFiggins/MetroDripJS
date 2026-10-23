@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 import time
+from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -24,7 +25,15 @@ from catalog.models import (
 from fulfillment.models import ShippingShipment, ShippingShippingZone
 from identity.models import AccountsCustomer, CustomerAccessToken
 
-from .checkout import apply_verified_payment, execute_checkout, reconcile_payment
+from .checkout import (
+    _ensure_provider_session,
+    _expire_order,
+    apply_verified_payment,
+    cancel_checkout,
+    execute_checkout,
+    reconcile_payment,
+    serialize_checkout,
+)
 from .models import OrdersOrder, OrdersPayment, PaymentWebhookEvent
 from .paymongo import PayMongoClient, PayMongoError
 
@@ -463,6 +472,208 @@ class HostedCheckoutAPITest(TestCase):
             payment.refresh_from_db()
             self.assertEqual(payment.status, 'paid')
             self.assertEqual(order.status, 'placed')
+
+    def _setup_failed_order(self, key='checkout-unbound'):
+        with patch('orders.checkout.PayMongoClient') as provider:
+            provider.return_value.create_checkout_session.side_effect = PayMongoError('Setup unavailable.')
+            response = self.client.post(
+                '/api/orders/checkout/', self.payload('gcash', key), format='json', **self.auth,
+            )
+        self.assertEqual(response.status_code, 503)
+        order = OrdersOrder.objects.get(checkout_idempotency_key=key)
+        self.assertIsNone(order.payments.get().provider_ref)
+        return order
+
+    def test_cancelled_unbound_checkout_replay_does_not_create_a_session(self):
+        order = self._setup_failed_order()
+        stale_payment = order.payments.get()
+        provider = FakePayMongoClient()
+        cancelled_order, cancelled_payment = cancel_checkout(order, provider_client=provider)
+        self.assertGreater(cancelled_order.reservation_expires_at, timezone.now())
+        transition_count = cancelled_payment.transitions.count()
+
+        # The preflight must also reject a caller holding pre-cancellation models.
+        current_order, current_payment = _ensure_provider_session(
+            order, stale_payment, self.customer, provider_client=provider,
+        )
+        self.assertEqual((current_order.status, current_payment.status), ('cancelled', 'cancelled'))
+        with patch('orders.checkout.PayMongoClient', return_value=provider) as constructor:
+            replay = self.client.post(
+                '/api/orders/checkout/', self.payload('gcash', 'checkout-unbound'), format='json', **self.auth,
+            )
+        constructor.assert_not_called()
+        self.assertEqual(replay.status_code, 200)
+        self.assertTrue(replay.data['is_replay'])
+        self.assertEqual(replay.data['status'], 'cancelled')
+        self.assertEqual(replay.data['payment_status'], 'cancelled')
+        self.assertIsNone(replay.data['payment_action'])
+        cancelled_payment.refresh_from_db()
+        self.assertIsNone(cancelled_payment.provider_ref)
+        self.assertIsNone(cancelled_payment.checkout_url)
+        self.assertEqual(cancelled_payment.transitions.count(), transition_count)
+        self.assertEqual(provider.created_methods, [])
+        self.assertEqual(InventoryReservation.objects.get(order_id=order.id).status, 'released')
+        self.stock.refresh_from_db()
+        self.assertEqual((self.stock.quantity, self.stock.reserved_quantity), (5, 0))
+        self.assertFalse(InventoryStockMovement.objects.filter(ref_order_ref=order.id).exists())
+
+    def test_terminal_state_wins_when_session_setup_finishes(self):
+        for ending in ('cancel', 'expire', 'deadline'):
+            for fail_create in (False, True):
+                with self.subTest(ending=ending, fail_create=fail_create):
+                    class EndedDuringCreate(FakePayMongoClient):
+                        def create_checkout_session(self, order, payment, *args):
+                            result = super().create_checkout_session(order, payment, *args)
+                            if ending == 'cancel':
+                                cancel_checkout(order, provider_client=self)
+                            elif ending == 'expire':
+                                _expire_order(order, provider_client=self)
+                            else:
+                                OrdersOrder.objects.filter(pk=order.pk).update(
+                                    reservation_expires_at=timezone.now() - timedelta(seconds=1),
+                                )
+                            if fail_create:
+                                raise PayMongoError('The create response was lost.')
+                            return result
+
+                    provider = EndedDuringCreate()
+                    order, payment, _ = execute_checkout(
+                        self.customer,
+                        self.payload('gcash', f'terminal-create-{ending}-{int(fail_create)}'),
+                        provider_client=provider,
+                    )
+                    expected_order = 'cancelled' if ending == 'cancel' else 'payment_expired'
+                    expected_payment = 'cancelled' if ending == 'cancel' else 'expired'
+                    self.assertEqual((order.status, payment.status), (expected_order, expected_payment))
+                    self.assertIsNone(serialize_checkout(order, payment)['payment_action'])
+                    order.refresh_from_db()
+                    payment.refresh_from_db()
+                    self.assertEqual((order.status, payment.status), (expected_order, expected_payment))
+                    self.assertIsNotNone(order.cancelled_at)
+                    self.assertIsNone(payment.checkout_url)
+                    self.assertIsNone(payment.failure_code)
+                    self.assertEqual(payment.transitions.count(), 2)
+                    self.assertEqual(payment.transitions.filter(to_status=expected_payment).count(), 1)
+                    provider_ref = f'cs_order_{order.id}'
+                    self.assertEqual(payment.provider_ref, None if fail_create else provider_ref)
+                    self.assertEqual(provider.expired, [] if fail_create else [provider_ref])
+                    self.assertEqual(provider.created_methods, ['gcash'])
+                    reservation = InventoryReservation.objects.get(order_id=order.id)
+                    self.assertEqual(reservation.status, 'released' if ending == 'cancel' else 'expired')
+                    self.stock.refresh_from_db()
+                    self.assertEqual((self.stock.quantity, self.stock.reserved_quantity), (5, 0))
+                    self.assertFalse(InventoryStockMovement.objects.filter(ref_order_ref=order.id).exists())
+
+    def test_orphan_expiry_failure_preserves_terminal_or_concurrently_paid_state(self):
+        test_case = self
+        for paid_during_expiry in (False, True):
+            with self.subTest(paid_during_expiry=paid_during_expiry):
+                class ExpiryFailsAfterCancel(FakePayMongoClient):
+                    def create_checkout_session(self, order, payment, *args):
+                        result = super().create_checkout_session(order, payment, *args)
+                        cancel_checkout(order, provider_client=self)
+                        return result
+
+                    def expire_checkout_session(self, provider_ref):
+                        self.expired.append(provider_ref)
+                        if paid_during_expiry:
+                            payment = OrdersPayment.objects.get(provider_ref=provider_ref)
+                            apply_verified_payment(payment, test_case._paid_session(payment))
+                        raise PayMongoError('Expiry unavailable.')
+
+                provider = ExpiryFailsAfterCancel()
+                order, payment, _ = execute_checkout(
+                    self.customer,
+                    self.payload('gcash', f'orphan-expiry-failure-{int(paid_during_expiry)}'),
+                    provider_client=provider,
+                )
+                order.refresh_from_db()
+                payment.refresh_from_db()
+                self.assertEqual(order.status, 'payment_review' if paid_during_expiry else 'cancelled')
+                self.assertEqual(payment.status, 'paid' if paid_during_expiry else 'cancelled')
+                self.assertEqual(payment.failure_code, None if paid_during_expiry else 'provider_expiry_unconfirmed')
+                self.assertEqual(payment.provider_ref, f'cs_order_{order.id}')
+                self.assertEqual(provider.expired, [payment.provider_ref])
+                self.assertIsNone(payment.checkout_url)
+                self.assertIsNone(serialize_checkout(order, payment)['payment_action'])
+                self.stock.refresh_from_db()
+                self.assertEqual((self.stock.quantity, self.stock.reserved_quantity), (5, 0))
+
+    def test_disabled_unbound_retry_does_not_create_a_session(self):
+        order = self._setup_failed_order()
+        for unavailable in (
+            {'PAYMONGO_ENABLED_METHODS': ''},
+            {'PAYMONGO_SECRET_KEY': ''},
+            {'PAYMONGO_WEBHOOK_SECRET': ''},
+            {'PAYMONGO_MODE': 'invalid'},
+        ):
+            with self.subTest(unavailable=unavailable), override_settings(**unavailable):
+                with patch('orders.checkout.PayMongoClient') as constructor:
+                    response = self.client.post(
+                        '/api/orders/checkout/', self.payload('gcash', 'checkout-unbound'), format='json', **self.auth,
+                    )
+                constructor.assert_not_called()
+                self.assertEqual(response.status_code, 422)
+                self.assertEqual(response.data['code'], 'payment_method_unavailable')
+        order.refresh_from_db()
+        payment = order.payments.get()
+        self.assertEqual(order.status, 'payment_setup_failed')
+        self.assertEqual(payment.status, 'setup_failed')
+        self.assertIsNone(payment.provider_ref)
+        self.assertIsNone(payment.checkout_url)
+        self.assertEqual(payment.transitions.count(), 2)
+        self.assertEqual(OrdersOrder.objects.filter(customer_id=self.customer.id).count(), 1)
+
+        # Explicit injection remains usable without configured provider settings.
+        provider = FakePayMongoClient()
+        with override_settings(PAYMONGO_ENABLED_METHODS='', PAYMONGO_SECRET_KEY='', PAYMONGO_WEBHOOK_SECRET=''):
+            recovered, payment, replay = execute_checkout(
+                self.customer, self.payload('gcash', 'checkout-unbound'), provider_client=provider,
+            )
+        self.assertTrue(replay)
+        self.assertEqual(recovered.id, order.id)
+        self.assertEqual(payment.status, 'awaiting_payment')
+        self.assertEqual(provider.created_methods, ['gcash'])
+
+    def test_disabled_bound_retry_and_paid_read_recovery_remain_available(self):
+        order, provider = self._online_order(method='gcash', key='disabled-bound-retry')
+        payment = order.payments.get()
+        provider.session_data = self._paid_session(payment)
+        with override_settings(PAYMONGO_ENABLED_METHODS=''):
+            with patch('orders.checkout.PayMongoClient', return_value=provider) as constructor:
+                replay = self.client.post(
+                    '/api/orders/checkout/', self.payload('gcash', 'disabled-bound-retry'), format='json', **self.auth,
+                )
+                constructor.assert_not_called()
+                recovered = self.client.get(f'/orders/{order.id}/', **self.auth)
+                constructor.assert_called_once_with()
+        self.assertEqual(replay.status_code, 200)
+        self.assertEqual(replay.data['id'], order.id)
+        self.assertEqual(replay.data['payment_action']['url'], payment.checkout_url)
+        self.assertEqual(replay.data['payment_status'], 'awaiting_payment')
+        self.assertEqual(recovered.status_code, 200)
+        self.assertEqual(recovered.data['status'], 'placed')
+        self.assertEqual(recovered.data['payment_status'], 'paid')
+        self.assertIsNone(recovered.data['payment_action'])
+        self.assertEqual(provider.created_methods, ['gcash'])
+        self.assertEqual(provider.expired, [])
+
+    def test_terminal_or_past_deadline_order_never_serializes_a_payable_action(self):
+        order, _ = self._online_order(key='terminal-stale-payment')
+        payment = order.payments.get()
+        for order_status, cancelled_at, deadline in (
+            ('cancelled', None, order.reservation_expires_at),
+            ('payment_expired', None, order.reservation_expires_at),
+            ('payment_review', None, order.reservation_expires_at),
+            ('placed', None, order.reservation_expires_at),
+            ('pending_payment', self.now, order.reservation_expires_at),
+            ('pending_payment', None, self.now - timedelta(seconds=1)),
+        ):
+            with self.subTest(order_status=order_status, cancelled_at=cancelled_at, deadline=deadline):
+                order.status = order_status
+                order.cancelled_at = cancelled_at
+                order.reservation_expires_at = deadline
+                self.assertIsNone(serialize_checkout(order, payment)['payment_action'])
 
     def test_paid_state_wins_when_expired_reconciliation_finishes_concurrently(self):
         order, _ = self._online_order(key='checkout-expiry-race')

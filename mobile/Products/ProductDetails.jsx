@@ -97,7 +97,13 @@ export default function ProductDetails({
 
         apiFetch(`/variants/${selectedVariant.id}/stock/`, { auth: false })
             .then(data => {
-                setStock(data[0] || null);
+                const rows = Array.isArray(data) ? data : [];
+                const purchasable = rows.reduce((best, row) => {
+                    const available = Number(row?.available_stock);
+                    if (!Number.isFinite(available)) return best;
+                    return !best || available > Number(best.available_stock) ? row : best;
+                }, null);
+                setStock(purchasable && Number(purchasable.available_stock) > 0 ? purchasable : null);
             })
             .catch(error => {
                 console.error('Failed to load stock:', error);

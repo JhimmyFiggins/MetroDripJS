@@ -1479,6 +1479,23 @@ button, input, select, textarea {
   }
 }
 
+@media (min-width: 861px) {
+  .desktop-main-links {
+    display: flex;
+  }
+}
+
+@media (max-width: 700px) {
+  .cart-item-row {
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .cart-item-row > :nth-child(n+3) {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+}
+
 @media (max-width: 600px) {
   .header-bar {
     padding: 0 12px;

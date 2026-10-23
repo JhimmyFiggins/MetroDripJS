@@ -3,6 +3,7 @@ export const MAX_QUANTITY = 5;
 export const CART_TTL_MS = 12 * 60 * 60 * 1000;
 export const CART_STORAGE_KEY = 'metrodrip.customer.cart.v1';
 export const THEME_STORAGE_KEY = 'metrodrip.customer.theme';
+export const CHECKOUT_ATTEMPT_KEY = 'metrodrip.customer.checkout-attempt.v1';
 
 const PAYMENT_OPTIONS = [
   { id: 'cod', name: 'Cash on Delivery', detail: 'Due when the order arrives. Not marked paid.' },
@@ -43,6 +44,21 @@ export function usableImageUrl(url) {
     return '';
   }
   return '';
+}
+
+export function purchasableStock(rows) {
+  if (!Array.isArray(rows)) return 0;
+  return rows.reduce((highest, row) => {
+    const available = Number(row?.available_stock);
+    return Number.isFinite(available) && available > highest ? available : highest;
+  }, 0);
+}
+
+export function cartFingerprint(lines) {
+  return [...(Array.isArray(lines) ? lines : [])]
+    .map((line) => `${Number(line?.variant_id)}:${Number(line?.quantity)}`)
+    .sort()
+    .join('|');
 }
 
 export function toCentavos(value) {
