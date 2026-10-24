@@ -5,17 +5,42 @@ from datetime import timedelta
 from django.conf import settings
 from django.http import HttpResponse
 from django.contrib.auth.hashers import make_password
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from identity.authentication import CustomerTokenAuthentication
 from identity.permissions import IsAdminRole
-from .models import AccountsCustomer, AuditLog, PlatformSetting, CustomRole
+from .models import AccountsCustomer, AuditLog, PlatformSetting, CustomRole, PasswordResetToken
+from .brevo import is_brevo_configured, build_reset_url, send_transactional_email
+from .email_templates import render_welcome_setup, render_admin_password_reset
 from fulfillment.models import ShippingShippingZone
 
 
 ALLOWED_ACCOUNT_ROLES = {'customer', 'merchant', 'admin'}
+
+
+def generate_secure_temporary_password(length=14):
+    """
+    Generate a cryptographically secure temporary password meeting NIST SP 800-63B
+    and MetroDrip complexity guidelines.
+    """
+    uppers = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+    lowers = "abcdefghjkmnpqrstuvwxyz"
+    digits = "23456789"
+    symbols = "!@#$%&*+=-"
+    chars = [
+        secrets.choice(uppers),
+        secrets.choice(lowers),
+        secrets.choice(digits),
+        secrets.choice(symbols),
+    ]
+    all_pool = uppers + lowers + digits + symbols
+    chars += [secrets.choice(all_pool) for _ in range(length - len(chars))]
+    secrets.SystemRandom().shuffle(chars)
+    return "".join(chars)
 
 
 def _parse_boolean(value):
@@ -122,6 +147,7 @@ class AdminUsersAPIView(AdminAPIView):
                 'status': 'Active' if u.is_active else 'Suspended',
                 'phone': u.phone,
                 'date_joined': u.date_joined.isoformat() if u.date_joined else None,
+                'password_change_required': u.password_change_required,
             }
             for u in qs[:50]
         ]
@@ -133,18 +159,20 @@ class AdminUsersAPIView(AdminAPIView):
         raw_name = data.get('name', '')
         raw_role = data.get('role', 'customer')
         raw_phone = data.get('phone', '')
+        password_option = str(data.get('password_option', '')).strip().lower()
+        custom_password = data.get('password')
+
         if not all(isinstance(value, str) for value in (raw_email, raw_name, raw_role, raw_phone)):
             return Response(
                 {'error': 'email, name, role, and phone must be text.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        email = raw_email.strip()
+        email = raw_email.strip().lower()
         name = raw_name.strip()
         role = raw_role.strip().lower()
         phone = raw_phone.strip()
 
-        email = email.lower()
         if not email or not name:
             return Response({'error': 'Email and name are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -154,29 +182,97 @@ class AdminUsersAPIView(AdminAPIView):
         if AccountsCustomer.objects.filter(email__iexact=email).exists():
             return Response({'error': 'An account with this email already exists.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Determine password provisioning strategy
+        temp_password = None
+        password_mode = 'unusable'
+        invite_sent = False
+
+        if password_option == 'custom' or (custom_password and not password_option):
+            if not isinstance(custom_password, str) or not custom_password:
+                return Response({'error': 'Temporary password is required for custom option.'}, status=status.HTTP_400_BAD_REQUEST)
+            if len(custom_password) < 8:
+                return Response({'error': 'Temporary password must be at least 8 characters long.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            prohibited_terms = ['password', '12345678', 'metrodrip', name.lower(), email.split('@')[0].lower()]
+            for term in prohibited_terms:
+                if term and len(term) >= 4 and term in custom_password.lower():
+                    return Response({'error': f'Password contains easily guessable term "{term}".'}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                validate_password(custom_password)
+            except ValidationError as err:
+                return Response({'error': err.messages[0]}, status=status.HTTP_400_BAD_REQUEST)
+
+            hashed_password = make_password(custom_password)
+            password_mode = 'custom_temporary'
+
+        elif password_option == 'generated':
+            temp_password = generate_secure_temporary_password()
+            hashed_password = make_password(temp_password)
+            password_mode = 'generated_temporary'
+
+        elif password_option == 'email_invite':
+            if not is_brevo_configured():
+                return Response({
+                    'error': 'Email delivery is not configured. A Brevo API key is required to send account setup invitations.',
+                    'code': 'reset_delivery_unconfigured',
+                }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            hashed_password = make_password(None)
+            password_mode = 'email_invite'
+
+        else:
+            hashed_password = make_password(None)
+            password_mode = 'default'
+
         user = AccountsCustomer.objects.create(
             email=email,
             name=name,
             role=role,
             phone=phone,
-            password=make_password(None),
+            password=hashed_password,
             addresses=[],
             is_active=True,
             is_staff=role in ['admin', 'merchant'],
             is_superuser=role == 'admin',
             date_joined=timezone.now(),
+            password_change_required=True,
         )
 
-        _audit(request, f"Created {role} account → {name}", 'AccountsCustomer', user.id)
+        _audit(request, f"Created {role} account → {name} (mode: {password_mode})", 'AccountsCustomer', user.id)
 
-        return Response({
+        # Dispatch setup email if requested or default when configured
+        if password_mode in ('email_invite', 'default') and is_brevo_configured():
+            token_obj, raw_token = PasswordResetToken.issue(
+                customer=user,
+                purpose='setup',
+                created_by=request.user,
+            )
+            setup_url = build_reset_url(raw_token)
+            email_data = render_welcome_setup(user, setup_url)
+            send_res = send_transactional_email(
+                user.email,
+                user.name,
+                email_data['subject'],
+                email_data['html'],
+                email_data['text'],
+            )
+            invite_sent = bool(send_res.get('success'))
+
+        response_data = {
             'id': user.id,
             'email': user.email,
             'name': user.name,
             'role': user.role,
             'status': 'Active',
             'password_setup_required': True,
-        }, status=status.HTTP_201_CREATED)
+            'password_change_required': True,
+            'password_mode': password_mode,
+            'invite_sent': invite_sent,
+        }
+        if temp_password:
+            response_data['temporary_password'] = temp_password
+
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
 
 class AdminUserDetailAPIView(AdminAPIView):
@@ -491,16 +587,123 @@ class AdminUserResetPasswordAPIView(AdminAPIView):
         except AccountsCustomer.DoesNotExist:
             return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
+        if not user.is_active:
+            return Response({
+                'error': 'Cannot reset password for an inactive or suspended account. Reactivate the account first.',
+                'code': 'account_inactive',
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if delivery is configured
+        if not is_brevo_configured():
+            _audit(
+                request,
+                f"Requested password reset for user #{user.id}; delivery is not configured",
+                'AccountsCustomer',
+                user.id,
+            )
+            return Response({
+                'error': 'Password-reset delivery is not configured. No reset token was generated or exposed.',
+                'code': 'reset_delivery_unconfigured',
+            }, status=status.HTTP_501_NOT_IMPLEMENTED)
+
+        # Invalidate previous unused reset tokens
+        PasswordResetToken.objects.filter(customer=user, consumed_at__isnull=True).update(consumed_at=timezone.now())
+
+        # Generate new cryptographically secure token
+        token_obj, raw_token = PasswordResetToken.issue(
+            customer=user,
+            purpose='reset',
+            created_by=request.user,
+        )
+        reset_url = build_reset_url(raw_token)
+        email_data = render_admin_password_reset(user, reset_url)
+        send_res = send_transactional_email(
+            user.email,
+            user.name,
+            email_data['subject'],
+            email_data['html'],
+            email_data['text'],
+        )
+
+        if not send_res.get('success'):
+            _audit(
+                request,
+                f"Failed to deliver password reset email to user #{user.id} ({user.email}): {send_res.get('error')}",
+                'AccountsCustomer',
+                user.id,
+            )
+            return Response({
+                'error': send_res.get('error') or 'Email delivery failed.',
+                'code': send_res.get('code') or 'email_delivery_failed',
+            }, status=status.HTTP_502_BAD_GATEWAY)
+
         _audit(
             request,
-            f"Requested password reset for user #{user.id}; delivery is not configured",
+            f"Initiated password reset for {user.role} #{user.id} ({user.email})",
             'AccountsCustomer',
             user.id,
         )
         return Response({
-            'error': 'Password-reset delivery is not configured. No reset token was generated or exposed.',
-            'code': 'reset_delivery_unconfigured',
-        }, status=status.HTTP_501_NOT_IMPLEMENTED)
+            'message': f"Password reset instructions have been sent to {user.email}.",
+            'success': True,
+            'email': user.email,
+        })
+
+
+class AdminUserResendInviteAPIView(AdminAPIView):
+    def post(self, request, pk):
+        try:
+            user = AccountsCustomer.objects.get(pk=pk)
+        except AccountsCustomer.DoesNotExist:
+            return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not user.is_active:
+            return Response({
+                'error': 'Cannot send invitation to an inactive or suspended account.',
+                'code': 'account_inactive',
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not is_brevo_configured():
+            return Response({
+                'error': 'Email delivery is not configured. A Brevo API key is required.',
+                'code': 'reset_delivery_unconfigured',
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        # Invalidate previous unused setup tokens
+        PasswordResetToken.objects.filter(customer=user, consumed_at__isnull=True).update(consumed_at=timezone.now())
+
+        token_obj, raw_token = PasswordResetToken.issue(
+            customer=user,
+            purpose='setup',
+            created_by=request.user,
+        )
+        setup_url = build_reset_url(raw_token)
+        email_data = render_welcome_setup(user, setup_url)
+        send_res = send_transactional_email(
+            user.email,
+            user.name,
+            email_data['subject'],
+            email_data['html'],
+            email_data['text'],
+        )
+
+        if not send_res.get('success'):
+            return Response({
+                'error': send_res.get('error') or 'Failed to send invitation.',
+                'code': send_res.get('code') or 'email_delivery_failed',
+            }, status=status.HTTP_502_BAD_GATEWAY)
+
+        _audit(
+            request,
+            f"Resent setup invitation for {user.role} #{user.id} ({user.email})",
+            'AccountsCustomer',
+            user.id,
+        )
+        return Response({
+            'message': f"Account setup invitation resent to {user.email}.",
+            'success': True,
+            'email': user.email,
+        })
 
 
 class AdminExportAuditLogsCSVAPIView(AdminAPIView):

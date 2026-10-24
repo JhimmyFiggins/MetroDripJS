@@ -46,7 +46,7 @@ export default function ForgotPasswordScreen({ navigation }) {
 
     try {
       const data = await forgotPassword(email.trim());
-      if (data && data.success) {
+      if (data && (data.success || data.message)) {
         setSent(true);
       } else {
         setError((data && data.error) || 'Failed to send password reset link.');
@@ -54,11 +54,10 @@ export default function ForgotPasswordScreen({ navigation }) {
     } catch (err) {
       if (err instanceof ApiError && err.status > 0) {
         setError(
-          (err.data && err.data.error) || 'Failed to send password reset link.'
+          (err.data && (err.data.error || err.data.detail || err.data.message)) || err.message || 'Failed to send password reset link.'
         );
       } else {
-        // Fallback to confirmation for offline/simulated mode
-        setSent(true);
+        setError('Network error. Unable to reach server. Please check your connection and try again.');
       }
     } finally {
       setLoading(false);

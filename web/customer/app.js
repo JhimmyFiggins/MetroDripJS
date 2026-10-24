@@ -1365,6 +1365,9 @@ async function renderSignIn(_route, scope) {
     ]),
     field('Email *', 'email', ''),
     secretField('Password *', 'password'),
+    el('div', { style: 'display:flex; justify-content:flex-end; margin:-4px 0 10px;' }, [
+      el('a', { class: 'muted', style: 'font-size:13px; text-decoration:underline;', href: customerHref('/forgot-password') }, 'Forgot password?')
+    ]),
     el('button', { class: 'btn btn-primary btn-full', type: 'submit' }, 'Sign in'),
     el('button', { class: 'btn btn-secondary btn-full', type: 'button', onclick: () => navigate(customerHref('/shop')) }, 'Browse without signing in'),
     el('p', { class: 'muted', style: 'font-size:13px; text-align:center; margin:8px 0 0;' }, 'Checkout requires a customer account. Browsing does not place an order.'),
@@ -1423,8 +1426,60 @@ function secretField(label, name) {
   ]);
 }
 
-async function renderForgot() {
-  return page('Password reset unavailable', 'Reset delivery is not configured. No email is sent from this page, and no reset token is created.', el('a', { class: 'btn btn-secondary', href: customerHref('/sign-in') }, 'Back to sign in'));
+async function renderForgot(_route, scope) {
+  const brandPanel = el('div', { class: 'auth-brand-panel' }, [
+    el('h2', { class: 'auth-brand-name' }, 'METRODRIP'),
+    el('p', { class: 'auth-brand-tagline' }, ['Account', el('br'), 'Recovery.']),
+    el('p', { class: 'auth-brand-perks' }, 'Secure · One-time reset link · Encrypted'),
+  ]);
+
+  const statusContainer = el('div', { id: 'forgot-status-area' });
+
+  const form = el('form', { class: 'auth-form-card', onsubmit: async (event) => {
+    event.preventDefault();
+    return runAction(scope, form.querySelector('button[type="submit"]'), async () => {
+      const data = new FormData(form);
+      const email = String(data.get('email') || '').trim();
+      if (!email) return;
+
+      try {
+        const res = await request('/forgot-password/', {
+          method: 'POST',
+          auth: false,
+          body: { email },
+        }, scope);
+        if (!isCurrent(scope)) return;
+        statusContainer.replaceChildren(
+          el('div', { class: 'auth-feedback is-success', style: 'padding: 16px; background: rgba(0,255,102,0.08); border: 1px solid var(--color-primary, #00FF66); border-radius: 6px; margin-bottom: 16px;' }, [
+            el('p', { style: 'font-weight: 600; margin: 0 0 6px; color: #FFF;' }, 'Password Reset Link Dispatched'),
+            el('p', { class: 'muted', style: 'font-size: 13px; margin: 0;' }, res?.message || 'If an eligible account is associated with this email, password reset instructions have been sent. Please check your inbox and spam folder.'),
+          ])
+        );
+        form.querySelector('button[type="submit"]')?.setAttribute('disabled', 'true');
+      } catch (err) {
+        if (!isCurrent(scope)) return;
+        const msg = err?.message || 'Password recovery is temporarily unavailable.';
+        statusContainer.replaceChildren(
+          el('div', { class: 'auth-feedback is-error', style: 'padding: 16px; background: rgba(255,51,102,0.08); border: 1px solid var(--color-danger, #FF3366); border-radius: 6px; margin-bottom: 16px;' }, [
+            el('p', { style: 'font-weight: 600; margin: 0 0 6px; color: #FFF;' }, 'Delivery Unavailable'),
+            el('p', { class: 'muted', style: 'font-size: 13px; margin: 0;' }, msg),
+          ])
+        );
+      }
+    });
+  } }, [
+    el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Forgot password'),
+    el('p', { class: 'muted', style: 'margin:0 0 16px;' }, 'Enter your account email to receive a secure, time-limited password recovery link.'),
+    statusContainer,
+    field('Account Email *', 'email', ''),
+    el('button', { class: 'btn btn-primary btn-full', type: 'submit' }, 'Send reset link'),
+    el('a', { class: 'btn btn-secondary btn-full', style: 'text-align:center;', href: customerHref('/sign-in') }, 'Return to sign in'),
+  ]);
+
+  return el('section', { class: 'page auth-page' }, [
+    breadcrumbs({ label: 'Home', href: customerHref('/') }, { label: 'Forgot password' }),
+    el('div', { class: 'auth-workspace' }, [brandPanel, form]),
+  ]);
 }
 
 function openDialog(title, body) {

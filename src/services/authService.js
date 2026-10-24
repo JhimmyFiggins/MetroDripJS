@@ -27,6 +27,25 @@ export async function forgotPassword(email) {
   });
 }
 
+export async function resetPasswordConfirm(token, newPassword, confirmPassword) {
+  return apiFetch('/password-reset/confirm/', {
+    method: 'POST',
+    body: {
+      token,
+      new_password: newPassword,
+      confirm_password: confirmPassword,
+    },
+    auth: false,
+  });
+}
+
+export async function verifyResetToken(token) {
+  return apiFetch(`/password-reset/verify/?token=${encodeURIComponent(token)}`, {
+    method: 'GET',
+    auth: false,
+  });
+}
+
 // Response: { id, name, email, phone, addresses, role }.
 export async function getProfile() {
   return apiFetch('/profile/');

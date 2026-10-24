@@ -287,3 +287,14 @@ PAYMONGO_CANCEL_URL = os.environ.get('PAYMONGO_CANCEL_URL', '').strip() or (
     'https://metrodripjs-q4ik.onrender.com/payment/return?result=cancelled'
 )
 CUSTOMER_TOKEN_TTL_SECONDS = int(os.environ.get('CUSTOMER_TOKEN_TTL_SECONDS', '2592000'))
+
+# Brevo Transactional Email Configuration (HTTPS API over port 443)
+BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '').strip()
+BREVO_SENDER_EMAIL = os.environ.get('BREVO_SENDER_EMAIL', 'support@metrodrip.ph').strip()
+BREVO_SENDER_NAME = os.environ.get('BREVO_SENDER_NAME', 'MetroDrip').strip()
+APP_PUBLIC_BASE_URL = (
+    os.environ.get('APP_PUBLIC_BASE_URL', '').strip()
+    or 'https://metrodripjs-q4ik.onrender.com'
+)
+PASSWORD_RESET_TOKEN_TTL_SECONDS = int(os.environ.get('PASSWORD_RESET_TOKEN_TTL_SECONDS', '1800'))
+BREVO_TEST_MODE = env_bool('BREVO_TEST_MODE', False)

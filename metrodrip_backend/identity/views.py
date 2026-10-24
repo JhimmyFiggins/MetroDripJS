@@ -2,7 +2,13 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.renderers import JSONRenderer
-from .models import AccountsWishlistItem, AccountsCustomer, AuditLog, CustomerAccessToken
+from .models import (
+    AccountsWishlistItem,
+    AccountsCustomer,
+    AuditLog,
+    CustomerAccessToken,
+    PasswordResetToken,
+)
 from catalog.models import CatalogProduct
 from django.utils import timezone
 from .authentication import CustomerAuthentication, CustomerTokenAuthentication
@@ -12,6 +18,27 @@ from .throttling import DatabaseScopedRateThrottle
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+from .brevo import (
+    is_brevo_configured,
+    build_reset_url,
+    send_transactional_email,
+)
+from .email_templates import (
+    render_self_service_password_reset,
+    render_password_changed_notification,
+)
+
+
+def _obfuscate_email(email):
+    if not email or '@' not in email:
+        return '***'
+    user_part, _, domain = email.partition('@')
+    if len(user_part) <= 2:
+        masked_user = user_part[0] + '*'
+    else:
+        masked_user = user_part[0] + '*' * (len(user_part) - 2) + user_part[-1]
+    return f"{masked_user}@{domain}"
+
 
 class WishlistAPIView(APIView):
     authentication_classes = [CustomerAuthentication]
@@ -229,15 +256,246 @@ class ForgotPasswordAPIView(APIView):
     throttle_scope = 'password_reset'
 
     def post(self, request):
-        email = (request.data.get('email') or '').strip()
+        raw_email = (request.data.get('email') or '').strip()
+        if not raw_email:
+            return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not email:
-            return Response({'error': 'Email is required.'}, status=400)
+        email = raw_email.lower()
+        if '@' not in email or '.' not in email.split('@')[-1]:
+            return Response({'error': 'Enter a valid email address.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Do not claim a message was sent when the delivery subsystem is unavailable.
+        if not is_brevo_configured():
+            return Response({
+                'error': 'Password recovery is temporarily unavailable. Please contact support.',
+                'code': 'reset_delivery_unconfigured',
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        customer = AccountsCustomer.objects.filter(email__iexact=email).first()
+        if customer and customer.is_active:
+            # Invalidate older pending reset tokens
+            PasswordResetToken.objects.filter(customer=customer, consumed_at__isnull=True).update(consumed_at=timezone.now())
+
+            token_obj, raw_token = PasswordResetToken.issue(
+                customer=customer,
+                purpose='reset',
+            )
+            reset_url = build_reset_url(raw_token)
+            email_data = render_self_service_password_reset(customer, reset_url)
+            send_res = send_transactional_email(
+                customer.email,
+                customer.name,
+                email_data['subject'],
+                email_data['html'],
+                email_data['text'],
+            )
+            if not send_res.get('success'):
+                return Response({
+                    'error': 'Failed to dispatch password recovery email. Please try again later.',
+                    'code': 'email_delivery_failed',
+                }, status=status.HTTP_502_BAD_GATEWAY)
+
+        # Return neutral enumeration-safe response
+        return Response({
+            'message': 'If an eligible account is associated with this email, password reset instructions have been sent.',
+            'success': True,
+        }, status=status.HTTP_200_OK)
+
+
+class PasswordResetVerifyAPIView(APIView):
+    renderer_classes = [JSONRenderer]
+
+    def get(self, request):
+        raw_token = (request.query_params.get('token') or request.GET.get('token') or '').strip()
+        if not raw_token:
+            return Response({
+                'valid': False,
+                'error': 'Reset token is required.',
+                'code': 'token_missing',
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        digest = PasswordResetToken.digest(raw_token)
+        token_obj = PasswordResetToken.objects.select_related('customer').filter(token_digest=digest).first()
+
+        if not token_obj:
+            return Response({
+                'valid': False,
+                'error': 'This password reset link is invalid.',
+                'code': 'token_invalid',
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if token_obj.consumed_at is not None:
+            return Response({
+                'valid': False,
+                'error': 'This password reset link has already been used.',
+                'code': 'token_already_used',
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if token_obj.expires_at <= timezone.now():
+            return Response({
+                'valid': False,
+                'error': 'This password reset link has expired. Please request a new one.',
+                'code': 'token_expired',
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not token_obj.customer.is_active:
+            return Response({
+                'valid': False,
+                'error': 'This account is suspended or inactive.',
+                'code': 'account_inactive',
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({
-            'error': 'Password-reset delivery is not configured. No reset token was generated or sent.',
-            'code': 'reset_delivery_unconfigured',
-        }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            'valid': True,
+            'purpose': token_obj.purpose,
+            'email': _obfuscate_email(token_obj.customer.email),
+            'role': token_obj.customer.role,
+        }, status=status.HTTP_200_OK)
+
+
+class PasswordResetConfirmAPIView(APIView):
+    renderer_classes = [JSONRenderer]
+    throttle_classes = [DatabaseScopedRateThrottle]
+    throttle_scope = 'password_reset'
+
+    def post(self, request):
+        raw_token = (request.data.get('token') or '').strip()
+        new_password = request.data.get('new_password', '')
+        confirm_password = request.data.get('confirm_password', '')
+
+        if not raw_token:
+            return Response({
+                'error': 'Reset token is required.',
+                'code': 'token_missing',
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not new_password:
+            return Response({
+                'error': 'New password is required.',
+                'code': 'password_required',
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(new_password) < 8:
+            return Response({
+                'error': 'NIST SP 800-63B requirement: Password must be at least 8 characters long.',
+                'code': 'password_too_short',
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if new_password != confirm_password:
+            return Response({
+                'error': 'Password confirmation does not match.',
+                'code': 'password_mismatch',
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        digest = PasswordResetToken.digest(raw_token)
+
+        with transaction.atomic():
+            token_obj = (
+                PasswordResetToken.objects
+                .select_for_update()
+                .select_related('customer')
+                .filter(token_digest=digest)
+                .first()
+            )
+
+            if not token_obj:
+                return Response({
+                    'error': 'This password reset link is invalid.',
+                    'code': 'token_invalid',
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            if token_obj.consumed_at is not None:
+                return Response({
+                    'error': 'This password reset link has already been used.',
+                    'code': 'token_already_used',
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            now = timezone.now()
+            if token_obj.expires_at <= now:
+                return Response({
+                    'error': 'This password reset link has expired. Please request a new one.',
+                    'code': 'token_expired',
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            customer = token_obj.customer
+            if not customer.is_active:
+                return Response({
+                    'error': 'This account is suspended or inactive.',
+                    'code': 'account_inactive',
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Check guessable terms
+            prohibited_words = [
+                'password', '12345678', 'metrodrip',
+                (customer.name or '').lower(),
+                customer.email.lower().split('@')[0],
+            ]
+            for word in prohibited_words:
+                if word and len(word) >= 4 and word in new_password.lower():
+                    return Response({
+                        'error': f'Password contains easily guessable term "{word}". Please choose a stronger passphrase per NIST SP 800-63B.',
+                        'code': 'password_guessable',
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                validate_password(new_password, user=customer)
+            except ValidationError as err:
+                return Response({
+                    'error': list(err.messages)[0],
+                    'code': 'password_policy_failed',
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Atomically update password and consume token
+            customer.set_password(new_password)
+            customer.password_change_required = False
+            customer.save(update_fields=['password', 'password_change_required'])
+
+            token_obj.consumed_at = now
+            token_obj.save(update_fields=['consumed_at'])
+
+            # Invalidate all remaining unused tokens for this user
+            PasswordResetToken.objects.filter(
+                customer=customer,
+                consumed_at__isnull=True,
+            ).update(consumed_at=now)
+
+            # Revoke all active bearer sessions
+            CustomerAccessToken.objects.filter(
+                customer=customer,
+                revoked_at__isnull=True,
+            ).update(revoked_at=now)
+
+            try:
+                AuditLog.objects.create(
+                    actor=customer.name or customer.email,
+                    actor_role=customer.role,
+                    action=f"Reset password via token (purpose: {token_obj.purpose})",
+                    target_model='AccountsCustomer',
+                    target_id=str(customer.id),
+                )
+            except Exception:
+                pass
+
+        # Send security notification if configured
+        if is_brevo_configured():
+            notif = render_password_changed_notification(
+                customer,
+                now.strftime('%Y-%m-%d %H:%M UTC'),
+            )
+            send_transactional_email(
+                customer.email,
+                customer.name,
+                notif['subject'],
+                notif['html'],
+                notif['text'],
+            )
+
+        return Response({
+            'message': 'Password has been set successfully. You can now sign in with your new password.',
+            'success': True,
+            'role': customer.role,
+        }, status=status.HTTP_200_OK)
+
 
 class LoginAPIView(APIView):
     renderer_classes = [JSONRenderer]
@@ -278,6 +536,7 @@ class LoginAPIView(APIView):
             'expires_at': token.expires_at.isoformat(),
             'role': customer.role,
             'is_staff': customer.is_staff,
+            'password_change_required': customer.password_change_required,
         })
 
 class CheckCustomerAPIView(APIView):
@@ -564,8 +823,8 @@ class UserPasswordAPIView(APIView):
                 'error': 'NIST SP 800-63B requirement: Password must be at least 8 characters long.'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # 2. Match confirmation
-        if new_password != confirm_password:
+        # 2. Match confirmation if supplied
+        if confirm_password and new_password != confirm_password:
             return Response({'error': 'Password confirmation does not match.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # 3. Disallow easily guessable/compromised values
@@ -577,14 +836,18 @@ class UserPasswordAPIView(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
 
         customer.set_password(new_password)
-        customer.save(update_fields=['password'])
-        CustomerAccessToken.objects.filter(customer=customer).exclude(pk=request.auth.pk).update(
-            revoked_at=timezone.now()
-        )
+        customer.password_change_required = False
+        customer.save(update_fields=['password', 'password_change_required'])
+
+        tokens_qs = CustomerAccessToken.objects.filter(customer=customer)
+        auth_pk = getattr(request.auth, 'pk', None)
+        if auth_pk:
+            tokens_qs = tokens_qs.exclude(pk=auth_pk)
+        tokens_qs.update(revoked_at=timezone.now())
 
         try:
             AuditLog.objects.create(
-                actor=customer.name,
+                actor=customer.name or customer.email,
                 actor_role=customer.role,
                 action='Rotated account password (NIST SP 800-63B compliant)',
                 target_model='AccountsCustomer',
@@ -593,10 +856,30 @@ class UserPasswordAPIView(APIView):
         except Exception:
             pass
 
+        if is_brevo_configured():
+            notif = render_password_changed_notification(
+                customer,
+                timezone.now().strftime('%Y-%m-%d %H:%M UTC'),
+            )
+            send_transactional_email(
+                customer.email,
+                customer.name,
+                notif['subject'],
+                notif['html'],
+                notif['text'],
+            )
+
         return Response({
             'success': True,
             'message': 'Password rotated successfully.',
+            'password_change_required': False,
         }, status=status.HTTP_200_OK)
+
+    def put(self, request):
+        return self.post(request)
+
+    def patch(self, request):
+        return self.post(request)
 
 
 class UserMfaAPIView(APIView):

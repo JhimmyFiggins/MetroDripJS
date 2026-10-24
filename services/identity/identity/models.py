@@ -18,6 +18,7 @@ class AccountsCustomer(models.Model):
     is_staff = models.BooleanField(default=False)
     role = models.CharField(max_length=16, db_index=True, default='customer')
     date_joined = models.DateTimeField(default=timezone.now)
+    password_change_required = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'accounts_customer'

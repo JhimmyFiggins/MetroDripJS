@@ -132,16 +132,17 @@
       tfa: mfa === true || String(mfa).toLowerCase() === 'on' ? 'On' : mfa === false || String(mfa).toLowerCase() === 'off' ? 'Off' : 'Not reported',
       lastActive: formatDate(raw.last_active || raw.last_login, true),
       memberSince: formatDate(raw.memberSince || raw.date_joined || raw.created_at),
+      passwordChangeRequired: Boolean(raw.password_change_required ?? raw.passwordChangeRequired),
     };
   }
 
   function setMutationEnabled(enabled) {
     writesEnabled = enabled && !fixtureMode;
-    ['btn-open-add-user', 'btn-save-user-role', 'btn-reset-password', 'btn-toggle-suspend', 'btn-send-invite', 'btn-submit-add-user']
+    ['btn-open-add-user', 'btn-save-user-role', 'btn-reset-password', 'btn-resend-invite', 'btn-toggle-suspend', 'btn-send-invite', 'btn-submit-add-user']
       .forEach(id => {
         const element = document.getElementById(id);
         if (element) {
-          const isDisabled = !writesEnabled || (['btn-save-user-role', 'btn-reset-password', 'btn-toggle-suspend'].includes(id) && !selectedUserId);
+          const isDisabled = !writesEnabled || (['btn-save-user-role', 'btn-reset-password', 'btn-resend-invite', 'btn-toggle-suspend'].includes(id) && !selectedUserId);
           element.disabled = isDisabled;
           element.setAttribute('aria-disabled', String(isDisabled));
           if (isDisabled) {
@@ -292,11 +293,14 @@
       'detail-user-sub': message,
       'detail-user-2fa': 'Two-factor authentication: Not reported',
       'detail-user-activity': 'Account activity unavailable.',
+      'detail-user-password-status': 'Password status: Not reported',
     };
     Object.entries(values).forEach(([id, text]) => {
       const element = document.getElementById(id);
       if (element) element.textContent = text;
     });
+    const resendInvite = document.getElementById('btn-resend-invite');
+    if (resendInvite) resendInvite.style.display = 'none';
     setMutationEnabled(writesEnabled);
   }
 
@@ -313,12 +317,24 @@
     const role = document.getElementById('detail-user-role');
     const tfa = document.getElementById('detail-user-2fa');
     const activity = document.getElementById('detail-user-activity');
+    const pwdStatus = document.getElementById('detail-user-password-status');
+    const resendInvite = document.getElementById('btn-resend-invite');
     const suspend = document.getElementById('btn-toggle-suspend');
     if (name) name.textContent = user.name;
     if (sub) sub.textContent = `${user.email} · ${user.status}`;
     if (role) role.value = user.role.toLowerCase();
     if (tfa) tfa.innerHTML = `Two-factor authentication: <strong>${escapeHtml(user.tfa === 'On' ? 'Enabled' : user.tfa === 'Off' ? 'Disabled' : 'Not reported')}</strong>`;
     if (activity) activity.textContent = `Member since ${user.memberSince} · Last active ${user.lastActive}`;
+    if (pwdStatus) {
+      if (user.passwordChangeRequired) {
+        pwdStatus.innerHTML = 'Password status: <strong style="color: var(--color-warning, #FFB800);">Temporary / Setup Required</strong>';
+      } else {
+        pwdStatus.innerHTML = 'Password status: <strong style="color: var(--color-primary, #00FF66);">Active & Established</strong>';
+      }
+    }
+    if (resendInvite) {
+      resendInvite.style.display = user.passwordChangeRequired ? 'inline-block' : 'none';
+    }
     if (suspend) {
       const suspended = user.status.toLowerCase() === 'suspended';
       suspend.textContent = suspended ? 'Activate account' : 'Suspend account';
@@ -442,27 +458,118 @@
     }
   }
 
+  function showTempPasswordModal(user, tempPassword, passwordOption) {
+    const modal = document.getElementById('modal-temp-password');
+    const nameEl = document.getElementById('temp-user-name');
+    const emailEl = document.getElementById('temp-user-email');
+    const pwdBlock = document.getElementById('temp-password-block');
+    const pwdVal = document.getElementById('temp-password-value');
+    const noticeEl = document.getElementById('temp-password-notice');
+    if (!modal) return;
+
+    if (nameEl) nameEl.textContent = user.name;
+    if (emailEl) emailEl.textContent = user.email;
+
+    if (tempPassword) {
+      if (pwdBlock) pwdBlock.style.display = 'block';
+      if (pwdVal) pwdVal.textContent = tempPassword;
+      if (noticeEl) {
+        noticeEl.innerHTML = '⚠️ <strong>Mandatory First-Login Change:</strong> The user will be restricted from accessing the store/console until they choose a permanent password.';
+      }
+    } else if (passwordOption === 'email_invite') {
+      if (pwdBlock) pwdBlock.style.display = 'none';
+      if (noticeEl) {
+        noticeEl.innerHTML = '✉️ <strong>Setup Invitation Dispatched:</strong> An invitation link has been queued via Brevo. The user must establish their password using that link before signing in.';
+      }
+    } else {
+      if (pwdBlock) pwdBlock.style.display = 'none';
+      if (noticeEl) {
+        noticeEl.innerHTML = '⚠️ <strong>Mandatory First-Login Change:</strong> The user will be required to change their password on first login.';
+      }
+    }
+
+    modal.hidden = false;
+  }
+
+  function initTempPasswordModal() {
+    const modal = document.getElementById('modal-temp-password');
+    const closeBtn = document.getElementById('btn-close-temp-modal');
+    const doneBtn = document.getElementById('btn-done-temp-password');
+    const copyBtn = document.getElementById('btn-copy-temp-password');
+    const pwdVal = document.getElementById('temp-password-value');
+
+    const closeModal = () => {
+      if (modal) modal.hidden = true;
+    };
+
+    closeBtn?.addEventListener('click', closeModal);
+    doneBtn?.addEventListener('click', closeModal);
+    modal?.addEventListener('click', event => {
+      if (event.target === modal) closeModal();
+    });
+
+    copyBtn?.addEventListener('click', async () => {
+      const text = pwdVal?.textContent || '';
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
+      } catch {
+        showToast('Password copied to clipboard.');
+      }
+    });
+  }
+
   function createUserFromForm(form, button, afterSuccess) {
     const formData = new FormData(form);
     const name = String(formData.get('name') || '').trim();
     const email = String(formData.get('email') || '').trim();
     const role = apiRole(formData.get('role'));
     const phone = String(formData.get('phone') || '').trim();
+    const passwordOption = String(formData.get('password_option') || 'generated').trim();
+    const password = String(formData.get('password') || '').trim();
     if (!name || !email || !role) return;
+
+    if (passwordOption === 'custom' && password.length < 8) {
+      showToast('Temporary password must be at least 8 characters.', 'error');
+      return;
+    }
+
+    const payload = {
+      name,
+      email,
+      role,
+      phone,
+      password_option: passwordOption,
+      ...(passwordOption === 'custom' ? { password } : {}),
+    };
+
     runWrite(button, {
       url: `${API_BASE}/users/`,
       options: {
         method: 'POST',
         headers: requestHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ name, email, role, phone }),
+        body: JSON.stringify(payload),
       },
     }, data => {
       const user = normalizeUser(data);
       users.unshift(user);
       form.reset();
+      // Reset option display
+      const optSelect = document.getElementById('add-user-password-option');
+      if (optSelect) optSelect.value = 'generated';
+      document.getElementById('group-custom-password')?.setAttribute('style', 'display: none;');
+      document.getElementById('group-generated-info')?.removeAttribute('style');
+      document.getElementById('group-invite-info')?.setAttribute('style', 'display: none;');
+
       renderTable();
       selectUser(user.id);
       afterSuccess?.();
+
+      if (data.temporary_password || passwordOption === 'email_invite') {
+        showTempPasswordModal(user, data.temporary_password, passwordOption);
+      }
     }, `Created account for ${name}.`);
   }
 
@@ -472,6 +579,28 @@
     const close = document.getElementById('btn-close-modal');
     const cancel = document.getElementById('btn-cancel-add-user');
     const form = document.getElementById('form-add-user');
+    const optionSelect = document.getElementById('add-user-password-option');
+    const togglePwd = document.getElementById('btn-toggle-add-password');
+    const pwdInput = document.getElementById('add-user-password');
+
+    optionSelect?.addEventListener('change', () => {
+      const val = optionSelect.value;
+      const customGroup = document.getElementById('group-custom-password');
+      const genGroup = document.getElementById('group-generated-info');
+      const inviteGroup = document.getElementById('group-invite-info');
+
+      if (customGroup) customGroup.style.display = val === 'custom' ? 'block' : 'none';
+      if (genGroup) genGroup.style.display = val === 'generated' ? 'block' : 'none';
+      if (inviteGroup) inviteGroup.style.display = val === 'email_invite' ? 'block' : 'none';
+      if (val === 'custom') pwdInput?.focus();
+    });
+
+    togglePwd?.addEventListener('click', () => {
+      if (!pwdInput) return;
+      const isPassword = pwdInput.type === 'password';
+      pwdInput.type = isPassword ? 'text' : 'password';
+      togglePwd.textContent = isPassword ? '🔒' : '👁️';
+    });
 
     const openModal = () => {
       if (!modal || !writesEnabled) return;
@@ -482,6 +611,11 @@
       if (!modal) return;
       modal.hidden = true;
       form?.reset();
+      if (optionSelect) optionSelect.value = 'generated';
+      document.getElementById('group-custom-password')?.setAttribute('style', 'display: none;');
+      document.getElementById('group-generated-info')?.removeAttribute('style');
+      document.getElementById('group-invite-info')?.setAttribute('style', 'display: none;');
+      if (pwdInput) pwdInput.type = 'password';
       open?.focus();
     };
     open?.addEventListener('click', openModal);
@@ -509,6 +643,8 @@
       event.preventDefault();
       createUserFromForm(form, document.getElementById('btn-submit-add-user'), closeModal);
     });
+
+    initTempPasswordModal();
   }
 
   function initHandlers() {
@@ -556,10 +692,21 @@
     document.getElementById('btn-reset-password')?.addEventListener('click', event => {
       const user = users.find(item => item.id === selectedUserId);
       if (!user) return;
+      if (!confirm(`Dispatch a password reset link to ${user.email}?`)) return;
       runWrite(event.currentTarget, {
         url: `${API_BASE}/users/${encodeURIComponent(user.id)}/reset-password/`,
         options: { method: 'POST', headers: requestHeaders({ 'Content-Type': 'application/json' }), body: '{}' },
-      }, () => {}, `Password reset request accepted for ${user.email}.`);
+      }, () => {}, `Password reset email dispatched to ${user.email}.`);
+    });
+
+    document.getElementById('btn-resend-invite')?.addEventListener('click', event => {
+      const user = users.find(item => item.id === selectedUserId);
+      if (!user) return;
+      if (!confirm(`Resend account setup invitation email to ${user.email}?`)) return;
+      runWrite(event.currentTarget, {
+        url: `${API_BASE}/users/${encodeURIComponent(user.id)}/resend-invite/`,
+        options: { method: 'POST', headers: requestHeaders({ 'Content-Type': 'application/json' }), body: '{}' },
+      }, () => {}, `Setup invitation dispatched to ${user.email}.`);
     });
 
     document.getElementById('btn-toggle-suspend')?.addEventListener('click', event => {
@@ -589,14 +736,15 @@
       if (!values.name.trim() || !values.email.trim()) return;
       runWrite(button, {
         url: `${API_BASE}/users/`,
-        options: { method: 'POST', headers: requestHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ ...values, role: apiRole(values.role) }) },
+        options: { method: 'POST', headers: requestHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ ...values, role: apiRole(values.role), password_option: 'email_invite' }) },
       }, data => {
         const user = normalizeUser(data);
         users.unshift(user);
         form.reset();
         renderTable();
         selectUser(user.id);
-      }, `Created staff account for ${values.name}.`);
+        showTempPasswordModal(user, null, 'email_invite');
+      }, `Created staff account and queued invite for ${values.name}.`);
     });
 
     initModal();

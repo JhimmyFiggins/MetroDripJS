@@ -12,6 +12,7 @@ class IsAdminRole(BasePermission):
             getattr(user, 'is_authenticated', False)
             and getattr(user, 'is_active', False)
             and getattr(user, 'is_staff', False)
+            and not getattr(user, 'password_change_required', False)
             and getattr(user, 'role', None) == 'admin'
         )
 
@@ -27,5 +28,6 @@ class IsMerchantOrAdminRole(BasePermission):
             getattr(user, 'is_authenticated', False)
             and getattr(user, 'is_active', False)
             and getattr(user, 'is_staff', False)
+            and not getattr(user, 'password_change_required', False)
             and getattr(user, 'role', None) in {'merchant', 'admin'}
         )

@@ -1,7 +1,16 @@
 from django.utils import timezone
 from rest_framework.authentication import BaseAuthentication, get_authorization_header
-from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
 from .models import CustomerAccessToken
+
+RESTRICTED_ALLOWED_PATHS = {
+    '/users/me/password/',
+    '/users/me/',
+    '/api/users/me/',
+    '/logout/',
+    '/api/admin/logout/',
+    '/health/',
+}
 
 
 class CustomerTokenAuthentication(BaseAuthentication):
@@ -38,6 +47,16 @@ class CustomerTokenAuthentication(BaseAuthentication):
 
         if token.last_used_at is None or (now - token.last_used_at).total_seconds() >= 300:
             CustomerAccessToken.objects.filter(pk=token.pk).update(last_used_at=now)
+
+        # Enforce initial temporary-password change requirement server-side
+        if getattr(token.customer, 'password_change_required', False):
+            request_path = request.path if request.path.endswith('/') else f"{request.path}/"
+            if request_path not in RESTRICTED_ALLOWED_PATHS:
+                raise PermissionDenied({
+                    'error': 'Password change required before accessing platform features.',
+                    'code': 'password_change_required',
+                })
+
         return token.customer, token
 
     def authenticate_header(self, request):

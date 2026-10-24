@@ -197,10 +197,12 @@
             <div>
               <p class="td-muted" style="font-size: 12px;" id="detail-user-2fa">Two-factor authentication: <strong>Not reported</strong></p>
               <p class="td-muted" style="font-size: 11px; margin-top: 4px;" id="detail-user-activity">Account activity unavailable.</p>
+              <p class="td-muted" style="font-size: 11px; margin-top: 4px;" id="detail-user-password-status">Password status: <strong>Active</strong></p>
             </div>
             <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px;">
               <button type="button" class="btn btn-primary" id="btn-save-user-role" disabled aria-disabled="true">Save role</button>
               <button type="button" class="btn btn-secondary" id="btn-reset-password" disabled aria-disabled="true">Reset password</button>
+              <button type="button" class="btn btn-secondary" id="btn-resend-invite" disabled aria-disabled="true" style="display: none;">Resend invite</button>
               <button type="button" class="btn btn-secondary btn-danger-outline" id="btn-toggle-suspend" disabled aria-disabled="true">Suspend account</button>
             </div>
           </div>
@@ -266,12 +268,66 @@
             <label class="form-label" for="add-user-phone">Phone (Optional)</label>
             <input class="form-input" id="add-user-phone" name="phone" type="text" placeholder="+63 917 123 4567">
           </div>
+          <div class="form-group">
+            <label class="form-label" for="add-user-password-option">Initial Password Method</label>
+            <select class="form-select" id="add-user-password-option" name="password_option">
+              <option value="generated" selected>Generate secure temporary password (Recommended)</option>
+              <option value="custom">Administrator-specified temporary password</option>
+              <option value="email_invite">Send email setup invitation link</option>
+            </select>
+          </div>
+          <div class="form-group" id="group-custom-password" style="display: none;">
+            <label class="form-label" for="add-user-password">Temporary Password</label>
+            <div style="position: relative; display: flex; align-items: center;">
+              <input class="form-input" id="add-user-password" name="password" type="password" placeholder="Min 8 characters, letters & numbers" style="padding-right: 40px;">
+              <button type="button" id="btn-toggle-add-password" style="position: absolute; right: 8px; background: none; border: none; color: var(--color-text-muted); cursor: pointer; font-size: 14px;" aria-label="Toggle password visibility">👁️</button>
+            </div>
+            <p class="td-muted" style="font-size: 11px; margin-top: 4px;">Must meet NIST guidelines: min 8 characters. User must change upon first sign-in.</p>
+          </div>
+          <div class="form-group" id="group-generated-info">
+            <p class="td-muted" style="font-size: 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--color-border); padding: 10px; border-radius: 6px;">
+              ⚡ A high-entropy 14-character temporary password will be generated and displayed <strong>once</strong>. The user must establish a permanent password on first login.
+            </p>
+          </div>
+          <div class="form-group" id="group-invite-info" style="display: none;">
+            <p class="td-muted" style="font-size: 12px; background: rgba(255,255,255,0.03); border: 1px solid var(--color-border); padding: 10px; border-radius: 6px;">
+              ✉️ A secure account setup invitation link will be dispatched via Brevo. The account cannot log in until setup is completed by the recipient.
+            </p>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" id="btn-cancel-add-user">Cancel</button>
           <button type="submit" class="btn btn-primary" id="btn-submit-add-user">Create Account</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal: Temporary Password Dialog -->
+  <div class="modal-overlay" id="modal-temp-password" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-temp-password-title">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-temp-password-title">Account Created Successfully</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-temp-modal" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
+        <p style="font-size: 13px; color: var(--color-text-secondary);">
+          Account for <strong id="temp-user-name"></strong> (<span id="temp-user-email"></span>) has been provisioned.
+        </p>
+        <div id="temp-password-block" style="display: none; background: #000; border: 1px solid var(--color-primary, #00FF66); padding: 14px; border-radius: 6px;">
+          <label style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--color-text-muted); display: block; margin-bottom: 6px;">Temporary Password (Shown Once)</label>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+            <code id="temp-password-value" style="font-size: 16px; font-family: 'IBM Plex Mono', monospace; font-weight: 700; color: #FFF; letter-spacing: 1px;"></code>
+            <button type="button" class="btn btn-secondary" id="btn-copy-temp-password" style="padding: 6px 12px; font-size: 12px;">Copy</button>
+          </div>
+        </div>
+        <p class="td-muted" style="font-size: 12px;" id="temp-password-notice">
+          ⚠️ <strong>Mandatory First-Login Change:</strong> The user will be restricted from accessing the store/console until they choose a permanent password.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" id="btn-done-temp-password">Done</button>
+      </div>
     </div>
   </div>
 

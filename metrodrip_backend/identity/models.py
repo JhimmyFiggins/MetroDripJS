@@ -21,6 +21,7 @@ class AccountsCustomer(models.Model):
     is_staff = models.BooleanField()
     role = models.CharField(max_length=16, db_index=True)
     date_joined = models.DateTimeField()
+    password_change_required = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'accounts_customer'
@@ -46,6 +47,9 @@ class AccountsCustomer(models.Model):
             # login upgrades them; new writes are always one-way hashes.
             return secrets.compare_digest(self.password, raw_password or '')
         return check_password(raw_password, self.password)
+
+    def has_usable_password(self):
+        return is_password_usable(self.password)
 
 
 class CustomerAccessToken(models.Model):
@@ -83,6 +87,57 @@ class CustomerAccessToken(models.Model):
             token_digest=cls.digest(raw_token),
             token_prefix=raw_token[:12],
             expires_at=timezone.now() + lifetime,
+        )
+        return token, raw_token
+
+
+class PasswordResetToken(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    customer = models.ForeignKey(
+        AccountsCustomer,
+        on_delete=models.CASCADE,
+        related_name='password_reset_tokens',
+    )
+    token_digest = models.CharField(max_length=64, unique=True, db_index=True)
+    token_prefix = models.CharField(max_length=12, db_index=True)
+    purpose = models.CharField(max_length=32, default='reset')
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(db_index=True)
+    consumed_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    created_by = models.ForeignKey(
+        AccountsCustomer,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='issued_password_resets',
+    )
+
+    class Meta:
+        db_table = 'identity_passwordresettoken'
+        indexes = [
+            models.Index(fields=['customer', 'expires_at']),
+            models.Index(fields=['consumed_at']),
+        ]
+
+    @staticmethod
+    def digest(raw_token):
+        return hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
+
+    @property
+    def is_valid(self):
+        return self.consumed_at is None and self.expires_at > timezone.now()
+
+    @classmethod
+    def issue(cls, customer, purpose='reset', lifetime_seconds=None, created_by=None):
+        raw_token = secrets.token_urlsafe(32)
+        ttl = lifetime_seconds or getattr(settings, 'PASSWORD_RESET_TOKEN_TTL_SECONDS', 1800)
+        token = cls.objects.create(
+            customer=customer,
+            token_digest=cls.digest(raw_token),
+            token_prefix=raw_token[:12],
+            purpose=purpose,
+            expires_at=timezone.now() + timedelta(seconds=ttl),
+            created_by=created_by,
         )
         return token, raw_token
 

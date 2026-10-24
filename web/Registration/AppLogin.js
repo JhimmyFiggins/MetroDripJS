@@ -74,6 +74,7 @@
       access_token: token,
       token_type: 'Bearer',
       expires_at: account.expires_at,
+      password_change_required: Boolean(account.password_change_required),
     };
   }
 
@@ -123,6 +124,15 @@
         localStorage.removeItem(STORAGE_KEY);
         sessionStorage.setItem(STORAGE_KEY, JSON.stringify(account));
         fields.password.value = '';
+
+        if (account.password_change_required) {
+          setStatus('Temporary password detected. Redirecting to establish your permanent password…');
+          setTimeout(() => {
+            window.location.assign(`../screens/ResetPasswordScreen.html?forced=1&email=${encodeURIComponent(account.email)}`);
+          }, 800);
+          return;
+        }
+
         setStatus(`Signed in. Opening the ${roleLabel} console…`);
         window.location.assign(expectedRole === 'admin' ? '../../admin/index.html' : '../../merchant/index.html');
       } catch (error) {
