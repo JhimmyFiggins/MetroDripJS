@@ -141,6 +141,7 @@ const pages = {
   'sign-in': renderSignIn,
   'sign-up': renderSignUp,
   'forgot-password': renderForgot,
+  'reset-password': renderResetPassword,
   'not-found': async () => page('Page not found', 'That customer page does not exist.', el('a', { class: 'btn btn-primary', href: customerHref('/shop') }, 'Back to shop')),
   outside: async () => page('Wrong route', 'Customer pages stay under /customer so they do not replace the API.'),
 };
@@ -1479,6 +1480,192 @@ async function renderForgot(_route, scope) {
   return el('section', { class: 'page auth-page' }, [
     breadcrumbs({ label: 'Home', href: customerHref('/') }, { label: 'Forgot password' }),
     el('div', { class: 'auth-workspace' }, [brandPanel, form]),
+  ]);
+}
+
+async function renderResetPassword(scope) {
+  const brandPanel = el('div', { class: 'auth-brand-panel' }, [
+    el('h2', { class: 'auth-brand-name' }, 'METRODRIP'),
+    el('p', { class: 'auth-brand-tagline' }, ['Account', el('br'), 'Recovery.']),
+    el('p', { class: 'auth-brand-perks' }, 'Secure · One-time reset link · Encrypted'),
+  ]);
+
+  const params = new URLSearchParams(window.location.search);
+  const token = (params.get('token') || '').trim();
+
+  const container = el('div', { class: 'auth-form-card' });
+
+  if (!token) {
+    container.replaceChildren(
+      el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Reset password'),
+      el('div', { class: 'auth-feedback is-error', style: 'padding: 16px; background: rgba(255,51,102,0.08); border: 1px solid var(--color-danger, #FF3366); border-radius: 6px; margin: 16px 0;' }, [
+        el('p', { style: 'font-weight: 600; margin: 0 0 6px; color: #FFF;' }, 'Missing Security Token'),
+        el('p', { class: 'muted', style: 'font-size: 13px; margin: 0;' }, 'Password reset token is missing. Please use the complete recovery link from your email.'),
+      ]),
+      el('a', { class: 'btn btn-secondary btn-full', style: 'text-align:center;', href: customerHref('/forgot-password') }, 'Request a new reset link')
+    );
+    return el('section', { class: 'page auth-page' }, [
+      breadcrumbs({ label: 'Home', href: customerHref('/') }, { label: 'Reset password' }),
+      el('div', { class: 'auth-workspace' }, [brandPanel, container]),
+    ]);
+  }
+
+  container.replaceChildren(
+    el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Reset password'),
+    el('p', { class: 'muted', style: 'margin:16px 0;' }, 'Verifying security token…')
+  );
+
+  (async () => {
+    try {
+      const res = await request(`/password-reset/verify/?token=${encodeURIComponent(token)}`, {
+        method: 'GET',
+        auth: false,
+      }, scope);
+
+      if (!isCurrent(scope)) return;
+
+      if (!res?.valid) {
+        let msg = res?.error || 'This password reset link is invalid or has expired.';
+        if (res?.code === 'token_already_used') {
+          msg = 'This password reset link has already been used. Please request another one.';
+        } else if (res?.code === 'token_expired') {
+          msg = 'This password reset link has expired (links are valid for 30 minutes).';
+        }
+        container.replaceChildren(
+          el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Reset password'),
+          el('div', { class: 'auth-feedback is-error', style: 'padding: 16px; background: rgba(255,51,102,0.08); border: 1px solid var(--color-danger, #FF3366); border-radius: 6px; margin: 16px 0;' }, [
+            el('p', { style: 'font-weight: 600; margin: 0 0 6px; color: #FFF;' }, 'Link Expired or Invalid'),
+            el('p', { class: 'muted', style: 'font-size: 13px; margin: 0;' }, msg),
+          ]),
+          el('a', { class: 'btn btn-secondary btn-full', style: 'text-align:center;', href: customerHref('/forgot-password') }, 'Request a new reset link')
+        );
+        return;
+      }
+
+      if (res.role === 'admin' || res.role === 'merchant') {
+        window.location.replace(`/Registration/screens/ResetPasswordScreen.html?token=${encodeURIComponent(token)}&context=${res.role}`);
+        return;
+      }
+
+      const statusArea = el('div', { id: 'reset-status-area' });
+      const accountInput = el('input', {
+        type: 'text',
+        readonly: true,
+        disabled: true,
+        value: res.email || 'Verified Account',
+        style: 'opacity: 0.75;',
+      });
+      const accountField = el('label', { class: 'field' }, [
+        el('span', { class: 'field-label' }, 'Account'),
+        accountInput,
+      ]);
+
+      const newPassInput = el('input', {
+        type: 'password',
+        required: true,
+        autocomplete: 'new-password',
+      });
+      const newPassField = el('label', { class: 'field' }, [
+        el('span', { class: 'field-label' }, 'New Password *'),
+        newPassInput,
+        el('span', { class: 'muted', style: 'font-size:11px; margin-top:4px;' }, 'Minimum 8 characters. Must avoid common dictionary words.'),
+      ]);
+
+      const confirmPassInput = el('input', {
+        type: 'password',
+        required: true,
+        autocomplete: 'new-password',
+      });
+      const confirmPassField = el('label', { class: 'field' }, [
+        el('span', { class: 'field-label' }, 'Confirm Password *'),
+        confirmPassInput,
+      ]);
+
+      const submitBtn = el('button', { class: 'btn btn-primary btn-full', type: 'submit' }, 'Set new password');
+
+      const form = el('form', {
+        class: 'auth-form-card',
+        style: 'padding: 0; background: transparent; border: none;',
+        onsubmit: async (e) => {
+          e.preventDefault();
+          return runAction(scope, submitBtn, async () => {
+            const newPassword = newPassInput.value.trim();
+            const confirmPassword = confirmPassInput.value.trim();
+
+            if (!newPassword) {
+              announce('New password is required.');
+              return;
+            }
+            if (newPassword.length < 8) {
+              announce('Password must be at least 8 characters long.');
+              return;
+            }
+            if (newPassword !== confirmPassword) {
+              announce('Passwords do not match.');
+              return;
+            }
+
+            try {
+              const confirmRes = await request('/password-reset/confirm/', {
+                method: 'POST',
+                auth: false,
+                body: {
+                  token,
+                  new_password: newPassword,
+                  confirm_password: confirmPassword,
+                },
+              }, scope);
+
+              if (!isCurrent(scope)) return;
+
+              container.replaceChildren(
+                el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0 0 16px;' }, 'Password Updated'),
+                el('div', { class: 'auth-feedback is-success', style: 'padding: 16px; background: rgba(0,255,102,0.08); border: 1px solid var(--color-primary, #00FF66); border-radius: 6px; margin-bottom: 20px;' }, [
+                  el('p', { style: 'font-weight: 600; margin: 0 0 6px; color: #FFF;' }, 'Password Reset Complete'),
+                  el('p', { class: 'muted', style: 'font-size: 13px; margin: 0;' }, confirmRes?.message || 'Your permanent password has been set. All previous active sessions have been securely revoked.'),
+                ]),
+                el('a', { class: 'btn btn-primary btn-full', style: 'text-align:center;', href: customerHref('/sign-in') }, 'Return to sign in')
+              );
+            } catch (err) {
+              if (!isCurrent(scope)) return;
+              const msg = err?.message || 'Failed to update password. Please try again.';
+              statusArea.replaceChildren(
+                el('div', { class: 'auth-feedback is-error', style: 'padding: 12px 16px; background: rgba(255,51,102,0.08); border: 1px solid var(--color-danger, #FF3366); border-radius: 6px; margin-bottom: 16px;' }, [
+                  el('p', { style: 'margin: 0; font-size: 13px; color: #FFF;' }, msg),
+                ])
+              );
+            }
+          });
+        },
+      }, [
+        statusArea,
+        accountField,
+        newPassField,
+        confirmPassField,
+        submitBtn,
+      ]);
+
+      container.replaceChildren(
+        el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Set new password'),
+        el('p', { class: 'muted', style: 'margin:0 0 16px;' }, 'Establish a new permanent password for your customer account.'),
+        form
+      );
+    } catch (err) {
+      if (!isCurrent(scope)) return;
+      container.replaceChildren(
+        el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Reset password'),
+        el('div', { class: 'auth-feedback is-error', style: 'padding: 16px; background: rgba(255,51,102,0.08); border: 1px solid var(--color-danger, #FF3366); border-radius: 6px; margin: 16px 0;' }, [
+          el('p', { style: 'font-weight: 600; margin: 0 0 6px; color: #FFF;' }, 'Unable to Verify Link'),
+          el('p', { class: 'muted', style: 'font-size: 13px; margin: 0;' }, err?.message || 'Network error verifying reset link. Please check your connection and try again.'),
+        ]),
+        el('a', { class: 'btn btn-secondary btn-full', style: 'text-align:center;', href: customerHref('/forgot-password') }, 'Return to forgot password')
+      );
+    }
+  })();
+
+  return el('section', { class: 'page auth-page' }, [
+    breadcrumbs({ label: 'Home', href: customerHref('/') }, { label: 'Reset password' }),
+    el('div', { class: 'auth-workspace' }, [brandPanel, container]),
   ]);
 }
 

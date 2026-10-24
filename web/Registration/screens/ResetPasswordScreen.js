@@ -6,6 +6,7 @@
   const params = new URLSearchParams(window.location.search);
   const rawToken = (params.get('token') || '').trim();
   const isForced = params.get('forced') === '1';
+  const urlContext = (params.get('context') || '').toLowerCase();
 
   let activeUser = null;
   try {
@@ -30,8 +31,18 @@
   const successPane = document.getElementById('reset-success-pane');
   const signinBtn = document.getElementById('btn-goto-signin');
   const replacementPane = document.getElementById('replacement-link-pane');
+  const replacementLink = document.getElementById('link-request-replacement');
   const pageEyebrow = document.getElementById('page-eyebrow');
   const formTitle = document.getElementById('form-title');
+  const pageSubheading = document.getElementById('page-subheading');
+
+  const brandEyebrow = document.getElementById('brand-eyebrow');
+  const brandTitle = document.getElementById('brand-title');
+  const brandDesc = document.getElementById('brand-desc');
+  const brandRoute = document.getElementById('brand-route');
+  const brandReturnLink = document.getElementById('brand-return-link');
+
+  let verifiedRole = urlContext || (activeUser?.role || '').toLowerCase();
 
   // Eye toggle handlers
   document.querySelectorAll('.btn-toggle-eye').forEach(btn => {
@@ -70,21 +81,86 @@
     }
   }
 
-  // Determine initial state
-  if (!rawToken && isForced && activeUser?.access_token) {
+  function applyRoleContext(role, purpose = 'reset') {
+    verifiedRole = role;
+    if (role === 'admin') {
+      if (brandEyebrow) brandEyebrow.textContent = 'ADMINISTRATOR CONSOLE';
+      if (brandTitle) brandTitle.innerHTML = 'PASSWORD<br>RECOVERY';
+      if (brandDesc) brandDesc.textContent = 'Establish your permanent administrator password or recover secure access.';
+      if (brandRoute) brandRoute.textContent = '/ADMIN/RESET/';
+      if (brandReturnLink) {
+        brandReturnLink.href = 'AdminLoginScreen.html';
+        brandReturnLink.textContent = 'Return to Admin Login';
+      }
+      if (pageEyebrow) pageEyebrow.textContent = purpose === 'setup' ? 'ACCOUNT PROVISIONING' : 'ADMIN SECURITY RECOVERY';
+      if (formTitle) formTitle.textContent = purpose === 'setup' ? 'SET YOUR PASSWORD' : 'SET NEW PASSWORD';
+      if (pageSubheading) pageSubheading.textContent = 'Choose a strong, permanent password for your administrator account.';
+      if (replacementLink) {
+        replacementLink.href = 'AdminForgotPasswordScreen.html';
+        replacementLink.textContent = 'Request a new administrator password reset link';
+      }
+    } else if (role === 'merchant') {
+      if (brandEyebrow) brandEyebrow.textContent = 'MERCHANT CONSOLE';
+      if (brandTitle) brandTitle.innerHTML = 'PASSWORD<br>RECOVERY';
+      if (brandDesc) brandDesc.textContent = 'Establish your permanent merchant staff password or recover secure access.';
+      if (brandRoute) brandRoute.textContent = '/MERCHANT/RESET/';
+      if (brandReturnLink) {
+        brandReturnLink.href = 'MerchantLoginScreen.html';
+        brandReturnLink.textContent = 'Return to Merchant Login';
+      }
+      if (pageEyebrow) pageEyebrow.textContent = purpose === 'setup' ? 'ACCOUNT PROVISIONING' : 'MERCHANT SECURITY RECOVERY';
+      if (formTitle) formTitle.textContent = purpose === 'setup' ? 'SET YOUR PASSWORD' : 'SET NEW PASSWORD';
+      if (pageSubheading) pageSubheading.textContent = 'Choose a strong, permanent password for your merchant staff account.';
+      if (replacementLink) {
+        replacementLink.href = 'MerchantForgotPasswordScreen.html';
+        replacementLink.textContent = 'Request a new merchant password reset link';
+      }
+    } else {
+      // Default staff
+      if (brandReturnLink) {
+        brandReturnLink.href = 'AdminLoginScreen.html';
+        brandReturnLink.textContent = 'Return to login';
+      }
+      if (replacementLink) {
+        replacementLink.href = 'AdminForgotPasswordScreen.html';
+        replacementLink.textContent = 'Request a new password reset link';
+      }
+    }
+  }
+
+  // Determine initial state: Token-based reset takes ABSOLUTE precedence over session data
+  if (rawToken) {
+    // Flow A: EMAIL-BASED RECOVERY / PROVISIONING
+    // Strictly remove Current Password field from DOM
+    if (currentPassField) {
+      currentPassField.remove();
+    }
+    if (urlContext) {
+      applyRoleContext(urlContext);
+    }
+    verifyToken();
+  } else if (isForced && activeUser?.access_token) {
+    // Flow B: AUTHENTICATED MANDATORY TEMPORARY-PASSWORD CHANGE
     if (loadingEl) loadingEl.hidden = true;
+    const role = (activeUser.role || '').toLowerCase();
+    applyRoleContext(role, 'mandatory');
     if (pageEyebrow) pageEyebrow.textContent = 'MANDATORY SETUP';
     if (formTitle) formTitle.textContent = 'ESTABLISH PERMANENT PASSWORD';
+    if (pageSubheading) pageSubheading.textContent = 'You must change your temporary password before accessing the console.';
     if (currentPassField) currentPassField.hidden = false;
     if (emailInput) emailInput.value = activeUser.email || params.get('email') || 'Staff Account';
     if (formEl) formEl.hidden = false;
-  } else if (!rawToken) {
+  } else {
+    // Neither token nor active session
     if (loadingEl) loadingEl.hidden = true;
     showAlert('Password reset token is missing or malformed. Please use the link provided in your email.', 'error');
     if (replacementPane) replacementPane.hidden = false;
+    if (urlContext === 'merchant') {
+      applyRoleContext('merchant');
+    } else {
+      applyRoleContext('admin');
+    }
     return;
-  } else {
-    verifyToken();
   }
 
   // Verify token on server
@@ -109,16 +185,20 @@
         return;
       }
 
-      // Valid token!
-      if (data.purpose === 'setup') {
-        if (pageEyebrow) pageEyebrow.textContent = 'ACCOUNT PROVISIONING';
-        if (formTitle) formTitle.textContent = 'SET YOUR PASSWORD';
+      // If token belongs to a customer, route to customer storefront recovery
+      if (data.role === 'customer') {
+        window.location.replace(`/customer/reset-password?token=${encodeURIComponent(rawToken)}`);
+        return;
       }
+
+      // Valid staff token (Admin or Merchant)
+      applyRoleContext(data.role, data.purpose);
+
       if (emailInput) {
-        emailInput.value = data.email || 'Verified Account';
+        emailInput.value = data.email || 'Verified Staff Account';
       }
       if (formEl) formEl.hidden = false;
-    } catch (err) {
+    } catch {
       if (loadingEl) loadingEl.hidden = true;
       showAlert('Unable to reach the server to verify your security link. Please check your network connection and try again.', 'error');
     }
@@ -128,18 +208,20 @@
   formEl?.addEventListener('submit', async event => {
     event.preventDefault();
     hideAlert();
-    setFieldError(currentPassInput, currentPassErr, '');
     setFieldError(newPassInput, newPassErr, '');
     setFieldError(confirmPassInput, confirmPassErr, '');
     if (formStatus) formStatus.hidden = true;
 
-    const currentPassword = (currentPassInput?.value || '').trim();
     const newPassword = (newPassInput?.value || '').trim();
     const confirmPassword = (confirmPassInput?.value || '').trim();
 
     let hasClientError = false;
 
-    if (isForced && activeUser?.access_token) {
+    // Flow B: Authenticated password change requires current password
+    let currentPassword = '';
+    if (!rawToken && isForced && activeUser?.access_token) {
+      currentPassword = (currentPassInput?.value || '').trim();
+      setFieldError(currentPassInput, currentPassErr, '');
       if (!currentPassword) {
         setFieldError(currentPassInput, currentPassErr, 'Current temporary password is required.');
         hasClientError = true;
@@ -170,8 +252,8 @@
     }
 
     try {
-      if (isForced && activeUser?.access_token) {
-        // Authenticated forced password change
+      if (!rawToken && isForced && activeUser?.access_token) {
+        // Authenticated forced password change (FLOW B)
         const res = await fetch(`${API_ROOT}/users/me/password/`, {
           method: 'PATCH',
           headers: {
@@ -196,7 +278,6 @@
           return;
         }
 
-        // Successfully updated!
         activeUser.password_change_required = false;
         sessionStorage.setItem('metrodrip_active_user', JSON.stringify(activeUser));
         formEl.hidden = true;
@@ -216,7 +297,7 @@
         return;
       }
 
-      // Token-based reset
+      // Flow A: Token-based reset (Does NOT send or require current password)
       const res = await fetch(`${API_ROOT}/password-reset/confirm/`, {
         method: 'POST',
         headers: {
@@ -252,8 +333,8 @@
       formEl.hidden = true;
       if (successPane) successPane.hidden = false;
 
-      // Set destination URL based on role
-      const role = (data.role || '').toLowerCase();
+      // Role-specific return destination
+      const role = (data.role || verifiedRole || '').toLowerCase();
       if (role === 'admin') {
         signinBtn.href = '/Registration/screens/AdminLoginScreen.html';
         signinBtn.textContent = 'PROCEED TO ADMINISTRATOR LOGIN';
@@ -261,10 +342,10 @@
         signinBtn.href = '/Registration/screens/MerchantLoginScreen.html';
         signinBtn.textContent = 'PROCEED TO MERCHANT LOGIN';
       } else {
-        signinBtn.href = '/customer/';
-        signinBtn.textContent = 'PROCEED TO SHOP';
+        signinBtn.href = '/customer/sign-in';
+        signinBtn.textContent = 'PROCEED TO SIGN IN';
       }
-    } catch (err) {
+    } catch {
       showAlert('A network error occurred while updating your password. Please try again.', 'error');
       if (submitBtn) {
         submitBtn.disabled = false;

@@ -75,8 +75,16 @@ def get_public_base_url():
     return DEFAULT_PUBLIC_BASE_URL
 
 
-def build_reset_url(raw_token):
-    return f"{get_public_base_url()}/Registration/screens/ResetPasswordScreen.html?token={raw_token}"
+def build_reset_url(raw_token, role=''):
+    base = get_public_base_url()
+    role_norm = (role or '').strip().lower()
+    if role_norm == 'customer':
+        return f"{base}/customer/reset-password?token={raw_token}"
+    if role_norm == 'admin':
+        return f"{base}/Registration/screens/ResetPasswordScreen.html?token={raw_token}&context=admin"
+    if role_norm == 'merchant':
+        return f"{base}/Registration/screens/ResetPasswordScreen.html?token={raw_token}&context=merchant"
+    return f"{base}/Registration/screens/ResetPasswordScreen.html?token={raw_token}"
 
 
 def get_sender_identity():

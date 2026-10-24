@@ -363,6 +363,79 @@ class PasswordResetFlowTests(BaseAuthTestCase):
         self.assertEqual(verify_res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(verify_res.json().get('code'), 'account_inactive')
 
+    @override_settings(BREVO_API_KEY='test-key', BREVO_TEST_MODE=True)
+    def test_role_based_recovery_link_generation(self):
+        # 1. Customer self-service recovery generates customer storefront link
+        clear_test_outbox()
+        res_cust = self.client.post('/forgot-password/', data={'email': self.customer_user.email}, format='json')
+        self.assertEqual(res_cust.status_code, status.HTTP_200_OK)
+        outbox = get_test_outbox()
+        self.assertEqual(len(outbox), 1)
+        self.assertIn('/customer/reset-password?token=', outbox[0]['html_content'])
+
+        # 2. Merchant reset generates merchant staff recovery link
+        clear_test_outbox()
+        admin_token = self.get_token(self.admin_user)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {admin_token}')
+        res_merch = self.client.post(f'/api/admin/users/{self.merchant_user.id}/reset-password/')
+        self.assertEqual(res_merch.status_code, status.HTTP_200_OK)
+        outbox = get_test_outbox()
+        self.assertEqual(len(outbox), 1)
+        self.assertIn('/Registration/screens/ResetPasswordScreen.html?token=', outbox[0]['html_content'])
+        self.assertIn('&context=merchant', outbox[0]['html_content'])
+
+        # 3. Admin reset generates admin staff recovery link
+        clear_test_outbox()
+        res_admin = self.client.post(f'/api/admin/users/{self.admin_user.id}/reset-password/')
+        self.assertEqual(res_admin.status_code, status.HTTP_200_OK)
+        outbox = get_test_outbox()
+        self.assertEqual(len(outbox), 1)
+        self.assertIn('/Registration/screens/ResetPasswordScreen.html?token=', outbox[0]['html_content'])
+        self.assertIn('&context=admin', outbox[0]['html_content'])
+
+    def test_token_confirm_does_not_require_current_password(self):
+        token_obj, raw_token = PasswordResetToken.issue(customer=self.customer_user, purpose='reset')
+        payload = {
+            'token': raw_token,
+            'new_password': 'BrandNewSecurePass987!',
+            'confirm_password': 'BrandNewSecurePass987!',
+            # Note: No current_password field provided!
+        }
+        res = self.client.post('/password-reset/confirm/', data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.customer_user.refresh_from_db()
+        self.assertTrue(self.customer_user.check_password('BrandNewSecurePass987!'))
+
+    def test_authenticated_password_change_still_requires_current_password(self):
+        token = self.get_token(self.customer_user)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
+
+        # 1. Missing current password fails with 400
+        res = self.client.patch('/users/me/password/', data=json.dumps({
+            'new_password': 'ComplexPassphrase999!',
+            'confirm_password': 'ComplexPassphrase999!',
+        }), content_type='application/json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('Current password does not match', res.json().get('error', ''))
+
+        # 2. Incorrect current password fails with 400
+        res = self.client.patch('/users/me/password/', data=json.dumps({
+            'current_password': 'WrongCurrentPassword!',
+            'new_password': 'ComplexPassphrase999!',
+            'confirm_password': 'ComplexPassphrase999!',
+        }), content_type='application/json')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('Current password does not match', res.json().get('error', ''))
+
+        # 3. Correct current password succeeds
+        res = self.client.patch('/users/me/password/', data=json.dumps({
+            'current_password': 'CustomerPass1234!',
+            'new_password': 'ComplexPassphrase999!',
+            'confirm_password': 'ComplexPassphrase999!',
+        }), content_type='application/json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+
 
 class BrevoIntegrationTests(TestCase):
     """

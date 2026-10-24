@@ -21,6 +21,8 @@ test('customer routes stay namespaced and reject unsafe next paths', () => {
   assert.equal(parseCustomerPath('/customer/products/15').id, '15');
   assert.equal(parseCustomerPath('/products/15').name, 'outside');
   assert.equal(parseCustomerPath('/customer/nope').name, 'not-found');
+  assert.equal(parseCustomerPath('/customer/forgot-password').name, 'forgot-password');
+  assert.equal(parseCustomerPath('/customer/reset-password').name, 'reset-password');
   assert.equal(safeCustomerPath('https://evil.example/customer/cart'), '/customer/');
   assert.equal(safeCustomerPath('/customer/orders/4'), '/customer/orders/4');
 });

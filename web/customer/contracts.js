@@ -178,6 +178,7 @@ export function parseCustomerPath(pathname) {
   if (head === 'sign-in' && parts.length === 1) return { name: 'sign-in' };
   if (head === 'sign-up' && parts.length === 1) return { name: 'sign-up' };
   if (head === 'forgot-password' && parts.length === 1) return { name: 'forgot-password' };
+  if (head === 'reset-password' && parts.length === 1) return { name: 'reset-password' };
   return { name: 'not-found' };
 }
 

@@ -11,6 +11,8 @@ _PUBLIC_SUFFIXES = frozenset({'.css', '.html', '.ico', '.js', '.png', '.svg'})
 _CLEAN_PATH_ALIASES = {
     'admin/account/settings': 'admin/account-settings.html',
     'merchant/account/settings': 'merchant/account-settings.html',
+    'admin/forgot-password': 'Registration/screens/AdminForgotPasswordScreen.html',
+    'merchant/forgot-password': 'Registration/screens/MerchantForgotPasswordScreen.html',
 }
 
 

@@ -43,3 +43,15 @@ test('verifyResetToken sends GET request to /password-reset/verify/ with token q
   assert.equal(methodOf(fetch.last), 'GET');
   assert.equal(headerOf(fetch.last, 'Authorization'), undefined);
 });
+
+test('changePassword posts current and new password to /users/me/password/ with bearer token', async () => {
+  setAuthToken('bearer-token-123');
+  await auth.changePassword('OldTempPass1!', 'NewPermPass2!');
+  assert.equal(pathOf(fetch.last), '/users/me/password/');
+  assert.equal(methodOf(fetch.last), 'POST');
+  assert.deepEqual(sentBody(fetch.last), {
+    current_password: 'OldTempPass1!',
+    new_password: 'NewPermPass2!',
+  });
+  assert.equal(headerOf(fetch.last, 'Authorization'), 'Bearer bearer-token-123');
+});

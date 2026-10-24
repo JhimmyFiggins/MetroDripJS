@@ -247,7 +247,7 @@ class AdminUsersAPIView(AdminAPIView):
                 purpose='setup',
                 created_by=request.user,
             )
-            setup_url = build_reset_url(raw_token)
+            setup_url = build_reset_url(raw_token, role=user.role)
             email_data = render_welcome_setup(user, setup_url)
             send_res = send_transactional_email(
                 user.email,
@@ -615,7 +615,7 @@ class AdminUserResetPasswordAPIView(AdminAPIView):
             purpose='reset',
             created_by=request.user,
         )
-        reset_url = build_reset_url(raw_token)
+        reset_url = build_reset_url(raw_token, role=user.role)
         email_data = render_admin_password_reset(user, reset_url)
         send_res = send_transactional_email(
             user.email,
@@ -677,7 +677,7 @@ class AdminUserResendInviteAPIView(AdminAPIView):
             purpose='setup',
             created_by=request.user,
         )
-        setup_url = build_reset_url(raw_token)
+        setup_url = build_reset_url(raw_token, role=user.role)
         email_data = render_welcome_setup(user, setup_url)
         send_res = send_transactional_email(
             user.email,

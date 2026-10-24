@@ -280,7 +280,7 @@ class ForgotPasswordAPIView(APIView):
                 customer=customer,
                 purpose='reset',
             )
-            reset_url = build_reset_url(raw_token)
+            reset_url = build_reset_url(raw_token, role=customer.role)
             email_data = render_self_service_password_reset(customer, reset_url)
             send_res = send_transactional_email(
                 customer.email,

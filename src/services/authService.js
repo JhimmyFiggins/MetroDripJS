@@ -58,3 +58,19 @@ export async function updateProfile(data) {
     body: data,
   });
 }
+
+// Authenticated password change (requires existing bearer token and current_password)
+export async function changePassword(currentPassword, newPassword, confirmPassword) {
+  const body = {
+    current_password: currentPassword,
+    new_password: newPassword,
+  };
+  if (confirmPassword) {
+    body.confirm_password = confirmPassword;
+  }
+  return apiFetch('/users/me/password/', {
+    method: 'POST',
+    body,
+  });
+}
+
