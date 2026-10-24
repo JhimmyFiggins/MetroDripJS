@@ -191,8 +191,10 @@ class AdminUsersAPIView(AdminAPIView):
         if password_option == 'custom' or (custom_password and not password_option):
             if not isinstance(custom_password, str) or not custom_password:
                 return Response({'error': 'Temporary password is required for custom option.'}, status=status.HTTP_400_BAD_REQUEST)
-            if len(custom_password) < 8:
-                return Response({'error': 'Temporary password must be at least 8 characters long.'}, status=status.HTTP_400_BAD_REQUEST)
+            from .policy import password_length_error
+            length_error = password_length_error(custom_password)
+            if length_error:
+                return Response({'error': length_error, 'code': 'password_too_short'}, status=status.HTTP_400_BAD_REQUEST)
             
             prohibited_terms = ['password', '12345678', 'metrodrip', name.lower(), email.split('@')[0].lower()]
             for term in prohibited_terms:

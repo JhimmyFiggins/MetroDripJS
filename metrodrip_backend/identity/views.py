@@ -14,6 +14,13 @@ from catalog.models import CatalogProduct
 from django.utils import timezone
 from .authentication import CustomerAuthentication, CustomerTokenAuthentication
 from .permissions import IsAdminRole, IsMerchantOrAdminRole
+from .policy import (
+    clear_login_failures,
+    login_is_locked,
+    password_length_error,
+    record_login_failure,
+    session_timeout,
+)
 from rest_framework.permissions import IsAuthenticated
 from .throttling import DatabaseScopedRateThrottle
 from django.contrib.auth.password_validation import validate_password
@@ -28,6 +35,25 @@ from .email_templates import (
     render_self_service_password_reset,
     render_password_changed_notification,
 )
+
+
+def _notify_login_lockout(email):
+    try:
+        setting = PlatformSetting.get_instance()
+        if getattr(setting, 'admin_security_alerts', 'enabled') != 'enabled':
+            return
+        recipient = (getattr(setting, 'admin_alert_email', '') or '').strip()
+        if not recipient or not is_brevo_configured():
+            return
+        send_transactional_email(
+            recipient,
+            'MetroDrip security',
+            'MetroDrip security alert: sign-in lockout',
+            '<p>A sign-in lockout was triggered. No password or token is included.</p>',
+            'A sign-in lockout was triggered. No password or token is included.',
+        )
+    except Exception:
+        return
 
 
 def _obfuscate_email(email):
@@ -376,9 +402,10 @@ class PasswordResetConfirmAPIView(APIView):
                 'code': 'password_required',
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        if len(new_password) < 8:
+        length_error = password_length_error(new_password)
+        if length_error:
             return Response({
-                'error': 'NIST SP 800-63B requirement: Password must be at least 8 characters long.',
+                'error': length_error,
                 'code': 'password_too_short',
             }, status=status.HTTP_400_BAD_REQUEST)
 
@@ -506,13 +533,26 @@ class LoginAPIView(APIView):
     def post(self, request):
         email = (request.data.get('email') or '').strip().lower()
         password = request.data.get('password') or ''
+        if login_is_locked(email):
+            return Response(
+                {'error': 'Too many sign-in attempts. Try again later.', 'code': 'login_locked'},
+                status=429,
+            )
         customer = AccountsCustomer.objects.filter(email__iexact=email, is_active=True).first()
 
         if not customer or not customer.check_password(password):
+            locked = record_login_failure(email)
+            if locked:
+                _notify_login_lockout(email)
+                return Response(
+                    {'error': 'Too many sign-in attempts. Try again later.', 'code': 'login_locked'},
+                    status=429,
+                )
             return Response(
                 {'error': 'Invalid email or password.'},
                 status=401
             )
+        clear_login_failures(email)
 
         # Upgrade legacy plaintext values only after the submitted password has
         # matched, so existing accounts migrate without a disruptive reset.
@@ -524,7 +564,7 @@ class LoginAPIView(APIView):
             customer.last_login = timezone.now()
             customer.save(update_fields=['last_login'])
 
-        token, raw_token = CustomerAccessToken.issue(customer)
+        token, raw_token = CustomerAccessToken.issue(customer, lifetime=session_timeout())
         return Response({
             'id': customer.id,
             'name': customer.name,
@@ -569,6 +609,10 @@ class SignupAPIView(APIView):
         name = (request.data.get('name') or '').strip()
         email = (request.data.get('email') or '').strip().lower()
         password = request.data.get('password')
+
+        length_error = password_length_error(password)
+        if length_error:
+            return Response({'error': length_error, 'code': 'password_too_short'}, status=400)
 
         if not name or not email or not password:
             return Response(
@@ -830,10 +874,9 @@ class UserPasswordAPIView(APIView):
             return Response({'error': 'New password is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # 1. NIST SP 800-63B Minimum 8 characters
-        if len(new_password) < 8:
-            return Response({
-                'error': 'NIST SP 800-63B requirement: Password must be at least 8 characters long.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        length_error = password_length_error(new_password)
+        if length_error:
+            return Response({'error': length_error, 'code': 'password_too_short'}, status=status.HTTP_400_BAD_REQUEST)
 
         # 2. Match confirmation if supplied
         if confirm_password and new_password != confirm_password:

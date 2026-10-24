@@ -247,7 +247,7 @@ class PlatformSetting(models.Model):
     admin_alert_email = models.EmailField(max_length=254, default='security@metrodrip.ph')
     order_confirmation_emails = models.CharField(max_length=16, default='enabled')
     sender_name = models.CharField(max_length=150, default='MetroDrip Orders')
-    enabled_payment_methods = models.JSONField(default=_default_payment_methods)
+    enabled_payment_methods = models.JSONField(default=list)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -257,13 +257,17 @@ class PlatformSetting(models.Model):
 
     @classmethod
     def get_instance(cls, refresh=False):
-        if not refresh and cls._cached_instance is not None:
-            return cls._cached_instance
+        # Always read the database. A process-global cache survives test rollbacks
+        # and would let one settings write disable payment methods for later tests.
+        del refresh
         obj = cls.objects.filter(id=1).first()
         if obj is not None:
             cls._cached_instance = obj
             return obj
-        instance = cls(id=1)
+        instance = cls(
+            id=1,
+            enabled_payment_methods=['cod', 'gcash', 'maya', 'card'],
+        )
         instance._state.adding = True
         cls._cached_instance = instance
         return instance

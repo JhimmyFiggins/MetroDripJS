@@ -552,6 +552,9 @@ button, input, select, textarea {
   margin: 0;
   color: #ffffff;
 }
+.hero-title.is-published {
+  text-transform: none;
+}
 
 .hero-subtitle {
   font-size: 20px;
@@ -1632,6 +1635,19 @@ button, input, select, textarea {
     min-width: 40px;
   }
 }
+
+.published-banner {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid var(--border, #d7d7d0);
+  background: var(--card, #fff);
+}
+.published-banner h2 { margin: 0 0 4px; font-size: 1.25rem; }
+.published-banner p { margin: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

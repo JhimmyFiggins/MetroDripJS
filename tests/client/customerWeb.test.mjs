@@ -4,7 +4,10 @@ import { api, ApiError, getAuthSnapshot, getAuthToken, isAuthCurrent, setAuthTok
 
 import {
   buildCheckoutPayload,
+  bannersForPlacement,
+  normalizeBannerList,
   normalizeCapabilities,
+  safeBannerDestination,
   normalizeCart,
   cartFingerprint,
   parseCustomerPath,
@@ -84,6 +87,17 @@ test('checkout payload excludes client prices and rejects incomplete delivery', 
     method: 'cod',
     idempotencyKey: 'web-abcdef12',
   }));
+});
+
+test('published banners keep placement and reject unsafe destinations', () => {
+  const banners = normalizeBannerList([
+    { id: 2, placement: 'homepage_secondary', headline: 'Second', order: 2, link_url: 'javascript:alert(1)' },
+    { id: 1, placement: 'homepage_hero', headline: 'Cyber Monday Sale', order: 1, link_url: '/shop' },
+  ]);
+  assert.equal(bannersForPlacement(banners, 'homepage_hero')[0].headline, 'Cyber Monday Sale');
+  assert.equal(bannersForPlacement(banners, 'homepage_hero')[0].link_url, '/shop');
+  assert.equal(safeBannerDestination('javascript:alert(1)'), '');
+  assert.equal(bannersForPlacement(banners, 'checkout_footer').length, 0);
 });
 
 test('purchasable stock is the fullest warehouse, not the sum', () => {

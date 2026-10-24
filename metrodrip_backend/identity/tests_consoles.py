@@ -781,7 +781,7 @@ class ConsolesAPITestCase(TestCase):
             'confirm_password': 'short',
         }, HTTP_X_CUSTOMER_ID=str(self.admin_user.id), format='json')
         self.assertEqual(short_res.status_code, 400)
-        self.assertIn('NIST SP 800-63B requirement', short_res.data['error'])
+        self.assertIn('at least 8 characters', short_res.data['error'])
 
         # Easily guessable (contains 'password' or 'metrodrip')
         guessable_res = self.client.post('/users/me/password/', {

@@ -1,5 +1,7 @@
 // Import React state for the editable form, payment radios, and selector modal.
 import { useEffect, useState } from 'react';
+import { apiFetch } from '../../../../src/services/apiClient';
+import { bannersForPlacement, normalizeBannerList } from '../../../../src/services/bannerContent';
 // Import native primitives required by this adaptive checkout surface.
 import {
   Alert,
@@ -42,6 +44,20 @@ import { colors, fonts } from '../theme';
 
 // Export the complete, fully responsive Checkout & Payment module.
 export function CheckoutScreen() {
+  const [checkoutBanner, setCheckoutBanner] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch('/banners/?placement=checkout_footer', { auth: false })
+      .then((data) => {
+        if (!cancelled) setCheckoutBanner(bannersForPlacement(normalizeBannerList(data) || [], 'checkout_footer')[0] || null);
+      })
+      .catch(() => {
+        if (!cancelled) setCheckoutBanner(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const navigation = useNavigation();
   const { user } = useAuth();
   const { width } = useWindowDimensions();
@@ -322,6 +338,9 @@ export function CheckoutScreen() {
               </Pressable>
               <Text style={styles.headerTitle}>Checkout</Text>
             </View>
+            {checkoutBanner ? (
+              <Text accessibilityRole="text">{checkoutBanner.headline || checkoutBanner.title}</Text>
+            ) : null}
             <Text accessibilityLabel="Secure checkout" style={styles.lockIcon}>
               🔒
             </Text>

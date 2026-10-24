@@ -12,6 +12,54 @@ const PAYMENT_OPTIONS = [
   { id: 'card', name: 'Credit / debit card', detail: 'Hosted PayMongo checkout. MetroDrip never collects the card number or CVV.' },
 ];
 
+export function safeBannerDestination(url) {
+  if (typeof url !== 'string') return '';
+  const value = url.trim();
+  if (!value || value.startsWith('//') || /[\s\\]/.test(value)) return '';
+  if (value.startsWith('/') && !value.startsWith('/customer/')) return value;
+  if (value.startsWith('/customer/')) return value.slice('/customer'.length) || '/';
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol === 'https:' && !parsed.username && !parsed.password) return parsed.toString();
+  } catch {
+    return '';
+  }
+  return '';
+}
+
+export function normalizeBannerList(payload) {
+  const rows = Array.isArray(payload) ? payload : Array.isArray(payload?.banners) ? payload.banners : null;
+  if (!rows) return null;
+  return rows
+    .filter((row) => row && typeof row === 'object' && typeof row.placement === 'string')
+    .map((row) => ({
+      id: row.id,
+      title: String(row.title || ''),
+      headline: String(row.headline || row.title || ''),
+      subtext: String(row.subtext || ''),
+      button_label: String(row.button_label || 'Shop Now'),
+      placement: row.placement,
+      link_url: safeBannerDestination(row.link_url),
+      image_url: typeof row.image_url === 'string' ? row.image_url : '',
+      order: Number(row.order) || 0,
+      artwork_mode: row.artwork_mode === 'image' ? 'image' : 'graphic',
+      graphic_text_main: String(row.graphic_text_main || ''),
+      graphic_text_tagline: String(row.graphic_text_tagline || ''),
+      graphic_text_sub: String(row.graphic_text_sub || ''),
+      graphic_bg_color: String(row.graphic_bg_color || ''),
+      graphic_text_color: String(row.graphic_text_color || ''),
+      graphic_accent_color: String(row.graphic_accent_color || ''),
+      graphic_alignment: ['left', 'center', 'right'].includes(row.graphic_alignment) ? row.graphic_alignment : 'left',
+      graphic_font_size: ['small', 'normal', 'large'].includes(row.graphic_font_size) ? row.graphic_font_size : 'normal',
+      image_fit: row.image_fit === 'contain' ? 'contain' : 'cover',
+    }))
+    .sort((a, b) => a.order - b.order || Number(a.id) - Number(b.id));
+}
+
+export function bannersForPlacement(list, placement) {
+  return (Array.isArray(list) ? list : []).filter((banner) => banner.placement === placement);
+}
+
 export function trustedCheckoutUrl(url) {
   if (typeof url !== 'string' || url.trim() === '') return false;
   try {

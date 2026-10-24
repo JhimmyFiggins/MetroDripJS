@@ -169,6 +169,21 @@ def dispatch_order_confirmation_if_enabled(order):
         return False, 'already_sent'
 
     try:
+        from django.db import transaction
+        with transaction.atomic():
+            locked = type(order).objects.select_for_update().filter(pk=order.pk).first()
+            if not locked or locked.confirmation_email_sent_at:
+                return False, 'already_sent'
+            order = locked
+            result = _send_confirmation(order)
+            return result
+    except Exception as err:
+        logger.error("Failed to dispatch order confirmation for order #%s: %s", getattr(order, 'id', 'unknown'), err)
+        return False, 'dispatch_error'
+
+
+def _send_confirmation(order):
+    try:
         setting = PlatformSetting.get_instance()
         if getattr(setting, 'order_confirmation_emails', 'enabled') != 'enabled':
             logger.info("Order confirmation emails are disabled; skipping order #%s", order.id)
@@ -202,6 +217,8 @@ def dispatch_order_confirmation_if_enabled(order):
             sender_name_override=sender_name,
         )
 
+        if not send_res.get('success'):
+            return False, send_res.get('code') or 'dispatch_error'
         now = timezone.now()
         order.confirmation_email_sent_at = now
         order.save(update_fields=['confirmation_email_sent_at'])

@@ -18,6 +18,7 @@ const orders = await import('../../src/services/orderService.js');
 const { productService } = await import('../../src/services/productService.js');
 const wishlist = await import('../../src/services/wishlistService.js');
 const notifications = await import('../../src/services/notificationService.js');
+await import('../../src/services/bannerContent.js');
 
 let fetch;
 
@@ -254,6 +255,7 @@ test('every service module under src/services is covered by this file', async ()
   const covered = new Set([
     'apiClient.js', 'authService.js', 'orderService.js', 'productService.js',
     'wishlistService.js', 'notificationService.js', 'categoryService.js',
+    'bannerContent.js',
   ]);
   const missing = files.filter((f) => f.endsWith('.js') && !covered.has(f));
   assert.deepEqual(missing, [], `uncovered service modules: ${missing.join(', ')}`);

@@ -13,6 +13,8 @@ import { StatusBar } from 'expo-status-bar';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
 import SearchField from './SearchField.jsx';
+import { apiFetch } from '../../src/services/apiClient';
+import { bannersForPlacement, normalizeBannerList } from '../../src/services/bannerContent';
 
 import FilterContainer from './FilterContainer.jsx';
 import ProductCards from './ProductCards.jsx';
@@ -22,7 +24,6 @@ import ProductDetails from './ProductDetails.jsx';
 import ShopHeader from '../components/ShopHeader.jsx';
 import Footer from '../components/Footer';
 
-import { apiFetch } from '../../src/services/apiClient';
 import { productService } from '../../src/services/productService';
 import { colors, fonts } from '../Checkout/src/theme';
 
@@ -61,6 +62,7 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
   const [error, setError] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [sortModalVisible, setSortModalVisible] = useState(false);
+  const [categoryBanner, setCategoryBanner] = useState(null);
 
   const screenTitle = 'Shop';
 
@@ -74,6 +76,20 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
   }, [route.params?.selectedCategory]);
 
   // Category chips row: All + categories from the API.
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch('/banners/?placement=category_banner', { auth: false })
+      .then((data) => {
+        if (!cancelled) setCategoryBanner(bannersForPlacement(normalizeBannerList(data) || [], 'category_banner')[0] || null);
+      })
+      .catch(() => {
+        if (!cancelled) setCategoryBanner(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
+
   useEffect(() => {
     let cancelled = false;
     apiFetch('/categories/', { auth: false })
@@ -204,6 +220,12 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
       {showTopSection && (
         <>
           <ShopHeader screenTitle={screenTitle} />
+          {categoryBanner ? (
+            <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+              <Text style={{ fontWeight: '700' }}>{categoryBanner.headline || categoryBanner.title}</Text>
+              {categoryBanner.subtext ? <Text>{categoryBanner.subtext}</Text> : null}
+            </View>
+          ) : null}
           <View style={styles.topHeader}>
             <TouchableOpacity
               accessibilityLabel="Open product filters"

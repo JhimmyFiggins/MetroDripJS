@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { ScrollView, StyleSheet, Text, View, TouchableOpacity, ActivityIndicator, Image, ImageBackground, Linking } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -12,6 +13,7 @@ import Footer from '../components/Footer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { apiFetch } from '../../src/services/apiClient';
+import { bannersForPlacement, normalizeBannerList, safeBannerDestination } from '../../src/services/bannerContent';
 import ProductCards from '../Products/ProductCards';
 import ProductDetails from '../Products/ProductDetails';
 
@@ -25,25 +27,40 @@ export default function Home({ navigation, route }) {
     const [categoriesLoading, setCategoriesLoading] = useState(true);
     const [showTopSection, setShowTopSection] = useState(true);
     const [heroBanner, setHeroBanner] = useState(null);
+    const [secondaryBanner, setSecondaryBanner] = useState(null);
+    const [announcement, setAnnouncement] = useState(null);
+    const [bannerError, setBannerError] = useState('');
     const [imageError, setImageError] = useState(false);
 
-    useEffect(() => {
+    const loadHome = useCallback(() => {
             apiFetch('/categories/', { auth: false })
-                .then(data => setCategoryList(data))
+                .then(data => setCategoryList(Array.isArray(data) ? data : []))
                 .catch(error => console.error('Failed to load categories:', error))
                 .finally(() => setCategoriesLoading(false));
 
-            apiFetch('/banners/?placement=homepage_hero', { auth: false })
+            apiFetch('/banners/', { auth: false })
                 .then(data => {
-                    if (Array.isArray(data) && data.length > 0) {
-                        setHeroBanner(data[0]);
-                        setImageError(false);
-                    } else {
+                    const banners = normalizeBannerList(data);
+                    if (!banners) {
+                        setBannerError('Published banners could not be read.');
                         setHeroBanner(null);
+                        return;
                     }
+                    setBannerError('');
+                    setHeroBanner(bannersForPlacement(banners, 'homepage_hero')[0] || null);
+                    setSecondaryBanner(bannersForPlacement(banners, 'homepage_secondary')[0] || null);
+                    setAnnouncement(bannersForPlacement(banners, 'announcement_bar')[0] || null);
+                    setImageError(false);
                 })
-                .catch(() => setHeroBanner(null));
+                .catch(() => {
+                    setBannerError('Published banners could not be loaded.');
+                    setHeroBanner(null);
+                });
         }, []);
+
+    useFocusEffect(useCallback(() => {
+        loadHome();
+    }, [loadHome]));
 
     // const handleSelectProduct = (id) => {
     //     navigation.navigate('ProductDetails', {
@@ -61,7 +78,7 @@ export default function Home({ navigation, route }) {
     };
 
     const handleHeroPress = () => {
-        const link = heroBanner?.link_url;
+        const link = safeBannerDestination(heroBanner?.link_url);
         if (link) {
             if (link.startsWith('http://') || link.startsWith('https://')) {
                 Linking.openURL(link).catch(() => {});
@@ -168,6 +185,8 @@ export default function Home({ navigation, route }) {
             {showTopSection && (
                 <>
                 <HomeHeader/>
+                {bannerError ? <Text accessibilityRole="alert">{bannerError}</Text> : null}
+                {announcement ? <Text accessibilityRole="text">{announcement.headline}{announcement.subtext ? ` · ${announcement.subtext}` : ''}</Text> : null}
                 {isLegacyImageBg ? (
                     <ImageBackground
                         source={{ uri: heroBanner.image_url }}
@@ -180,6 +199,12 @@ export default function Home({ navigation, route }) {
                 ) : (
                     bannerContent
                 )}
+                {secondaryBanner ? (
+                    <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+                        <Text style={{ fontWeight: '700' }}>{secondaryBanner.headline || secondaryBanner.title}</Text>
+                        {secondaryBanner.subtext ? <Text>{secondaryBanner.subtext}</Text> : null}
+                    </View>
+                ) : null}
 
                 <View style={styles.CategorySection}>
                     {categoriesLoading ? (

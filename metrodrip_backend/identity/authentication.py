@@ -2,6 +2,7 @@ from django.utils import timezone
 from rest_framework.authentication import BaseAuthentication, get_authorization_header
 from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
 from .models import CustomerAccessToken
+from .policy import session_timeout
 
 RESTRICTED_ALLOWED_PATHS = {
     '/users/me/password/',
@@ -43,6 +44,11 @@ class CustomerTokenAuthentication(BaseAuthentication):
             customer__is_active=True,
         ).first()
         if not token:
+            raise AuthenticationFailed('Invalid or expired access token.')
+
+        activity = token.last_used_at or token.created_at
+        if activity and now - activity > session_timeout():
+            CustomerAccessToken.objects.filter(pk=token.pk, revoked_at__isnull=True).update(revoked_at=now)
             raise AuthenticationFailed('Invalid or expired access token.')
 
         if token.last_used_at is None or (now - token.last_used_at).total_seconds() >= 300:

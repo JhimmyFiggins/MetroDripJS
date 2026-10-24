@@ -6,6 +6,10 @@
 
 **Evidence rule:** An executed unit/mock/SQLite/static check is labeled separately from PostgreSQL, native-device, PayMongo, and Render evidence.
 
+## Banner and settings verification — 2026-10-24
+
+A disposable Django process published a live `homepage_hero` banner and Playwright opened `/customer/`. The heading was `Cyber Monday Sale`, and the default Urban Style hero was absent. PostgreSQL concurrency tests passed 3/3 on a socket-only cluster. PayMongo sandbox, hosted-account rotation, and a device mobile launch were not run.
+
 ## Remaining-task evidence — 2026-10-23
 
 | Check | Result |

@@ -7,9 +7,11 @@ import {
   buildCheckoutPayload,
   cartFingerprint,
   cartRecord,
+  bannersForPlacement,
   customerHref,
   formatCentavos,
   newIdempotencyKey,
+  normalizeBannerList,
   normalizeCapabilities,
   normalizeCart,
   parseCustomerPath,
@@ -349,29 +351,62 @@ async function signIn(email, password, scope) {
   return viewSnapshot();
 }
 
+function bannerHref(banner) {
+  const destination = banner?.link_url || '';
+  if (!destination) return customerHref('/shop');
+  if (destination.startsWith('https://')) return destination;
+  return customerHref(destination);
+}
+
+function renderPlacementBanner(banner, className) {
+  if (!banner) return null;
+  return el('aside', { class: className }, [
+    el('div', {}, [
+      el('h2', {}, banner.headline || banner.title || 'Promotion'),
+      banner.subtext ? el('p', {}, banner.subtext) : null,
+    ]),
+    el('a', { class: 'btn btn-primary', href: bannerHref(banner) }, banner.button_label || 'Shop Now'),
+  ]);
+}
+
+function applyAnnouncement(banners) {
+  const node = document.querySelector('#announcement-text');
+  const banner = bannersForPlacement(banners, 'announcement_bar')[0];
+  if (!node) return;
+  node.textContent = banner
+    ? `${banner.headline || banner.title}${banner.subtext ? ` · ${banner.subtext}` : ''}`
+    : 'METRO MANILA STREETWEAR · PAYMENT OPTIONS CONFIRMED AT CHECKOUT';
+}
+
 async function renderHome() {
-  const [categories, products, heroBanners] = await Promise.all([
+  let bannerError = null;
+  let published = [];
+  const [categories, products, bannerPayload] = await Promise.all([
     api('/categories/', { auth: false }).catch(() => []),
     api('/products/?sort=newest', { auth: false }).catch(() => []),
-    api('/banners/?placement=homepage_hero', { auth: false }).catch(() => []),
+    api('/banners/', { auth: false }).then((data) => ({ data })).catch((error) => ({ error })),
   ]);
+  if (bannerPayload.error) {
+    bannerError = bannerPayload.error;
+  } else {
+    published = normalizeBannerList(bannerPayload.data);
+    if (published === null) bannerError = new Error('Banner response was not a list.');
+    else applyAnnouncement(published);
+  }
   const categoryList = Array.isArray(categories) ? categories : [];
   const productList = Array.isArray(products) ? products : [];
   const featured = productList.filter((product) => product.is_featured).slice(0, 8);
   const arrivals = (featured.length ? featured : productList).slice(0, 8);
 
-  const heroBanner = Array.isArray(heroBanners) && heroBanners.length > 0 ? heroBanners[0] : null;
+  const heroBanner = bannerError ? null : bannersForPlacement(published, 'homepage_hero')[0] || null;
+  const secondaryBanner = bannerError ? null : bannersForPlacement(published, 'homepage_secondary')[0] || null;
 
   const heroTitleContent = heroBanner?.headline
     ? heroBanner.headline
     : ['Urban Style', el('br'), 'Redefined'];
   const heroSubtitleContent = heroBanner?.subtext || 'Designed for the City';
   const heroCtaLabel = heroBanner?.button_label || 'Shop Now';
-  const heroCtaHref = heroBanner?.link_url
-    ? (heroBanner.link_url.startsWith('http') || heroBanner.link_url.startsWith('//')
-      ? heroBanner.link_url
-      : customerHref(heroBanner.link_url))
-    : customerHref('/shop');
+  const heroCtaHref = bannerHref(heroBanner);
 
   const artworkMode = heroBanner?.artwork_mode || (heroBanner?.image_url ? 'image' : 'graphic');
 
@@ -445,7 +480,7 @@ async function renderHome() {
   const hero = el('div', { class: 'homepage-hero' }, [
     el('div', { class: 'hero-copy' }, [
       el('div', { class: 'hero-eyebrow' }, 'METRO MANILA STREETWEAR'),
-      el('h1', { class: 'hero-title' }, heroTitleContent),
+      el('h1', { class: heroBanner ? 'hero-title is-published' : 'hero-title' }, heroTitleContent),
       el('p', { class: 'hero-subtitle' }, heroSubtitleContent),
       el('a', { class: 'hero-cta', href: heroCtaHref }, heroCtaLabel),
     ]),
@@ -478,7 +513,9 @@ async function renderHome() {
   ]);
 
   return el('section', { class: 'page home-page' }, [
+    bannerError ? notice('error', bannerError.message || 'Published banners could not be loaded. The default hero is a fallback, not a live campaign.') : null,
     hero,
+    renderPlacementBanner(secondaryBanner, 'published-banner'),
     categoryBar,
     sectionHeader,
     grid,
@@ -495,12 +532,17 @@ async function renderShop() {
   }
   let products = [];
   let categories = [];
+  let categoryBanner = null;
   let failed = null;
   try {
-    [products, categories] = await Promise.all([
+    const [productPayload, categoryPayload, bannerPayload] = await Promise.all([
       api(`/products/${query.size ? `?${query}` : ''}`, { auth: false }),
       api('/categories/', { auth: false }),
+      api('/banners/?placement=category_banner', { auth: false }).catch(() => null),
     ]);
+    products = productPayload;
+    categories = categoryPayload;
+    categoryBanner = bannersForPlacement(normalizeBannerList(bannerPayload) || [], 'category_banner')[0] || null;
   } catch (error) {
     failed = error;
   }
@@ -584,6 +626,7 @@ async function renderShop() {
     breadcrumbs({ label: 'Home', href: customerHref('/') }, { label: 'Shop' }),
     el('h1', {}, 'Shop the collection'),
     el('p', { class: 'lede' }, 'Streetwear designed in Metro Manila.'),
+    renderPlacementBanner(categoryBanner, 'published-banner'),
     el('div', { class: 'shop-workspace' }, [form, rightCol]),
   ]);
 }
@@ -944,6 +987,13 @@ async function renderCart(_route, scope) {
 
 async function renderCheckout(_route, scope) {
   if (!state.session) return signInPanel(customerHref('/checkout'));
+  let checkoutBanner = null;
+  try {
+    const payload = await api('/banners/?placement=checkout_footer', { auth: false });
+    checkoutBanner = bannersForPlacement(normalizeBannerList(payload) || [], 'checkout_footer')[0] || null;
+  } catch {
+    checkoutBanner = null;
+  }
   const stored = storedAttempt();
   if (stored?.ownerId && String(stored.ownerId) !== String(state.session.id)) {
     clearAttempt();
@@ -1028,6 +1078,7 @@ async function renderCheckout(_route, scope) {
     el('h1', {}, 'Checkout'),
     el('p', { class: 'lede' }, 'Verified customer checkout with server-calculated shipping and live stock checks.'),
     el('div', { class: 'checkout-workspace' }, [form, summary]),
+    renderPlacementBanner(checkoutBanner, 'published-banner'),
   ]);
 }
 
