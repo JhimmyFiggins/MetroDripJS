@@ -42,6 +42,16 @@ services:
         sync: false
       - key: PAYMONGO_WEBHOOK_SECRET
         sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_SENDER_EMAIL
+        sync: false
+      - key: BREVO_SENDER_NAME
+        value: MetroDrip
+      - key: APP_PUBLIC_BASE_URL
+        sync: false
+      - key: PASSWORD_RESET_TOKEN_TTL_SECONDS
+        value: "1800"
 
 databases:
   - name: metrodrip-postgres

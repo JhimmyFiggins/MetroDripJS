@@ -7,6 +7,7 @@ Zero external library dependencies; uses standard library urllib.request.
 import json
 import logging
 import os
+import sys
 import urllib.error
 import urllib.request
 from django.conf import settings
@@ -15,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 BREVO_API_ENDPOINT = 'https://api.brevo.com/v3/smtp/email'
 DEFAULT_SENDER_NAME = 'MetroDrip'
-DEFAULT_SENDER_EMAIL = 'support@metrodrip.ph'
 DEFAULT_PUBLIC_BASE_URL = 'https://metrodripjs-q4ik.onrender.com'
 
 # In-memory test outbox for automated testing without network calls
@@ -30,12 +30,41 @@ def get_test_outbox():
     return list(_TEST_OUTBOX)
 
 
-def is_brevo_configured():
-    """Return True if a Brevo API key is configured or test mode is enabled."""
-    if getattr(settings, 'BREVO_TEST_MODE', False):
+def is_test_environment():
+    """Detect if executing under automated test runner."""
+    if getattr(settings, 'IS_TESTING', False):
         return True
-    key = getattr(settings, 'BREVO_API_KEY', None) or os.environ.get('BREVO_API_KEY', '')
-    return bool(key and key.strip())
+    if 'test' in sys.argv:
+        return True
+    return False
+
+
+def is_test_mode_active():
+    """
+    Return True if BREVO_TEST_MODE is enabled AND execution is within a safe test/debug context.
+    In live production (DEBUG=False outside of test runner), BREVO_TEST_MODE is strictly ignored
+    to guarantee that live production never silently simulates email delivery.
+    """
+    if not getattr(settings, 'BREVO_TEST_MODE', False):
+        return False
+
+    is_prod = not getattr(settings, 'DEBUG', False) and not is_test_environment()
+    if is_prod:
+        logger.warning(
+            "BREVO_TEST_MODE is ignored in production (DEBUG=False). Live email dispatch is required."
+        )
+        return False
+
+    return True
+
+
+def is_brevo_configured():
+    """Return True if a Brevo API key and verified sender email are configured or test mode is active."""
+    if is_test_mode_active():
+        return True
+    key = (getattr(settings, 'BREVO_API_KEY', None) or os.environ.get('BREVO_API_KEY', '')).strip()
+    sender = (getattr(settings, 'BREVO_SENDER_EMAIL', None) or os.environ.get('BREVO_SENDER_EMAIL', '')).strip()
+    return bool(key and sender)
 
 
 def get_public_base_url():
@@ -59,9 +88,25 @@ def get_sender_identity():
     sender_email = (
         getattr(settings, 'BREVO_SENDER_EMAIL', None)
         or os.environ.get('BREVO_SENDER_EMAIL', '')
-        or DEFAULT_SENDER_EMAIL
-    ).strip()
+    )
+    if sender_email:
+        sender_email = sender_email.strip()
+    elif is_test_mode_active():
+        sender_email = 'test-sender@example.com'
+    else:
+        sender_email = ''
     return sender_name, sender_email
+
+
+def sanitize_provider_error(err_msg):
+    """Sanitize upstream provider error messages to prevent header/credential exposure or HTML injection."""
+    if not err_msg or not isinstance(err_msg, str):
+        return 'Email rejected by provider.'
+    clean = err_msg.replace('\n', ' ').replace('\r', ' ').strip()
+    clean = clean.replace('<', '').replace('>', '')
+    if len(clean) > 200:
+        clean = clean[:200] + '...'
+    return clean
 
 
 def send_transactional_email(to_email, to_name, subject, html_content, text_content):
@@ -87,8 +132,8 @@ def send_transactional_email(to_email, to_name, subject, html_content, text_cont
     recipient_email = to_email.strip()
     recipient_name = (to_name or recipient_email).strip()
 
-    # In-memory simulation during automated test execution
-    if getattr(settings, 'BREVO_TEST_MODE', False):
+    # In-memory simulation during automated test execution only
+    if is_test_mode_active():
         msg = {
             'to_email': recipient_email,
             'to_name': recipient_name,
@@ -114,6 +159,14 @@ def send_transactional_email(to_email, to_name, subject, html_content, text_cont
         }
 
     sender_name, sender_email = get_sender_identity()
+    if not sender_email:
+        logger.error("BREVO_SENDER_EMAIL is not configured; refusing to send with unverified sender.")
+        return {
+            'success': False,
+            'message_id': None,
+            'code': 'sender_unconfigured',
+            'error': 'Sender email is not configured in BREVO_SENDER_EMAIL. A verified Brevo sender address is required.',
+        }
 
     payload = {
         'sender': {'name': sender_name, 'email': sender_email},
@@ -165,7 +218,13 @@ def send_transactional_email(to_email, to_name, subject, html_content, text_cont
             msg = 'Email provider authentication failed. Check BREVO_API_KEY.'
         elif status_code == 400:
             code = 'email_rejected'
-            msg = f'Email rejected by provider: {err_msg}'
+            msg = f'Email rejected by provider: {sanitize_provider_error(err_msg)}'
+        elif status_code in (402, 403):
+            code = 'email_account_unactivated'
+            msg = (
+                'Transactional sending is not activated or approved on your Brevo account. '
+                'Please verify your Brevo account status and request transactional activation if required.'
+            )
         elif status_code == 429:
             code = 'email_rate_limit'
             msg = 'Email provider rate limit reached.'

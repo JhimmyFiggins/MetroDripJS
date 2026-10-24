@@ -290,7 +290,7 @@ CUSTOMER_TOKEN_TTL_SECONDS = int(os.environ.get('CUSTOMER_TOKEN_TTL_SECONDS', '2
 
 # Brevo Transactional Email Configuration (HTTPS API over port 443)
 BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '').strip()
-BREVO_SENDER_EMAIL = os.environ.get('BREVO_SENDER_EMAIL', 'support@metrodrip.ph').strip()
+BREVO_SENDER_EMAIL = os.environ.get('BREVO_SENDER_EMAIL', '').strip()
 BREVO_SENDER_NAME = os.environ.get('BREVO_SENDER_NAME', 'MetroDrip').strip()
 APP_PUBLIC_BASE_URL = (
     os.environ.get('APP_PUBLIC_BASE_URL', '').strip()

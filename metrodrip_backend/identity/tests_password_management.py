@@ -409,6 +409,7 @@ class BrevoIntegrationTests(TestCase):
 
     @override_settings(
         BREVO_API_KEY='xkeysib-mock-api-key',
+        BREVO_SENDER_EMAIL='sender@metrodrip.ph',
         BREVO_TEST_MODE=False,
     )
     @patch('urllib.request.urlopen')
@@ -434,6 +435,7 @@ class BrevoIntegrationTests(TestCase):
 
     @override_settings(
         BREVO_API_KEY='xkeysib-mock-api-key',
+        BREVO_SENDER_EMAIL='sender@metrodrip.ph',
         BREVO_TEST_MODE=False,
     )
     @patch('urllib.request.urlopen')
@@ -456,9 +458,67 @@ class BrevoIntegrationTests(TestCase):
         )
         self.assertFalse(res['success'])
         self.assertEqual(res['code'], 'email_rejected')
+        self.assertIn('Sender not verified', res['error'])
 
     @override_settings(
         BREVO_API_KEY='xkeysib-mock-api-key',
+        BREVO_SENDER_EMAIL='sender@metrodrip.ph',
+        BREVO_TEST_MODE=False,
+    )
+    @patch('urllib.request.urlopen')
+    def test_brevo_402_403_account_unactivated(self, mock_urlopen):
+        error_resp = urllib.error.HTTPError(
+            url='https://api.brevo.com/v3/smtp/email',
+            code=403,
+            msg='Forbidden',
+            hdrs={},
+            fp=MagicMock(read=lambda: json.dumps({
+                'message': 'Your account is not activated yet to send transactional emails.',
+                'code': 'permission_denied',
+            }).encode('utf-8')),
+        )
+        mock_urlopen.side_effect = error_resp
+
+        res = send_transactional_email(
+            to_email='test@example.com',
+            to_name='Test',
+            subject='Test',
+            html_content='<p>test</p>',
+            text_content='test',
+        )
+        self.assertFalse(res['success'])
+        self.assertEqual(res['code'], 'email_account_unactivated')
+        self.assertIn('not activated', res['error'])
+
+    @override_settings(
+        BREVO_API_KEY='xkeysib-mock-api-key',
+        BREVO_SENDER_EMAIL='sender@metrodrip.ph',
+        BREVO_TEST_MODE=False,
+    )
+    @patch('urllib.request.urlopen')
+    def test_brevo_429_rate_limiting(self, mock_urlopen):
+        error_resp = urllib.error.HTTPError(
+            url='https://api.brevo.com/v3/smtp/email',
+            code=429,
+            msg='Too Many Requests',
+            hdrs={},
+            fp=MagicMock(read=lambda: json.dumps({'message': 'Rate limit exceeded'}).encode('utf-8')),
+        )
+        mock_urlopen.side_effect = error_resp
+
+        res = send_transactional_email(
+            to_email='test@example.com',
+            to_name='Test',
+            subject='Test',
+            html_content='<p>test</p>',
+            text_content='test',
+        )
+        self.assertFalse(res['success'])
+        self.assertEqual(res['code'], 'email_rate_limit')
+
+    @override_settings(
+        BREVO_API_KEY='xkeysib-mock-api-key',
+        BREVO_SENDER_EMAIL='sender@metrodrip.ph',
         BREVO_TEST_MODE=False,
     )
     @patch('urllib.request.urlopen')
@@ -474,3 +534,65 @@ class BrevoIntegrationTests(TestCase):
         )
         self.assertFalse(res['success'])
         self.assertEqual(res['code'], 'email_network_error')
+
+    @override_settings(
+        BREVO_API_KEY='',
+        BREVO_SENDER_EMAIL='sender@metrodrip.ph',
+        BREVO_TEST_MODE=False,
+    )
+    def test_brevo_missing_api_key(self):
+        res = send_transactional_email(
+            to_email='test@example.com',
+            to_name='Test',
+            subject='Test',
+            html_content='<p>test</p>',
+            text_content='test',
+        )
+        self.assertFalse(res['success'])
+        self.assertEqual(res['code'], 'reset_delivery_unconfigured')
+
+    @override_settings(
+        BREVO_API_KEY='xkeysib-mock-api-key',
+        BREVO_SENDER_EMAIL='',
+        BREVO_TEST_MODE=False,
+    )
+    def test_brevo_sender_unconfigured_safeguard(self):
+        res = send_transactional_email(
+            to_email='test@example.com',
+            to_name='Test',
+            subject='Test',
+            html_content='<p>test</p>',
+            text_content='test',
+        )
+        self.assertFalse(res['success'])
+        self.assertEqual(res['code'], 'sender_unconfigured')
+
+    @override_settings(
+        BREVO_API_KEY='xkeysib-mock-api-key',
+        BREVO_SENDER_EMAIL='sender@metrodrip.ph',
+        BREVO_TEST_MODE=True,
+        DEBUG=False,
+    )
+    @patch('identity.brevo.is_test_environment', return_value=False)
+    @patch('urllib.request.urlopen')
+    def test_brevo_test_mode_safeguard_in_production(self, mock_urlopen, mock_is_test_env):
+        # In simulated production (DEBUG=False, not test environment), BREVO_TEST_MODE=True
+        # must be strictly ignored and NOT add mock messages to _TEST_OUTBOX.
+        mock_response = MagicMock()
+        mock_response.status = 201
+        mock_response.read.return_value = json.dumps({'messageId': '<prod-test-msg-123@smtp-relay.brevo.com>'}).encode('utf-8')
+        mock_urlopen.return_value.__enter__.return_value = mock_response
+
+        res = send_transactional_email(
+            to_email='test@example.com',
+            to_name='Test',
+            subject='Prod Test',
+            html_content='<p>test</p>',
+            text_content='test',
+        )
+        # Verify it went to live dispatcher, NOT mock outbox
+        self.assertEqual(len(get_test_outbox()), 0)
+        self.assertTrue(res['success'])
+        self.assertEqual(res['message_id'], '<prod-test-msg-123@smtp-relay.brevo.com>')
+        self.assertEqual(res['code'], 'accepted')
+
