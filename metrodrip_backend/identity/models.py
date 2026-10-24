@@ -220,6 +220,10 @@ class AuditLog(models.Model):
         ordering = ['-created_at']
 
 
+def _default_payment_methods():
+    return ['cod', 'gcash', 'maya', 'card']
+
+
 class PlatformSetting(models.Model):
     id = models.BigAutoField(primary_key=True)
     platform_name = models.CharField(max_length=150, default='MetroDrip')
@@ -231,18 +235,65 @@ class PlatformSetting(models.Model):
     staff_mfa_policy = models.CharField(max_length=32, default='optional')
     session_timeout_minutes = models.CharField(max_length=16, default='60')
     customer_registration = models.CharField(max_length=16, default='enabled')
+    registration_message = models.TextField(default='New customer registration is currently paused.')
     maintenance_mode = models.CharField(max_length=16, default='off')
+    maintenance_message = models.TextField(default='MetroDrip is undergoing scheduled maintenance. Storefront access will resume shortly.')
+    maintenance_scheduled_start = models.DateTimeField(null=True, blank=True)
+    maintenance_scheduled_end = models.DateTimeField(null=True, blank=True)
+    password_min_length = models.PositiveIntegerField(default=8)
+    max_login_attempts = models.PositiveIntegerField(default=5)
+    lockout_duration_minutes = models.PositiveIntegerField(default=15)
+    admin_security_alerts = models.CharField(max_length=16, default='enabled')
+    admin_alert_email = models.EmailField(max_length=254, default='security@metrodrip.ph')
     order_confirmation_emails = models.CharField(max_length=16, default='enabled')
     sender_name = models.CharField(max_length=150, default='MetroDrip Orders')
+    enabled_payment_methods = models.JSONField(default=_default_payment_methods)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = 'identity_platformsetting'
 
+    _cached_instance = None
+
     @classmethod
-    def get_instance(cls):
-        obj, _ = cls.objects.get_or_create(id=1)
-        return obj
+    def get_instance(cls, refresh=False):
+        if not refresh and cls._cached_instance is not None:
+            return cls._cached_instance
+        obj = cls.objects.filter(id=1).first()
+        if obj is not None:
+            cls._cached_instance = obj
+            return obj
+        instance = cls(id=1)
+        instance._state.adding = True
+        cls._cached_instance = instance
+        return instance
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        PlatformSetting._cached_instance = self
+
+    def get_enabled_payment_methods(self):
+        if isinstance(self.enabled_payment_methods, list) and self.enabled_payment_methods:
+            return [str(m).strip().lower() for m in self.enabled_payment_methods if m]
+        return ['cod', 'gcash', 'maya', 'card']
+
+
+PlatformSetting._cached_instance = PlatformSetting(
+    id=1,
+    platform_name='MetroDrip',
+    support_email='support@metrodrip.ph',
+    currency='PHP',
+    timezone='Asia/Manila',
+    language='en',
+    date_format='YYYY-MM-DD',
+    staff_mfa_policy='optional',
+    session_timeout_minutes='60',
+    customer_registration='enabled',
+    maintenance_mode='off',
+    order_confirmation_emails='enabled',
+    sender_name='MetroDrip Orders',
+    enabled_payment_methods=['cod', 'gcash', 'maya', 'card'],
+)
 
 
 class CustomRole(models.Model):

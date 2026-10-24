@@ -253,8 +253,60 @@
               </div>
             </div>
           </div>
-        </section>
       </div>
+
+      <!-- Checkout & Communications Section -->
+      <section class="panel-card" id="card-checkout-communications" aria-labelledby="heading-checkout-comms" style="margin-top: 24px;">
+        <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <h2 class="panel-title" id="heading-checkout-comms">Checkout & communications</h2>
+            <p class="td-muted" style="font-size: 11px; margin-top: 2px;">Configure active store payment methods, order confirmation emails, and sender branding.</p>
+          </div>
+          <span class="data-source-badge" id="checkout-comms-source-status">LOADING</span>
+        </div>
+
+        <form id="form-merchant-order-settings" style="padding: 20px; display: flex; flex-direction: column; gap: 20px;">
+          <!-- Payment Methods Subsection -->
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
+              <label class="form-label" style="margin-bottom: 0;">Payment methods</label>
+              <span class="td-muted" id="setting-provider-mode-badge" style="font-size: 11px; font-family: var(--font-mono);">PROVIDER: PAYMONGO (TEST)</span>
+            </div>
+            <p class="td-muted" style="font-size: 11px; margin-bottom: 12px;">
+              Toggle customer payment options. Hosted payment methods (GCash, Maya, Card) require active PayMongo credentials and webhook verification.
+            </p>
+
+            <div id="payment-methods-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px;">
+              <!-- Dynamically populated from /api/merchant/orders/settings/ -->
+              <p class="td-muted" style="font-size: 12px;">Loading payment capabilities…</p>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; border-top: 1px solid var(--color-border); padding-top: 18px;">
+            <div>
+              <label class="form-label" for="setting-order-emails">Order confirmation emails</label>
+              <select class="toolbar-select" id="setting-order-emails" style="width: 100%;">
+                <option value="enabled">Enabled — Send confirmation upon order placement ▾</option>
+                <option value="disabled">Disabled — Do not send order confirmation emails ▾</option>
+              </select>
+              <p class="td-muted" style="font-size: 11px; margin-top: 4px;">Transactional order receipt dispatched to customer inbox via Brevo.</p>
+            </div>
+            <div>
+              <label class="form-label" for="setting-sender-name">Default sender name</label>
+              <input type="text" class="form-input" id="setting-sender-name" value="" placeholder="e.g. MetroDrip Orders" required maxlength="150">
+              <p class="td-muted" style="font-size: 11px; margin-top: 4px;">Display name shown in order notification headers. Delivered from verified sender.</p>
+            </div>
+          </div>
+
+          <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--color-border); padding-top: 16px;">
+            <div id="order-settings-status-indicator" class="td-muted" style="font-size: 12px;" aria-live="polite"></div>
+            <div style="display: flex; gap: 10px;">
+              <button type="button" class="btn btn-secondary" id="btn-discard-order-settings" disabled>Discard changes</button>
+              <button type="submit" class="btn btn-primary" id="btn-save-order-settings" disabled>Save changes</button>
+            </div>
+          </div>
+        </form>
+      </section>
     </main>
   </div>
 

@@ -4,6 +4,7 @@
   const API_BASE = (['localhost', '127.0.0.1'].includes(window.location.hostname) && window.location.port !== '3000')
     ? 'http://127.0.0.1:8000/api/admin'
     : '/api/admin';
+
   const FIELD_MAP = {
     'setting-platform-name': 'platform_name',
     'setting-support-email': 'support_email',
@@ -13,11 +14,29 @@
     'setting-date-format': 'date_format',
     'setting-2fa': 'staff_mfa_policy',
     'setting-session-timeout': 'session_timeout_minutes',
+    'setting-password-min-length': 'password_min_length',
+    'setting-max-login-attempts': 'max_login_attempts',
+    'setting-lockout-duration': 'lockout_duration_minutes',
     'setting-registration': 'customer_registration',
+    'setting-registration-message': 'registration_message',
     'setting-maintenance': 'maintenance_mode',
-    'setting-order-emails': 'order_confirmation_emails',
-    'setting-sender-name': 'sender_name',
+    'setting-maintenance-message': 'maintenance_message',
+    'setting-maintenance-start': 'maintenance_scheduled_start',
+    'setting-maintenance-end': 'maintenance_scheduled_end',
+    'setting-admin-security-alerts': 'admin_security_alerts',
+    'setting-admin-alert-email': 'admin_alert_email',
   };
+
+  const NUMERIC_FIELDS = new Set([
+    'password_min_length',
+    'max_login_attempts',
+    'lockout_duration_minutes',
+  ]);
+
+  const DATETIME_FIELDS = new Set([
+    'maintenance_scheduled_start',
+    'maintenance_scheduled_end',
+  ]);
 
   let savedSettings = null;
 
@@ -127,21 +146,38 @@
     select.value = normalized;
   }
 
+  function formatDatetimeForInput(isoString) {
+    if (!isoString) return '';
+    try {
+      const dt = new Date(isoString);
+      if (isNaN(dt.getTime())) return '';
+      // Return YYYY-MM-DDTHH:mm format in local time
+      const pad = n => String(n).padStart(2, '0');
+      const year = dt.getFullYear();
+      const month = pad(dt.getMonth() + 1);
+      const day = pad(dt.getDate());
+      const hours = pad(dt.getHours());
+      const minutes = pad(dt.getMinutes());
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    } catch {
+      return '';
+    }
+  }
+
   function applySettings(settings) {
     Object.entries(FIELD_MAP).forEach(([id, key]) => {
       const control = document.getElementById(id);
       if (!control) return;
-      const value = settings[key] ?? '';
-      if (control.tagName === 'SELECT') ensureSelectValue(control, value);
-      else control.value = String(value);
+      const rawValue = settings[key];
+      if (control.tagName === 'SELECT') {
+        ensureSelectValue(control, rawValue);
+      } else if (DATETIME_FIELDS.has(key)) {
+        control.value = formatDatetimeForInput(rawValue);
+      } else {
+        control.value = rawValue !== null && rawValue !== undefined ? String(rawValue) : '';
+      }
     });
-    const payments = document.getElementById('setting-payments');
-    const paymentStatus = document.getElementById('setting-payment-status');
-    const methods = settings.payment_methods;
-    if (payments) payments.value = Array.isArray(methods) ? methods.join(' · ') : String(methods || '');
-    if (paymentStatus) paymentStatus.textContent = settings.payment_provider_mode
-      ? `Payment provider mode: ${settings.payment_provider_mode}`
-      : 'Payment provider mode was not reported.';
+    updateUnsavedStatus(false);
   }
 
   function clearSettings() {
@@ -151,17 +187,68 @@
       if (control.tagName === 'SELECT') control.value = '';
       else control.value = '';
     });
-    const payments = document.getElementById('setting-payments');
-    if (payments) payments.value = '';
-    const paymentStatus = document.getElementById('setting-payment-status');
-    if (paymentStatus) paymentStatus.textContent = 'Payment configuration is unavailable.';
+    updateUnsavedStatus(false);
   }
 
   function readSettings() {
-    return Object.fromEntries(Object.entries(FIELD_MAP).map(([id, key]) => {
+    const result = {};
+    Object.entries(FIELD_MAP).forEach(([id, key]) => {
       const control = document.getElementById(id);
-      return [key, control?.value ?? ''];
-    }));
+      if (!control) return;
+      const raw = control.value;
+      if (NUMERIC_FIELDS.has(key)) {
+        const parsed = parseInt(raw, 10);
+        result[key] = isNaN(parsed) ? 0 : parsed;
+      } else if (DATETIME_FIELDS.has(key)) {
+        result[key] = raw ? new Date(raw).toISOString() : null;
+      } else {
+        result[key] = raw !== null && raw !== undefined ? raw.trim() : '';
+      }
+    });
+    return result;
+  }
+
+  function hasChanges() {
+    if (!savedSettings) return false;
+    const current = readSettings();
+    for (const [key, currVal] of Object.entries(current)) {
+      const savedVal = savedSettings[key];
+      if (DATETIME_FIELDS.has(key)) {
+        const currNorm = currVal ? new Date(currVal).getTime() : null;
+        const savedNorm = savedVal ? new Date(savedVal).getTime() : null;
+        if (currNorm !== savedNorm) return true;
+      } else if (NUMERIC_FIELDS.has(key)) {
+        if (Number(currVal) !== Number(savedVal)) return true;
+      } else {
+        const s1 = String(currVal ?? '').trim();
+        const s2 = String(savedVal ?? '').trim();
+        if (s1 !== s2) return true;
+      }
+    }
+    return false;
+  }
+
+  function updateUnsavedStatus(isDirty) {
+    const indicator = document.getElementById('settings-unsaved-indicator');
+    const discardBtn = document.getElementById('btn-discard-settings');
+    const saveBtns = document.querySelectorAll('.btn-save-settings');
+
+    if (indicator) {
+      if (isDirty) {
+        indicator.innerHTML = '<span style="color:var(--color-warning, #e67700); font-weight:600;">● Unsaved changes</span>';
+      } else {
+        indicator.innerHTML = '<span style="color:var(--color-muted);">All settings saved</span>';
+      }
+    }
+    if (discardBtn) discardBtn.disabled = !isDirty;
+    saveBtns.forEach(btn => {
+      btn.disabled = !isDirty;
+    });
+  }
+
+  function handleInputChange() {
+    if (!savedSettings) return;
+    updateUnsavedStatus(hasChanges());
   }
 
   async function loadSettings(options = {}) {
@@ -188,6 +275,7 @@
       setSourceStatus('API CONNECTED', 'is-success');
       setPageState('ready');
       if (options.successMessage) showToast(options.successMessage);
+      loadSystemHealth();
     } catch (error) {
       const denied = error.status === 401 || error.status === 403;
       const unavailable = error.status === 501 || error.code === 'settings_persistence_unconfigured';
@@ -200,6 +288,93 @@
         : unavailable
           ? 'Platform settings are not configured'
           : 'Platform settings are unavailable', `${error.message} No editable settings have been shown or assumed.`, { retry: !denied, signIn: denied, eyebrow: unavailable ? 'NOT CONFIGURED' : undefined });
+    }
+  }
+
+  async function loadSystemHealth() {
+    const overallBadge = document.getElementById('health-overall-status');
+    const dbStatus = document.getElementById('health-db-status');
+    const dbLatency = document.getElementById('health-db-latency');
+    const dbDetail = document.getElementById('health-db-detail');
+    const emailStatus = document.getElementById('health-email-status');
+    const emailTitle = document.getElementById('health-email-title');
+    const emailDetail = document.getElementById('health-email-detail');
+    const paymentStatus = document.getElementById('health-payment-status');
+    const paymentMode = document.getElementById('health-payment-mode');
+    const paymentDetail = document.getElementById('health-payment-detail');
+    const envStatus = document.getElementById('health-env-status');
+    const envDetail = document.getElementById('health-env-detail');
+
+    if (overallBadge) {
+      overallBadge.textContent = 'CHECKING';
+      overallBadge.className = 'data-source-badge';
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/health/`, { headers: requestHeaders() });
+      if (!res.ok) throw await responseError(res, 'Health API returned HTTP ' + res.status);
+      const data = await res.json();
+      const health = data.health || {};
+
+      // Overall status
+      if (overallBadge) {
+        const st = String(health.status || 'unknown').toUpperCase();
+        overallBadge.textContent = st;
+        overallBadge.className = `data-source-badge ${st === 'HEALTHY' ? 'is-success' : st === 'DEGRADED' ? 'is-warning' : 'is-error'}`;
+      }
+
+      // Database
+      if (dbStatus && dbLatency && dbDetail) {
+        const isDbHealthy = health.database?.status === 'healthy';
+        dbStatus.textContent = isDbHealthy ? 'CONNECTED' : 'OFFLINE';
+        dbStatus.className = `data-source-badge ${isDbHealthy ? 'is-success' : 'is-error'}`;
+        dbLatency.textContent = health.database?.latency_ms !== undefined ? `${health.database.latency_ms} ms` : '—';
+        dbDetail.textContent = isDbHealthy ? 'PostgreSQL connectivity verified.' : 'Database connection timed out or unreachable.';
+      }
+
+      // Brevo Transactional Email
+      if (emailStatus && emailTitle && emailDetail) {
+        const emailReady = health.transactional_email?.status === 'ready';
+        emailStatus.textContent = emailReady ? 'CONFIGURED' : 'UNCONFIGURED';
+        emailStatus.className = `data-source-badge ${emailReady ? 'is-success' : 'is-warning'}`;
+        emailTitle.textContent = emailReady ? 'Brevo Free' : 'Not Configured';
+        const sender = health.transactional_email?.sender_name || 'MetroDrip Orders';
+        emailDetail.textContent = emailReady
+          ? `Verified sender: ${sender}. Transactional delivery operational.`
+          : 'BREVO_API_KEY environment variable required for email delivery.';
+      }
+
+      // PayMongo
+      if (paymentStatus && paymentMode && paymentDetail) {
+        const pmReady = health.payment_provider?.status === 'ready';
+        const mode = (health.payment_provider?.mode || 'test').toUpperCase();
+        const rails = health.payment_provider?.enabled_hosted_methods || [];
+        paymentStatus.textContent = pmReady ? 'CONFIGURED' : 'UNCONFIGURED';
+        paymentStatus.className = `data-source-badge ${pmReady ? 'is-success' : 'is-warning'}`;
+        paymentMode.textContent = `PayMongo (${mode})`;
+        paymentDetail.textContent = pmReady
+          ? `Active rails: ${rails.join(', ').toUpperCase() || 'None'}. Webhooks verified.`
+          : 'PayMongo secret keys unconfigured. Hosted payments offline.';
+      }
+
+      // Environment
+      if (envStatus && envDetail) {
+        envStatus.textContent = 'ONLINE';
+        envStatus.className = 'data-source-badge is-success';
+        const checkedTime = new Date().toLocaleTimeString();
+        envDetail.textContent = `Last checked: ${checkedTime}`;
+      }
+
+    } catch (err) {
+      if (overallBadge) {
+        overallBadge.textContent = 'UNAVAILABLE';
+        overallBadge.className = 'data-source-badge is-error';
+      }
+      if (dbStatus) {
+        dbStatus.textContent = 'ERROR';
+        dbStatus.className = 'data-source-badge is-error';
+      }
+      if (dbDetail) dbDetail.textContent = `Failed to probe diagnostics: ${err.message}`;
     }
   }
 
@@ -237,13 +412,22 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('form-platform-settings')?.addEventListener('submit', saveSettings);
+    const form = document.getElementById('form-platform-settings');
+    form?.addEventListener('submit', saveSettings);
+    form?.addEventListener('input', handleInputChange);
+    form?.addEventListener('change', handleInputChange);
+
     document.querySelectorAll('.btn-save-settings').forEach(button => {
       if (button.getAttribute('type') !== 'submit') button.addEventListener('click', saveSettings);
     });
     document.getElementById('btn-discard-settings')?.addEventListener('click', discardSettings);
     document.getElementById('btn-retry-settings')?.addEventListener('click', loadSettings);
-    document.getElementById('btn-refresh-settings')?.addEventListener('click', loadSettings);
+    document.getElementById('btn-refresh-settings')?.addEventListener('click', () => {
+      loadSettings();
+      loadSystemHealth();
+    });
+    document.getElementById('btn-refresh-health')?.addEventListener('click', loadSystemHealth);
+
     setFormEnabled(false);
     clearSettings();
     loadSettings();

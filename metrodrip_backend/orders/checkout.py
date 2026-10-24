@@ -50,7 +50,8 @@ def record_payment_transition(
         created_at=now,
     )
 
-from .capabilities import hosted_method_available
+from .capabilities import hosted_method_available, is_payment_method_available
+from .notifications import dispatch_order_confirmation_if_enabled
 from .paymongo import PayMongoClient, PayMongoError, pesos_to_centavos, verified_paid_payment
 
 
@@ -604,7 +605,7 @@ def _ensure_provider_session(order, payment, customer, provider_client=None):
     if order.reservation_expires_at and order.reservation_expires_at <= timezone.now():
         _expire_order(order, provider_client=provider_client)
         raise CheckoutError('This checkout expired. Start a new checkout.', status_code=409, code='checkout_expired')
-    if provider_client is None and not hosted_method_available(payment.method):
+    if provider_client is None and not is_payment_method_available(payment.method):
         raise CheckoutError(
             'This payment method is not available.',
             status_code=422,
@@ -710,8 +711,7 @@ def execute_checkout(customer, payload, provider_client=None):
 
     if (
         provider_client is None
-        and checkout['payment_method'] in ONLINE_METHODS
-        and not hosted_method_available(checkout['payment_method'])
+        and not is_payment_method_available(checkout['payment_method'])
     ):
         raise CheckoutError(
             'This payment method is not available.',
@@ -732,6 +732,11 @@ def execute_checkout(customer, payload, provider_client=None):
         return (*_ensure_provider_session(existing, payment, customer, provider_client), True)
 
     order, payment = _ensure_provider_session(order, payment, customer, provider_client)
+    if checkout['payment_method'] == 'cod' and not reused_attempt and order.status == 'placed':
+        try:
+            dispatch_order_confirmation_if_enabled(order)
+        except Exception:
+            pass
     return order, payment, reused_attempt
 
 
@@ -774,6 +779,11 @@ def apply_verified_payment(payment, session_data):
         order.status = 'placed' if stock_committed else 'payment_review'
         order.updated_at = now
         order.save(update_fields=['status', 'updated_at'])
+    if order.status == 'placed':
+        try:
+            dispatch_order_confirmation_if_enabled(order)
+        except Exception:
+            pass
     return True
 
 

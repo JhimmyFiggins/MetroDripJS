@@ -1582,3 +1582,90 @@ class MerchantBannerUploadAPIView(MerchantAPIView):
             'byte_size': file.size,
             'filename': os.path.basename(saved_path),
         }, status=status.HTTP_201_CREATED)
+
+
+class MerchantOrderSettingsAPIView(MerchantAPIView):
+    def get(self, request):
+        from identity.models import PlatformSetting
+        from orders.capabilities import payment_capabilities
+        setting = PlatformSetting.get_instance(refresh=True)
+        caps = payment_capabilities()
+
+        return Response({
+            'settings': {
+                'enabled_payment_methods': setting.get_enabled_payment_methods(),
+                'order_confirmation_emails': getattr(setting, 'order_confirmation_emails', 'enabled'),
+                'sender_name': getattr(setting, 'sender_name', 'MetroDrip Orders'),
+                'payment_provider_mode': caps.get('mode', 'test'),
+                'payment_provider_ready': caps.get('provider_ready', False),
+                'methods': caps.get('methods', []),
+            }
+        }, status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        from identity.models import PlatformSetting
+        from orders.capabilities import enabled_hosted_methods, provider_configured
+        setting = PlatformSetting.get_instance()
+
+        updated_fields = []
+        data = request.data or {}
+
+        # 1. enabled_payment_methods
+        if 'enabled_payment_methods' in data:
+            methods_in = data.get('enabled_payment_methods')
+            if not isinstance(methods_in, (list, tuple)):
+                return Response(
+                    {'error': 'enabled_payment_methods must be an array of payment method identifiers.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            cleaned = []
+            seen = set()
+            hosted_enabled = set(enabled_hosted_methods())
+            pm_ready = provider_configured()
+
+            for item in methods_in:
+                m_str = str(item).strip().lower()
+                if m_str not in {'cod', 'gcash', 'maya', 'card'}:
+                    return Response({'error': f"Unknown payment method '{m_str}'."}, status=status.HTTP_400_BAD_REQUEST)
+                # Ensure merchants only enable online methods supported by the provider
+                if m_str in {'gcash', 'maya', 'card'}:
+                    if not pm_ready or m_str not in hosted_enabled:
+                        return Response({
+                            'error': f"Payment method '{m_str}' cannot be enabled because it is not configured or allowed by the payment provider."
+                        }, status=status.HTTP_400_BAD_REQUEST)
+                if m_str not in seen:
+                    seen.add(m_str)
+                    cleaned.append(m_str)
+
+            setting.enabled_payment_methods = cleaned
+            updated_fields.append('enabled_payment_methods')
+
+        # 2. order_confirmation_emails
+        if 'order_confirmation_emails' in data:
+            emails_val = str(data.get('order_confirmation_emails')).strip().lower()
+            if emails_val not in {'enabled', 'disabled'}:
+                return Response({'error': "order_confirmation_emails must be 'enabled' or 'disabled'."}, status=status.HTTP_400_BAD_REQUEST)
+            setting.order_confirmation_emails = emails_val
+            updated_fields.append('order_confirmation_emails')
+
+        # 3. sender_name
+        if 'sender_name' in data:
+            name_val = str(data.get('sender_name')).strip()
+            if not name_val:
+                return Response({'error': 'Default sender name cannot be empty.'}, status=status.HTTP_400_BAD_REQUEST)
+            if len(name_val) > 150:
+                return Response({'error': 'Default sender name cannot exceed 150 characters.'}, status=status.HTTP_400_BAD_REQUEST)
+            setting.sender_name = name_val
+            updated_fields.append('sender_name')
+
+        if updated_fields:
+            setting.save()
+            try:
+                from identity.admin_views import _audit
+                _audit(request, f"Updated merchant order settings ({', '.join(updated_fields)})", "PlatformSetting", setting.id)
+            except Exception:
+                pass
+
+        return self.get(request)
+

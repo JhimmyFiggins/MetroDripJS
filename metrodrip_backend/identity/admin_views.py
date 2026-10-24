@@ -8,13 +8,14 @@ from django.contrib.auth.hashers import make_password
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from identity.authentication import CustomerTokenAuthentication
 from identity.permissions import IsAdminRole
 from .models import AccountsCustomer, AuditLog, PlatformSetting, CustomRole, PasswordResetToken
-from .brevo import is_brevo_configured, build_reset_url, send_transactional_email
+from .brevo import is_brevo_configured, build_reset_url, send_transactional_email, get_sender_identity
 from .email_templates import render_welcome_setup, render_admin_password_reset
 from fulfillment.models import ShippingShippingZone
 
@@ -526,7 +527,7 @@ class AdminRolesAPIView(AdminAPIView):
 
 class AdminSettingsAPIView(AdminAPIView):
     def get(self, request):
-        setting = PlatformSetting.get_instance()
+        setting = PlatformSetting.get_instance(refresh=True)
         return Response({
             'settings': {
                 'platform_name': setting.platform_name,
@@ -538,11 +539,16 @@ class AdminSettingsAPIView(AdminAPIView):
                 'staff_mfa_policy': setting.staff_mfa_policy,
                 'session_timeout_minutes': str(setting.session_timeout_minutes),
                 'customer_registration': setting.customer_registration,
+                'registration_message': getattr(setting, 'registration_message', ''),
                 'maintenance_mode': setting.maintenance_mode,
-                'order_confirmation_emails': setting.order_confirmation_emails,
-                'sender_name': setting.sender_name,
-                'payment_methods': ['GCash', 'Maya', 'Card', 'COD'],
-                'payment_provider_mode': getattr(settings, 'PAYMONGO_MODE', 'test'),
+                'maintenance_message': getattr(setting, 'maintenance_message', ''),
+                'maintenance_scheduled_start': setting.maintenance_scheduled_start.isoformat() if setting.maintenance_scheduled_start else None,
+                'maintenance_scheduled_end': setting.maintenance_scheduled_end.isoformat() if setting.maintenance_scheduled_end else None,
+                'password_min_length': setting.password_min_length,
+                'max_login_attempts': setting.max_login_attempts,
+                'lockout_duration_minutes': setting.lockout_duration_minutes,
+                'admin_security_alerts': setting.admin_security_alerts,
+                'admin_alert_email': setting.admin_alert_email,
             }
         })
 
@@ -558,19 +564,61 @@ class AdminSettingsAPIView(AdminAPIView):
             'staff_mfa_policy',
             'session_timeout_minutes',
             'customer_registration',
+            'registration_message',
             'maintenance_mode',
-            'order_confirmation_emails',
-            'sender_name',
+            'maintenance_message',
+            'maintenance_scheduled_start',
+            'maintenance_scheduled_end',
+            'password_min_length',
+            'max_login_attempts',
+            'lockout_duration_minutes',
+            'admin_security_alerts',
+            'admin_alert_email',
         ]
         updated_fields = []
         for field in allowed_fields:
             if field in request.data:
-                val = str(request.data[field]).strip()
-                if field == 'support_email' and '@' not in val:
-                    return Response({'error': 'A valid support email is required.'}, status=status.HTTP_400_BAD_REQUEST)
-                if field == 'platform_name' and not val:
-                    return Response({'error': 'Platform name cannot be empty.'}, status=status.HTTP_400_BAD_REQUEST)
-                setattr(setting, field, val)
+                raw_val = request.data[field]
+                if field == 'support_email':
+                    val = str(raw_val or '').strip()
+                    if '@' not in val:
+                        return Response({'error': 'A valid support email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+                    setattr(setting, field, val)
+                elif field == 'platform_name':
+                    val = str(raw_val or '').strip()
+                    if not val:
+                        return Response({'error': 'Platform name cannot be empty.'}, status=status.HTTP_400_BAD_REQUEST)
+                    setattr(setting, field, val)
+                elif field == 'admin_alert_email':
+                    val = str(raw_val or '').strip()
+                    if val and '@' not in val:
+                        return Response({'error': 'A valid admin alert email is required.'}, status=status.HTTP_400_BAD_REQUEST)
+                    setattr(setting, field, val)
+                elif field in {'password_min_length', 'max_login_attempts', 'lockout_duration_minutes'}:
+                    try:
+                        int_val = int(raw_val)
+                        if field == 'password_min_length' and not (8 <= int_val <= 64):
+                            return Response({'error': 'Password minimum length must be between 8 and 64 characters.'}, status=status.HTTP_400_BAD_REQUEST)
+                        if field == 'max_login_attempts' and not (1 <= int_val <= 50):
+                            return Response({'error': 'Max login attempts must be between 1 and 50.'}, status=status.HTTP_400_BAD_REQUEST)
+                        if field == 'lockout_duration_minutes' and not (1 <= int_val <= 1440):
+                            return Response({'error': 'Lockout duration must be between 1 and 1440 minutes.'}, status=status.HTTP_400_BAD_REQUEST)
+                        setattr(setting, field, int_val)
+                    except (ValueError, TypeError):
+                        return Response({'error': f'{field} must be a valid integer.'}, status=status.HTTP_400_BAD_REQUEST)
+                elif field in {'maintenance_scheduled_start', 'maintenance_scheduled_end'}:
+                    if raw_val:
+                        dt = parse_datetime(str(raw_val))
+                        if not dt:
+                            return Response({'error': f'{field} must be a valid ISO datetime.'}, status=status.HTTP_400_BAD_REQUEST)
+                        if timezone.is_naive(dt):
+                            dt = timezone.make_aware(dt)
+                        setattr(setting, field, dt)
+                    else:
+                        setattr(setting, field, None)
+                else:
+                    val = str(raw_val or '').strip()
+                    setattr(setting, field, val)
                 updated_fields.append(field)
 
         if updated_fields:
@@ -578,6 +626,71 @@ class AdminSettingsAPIView(AdminAPIView):
             _audit(request, f"Updated platform settings ({', '.join(updated_fields)})", "PlatformSetting", setting.id)
 
         return self.get(request)
+
+
+class AdminHealthAPIView(AdminAPIView):
+    def get(self, request):
+        import time
+        now = timezone.now()
+
+        # Database Check
+        t0 = time.monotonic()
+        try:
+            AccountsCustomer.objects.filter(role='admin').exists()
+            db_latency_ms = round((time.monotonic() - t0) * 1000, 2)
+            db_status = 'healthy'
+        except Exception:
+            db_latency_ms = round((time.monotonic() - t0) * 1000, 2)
+            db_status = 'unavailable'
+
+        # Email Check (Brevo)
+        brevo_ready = is_brevo_configured()
+        sender_name, sender_email = get_sender_identity()
+        email_status = 'ready' if brevo_ready else 'unconfigured'
+
+        # Payment Provider Check (PayMongo)
+        try:
+            from orders.capabilities import provider_configured, enabled_hosted_methods
+            pm_ready = provider_configured()
+            pm_mode = getattr(settings, 'PAYMONGO_MODE', 'test')
+            pm_methods = enabled_hosted_methods()
+        except Exception:
+            pm_ready = False
+            pm_mode = 'unknown'
+            pm_methods = []
+
+        overall = 'healthy'
+        if db_status != 'healthy':
+            overall = 'unavailable'
+        elif not brevo_ready or not pm_ready:
+            overall = 'degraded'
+
+        return Response({
+            'health': {
+                'status': overall,
+                'timestamp': now.isoformat(),
+                'database': {
+                    'status': db_status,
+                    'latency_ms': db_latency_ms,
+                },
+                'transactional_email': {
+                    'status': email_status,
+                    'provider': 'brevo',
+                    'sender_name': sender_name,
+                    'sender_email_configured': bool(sender_email),
+                },
+                'payment_provider': {
+                    'status': 'ready' if pm_ready else 'unconfigured',
+                    'provider': 'paymongo',
+                    'mode': pm_mode,
+                    'enabled_hosted_methods': pm_methods,
+                },
+                'environment': {
+                    'debug': getattr(settings, 'DEBUG', False),
+                    'is_render': getattr(settings, 'IS_RENDER', False),
+                }
+            }
+        })
 
 
 class AdminUserResetPasswordAPIView(AdminAPIView):

@@ -621,7 +621,10 @@
       const element = document.getElementById(id);
       element?.addEventListener(id === 'search-orders-input' ? 'input' : 'change', renderTable);
     });
-    document.getElementById('btn-refresh-orders')?.addEventListener('click', loadOrders);
+    document.getElementById('btn-refresh-orders')?.addEventListener('click', () => {
+      loadOrders();
+      loadOrderSettings();
+    });
     document.getElementById('btn-retry-orders')?.addEventListener('click', loadOrders);
     document.getElementById('btn-mark-packed')?.addEventListener('click', markPacked);
     document.getElementById('btn-cancel-order')?.addEventListener('click', openStepUpModal);
@@ -629,6 +632,13 @@
     document.getElementById('btn-modal-cancel')?.addEventListener('click', closeStepUpModal);
     document.getElementById('step-up-modal-backdrop')?.addEventListener('click', closeStepUpModal);
     document.getElementById('btn-modal-confirm')?.addEventListener('click', confirmCancelOrder);
+
+    // Merchant Order Settings Handlers
+    document.getElementById('payment-methods-container')?.addEventListener('change', handleOrderSettingsChanged);
+    document.getElementById('setting-order-emails')?.addEventListener('change', handleOrderSettingsChanged);
+    document.getElementById('setting-sender-name')?.addEventListener('input', handleOrderSettingsChanged);
+    document.getElementById('btn-discard-order-settings')?.addEventListener('click', discardOrderSettings);
+    document.getElementById('form-merchant-order-settings')?.addEventListener('submit', saveOrderSettings);
 
     document.addEventListener('keydown', event => {
       if (event.key === 'Escape' && document.getElementById('step-up-modal')?.classList.contains('is-open')) {
@@ -652,8 +662,226 @@
     });
   }
 
+  let savedOrderSettings = null;
+
+  async function loadOrderSettings() {
+    const statusBadge = document.getElementById('checkout-comms-source-status');
+    const container = document.getElementById('payment-methods-container');
+    const modeBadge = document.getElementById('setting-provider-mode-badge');
+    const orderEmailsSelect = document.getElementById('setting-order-emails');
+    const senderNameInput = document.getElementById('setting-sender-name');
+    const saveBtn = document.getElementById('btn-save-order-settings');
+    const discardBtn = document.getElementById('btn-discard-order-settings');
+    const indicator = document.getElementById('order-settings-status-indicator');
+
+    if (statusBadge) {
+      statusBadge.textContent = 'CONNECTING';
+      statusBadge.className = 'data-source-badge';
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/orders/settings/`, {
+        headers: requestHeaders(),
+      });
+      if (!res.ok) {
+        throw await responseError(res, 'Failed to load checkout settings.');
+      }
+      const data = await res.json();
+      savedOrderSettings = data.settings || {};
+
+      if (statusBadge) {
+        statusBadge.textContent = 'PERSISTED';
+        statusBadge.className = 'data-source-badge live';
+      }
+
+      // 1. Provider Mode
+      if (modeBadge) {
+        const mode = (savedOrderSettings.payment_provider_mode || 'test').toUpperCase();
+        const ready = savedOrderSettings.payment_provider_ready;
+        modeBadge.textContent = `PROVIDER: PAYMONGO (${mode}) · ${ready ? 'ONLINE' : 'KEYS UNCONFIGURED'}`;
+      }
+
+      // 2. Render Payment Method Toggles
+      if (container) {
+        container.innerHTML = '';
+        const methods = savedOrderSettings.methods || [];
+        const enabledSet = new Set(savedOrderSettings.enabled_payment_methods || []);
+
+        methods.forEach(method => {
+          const isHosted = method.type === 'hosted';
+          const isProviderSupported = method.provider_supported !== false;
+          const isChecked = enabledSet.has(method.id) && isProviderSupported;
+
+          const card = document.createElement('label');
+          card.style.cssText = `
+            display: flex; flex-direction: column; gap: 8px; padding: 14px;
+            background: var(--color-surface); border: 1px solid var(--color-border);
+            border-radius: 6px; cursor: ${isProviderSupported ? 'pointer' : 'not-allowed'};
+            opacity: ${isProviderSupported ? '1' : '0.65'};
+          `;
+
+          const headerRow = document.createElement('div');
+          headerRow.style.cssText = 'display: flex; align-items: center; justify-content: space-between; gap: 8px;';
+
+          const titleWrap = document.createElement('div');
+          titleWrap.style.cssText = 'display: flex; align-items: center; gap: 8px;';
+
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.className = 'payment-method-checkbox';
+          checkbox.dataset.methodId = method.id;
+          checkbox.checked = isChecked;
+          checkbox.disabled = !isProviderSupported;
+
+          const title = document.createElement('span');
+          title.style.fontWeight = '600';
+          title.style.fontSize = '13px';
+          title.textContent = method.name || method.id.toUpperCase();
+
+          titleWrap.appendChild(checkbox);
+          titleWrap.appendChild(title);
+
+          const badge = document.createElement('span');
+          badge.style.cssText = 'font-size: 10px; font-family: var(--font-mono); padding: 2px 6px; border-radius: 3px;';
+          if (!isProviderSupported) {
+            badge.style.background = 'var(--color-danger-bg)';
+            badge.style.color = 'var(--color-danger)';
+            badge.textContent = 'UNAVAILABLE';
+          } else if (isHosted) {
+            badge.style.background = 'var(--color-info-bg)';
+            badge.style.color = 'var(--color-ink)';
+            badge.textContent = 'HOSTED';
+          } else {
+            badge.style.background = 'var(--color-success-bg)';
+            badge.style.color = 'var(--color-success)';
+            badge.textContent = 'OFFLINE';
+          }
+
+          headerRow.appendChild(titleWrap);
+          headerRow.appendChild(badge);
+
+          const desc = document.createElement('p');
+          desc.className = 'td-muted';
+          desc.style.cssText = 'font-size: 11px; margin: 0; line-height: 1.35;';
+          if (!isProviderSupported) {
+            desc.textContent = 'Provider credentials not configured. Configure in Render environment.';
+          } else {
+            desc.textContent = method.description || '';
+          }
+
+          card.appendChild(headerRow);
+          card.appendChild(desc);
+          container.appendChild(card);
+        });
+      }
+
+      // 3. Order Emails
+      if (orderEmailsSelect) {
+        orderEmailsSelect.value = savedOrderSettings.order_confirmation_emails || 'enabled';
+      }
+
+      // 4. Sender Name
+      if (senderNameInput) {
+        senderNameInput.value = savedOrderSettings.sender_name || 'MetroDrip Orders';
+      }
+
+      // Reset action buttons
+      if (saveBtn) saveBtn.disabled = true;
+      if (discardBtn) discardBtn.disabled = true;
+      if (indicator) indicator.textContent = '';
+
+    } catch (err) {
+      if (statusBadge) {
+        statusBadge.textContent = 'OFFLINE';
+        statusBadge.className = 'data-source-badge';
+      }
+      if (container) {
+        container.innerHTML = `<p class="td-muted" style="color:var(--color-danger); font-size:12px;">Failed to load order settings: ${escapeHtml(err.message)}</p>`;
+      }
+    }
+  }
+
+  function handleOrderSettingsChanged() {
+    const saveBtn = document.getElementById('btn-save-order-settings');
+    const discardBtn = document.getElementById('btn-discard-order-settings');
+    const indicator = document.getElementById('order-settings-status-indicator');
+    if (saveBtn) saveBtn.disabled = false;
+    if (discardBtn) discardBtn.disabled = false;
+    if (indicator) {
+      indicator.innerHTML = '<span style="color:var(--color-warning);">● Unsaved changes</span>';
+    }
+  }
+
+  function discardOrderSettings() {
+    if (!savedOrderSettings) return;
+    loadOrderSettings();
+    showToast('Discarded unsaved order settings changes.', 'info');
+  }
+
+  async function saveOrderSettings(e) {
+    if (e) e.preventDefault();
+    const saveBtn = document.getElementById('btn-save-order-settings');
+    const discardBtn = document.getElementById('btn-discard-order-settings');
+    const indicator = document.getElementById('order-settings-status-indicator');
+    const orderEmailsSelect = document.getElementById('setting-order-emails');
+    const senderNameInput = document.getElementById('setting-sender-name');
+
+    const checkboxes = document.querySelectorAll('.payment-method-checkbox');
+    const enabledMethods = [];
+    checkboxes.forEach(cb => {
+      if (cb.checked) enabledMethods.push(cb.dataset.methodId);
+    });
+
+    const senderName = (senderNameInput?.value || '').trim();
+    if (!senderName) {
+      showToast('Default sender name cannot be empty.', 'error');
+      senderNameInput?.focus();
+      return;
+    }
+
+    const payload = {
+      enabled_payment_methods: enabledMethods,
+      order_confirmation_emails: orderEmailsSelect?.value || 'enabled',
+      sender_name: senderName,
+    };
+
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving…';
+    }
+    if (discardBtn) discardBtn.disabled = true;
+    if (indicator) indicator.textContent = 'Saving settings to server…';
+
+    try {
+      const res = await fetch(`${API_BASE}/orders/settings/`, {
+        method: 'PATCH',
+        headers: requestHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        throw await responseError(res, 'Failed to save order settings.');
+      }
+
+      const data = await res.json();
+      savedOrderSettings = data.settings || {};
+      showToast('Checkout & communication settings saved successfully.', 'success');
+      if (indicator) indicator.innerHTML = '<span style="color:var(--color-success);">✓ Saved</span>';
+      setTimeout(() => { if (indicator) indicator.textContent = ''; }, 3000);
+      loadOrderSettings();
+    } catch (err) {
+      showToast(err.message, 'error');
+      if (indicator) indicator.innerHTML = `<span style="color:var(--color-danger);">${escapeHtml(err.message)}</span>`;
+      if (saveBtn) saveBtn.disabled = false;
+      if (discardBtn) discardBtn.disabled = false;
+    } finally {
+      if (saveBtn) saveBtn.textContent = 'Save changes';
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     initHandlers();
     loadOrders();
+    loadOrderSettings();
   });
 })();

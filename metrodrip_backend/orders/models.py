@@ -28,6 +28,7 @@ class OrdersOrder(models.Model):
     checkout_fingerprint = models.CharField(max_length=64, blank=True, default='')
     reservation_expires_at = models.DateTimeField(null=True, blank=True, db_index=True)
     cancelled_at = models.DateTimeField(null=True, blank=True)
+    confirmation_email_sent_at = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField()
     updated_at = models.DateTimeField()

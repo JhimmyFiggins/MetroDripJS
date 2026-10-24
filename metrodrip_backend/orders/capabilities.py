@@ -67,40 +67,79 @@ def provider_configured():
     return has_secret and has_webhook and mode in {'test', 'live'}
 
 
-def hosted_method_available(method):
+def get_merchant_enabled_methods():
+    try:
+        from identity.models import PlatformSetting
+        return PlatformSetting.get_instance().get_enabled_payment_methods()
+    except Exception:
+        return ['cod', 'gcash', 'maya', 'card']
+
+
+def is_method_provider_supported(method):
+    if method == 'cod':
+        return True
     return method in enabled_hosted_methods() and provider_configured()
+
+
+def is_payment_method_available(method):
+    merchant_enabled = get_merchant_enabled_methods()
+    return (method in merchant_enabled) and is_method_provider_supported(method)
+
+
+def hosted_method_available(method):
+    return method in enabled_hosted_methods() and provider_configured() and is_payment_method_available(method)
 
 
 def payment_capabilities():
     mode = str(getattr(settings, 'PAYMONGO_MODE', 'test') or 'test').lower()
     configured = provider_configured()
     enabled = set(enabled_hosted_methods())
+    merchant_enabled = set(get_merchant_enabled_methods())
     methods = []
     for spec in METHOD_CATALOG:
+        m_id = spec['id']
+        is_merchant_on = m_id in merchant_enabled
         if spec['type'] == 'offline':
-            available = True
-            unavailable_code = None
+            provider_ok = True
+            if not is_merchant_on:
+                available = False
+                unavailable_code = 'merchant_disabled'
+            else:
+                available = True
+                unavailable_code = None
         elif not configured:
+            provider_ok = False
             available = False
             unavailable_code = 'provider_not_configured'
-        elif spec['id'] not in enabled:
+        elif m_id not in enabled:
+            provider_ok = False
             available = False
             unavailable_code = 'method_not_enabled'
+        elif not is_merchant_on:
+            provider_ok = True
+            available = False
+            unavailable_code = 'merchant_disabled'
         else:
+            provider_ok = True
             available = True
             unavailable_code = None
+
         methods.append({
             **spec,
             'available': available,
+            'provider_supported': provider_ok,
+            'merchant_enabled': is_merchant_on,
             'unavailable_code': unavailable_code,
             'currencies': ['PHP'],
         })
+
     return {
         'currency': 'PHP',
         'provider': 'paymongo',
         'mode': mode,
         'provider_ready': configured,
-        'enabled_methods': [method for method in ONLINE_METHOD_IDS if method in enabled and configured],
+        'enabled_methods': [method for method in ONLINE_METHOD_IDS if is_payment_method_available(method)],
         'methods': methods,
         'ttl_seconds': 1800,
     }
+

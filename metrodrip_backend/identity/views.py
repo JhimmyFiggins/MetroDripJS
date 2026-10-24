@@ -8,6 +8,7 @@ from .models import (
     AuditLog,
     CustomerAccessToken,
     PasswordResetToken,
+    PlatformSetting,
 )
 from catalog.models import CatalogProduct
 from django.utils import timezone
@@ -554,6 +555,17 @@ class SignupAPIView(APIView):
     throttle_scope = 'signup'
 
     def post(self, request):
+        setting = PlatformSetting.get_instance()
+        if getattr(setting, 'customer_registration', 'enabled') == 'disabled':
+            msg = getattr(setting, 'registration_message', '') or 'New customer registration is currently paused.'
+            return Response(
+                {
+                    'error': msg,
+                    'code': 'registration_disabled',
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         name = (request.data.get('name') or '').strip()
         email = (request.data.get('email') or '').strip().lower()
         password = request.data.get('password')

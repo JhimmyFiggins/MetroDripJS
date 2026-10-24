@@ -156,84 +156,214 @@
           </div>
         </section>
 
-        <!-- 2-Column Section: Access & Security + Checkout & Communications -->
+        <!-- 2-Column Section: Security & Authentication + Customer Registration -->
         <div class="panel-grid-2col" style="margin-top: 24px;">
-          <!-- Left: Access & Security Card -->
-          <section class="panel-card" aria-labelledby="heading-access-security">
+          <!-- Left: Security & Authentication Card -->
+          <section class="panel-card" aria-labelledby="heading-security-auth">
             <div class="panel-header">
-              <h2 class="panel-title" id="heading-access-security">Access & security</h2>
+              <h2 class="panel-title" id="heading-security-auth">Security & authentication</h2>
             </div>
             <div style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
               <div>
-                <label class="form-label" for="setting-2fa">Staff two-factor authentication</label>
+                <label class="form-label" for="setting-2fa">Staff two-factor authentication policy</label>
                 <select class="toolbar-select" id="setting-2fa" style="width: 100%;">
                   <option value="" selected disabled>Unavailable</option>
                   <option value="required">Required ▾</option>
                   <option value="optional">Optional ▾</option>
                 </select>
+                <p class="td-muted" style="font-size: 11px; margin-top: 4px;">Staff policy setting is recorded. Complete TOTP/WebAuthn enrollment gate is scheduled for P2.</p>
               </div>
               <div>
-                <label class="form-label" for="setting-session-timeout">Session timeout</label>
+                <label class="form-label" for="setting-session-timeout">Staff session timeout</label>
                 <select class="toolbar-select" id="setting-session-timeout" style="width: 100%;">
                   <option value="" selected disabled>Unavailable</option>
                   <option value="15">15 minutes ▾</option>
                   <option value="30">30 minutes ▾</option>
-                  <option value="60">60 minutes ▾</option>
-                  <option value="120">2 hours ▾</option>
+                  <option value="60">60 minutes (1 hour) ▾</option>
+                  <option value="120">120 minutes (2 hours) ▾</option>
+                  <option value="240">240 minutes (4 hours) ▾</option>
                 </select>
               </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div>
+                  <label class="form-label" for="setting-password-min-length">Min password length</label>
+                  <input type="number" class="form-input" id="setting-password-min-length" min="8" max="64" value="8" required>
+                  <p class="td-muted" style="font-size: 11px; margin-top: 4px;">8 – 64 characters</p>
+                </div>
+                <div>
+                  <label class="form-label" for="setting-max-login-attempts">Max login attempts</label>
+                  <input type="number" class="form-input" id="setting-max-login-attempts" min="1" max="50" value="5" required>
+                  <p class="td-muted" style="font-size: 11px; margin-top: 4px;">1 – 50 attempts</p>
+                </div>
+              </div>
+              <div>
+                <label class="form-label" for="setting-lockout-duration">Account lockout duration (minutes)</label>
+                <input type="number" class="form-input" id="setting-lockout-duration" min="1" max="1440" value="15" required>
+                <p class="td-muted" style="font-size: 11px; margin-top: 4px;">Duration accounts are locked out after exceeding max attempts.</p>
+              </div>
+            </div>
+          </section>
+
+          <!-- Right: Customer Registration & Access Policy Card -->
+          <section class="panel-card" aria-labelledby="heading-customer-registration">
+            <div class="panel-header">
+              <h2 class="panel-title" id="heading-customer-registration">Customer registration policy</h2>
+            </div>
+            <div style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
               <div>
                 <label class="form-label" for="setting-registration">New customer registration</label>
                 <select class="toolbar-select" id="setting-registration" style="width: 100%;">
                   <option value="" selected disabled>Unavailable</option>
-                  <option value="enabled">Enabled ▾</option>
-                  <option value="disabled">Disabled ▾</option>
+                  <option value="enabled">Enabled (Open to public) ▾</option>
+                  <option value="disabled">Disabled (Registration closed) ▾</option>
                 </select>
+                <p class="td-muted" style="font-size: 11px; margin-top: 4px;">Enforced at server API: when disabled, signup attempts return HTTP 403.</p>
               </div>
+              <div>
+                <label class="form-label" for="setting-registration-message">Registration closed announcement</label>
+                <input type="text" class="form-input" id="setting-registration-message" value="" placeholder="e.g. New customer registration is temporarily paused." maxlength="255">
+                <p class="td-muted" style="font-size: 11px; margin-top: 4px;">Displayed to users if they attempt to sign up when registration is closed.</p>
+              </div>
+              <div style="border-top: 1px solid var(--color-border); padding-top: 12px;">
+                <p class="td-muted" style="font-size: 11px; line-height: 1.45;">
+                  <strong>Policy scope:</strong> Disabling customer registration does not revoke or restrict existing customer or staff accounts. Staff accounts are provisioned via <strong>Admin Console &rarr; User Accounts</strong>.
+                </p>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- 2-Column Section: Maintenance & Storefront Availability + Administrative Notifications -->
+        <div class="panel-grid-2col" style="margin-top: 24px;">
+          <!-- Left: Maintenance & Storefront Availability Card -->
+          <section class="panel-card" aria-labelledby="heading-maintenance-mode">
+            <div class="panel-header">
+              <h2 class="panel-title" id="heading-maintenance-mode">Maintenance & storefront availability</h2>
+            </div>
+            <div style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
               <div>
                 <label class="form-label" for="setting-maintenance">Maintenance mode</label>
                 <select class="toolbar-select" id="setting-maintenance" style="width: 100%;">
                   <option value="" selected disabled>Unavailable</option>
-                  <option value="off">Off ▾</option>
-                  <option value="on">On (Storefront paused) ▾</option>
+                  <option value="off">Off (Storefront active) ▾</option>
+                  <option value="on">On (Storefront paused — 503) ▾</option>
                 </select>
+                <p class="td-muted" style="font-size: 11px; margin-top: 4px;">When active, public customer requests receive HTTP 503 Service Unavailable.</p>
               </div>
-              <p class="td-muted" style="font-size: 11px;">Maintenance mode pauses storefront access for customers.</p>
+              <div>
+                <label class="form-label" for="setting-maintenance-message">Maintenance announcement message</label>
+                <input type="text" class="form-input" id="setting-maintenance-message" value="" placeholder="e.g. MetroDrip is undergoing scheduled maintenance." maxlength="255">
+                <p class="td-muted" style="font-size: 11px; margin-top: 4px;">Displayed on the customer 503 maintenance page.</p>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div>
+                  <label class="form-label" for="setting-maintenance-start">Scheduled start (optional)</label>
+                  <input type="datetime-local" class="form-input" id="setting-maintenance-start">
+                </div>
+                <div>
+                  <label class="form-label" for="setting-maintenance-end">Scheduled end (optional)</label>
+                  <input type="datetime-local" class="form-input" id="setting-maintenance-end">
+                </div>
+              </div>
+              <p class="td-muted" style="font-size: 11px; line-height: 1.45;">
+                <strong>Safe administrative bypass:</strong> Admin Console, Merchant Console, payment webhooks, and health probes remain fully operational during maintenance.
+              </p>
             </div>
           </section>
 
-          <!-- Right: Checkout & Communications Card -->
-          <section class="panel-card" aria-labelledby="heading-checkout-comms">
+          <!-- Right: Administrative Notifications Card -->
+          <section class="panel-card" aria-labelledby="heading-admin-notifications">
             <div class="panel-header">
-              <h2 class="panel-title" id="heading-checkout-comms">Checkout & communications</h2>
+              <h2 class="panel-title" id="heading-admin-notifications">Administrative notifications</h2>
             </div>
             <div style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
               <div>
-                <label class="form-label" for="setting-payments">Payment methods</label>
-                <input type="text" class="form-input" id="setting-payments" value="" placeholder="Unavailable" readonly style="background-color: var(--color-surface); cursor: default;">
-                <p class="td-muted" id="setting-payment-status" style="font-size: 11px; margin-top: 4px;">Payment configuration is unavailable.</p>
-              </div>
-              <div>
-                <label class="form-label" for="setting-order-emails">Order confirmation emails</label>
-                <select class="toolbar-select" id="setting-order-emails" style="width: 100%;">
+                <label class="form-label" for="setting-admin-security-alerts">Security event alerts</label>
+                <select class="toolbar-select" id="setting-admin-security-alerts" style="width: 100%;">
                   <option value="" selected disabled>Unavailable</option>
                   <option value="enabled">Enabled ▾</option>
                   <option value="disabled">Disabled ▾</option>
                 </select>
+                <p class="td-muted" style="font-size: 11px; margin-top: 4px;">Forward security anomalies, repeated lockout triggers, and role modifications.</p>
               </div>
               <div>
-                <label class="form-label" for="setting-sender-name">Default sender name</label>
-                <input type="text" class="form-input" id="setting-sender-name" value="" placeholder="Unavailable" required>
+                <label class="form-label" for="setting-admin-alert-email">Security alert recipient email</label>
+                <input type="email" class="form-input" id="setting-admin-alert-email" value="" placeholder="e.g. security-alerts@metrodrip.ph" maxlength="255">
+                <p class="td-muted" style="font-size: 11px; margin-top: 4px;">Dedicated operations mailbox for administrative security alerts.</p>
               </div>
-              <p class="td-muted" style="font-size: 11px; line-height: 1.4;">
-                Shipping coverage and rates are managed in <strong>Merchant Console &rarr; Shipping Zones</strong>.
-              </p>
-              <div style="display: flex; gap: 10px; margin-top: 8px;">
-                <button type="submit" class="btn btn-primary btn-save-settings">Save changes</button>
-                <button type="button" class="btn btn-secondary" id="btn-discard-settings">Discard changes</button>
+              <div style="border-top: 1px solid var(--color-border); padding-top: 12px;">
+                <p class="td-muted" style="font-size: 11px; line-height: 1.45;">
+                  <strong>Note:</strong> Customer order confirmation emails and merchant shipping notifications are managed separately in <strong>Merchant Console &rarr; Orders</strong>.
+                </p>
               </div>
             </div>
           </section>
+        </div>
+
+        <!-- Card 6: System & Integration Health (Read-Only) -->
+        <section class="panel-card" id="card-system-health" aria-labelledby="heading-system-health" style="margin-top: 24px;">
+          <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <h2 class="panel-title" id="heading-system-health">System & integration health</h2>
+              <p class="td-muted" style="font-size: 11px; margin-top: 2px;">Live server-side diagnostics and provider integration readiness.</p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span class="data-source-badge" id="health-overall-status">CHECKING</span>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-health">Check health</button>
+            </div>
+          </div>
+          <div style="padding: 20px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+              <!-- Database Health -->
+              <div style="padding: 14px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px; display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted);">Database</span>
+                  <span class="data-source-badge" id="health-db-status">CONNECTING</span>
+                </div>
+                <p style="font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: var(--color-ink); margin: 0;" id="health-db-latency">—</p>
+                <p class="td-muted" style="font-size: 11px; margin: 0;" id="health-db-detail">Measuring latency…</p>
+              </div>
+
+              <!-- Transactional Email Health -->
+              <div style="padding: 14px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px; display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted);">Brevo Email</span>
+                  <span class="data-source-badge" id="health-email-status">CHECKING</span>
+                </div>
+                <p style="font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: var(--color-ink); margin: 0;" id="health-email-title">—</p>
+                <p class="td-muted" style="font-size: 11px; margin: 0;" id="health-email-detail">Checking API configuration…</p>
+              </div>
+
+              <!-- Payment Gateway Health -->
+              <div style="padding: 14px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px; display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted);">PayMongo Gateway</span>
+                  <span class="data-source-badge" id="health-payment-status">CHECKING</span>
+                </div>
+                <p style="font-family: var(--font-mono); font-size: 18px; font-weight: 700; color: var(--color-ink); margin: 0;" id="health-payment-mode">—</p>
+                <p class="td-muted" style="font-size: 11px; margin: 0;" id="health-payment-detail">Checking payment rails…</p>
+              </div>
+
+              <!-- Server Runtime Environment -->
+              <div style="padding: 14px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px; display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted);">Environment</span>
+                  <span class="data-source-badge is-success" id="health-env-status">ONLINE</span>
+                </div>
+                <p style="font-family: var(--font-mono); font-size: 14px; font-weight: 700; color: var(--color-ink); margin: 0;" id="health-env-title">Render Free Tier</p>
+                <p class="td-muted" style="font-size: 11px; margin: 0;" id="health-env-detail">Last checked: Just now</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Form Actions Bar -->
+        <div style="margin-top: 24px; padding: 16px 20px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px; display: flex; align-items: center; justify-content: space-between;">
+          <div id="settings-unsaved-indicator" class="td-muted" style="font-size: 12px;" aria-live="polite"></div>
+          <div style="display: flex; gap: 10px;">
+            <button type="button" class="btn btn-secondary" id="btn-discard-settings" disabled>Discard changes</button>
+            <button type="submit" class="btn btn-primary btn-save-settings" disabled>Save changes</button>
+          </div>
         </div>
       </form>
     </main>

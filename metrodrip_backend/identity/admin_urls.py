@@ -11,11 +11,13 @@ from .admin_views import (
     AdminShippingZonesAPIView,
     AdminRolesAPIView,
     AdminSettingsAPIView,
+    AdminHealthAPIView,
 )
 from .views import LogoutAPIView, SwitchUserAPIView
 
 urlpatterns = [
     path('dashboard/', AdminDashboardAPIView.as_view(), name='admin-dashboard'),
+    path('health/', AdminHealthAPIView.as_view(), name='admin-health'),
     path('users/', AdminUsersAPIView.as_view(), name='admin-users'),
     path('users/<int:pk>/', AdminUserDetailAPIView.as_view(), name='admin-user-detail'),
     path('users/<int:pk>/reset-password/', AdminUserResetPasswordAPIView.as_view(), name='admin-user-reset-password'),

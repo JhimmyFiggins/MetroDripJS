@@ -117,7 +117,7 @@ def sanitize_provider_error(err_msg):
     return clean
 
 
-def send_transactional_email(to_email, to_name, subject, html_content, text_content):
+def send_transactional_email(to_email, to_name, subject, html_content, text_content, sender_name_override=None):
     """
     Send a transactional email using Brevo's v3 SMTP email API over HTTPS.
 
@@ -140,6 +140,9 @@ def send_transactional_email(to_email, to_name, subject, html_content, text_cont
     recipient_email = to_email.strip()
     recipient_name = (to_name or recipient_email).strip()
 
+    default_sender_name, sender_email = get_sender_identity()
+    effective_sender_name = (str(sender_name_override).strip() if sender_name_override else '') or default_sender_name
+
     # In-memory simulation during automated test execution only
     if is_test_mode_active():
         msg = {
@@ -148,6 +151,8 @@ def send_transactional_email(to_email, to_name, subject, html_content, text_cont
             'subject': subject,
             'html_content': html_content,
             'text_content': text_content,
+            'sender_name': effective_sender_name,
+            'sender_email': sender_email,
         }
         _TEST_OUTBOX.append(msg)
         return {
@@ -163,10 +168,9 @@ def send_transactional_email(to_email, to_name, subject, html_content, text_cont
             'success': False,
             'message_id': None,
             'code': 'reset_delivery_unconfigured',
-            'error': 'Password-reset delivery is not configured. No reset email was sent.',
+            'error': 'Transactional email delivery is not configured. No email was sent.',
         }
 
-    sender_name, sender_email = get_sender_identity()
     if not sender_email:
         logger.error("BREVO_SENDER_EMAIL is not configured; refusing to send with unverified sender.")
         return {
@@ -177,7 +181,7 @@ def send_transactional_email(to_email, to_name, subject, html_content, text_cont
         }
 
     payload = {
-        'sender': {'name': sender_name, 'email': sender_email},
+        'sender': {'name': effective_sender_name, 'email': sender_email},
         'to': [{'email': recipient_email, 'name': recipient_name}],
         'subject': subject,
         'htmlContent': html_content,
