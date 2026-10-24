@@ -111,7 +111,7 @@
           <div class="panel-header">
             <h2 class="panel-title" id="heading-general-preferences">General preferences</h2>
           </div>
-          <div style="padding: 20px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px;">
+          <div class="settings-form-grid">
             <div>
               <label class="form-label" for="setting-platform-name">Platform name</label>
               <input type="text" class="form-input" id="setting-platform-name" value="" placeholder="Unavailable" required>
@@ -163,7 +163,7 @@
             <div class="panel-header">
               <h2 class="panel-title" id="heading-security-auth">Security & authentication</h2>
             </div>
-            <div style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+            <div class="settings-card-body">
               <div>
                 <label class="form-label" for="setting-2fa">Staff two-factor authentication policy</label>
                 <select class="toolbar-select" id="setting-2fa" style="width: 100%;">
@@ -184,7 +184,7 @@
                   <option value="240">240 minutes (4 hours) ▾</option>
                 </select>
               </div>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div class="settings-inline-grid">
                 <div>
                   <label class="form-label" for="setting-password-min-length">Min password length</label>
                   <input type="number" class="form-input" id="setting-password-min-length" min="8" max="64" value="8" required>
@@ -209,7 +209,7 @@
             <div class="panel-header">
               <h2 class="panel-title" id="heading-customer-registration">Customer registration policy</h2>
             </div>
-            <div style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+            <div class="settings-card-body">
               <div>
                 <label class="form-label" for="setting-registration">New customer registration</label>
                 <select class="toolbar-select" id="setting-registration" style="width: 100%;">
@@ -240,7 +240,7 @@
             <div class="panel-header">
               <h2 class="panel-title" id="heading-maintenance-mode">Maintenance & storefront availability</h2>
             </div>
-            <div style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+            <div class="settings-card-body">
               <div>
                 <label class="form-label" for="setting-maintenance">Maintenance mode</label>
                 <select class="toolbar-select" id="setting-maintenance" style="width: 100%;">
@@ -255,7 +255,7 @@
                 <input type="text" class="form-input" id="setting-maintenance-message" value="" placeholder="e.g. MetroDrip is undergoing scheduled maintenance." maxlength="255">
                 <p class="td-muted" style="font-size: 11px; margin-top: 4px;">Displayed on the customer 503 maintenance page.</p>
               </div>
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div class="settings-inline-grid">
                 <div>
                   <label class="form-label" for="setting-maintenance-start">Scheduled start (optional)</label>
                   <input type="datetime-local" class="form-input" id="setting-maintenance-start">
@@ -276,7 +276,7 @@
             <div class="panel-header">
               <h2 class="panel-title" id="heading-admin-notifications">Administrative notifications</h2>
             </div>
-            <div style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+            <div class="settings-card-body">
               <div>
                 <label class="form-label" for="setting-admin-security-alerts">Security event alerts</label>
                 <select class="toolbar-select" id="setting-admin-security-alerts" style="width: 100%;">
@@ -302,7 +302,7 @@
 
         <!-- Card 6: System & Integration Health (Read-Only) -->
         <section class="panel-card" id="card-system-health" aria-labelledby="heading-system-health" style="margin-top: 24px;">
-          <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+          <div class="panel-header settings-health-header">
             <div>
               <h2 class="panel-title" id="heading-system-health">System & integration health</h2>
               <p class="td-muted" style="font-size: 11px; margin-top: 2px;">Live server-side diagnostics and provider integration readiness.</p>
@@ -312,8 +312,8 @@
               <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-health">Check health</button>
             </div>
           </div>
-          <div style="padding: 20px;">
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+          <div class="settings-card-body">
+            <div class="settings-health-grid">
               <!-- Database Health -->
               <div style="padding: 14px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px; display: flex; flex-direction: column; gap: 8px;">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -358,9 +358,9 @@
         </section>
 
         <!-- Form Actions Bar -->
-        <div style="margin-top: 24px; padding: 16px 20px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px; display: flex; align-items: center; justify-content: space-between;">
+        <div class="settings-actions-bar">
           <div id="settings-unsaved-indicator" class="td-muted" style="font-size: 12px;" aria-live="polite"></div>
-          <div style="display: flex; gap: 10px;">
+          <div class="settings-actions-buttons">
             <button type="button" class="btn btn-secondary" id="btn-discard-settings" disabled>Discard changes</button>
             <button type="submit" class="btn btn-primary btn-save-settings" disabled>Save changes</button>
           </div>
