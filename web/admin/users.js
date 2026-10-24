@@ -327,9 +327,9 @@
     if (activity) activity.textContent = `Member since ${user.memberSince} · Last active ${user.lastActive}`;
     if (pwdStatus) {
       if (user.passwordChangeRequired) {
-        pwdStatus.innerHTML = 'Password status: <strong style="color: var(--color-warning, #FFB800);">Temporary / Setup Required</strong>';
+        pwdStatus.innerHTML = 'Password status: <strong style="color: var(--color-warning, #B45309);">Temporary / Setup Required</strong>';
       } else {
-        pwdStatus.innerHTML = 'Password status: <strong style="color: var(--color-primary, #00FF66);">Active & Established</strong>';
+        pwdStatus.innerHTML = 'Password status: <strong style="color: var(--color-success, #116B32);">Active & Established</strong>';
       }
     }
     if (resendInvite) {
