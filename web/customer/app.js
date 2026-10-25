@@ -16,6 +16,7 @@ import {
   normalizeCart,
   parseCustomerPath,
   purchasableStock,
+  pendingOtpChallenge,
   safeCustomerPath,
   toCentavos,
   trustedCheckoutUrl,
@@ -335,15 +336,12 @@ function requireSession(nextPath, scope) {
   return false;
 }
 
-async function signIn(email, password, scope) {
+async function signIn(email, password, scope, nextPath = customerHref('/')) {
   const generation = ++loginGeneration;
   const data = await api('/login/', { method: 'POST', auth: false, body: { email, password } });
-  if (data?.otp_required) {
-    sessionStorage.setItem('metrodrip_otp_challenge', JSON.stringify({
-      challengeId: data.challenge_id,
-      purpose: data.purpose,
-      maskedEmail: data.masked_email,
-    }));
+  const pending = pendingOtpChallenge(data);
+  if (pending) {
+    sessionStorage.setItem('metrodrip_otp_challenge', JSON.stringify({ ...pending, next: nextPath }));
     navigate(customerHref('/verify-otp'));
     return null;
   }
@@ -1402,6 +1400,49 @@ async function renderTeam() {
   return page('Our Team', 'Every piece is designed in Metro Manila — from concept to cut. MetroDrip brings high-concept streetwear crafted for everyday urban mobility.');
 }
 
+function createOtpBoxes(length) {
+  const boxes = Array.from({ length }, () => el('input', {
+    class: 'otp-box',
+    type: 'text',
+    inputmode: 'numeric',
+    maxlength: '1',
+    autocomplete: 'one-time-code',
+    'aria-label': 'Verification digit',
+  }));
+  const group = el('div', { class: 'otp-boxes', role: 'group', 'aria-label': 'Email verification code' }, boxes);
+  const value = () => boxes.map((box) => box.value).join('');
+  const focusAt = (index) => boxes[Math.max(0, Math.min(index, boxes.length - 1))]?.focus();
+  boxes.forEach((box, index) => {
+    box.addEventListener('input', () => {
+      const digits = box.value.replace(/\D/g, '');
+      if (digits.length > 1) {
+        digits.slice(0, boxes.length - index).split('').forEach((digit, offset) => {
+          boxes[index + offset].value = digit;
+        });
+        focusAt(index + digits.length);
+        return;
+      }
+      box.value = digits;
+      if (digits) focusAt(index + 1);
+    });
+    box.addEventListener('keydown', (event) => {
+      if (event.key === 'Backspace' && !box.value && index > 0) {
+        boxes[index - 1].value = '';
+        focusAt(index - 1);
+      }
+    });
+    box.addEventListener('paste', (event) => {
+      event.preventDefault();
+      const digits = (event.clipboardData?.getData('text') || '').replace(/\D/g, '').slice(0, boxes.length);
+      digits.split('').forEach((digit, offset) => {
+        boxes[offset].value = digit;
+      });
+      focusAt(digits.length - 1);
+    });
+  });
+  return { group, value, focus: () => focusAt(0), setDisabled: (disabled) => boxes.forEach((box) => { box.disabled = disabled; }) };
+}
+
 async function renderVerifyOtp(_route, scope) {
   let pending = null;
   try {
@@ -1412,23 +1453,50 @@ async function renderVerifyOtp(_route, scope) {
   if (!pending?.challengeId) {
     return page('Verification required', 'Start from sign-in or registration to request a code.', el('a', { class: 'btn btn-primary', href: customerHref('/sign-in') }, 'Sign in'));
   }
-  const status = el('p', { class: 'muted', role: 'status' }, '');
-  const input = el('input', {
-    class: 'form-input',
-    name: 'code',
-    inputmode: 'numeric',
-    autocomplete: 'one-time-code',
-    maxlength: '6',
-    'aria-label': 'Six-digit email code',
-    required: 'true',
+  const status = el('p', { class: 'otp-status', role: 'status' }, '');
+  const entry = createOtpBoxes(pending.codeLength || 6);
+  const resend = el('button', { class: 'otp-resend', type: 'button' }, 'Resend code');
+  let cooldown = Number(pending.resendAfter || 60);
+  const paintCooldown = () => {
+    resend.disabled = cooldown > 0;
+    resend.textContent = cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code';
+  };
+  paintCooldown();
+  const timer = setInterval(() => {
+    cooldown = Math.max(0, cooldown - 1);
+    paintCooldown();
+    if (cooldown === 0) clearInterval(timer);
+  }, 1000);
+  resend.addEventListener('click', async () => {
+    if (resend.disabled) return;
+    resend.disabled = true;
+    resend.textContent = 'Sending…';
+    try {
+      const resent = pendingOtpChallenge(await api('/auth/otp/resend/', { method: 'POST', auth: false, body: { challenge_id: pending.challengeId } }));
+      if (!resent) throw new Error('A new code could not be sent.');
+      pending = { ...pending, ...resent };
+      sessionStorage.setItem('metrodrip_otp_challenge', JSON.stringify(pending));
+      status.textContent = `A new code was sent to ${pending.maskedEmail}.`;
+      cooldown = pending.resendAfter || 60;
+      paintCooldown();
+    } catch (error) {
+      status.textContent = error.message || 'A new code could not be sent.';
+      paintCooldown();
+    }
   });
   const form = el('form', { class: 'auth-form-card', onsubmit: async (event) => {
     event.preventDefault();
+    const code = entry.value();
+    if (code.length !== (pending.codeLength || 6)) {
+      status.textContent = 'Enter the full code from your email.';
+      return;
+    }
     return runAction(scope, form.querySelector('button[type="submit"]'), async () => {
+      entry.setDisabled(true);
       const data = await request('/auth/otp/verify/', {
         method: 'POST',
         auth: false,
-        body: { challenge_id: pending.challengeId, code: input.value.trim() },
+        body: { challenge_id: pending.challengeId, code },
       }, scope);
       if (!isCurrent(scope)) return;
       if (data.verified || pending.purpose === 'email_verification') {
@@ -1442,24 +1510,15 @@ async function renderVerifyOtp(_route, scope) {
       changeSession({ id: data.id, name: data.name, email: data.email, role: data.role, phone: data.phone || '', addresses: data.addresses }, token);
       sessionStorage.removeItem('metrodrip_otp_challenge');
       announce('Signed in.');
-      navigate(customerHref('/'));
+      navigate(safeCustomerPath(pending.next || customerHref('/')));
     });
   } }, [
     el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, pending.purpose === 'email_verification' ? 'Verify your email' : 'Two-factor authentication'),
     el('p', { class: 'muted' }, `Enter the code sent to ${pending.maskedEmail || 'your email'}. It expires in 5 minutes.`),
-    input,
+    entry.group,
     status,
     el('button', { class: 'btn btn-primary btn-full', type: 'submit' }, 'Verify'),
-    el('button', { class: 'btn btn-secondary btn-full', type: 'button', onclick: async () => {
-      try {
-        const resent = await api('/auth/otp/resend/', { method: 'POST', auth: false, body: { challenge_id: pending.challengeId } });
-        pending = { ...pending, challengeId: resent.challenge_id, maskedEmail: resent.masked_email };
-        sessionStorage.setItem('metrodrip_otp_challenge', JSON.stringify(pending));
-        status.textContent = 'A new code was sent.';
-      } catch (error) {
-        status.textContent = error.message || 'A new code could not be sent.';
-      }
-    } }, 'Resend code'),
+    resend,
     el('a', { class: 'muted', href: customerHref('/sign-in') }, 'Back to sign in'),
   ]);
   return el('section', { class: 'page auth-page' }, [form]);
@@ -1478,7 +1537,7 @@ async function renderSignIn(_route, scope) {
     event.preventDefault();
     return runAction(scope, form.querySelector('button[type="submit"]'), async () => {
       const data = new FormData(form);
-      const signedIn = await signIn(String(data.get('email') || ''), String(data.get('password') || ''), scope);
+      const signedIn = await signIn(String(data.get('email') || ''), String(data.get('password') || ''), scope, next);
       if (!signedIn || !isCurrent(signedIn)) return;
       announce('Signed in.');
       navigate(next, { replace: true });
@@ -1523,12 +1582,9 @@ async function renderSignUp(_route, scope) {
         password: String(data.get('password') || ''),
       } }, scope);
       if (!isCurrent(scope)) return;
-      if (created?.otp_required) {
-        sessionStorage.setItem('metrodrip_otp_challenge', JSON.stringify({
-          challengeId: created.challenge_id,
-          purpose: created.purpose,
-          maskedEmail: created.masked_email,
-        }));
+      const pending = pendingOtpChallenge(created);
+      if (pending) {
+        sessionStorage.setItem('metrodrip_otp_challenge', JSON.stringify(pending));
         navigate(customerHref('/verify-otp'));
         return;
       }

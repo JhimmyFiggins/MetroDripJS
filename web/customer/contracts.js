@@ -191,6 +191,23 @@ function cleanLabel(value, fallback) {
   return cleaned || fallback;
 }
 
+export function pendingOtpChallenge(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  const challengeId = data.challenge_id || data.challengeId;
+  const purpose = data.purpose === 'email_verification' || data.purpose === 'login_2fa' ? data.purpose : '';
+  const required = data.otp_required === true || data.otpRequired === true || data.status === 'otp_required';
+  if (!challengeId || (!required && !purpose)) return null;
+  const length = Number(data.code_length ?? data.codeLength);
+  return {
+    challengeId: String(challengeId),
+    purpose: purpose || 'login_2fa',
+    maskedEmail: String(data.masked_email || data.maskedEmail || 'your email'),
+    resendAfter: Math.max(0, Number(data.resend_after ?? data.resendAfter ?? 60) || 0),
+    codeLength: Number.isInteger(length) && length >= 4 && length <= 8 ? length : 6,
+    role: String(data.role || ''),
+  };
+}
+
 export function safeCustomerPath(value) {
   if (typeof value !== 'string') return `${CUSTOMER_BASE}/`;
   if (value === CUSTOMER_BASE || value === `${CUSTOMER_BASE}/`) return `${CUSTOMER_BASE}/`;

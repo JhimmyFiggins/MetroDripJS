@@ -94,24 +94,79 @@
     const status = form.querySelector('[data-form-status]');
     const idleLabel = submit.textContent;
     let pendingChallenge = null;
-    const otpField = document.createElement('label');
-    otpField.hidden = true;
-    otpField.textContent = 'Email code';
-    const otpInput = document.createElement('input');
-    otpInput.type = 'text';
-    otpInput.inputMode = 'numeric';
-    otpInput.autocomplete = 'one-time-code';
-    otpInput.maxLength = 6;
-    otpInput.required = true;
-    otpInput.setAttribute('aria-label', 'Six-digit email code');
-    otpField.append(otpInput);
+    let cooldownTimer = 0;
+    const otpPanel = document.createElement('div');
+    otpPanel.className = 'otp-panel';
+    otpPanel.hidden = true;
+    const otpLabel = document.createElement('p');
+    otpLabel.textContent = 'Email code';
+    const otpBoxes = document.createElement('div');
+    otpBoxes.className = 'otp-boxes';
+    otpBoxes.setAttribute('role', 'group');
+    otpBoxes.setAttribute('aria-label', 'Email verification code');
+    const boxInputs = [];
+    const codeLength = () => Number(pendingChallenge?.code_length) || 6;
+    const codeValue = () => boxInputs.map((box) => box.value).join('');
+    const buildBoxes = (length) => {
+      otpBoxes.replaceChildren();
+      boxInputs.length = 0;
+      for (let index = 0; index < length; index += 1) {
+        const box = document.createElement('input');
+        box.className = 'otp-box';
+        box.inputMode = 'numeric';
+        box.autocomplete = index === 0 ? 'one-time-code' : 'off';
+        box.maxLength = 1;
+        box.setAttribute('aria-label', `Digit ${index + 1}`);
+        box.addEventListener('input', () => {
+          const digits = box.value.replace(/\D/g, '');
+          if (digits.length > 1) {
+            digits.slice(0, length - index).split('').forEach((digit, offset) => {
+              boxInputs[index + offset].value = digit;
+            });
+            boxInputs[Math.min(index + digits.length, length - 1)].focus();
+            return;
+          }
+          box.value = digits;
+          if (digits && boxInputs[index + 1]) boxInputs[index + 1].focus();
+        });
+        box.addEventListener('keydown', (event) => {
+          if (event.key === 'Backspace' && !box.value && boxInputs[index - 1]) {
+            boxInputs[index - 1].value = '';
+            boxInputs[index - 1].focus();
+          }
+        });
+        box.addEventListener('paste', (event) => {
+          event.preventDefault();
+          const digits = (event.clipboardData?.getData('text') || '').replace(/\D/g, '').slice(0, length);
+          digits.split('').forEach((digit, offset) => { boxInputs[offset].value = digit; });
+          boxInputs[Math.min(digits.length, length) - 1]?.focus();
+        });
+        boxInputs.push(box);
+        otpBoxes.append(box);
+      }
+    };
     const resend = document.createElement('button');
     resend.type = 'button';
-    resend.hidden = true;
+    resend.className = 'otp-resend';
     resend.textContent = 'Resend code';
+    const paintCooldown = (seconds) => {
+      resend.disabled = seconds > 0;
+      resend.textContent = seconds > 0 ? `Resend code in ${seconds}s` : 'Resend code';
+    };
+    const startCooldown = (seconds) => {
+      window.clearInterval(cooldownTimer);
+      let remaining = seconds;
+      paintCooldown(remaining);
+      cooldownTimer = window.setInterval(() => {
+        remaining -= 1;
+        paintCooldown(remaining);
+        if (remaining <= 0) window.clearInterval(cooldownTimer);
+      }, 1000);
+    };
     resend.addEventListener('click', async () => {
-      if (!pendingChallenge) return;
-      setLoading(true);
+      if (!pendingChallenge || resend.disabled) return;
+      resend.disabled = true;
+      resend.textContent = 'Sending…';
       try {
         const response = await fetch(`${API_ROOT}/auth/otp/resend/`, {
           method: 'POST',
@@ -122,13 +177,14 @@
         const next = await response.json();
         pendingChallenge = { ...pendingChallenge, ...next, otpRequired: true };
         setStatus(`A new code was sent to ${next.masked_email}.`);
+        startCooldown(Number(next.resend_after) || 60);
       } catch (error) {
         setStatus(error.message || 'A new code could not be sent.', true);
-      } finally {
-        setLoading(false);
+        paintCooldown(0);
       }
     });
-    submit.before(otpField, resend);
+    otpPanel.append(otpLabel, otpBoxes, resend);
+    submit.before(otpPanel);
 
     const setStatus = (message, isError = false) => {
       status.textContent = message;
@@ -168,7 +224,7 @@
           const verifyResponse = await fetch(`${API_ROOT}/auth/otp/verify/`, {
             method: 'POST',
             headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-            body: JSON.stringify({ challenge_id: pendingChallenge.challenge_id, code: otpInput.value.trim() }),
+            body: JSON.stringify({ challenge_id: pendingChallenge.challenge_id, code: codeValue() }),
           });
           if (!verifyResponse.ok) throw new Error(await parseError(verifyResponse));
           const verified = await verifyResponse.json();
@@ -190,7 +246,7 @@
             expires_at: verified.expires_at,
             password_change_required: Boolean(verified.password_change_required),
           }));
-          otpInput.value = '';
+          boxInputs.forEach((box) => { box.value = ''; });
           setStatus(`Signed in. Opening the ${roleLabel} console…`);
           window.location.assign(expectedRole === 'admin' ? '../../admin/index.html' : '../../merchant/index.html');
           return;
@@ -198,12 +254,13 @@
         const account = await authenticate(values.email, values.password, expectedRole);
         if (account.otpRequired) {
           pendingChallenge = account;
-          otpField.hidden = false;
-          resend.hidden = false;
+          buildBoxes(codeLength());
+          otpPanel.hidden = false;
           fields.password.disabled = true;
           submit.textContent = 'VERIFY CODE';
           setStatus(`Enter the code sent to ${account.masked_email}.`);
-          otpInput.focus();
+          startCooldown(Number(account.resend_after) || 60);
+          boxInputs[0]?.focus();
           return;
         }
         localStorage.removeItem(STORAGE_KEY);
@@ -221,7 +278,7 @@
         setStatus(`Signed in. Opening the ${roleLabel} console…`);
         window.location.assign(expectedRole === 'admin' ? '../../admin/index.html' : '../../merchant/index.html');
       } catch (error) {
-        fields.password.value = '';
+        if (!pendingChallenge) fields.password.value = '';
         setStatus(error?.message || 'The sign-in service is unavailable. Try again.', true);
         fields.password.focus();
       } finally {

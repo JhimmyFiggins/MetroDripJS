@@ -10,6 +10,7 @@ import {
   safeBannerDestination,
   normalizeCart,
   cartFingerprint,
+  pendingOtpChallenge,
   parseCustomerPath,
   purchasableStock,
   safeCustomerPath,
@@ -18,6 +19,12 @@ import {
   usableImageUrl,
   variantLabel,
 } from '../../web/customer/contracts.js';
+
+test('a pending OTP challenge is not treated as a missing customer token', () => {
+  assert.equal(pendingOtpChallenge({ otp_required: true, challenge_id: 'abc', purpose: 'login_2fa', code_length: 6 }).challengeId, 'abc');
+  assert.equal(pendingOtpChallenge({ access_token: 'token' }), null);
+  assert.equal(pendingOtpChallenge(null), null);
+});
 
 test('customer routes stay namespaced and reject unsafe next paths', () => {
   assert.equal(parseCustomerPath('/customer/products/15').name, 'product');

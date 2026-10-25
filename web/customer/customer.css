@@ -1363,6 +1363,39 @@ button, input, select, textarea {
   margin: 8px 0 0;
 }
 
+.otp-boxes {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+.otp-box {
+  width: 44px;
+  height: 52px;
+  flex: 1 1 44px;
+  max-width: 52px;
+  border: 1px solid #111;
+  background: #fff;
+  color: #111;
+  font: 700 24px/1 ui-monospace, monospace;
+  text-align: center;
+}
+.otp-box:focus-visible {
+  outline: 2px solid #111;
+  outline-offset: 2px;
+  border-color: #c6f135;
+  box-shadow: inset 0 0 0 2px #c6f135;
+}
+.otp-box:disabled { opacity: 0.6; }
+.otp-status { min-height: 1.2em; color: #8A1F1F; }
+.otp-resend {
+  min-height: 44px;
+  border: 1px solid #111;
+  background: #fff;
+  color: #111;
+  font-weight: 700;
+  cursor: pointer;
+}
+.otp-resend:disabled { color: #666; cursor: not-allowed; }
 .auth-form-card {
   background: var(--card);
   border: 1px solid var(--border);

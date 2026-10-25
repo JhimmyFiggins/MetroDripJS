@@ -65,12 +65,18 @@ export default function LoginScreen({ navigation }) {
 
     try {
       const data = await loginCustomer(email.trim(), password);
-      if (data?.otp_required) {
+      if (data?.otp_required || data?.challenge_id) {
         navigation.navigate('Otp', {
           challengeId: data.challenge_id,
           purpose: data.purpose,
           maskedEmail: data.masked_email,
+          codeLength: data.code_length,
+          resendAfter: data.resend_after,
         });
+        return;
+      }
+      if (!data?.token && !data?.access_token) {
+        alert('Sign-in did not return a customer token. Please try again.');
         return;
       }
       login(data);

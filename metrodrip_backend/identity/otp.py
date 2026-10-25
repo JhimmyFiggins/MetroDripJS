@@ -128,6 +128,7 @@ def public_challenge(challenge_token, customer, purpose):
         'masked_email': mask_email(customer.email),
         'expires_in': int(otp_lifetime().total_seconds()),
         'resend_after': int(otp_resend_cooldown().total_seconds()),
+        'code_length': int(getattr(settings, 'EMAIL_OTP_LENGTH', 6)),
         'role': customer.role,
     }
 
