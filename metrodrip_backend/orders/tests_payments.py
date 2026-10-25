@@ -23,7 +23,7 @@ from catalog.models import (
     InventoryStockMovement,
 )
 from fulfillment.models import ShippingShipment, ShippingShippingZone
-from identity.models import AccountsCustomer, CustomerAccessToken
+from identity.models import AccountsCustomer, CustomerAccessToken, PlatformSetting
 
 from .checkout import (
     _ensure_provider_session,
@@ -87,6 +87,10 @@ class HostedCheckoutAPITest(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.now = timezone.now()
+        PlatformSetting.objects.update_or_create(
+            id=1,
+            defaults={'enabled_payment_methods': ['cod', 'gcash', 'maya', 'card']},
+        )
         self.customer = AccountsCustomer(
             email='buyer@example.com',
             name='Metro Buyer',
@@ -392,6 +396,23 @@ class HostedCheckoutAPITest(TestCase):
             response = self.client.post('/api/orders/checkout/', self.payload(method, key), format='json', **self.auth)
         self.assertEqual(response.status_code, 201)
         return OrdersOrder.objects.get(pk=response.data['id']), provider
+
+    def _staff_client(self, role='merchant'):
+        user = AccountsCustomer.objects.create(
+            email=f'{role}-{AccountsCustomer.objects.count()}@metrodrip.ph',
+            name=f'Test {role.title()}',
+            phone='',
+            addresses={},
+            is_active=True,
+            is_staff=True,
+            is_superuser=role == 'admin',
+            role=role,
+            date_joined=self.now,
+        )
+        _, raw_token = CustomerAccessToken.issue(user)
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f'Bearer {raw_token}')
+        return user, client
 
     def _paid_event(self, order, amount=None):
         payment = order.payments.get()
@@ -904,15 +925,264 @@ class HostedCheckoutAPITest(TestCase):
             HTTP_AUTHORIZATION=f'Bearer {other_raw}',
         )
         self.assertEqual(hidden.status_code, 404)
+        hidden_cancel = self.client.post(
+            f'/orders/{order.id}/cancel/',
+            {},
+            format='json',
+            HTTP_AUTHORIZATION=f'Bearer {other_raw}',
+        )
+        self.assertEqual(hidden_cancel.status_code, 404)
 
         with patch('orders.checkout.PayMongoClient', return_value=provider):
             cancelled = self.client.post(f'/orders/{order.id}/cancel/', {}, format='json', **self.auth)
+            replay = self.client.post(f'/orders/{order.id}/cancel/', {}, format='json', **self.auth)
         self.assertEqual(cancelled.status_code, 200)
+        self.assertEqual(replay.status_code, 200)
         self.assertEqual(cancelled.data['status'], 'cancelled')
+        self.assertEqual(cancelled.data['payment_status'], 'cancelled')
+        order.refresh_from_db()
+        payment = order.payments.get()
+        self.assertIsNotNone(order.cancelled_at)
+        self.assertEqual(payment.transitions.filter(to_status='cancelled').count(), 1)
+        transition = payment.transitions.get(to_status='cancelled')
+        self.assertEqual(transition.actor_type, 'customer')
+        self.assertEqual(transition.actor_id, str(self.customer.id))
+        self.assertEqual(InventoryReservation.objects.get(order_id=order.id).status, 'released')
         self.stock.refresh_from_db()
         self.assertEqual(self.stock.quantity, 5)
         self.assertEqual(self.stock.reserved_quantity, 0)
         self.assertEqual(provider.expired, [f'cs_order_{order.id}'])
+        self.assertFalse(InventoryStockMovement.objects.filter(ref_order_ref=order.id).exists())
+
+    def test_merchant_cancel_unpaid_online_releases_hold_once(self):
+        merchant, merchant_client = self._staff_client()
+        order, provider = self._online_order(method='gcash', key='merchant-cancel-online')
+
+        with patch('orders.checkout.PayMongoClient', return_value=provider):
+            first = merchant_client.patch(
+                f'/api/merchant/orders/{order.id}/', {'status': 'cancelled'}, format='json',
+            )
+            replay = merchant_client.patch(
+                f'/api/merchant/orders/{order.id}/', {'status': 'cancelled'}, format='json',
+            )
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(replay.status_code, 200)
+        self.assertEqual(first.data['raw_status'], 'cancelled')
+        self.assertFalse(first.data['can_cancel'])
+        self.assertEqual(first.data['cancel_unavailable_code'], 'already_cancelled')
+        order.refresh_from_db()
+        payment = order.payments.get()
+        self.assertEqual((order.status, payment.status), ('cancelled', 'cancelled'))
+        self.assertIsNotNone(order.cancelled_at)
+        self.assertEqual(provider.expired, [f'cs_order_{order.id}'])
+        self.assertEqual(InventoryReservation.objects.get(order_id=order.id).status, 'released')
+        self.stock.refresh_from_db()
+        self.assertEqual((self.stock.quantity, self.stock.reserved_quantity), (5, 0))
+        self.assertFalse(InventoryStockMovement.objects.filter(ref_order_ref=order.id).exists())
+        transition = payment.transitions.get(to_status='cancelled')
+        self.assertEqual(transition.actor_type, 'merchant')
+        self.assertEqual(transition.actor_id, str(merchant.id))
+
+    def test_merchant_cancel_cod_restores_committed_inventory_once(self):
+        checkout = self.client.post(
+            '/api/orders/checkout/', self.payload('cod', 'merchant-cancel-cod'), format='json', **self.auth,
+        )
+        self.assertEqual(checkout.status_code, 201)
+        order = OrdersOrder.objects.get(pk=checkout.data['id'])
+        reservation = InventoryReservation.objects.get(order_id=order.id)
+        self.stock.refresh_from_db()
+        self.assertEqual((self.stock.quantity, self.stock.reserved_quantity), (3, 0))
+        self.assertEqual(reservation.status, 'committed')
+        self.assertEqual(
+            list(InventoryStockMovement.objects.filter(ref_order_ref=order.id).values_list('reason', 'delta')),
+            [('sale', -2)],
+        )
+        merchant, merchant_client = self._staff_client()
+
+        first = merchant_client.patch(
+            f'/api/merchant/orders/{order.id}/', {'status': 'cancelled'}, format='json',
+        )
+        replay = merchant_client.patch(
+            f'/api/merchant/orders/{order.id}/', {'status': 'cancelled'}, format='json',
+        )
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(replay.status_code, 200)
+        order.refresh_from_db()
+        payment = order.payments.get()
+        reservation.refresh_from_db()
+        self.stock.refresh_from_db()
+        self.assertEqual((order.status, payment.status), ('cancelled', 'cancelled'))
+        self.assertIsNotNone(order.cancelled_at)
+        self.assertEqual((self.stock.quantity, self.stock.reserved_quantity), (5, 0))
+        self.assertEqual(reservation.status, 'cancelled')
+        self.assertIsNotNone(reservation.committed_at)
+        self.assertIsNotNone(reservation.released_at)
+        movements = InventoryStockMovement.objects.filter(ref_order_ref=order.id)
+        self.assertEqual(movements.filter(reason='sale', delta=-2).count(), 1)
+        self.assertEqual(movements.filter(reason='return', delta=2).count(), 1)
+        self.assertEqual(movements.count(), 2)
+        transition = payment.transitions.get(to_status='cancelled')
+        self.assertEqual(transition.actor_type, 'merchant')
+        self.assertEqual(transition.actor_id, str(merchant.id))
+
+    def test_customer_cancel_cod_restores_inventory_and_rejects_another_customer(self):
+        checkout = self.client.post(
+            '/api/orders/checkout/', self.payload('cod', 'customer-cancel-cod'), format='json', **self.auth,
+        )
+        self.assertEqual(checkout.status_code, 201)
+        order = OrdersOrder.objects.get(pk=checkout.data['id'])
+        other = AccountsCustomer(
+            email='other-customer-cancel@example.com',
+            name='Other Customer',
+            phone='09170000099',
+            addresses={},
+            is_active=True,
+            is_staff=False,
+            is_superuser=False,
+            role='customer',
+            date_joined=timezone.now(),
+        )
+        other.set_password('synthetic-test-password')
+        other.save()
+        _, other_token = CustomerAccessToken.issue(other)
+        other_client = APIClient()
+        other_client.credentials(HTTP_AUTHORIZATION=f'Bearer {other_token}')
+
+        denied = other_client.post(f'/orders/{order.id}/cancel/', {}, format='json')
+        self.assertEqual(denied.status_code, 404)
+        self.assertEqual(OrdersOrder.objects.get(pk=order.id).status, 'placed')
+
+        first = self.client.post(f'/orders/{order.id}/cancel/', {}, format='json', **self.auth)
+        replay = self.client.post(f'/orders/{order.id}/cancel/', {}, format='json', **self.auth)
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(replay.status_code, 200)
+        order.refresh_from_db()
+        payment = order.payments.get()
+        reservation = InventoryReservation.objects.get(order_id=order.id)
+        self.stock.refresh_from_db()
+        self.assertEqual((order.status, payment.status), ('cancelled', 'cancelled'))
+        self.assertEqual((self.stock.quantity, self.stock.reserved_quantity), (5, 0))
+        self.assertEqual(reservation.status, 'cancelled')
+        self.assertEqual(
+            InventoryStockMovement.objects.filter(ref_order_ref=order.id, reason='return', delta=2).count(),
+            1,
+        )
+        self.assertEqual(payment.transitions.get(to_status='cancelled').actor_type, 'customer')
+
+        order.status = 'shipped'
+        order.cancelled_at = None
+        order.save(update_fields=['status', 'cancelled_at'])
+        payment.status = 'pending_collection'
+        payment.save(update_fields=['status'])
+        shipped = self.client.post(f'/orders/{order.id}/cancel/', {}, format='json', **self.auth)
+        self.assertEqual(shipped.status_code, 409)
+        self.assertEqual(shipped.data['code'], 'cancellation_state_conflict')
+
+    def test_merchant_cancel_rejects_paid_and_fulfilled_orders(self):
+        merchant, merchant_client = self._staff_client()
+        paid_order, _provider = self._online_order(method='card', key='merchant-cancel-paid')
+        paid_payment = paid_order.payments.get()
+        self.assertTrue(apply_verified_payment(paid_payment, self._paid_session(paid_payment)))
+
+        paid_response = merchant_client.patch(
+            f'/api/merchant/orders/{paid_order.id}/', {'status': 'cancelled'}, format='json',
+        )
+
+        self.assertEqual(paid_response.status_code, 409)
+        self.assertEqual(paid_response.data['code'], 'refund_required')
+        paid_order.refresh_from_db()
+        paid_payment.refresh_from_db()
+        self.assertEqual((paid_order.status, paid_payment.status), ('placed', 'paid'))
+        self.assertIsNone(paid_order.cancelled_at)
+        self.assertFalse(paid_payment.transitions.filter(to_status='cancelled').exists())
+
+        for fulfillment_status in ('packed', 'shipped', 'out_for_delivery', 'delivered'):
+            with self.subTest(fulfillment_status=fulfillment_status):
+                OrdersOrder.objects.filter(pk=paid_order.pk).update(status=fulfillment_status)
+                OrdersPayment.objects.filter(pk=paid_payment.pk).update(status='pending_collection', method='cod', provider='cod')
+                response = merchant_client.patch(
+                    f'/api/merchant/orders/{paid_order.id}/', {'status': 'cancelled'}, format='json',
+                )
+                self.assertEqual(response.status_code, 409)
+                self.assertEqual(response.data['code'], 'order_already_fulfilled')
+                paid_order.refresh_from_db()
+                self.assertEqual(paid_order.status, fulfillment_status)
+                self.assertIsNone(paid_order.cancelled_at)
+
+    def test_merchant_cancel_rejects_inconsistent_inventory_without_mutation(self):
+        checkout = self.client.post(
+            '/api/orders/checkout/', self.payload('cod', 'merchant-cancel-conflict'), format='json', **self.auth,
+        )
+        order = OrdersOrder.objects.get(pk=checkout.data['id'])
+        InventoryReservation.objects.filter(order_id=order.id).update(status='released')
+        merchant, merchant_client = self._staff_client()
+
+        response = merchant_client.patch(
+            f'/api/merchant/orders/{order.id}/', {'status': 'cancelled'}, format='json',
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data['code'], 'cancellation_state_conflict')
+        order.refresh_from_db()
+        payment = order.payments.get()
+        self.stock.refresh_from_db()
+        self.assertEqual((order.status, payment.status), ('placed', 'pending_collection'))
+        self.assertIsNone(order.cancelled_at)
+        self.assertEqual((self.stock.quantity, self.stock.reserved_quantity), (3, 0))
+        self.assertEqual(InventoryStockMovement.objects.filter(ref_order_ref=order.id).count(), 1)
+        self.assertFalse(payment.transitions.filter(to_status='cancelled').exists())
+
+    def test_merchant_online_cancel_checks_inventory_before_expiring_provider(self):
+        order, provider = self._online_order(method='gcash', key='merchant-cancel-online-conflict')
+        InventoryReservation.objects.filter(order_id=order.id).update(status='released')
+        _merchant, merchant_client = self._staff_client()
+
+        with patch('orders.checkout.PayMongoClient', return_value=provider):
+            response = merchant_client.patch(
+                f'/api/merchant/orders/{order.id}/', {'status': 'cancelled'}, format='json',
+            )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data['code'], 'cancellation_state_conflict')
+        self.assertEqual(provider.expired, [])
+        order.refresh_from_db()
+        payment = order.payments.get()
+        self.stock.refresh_from_db()
+        self.assertEqual((order.status, payment.status), ('pending_payment', 'awaiting_payment'))
+        self.assertIsNone(order.cancelled_at)
+        self.assertEqual((self.stock.quantity, self.stock.reserved_quantity), (5, 2))
+        self.assertFalse(payment.transitions.filter(to_status='cancelled').exists())
+
+    def test_merchant_online_cancel_provider_failure_keeps_local_state(self):
+        class UnavailableProvider(FakePayMongoClient):
+            def expire_checkout_session(self, provider_ref):
+                self.expired.append(provider_ref)
+                raise PayMongoError('Provider unavailable.', code='provider_unavailable')
+
+        order, _provider = self._online_order(method='maya', key='merchant-cancel-provider-failure')
+        unavailable = UnavailableProvider()
+        _merchant, merchant_client = self._staff_client()
+
+        with patch('orders.checkout.PayMongoClient', return_value=unavailable):
+            response = merchant_client.patch(
+                f'/api/merchant/orders/{order.id}/', {'status': 'cancelled'}, format='json',
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.data['code'], 'provider_unavailable')
+        self.assertEqual(unavailable.expired, [f'cs_order_{order.id}'])
+        order.refresh_from_db()
+        payment = order.payments.get()
+        reservation = InventoryReservation.objects.get(order_id=order.id)
+        self.stock.refresh_from_db()
+        self.assertEqual((order.status, payment.status), ('pending_payment', 'awaiting_payment'))
+        self.assertIsNone(order.cancelled_at)
+        self.assertEqual(reservation.status, 'active')
+        self.assertEqual((self.stock.quantity, self.stock.reserved_quantity), (5, 2))
+        self.assertFalse(payment.transitions.filter(to_status='cancelled').exists())
 
     def test_tracking_never_fabricates_courier_eta_or_stage_timestamps(self):
         checkout = self.client.post('/api/orders/checkout/', self.payload(), format='json', **self.auth)

@@ -7,6 +7,7 @@ const read = (relativePath) =>
 
 const history = read('mobile/Orders/OrderHistory.jsx');
 const tracking = read('mobile/Orders/OrderTracking.jsx');
+const presentation = read('mobile/Orders/orderPresentation.js');
 const navigation = read('mobile/navigation/AppNavigator.jsx');
 
 test('order history exposes loading, empty, error, stale-data and default states', () => {
@@ -30,6 +31,16 @@ test('history actions meet the minimum touch target and route session errors saf
   assert.match(history, /error\?\.kind\s*===\s*'session'/);
   assert.match(history, /navigation\.navigate\('Login'\)/);
   assert.match(history, /error\?\.kind\s*===\s*'permission'/);
+});
+
+test('eligible unpaid online orders have confirmed, accessible cancellation with refresh', () => {
+  assert.match(history, /canCancelOnlineOrder\(order\)/);
+  assert.match(history, /Alert\.alert\(\s*'Cancel online checkout\?'/);
+  assert.match(history, /accessibilityState=\{\{ busy: isCancelling, disabled: isCancelling \}\}/);
+  assert.match(history, /cancelOrder\(orderId\)/);
+  assert.match(history, /await loadOrders\(\{ preserveData: true \}\)/);
+  assert.match(history, /accessibilityLiveRegion="assertive"/);
+  assert.match(presentation, /checkout remains pending/i);
 });
 
 test('tracking has explicit skeleton, fatal, partial and refresh recovery states', () => {

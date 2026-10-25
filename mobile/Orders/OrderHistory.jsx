@@ -2,6 +2,8 @@ import React, { useCallback, useRef, useState } from 'react';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
   ActivityIndicator,
+  Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,8 +15,10 @@ import { StatusBar } from 'expo-status-bar';
 
 import { colors, fonts } from '../Checkout/src/theme';
 import Footer from '../components/Footer';
-import { getOrders } from '../../src/services/orderService';
+import { cancelOrder, getOrder, getOrders } from '../../src/services/orderService';
 import {
+  canCancelOnlineOrder,
+  cancellationErrorMessage,
   classifyOrderError,
   extractOrders,
   formatKnownDate,
@@ -96,6 +100,9 @@ export default function OrderHistory() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [refreshError, setRefreshError] = useState(null);
+  const [cancellingOrderId, setCancellingOrderId] = useState(null);
+  const [cancellationError, setCancellationError] = useState(null);
+  const [pendingCancelId, setPendingCancelId] = useState(null);
   const ordersRef = useRef([]);
   const requestSequence = useRef(0);
 
@@ -147,33 +154,150 @@ export default function OrderHistory() {
     loadOrders();
   };
 
+  const performCancellation = async (order) => {
+    const orderId = order?.id;
+    if (!canCancelOnlineOrder(order) || cancellingOrderId != null) return;
+    setCancellingOrderId(orderId);
+    setCancellationError(null);
+
+    try {
+      const cancelled = await cancelOrder(orderId);
+      const nextOrders = ordersRef.current.map((item) => (
+        String(item?.id) === String(orderId) ? { ...item, ...cancelled } : item
+      ));
+      ordersRef.current = nextOrders;
+      setOrders(nextOrders);
+      Alert.alert('Checkout cancelled', `${formatOrderNumber(cancelled || order)} was cancelled.`);
+      await loadOrders({ preserveData: true });
+    } catch (caught) {
+      const status = Number(caught?.status) || 0;
+      const code = String(caught?.data?.code || '').toLowerCase();
+      if (status === 0 || status === 409 || status === 503 || code === 'already_paid') {
+        try {
+          const latest = await getOrder(orderId);
+          if (latest && typeof latest === 'object') {
+            const nextOrders = ordersRef.current.map((item) => (
+              String(item?.id) === String(orderId) ? { ...item, ...latest } : item
+            ));
+            ordersRef.current = nextOrders;
+            setOrders(nextOrders);
+          }
+        } catch {
+          // The original request outcome stays unknown if refresh also fails.
+        }
+      }
+      setCancellationError({
+        orderId,
+        message: cancellationErrorMessage(caught),
+      });
+    } finally {
+      setCancellingOrderId(null);
+      setPendingCancelId(null);
+    }
+  };
+
+  const confirmCancellation = (order) => {
+    if (!canCancelOnlineOrder(order) || cancellingOrderId != null) return;
+    if (Platform.OS === 'web') {
+      setPendingCancelId(order.id);
+      return;
+    }
+    const number = formatOrderNumber(order);
+    Alert.alert(
+      'Cancel online checkout?',
+      `${number} is still unpaid. Cancelling releases its reserved stock and cannot be undone.`,
+      [
+        { text: 'Keep checkout', style: 'cancel' },
+        {
+          text: 'Cancel checkout',
+          style: 'destructive',
+          onPress: () => performCancellation(order),
+        },
+      ],
+    );
+  };
+
   const renderOrder = (order) => {
     const count = orderItemCount(order);
     const fulfillment = fulfillmentBadge(order);
     const payment = paymentBadge(order);
     const number = formatOrderNumber(order);
     const total = formatOrderMoney(order?.total, order?.currency);
+    const canCancel = canCancelOnlineOrder(order);
+    const isCancelling = String(cancellingOrderId) === String(order?.id);
+    const cancelError = String(cancellationError?.orderId) === String(order?.id)
+      ? cancellationError.message
+      : null;
 
     return (
-      <Pressable
-        accessibilityHint="Opens order tracking"
-        accessibilityLabel={`${number}, ${count} ${count === 1 ? 'item' : 'items'}, ${total}, ${payment.label}, ${fulfillment.label}`}
-        accessibilityRole="button"
-        key={order.id ?? number}
-        onPress={() => navigation.navigate('OrderTracking', { orderId: order.id })}
-        style={({ pressed }) => [styles.orderCard, pressed && styles.orderCardPressed]}
-      >
-        <View style={styles.orderTopRow}>
-          <Text numberOfLines={1} style={styles.orderNumber}>{number}</Text>
-        </View>
-        <Text style={styles.orderDetails}>
-          {count} {count === 1 ? 'item' : 'items'} · {total} · {formatKnownDate(order?.created_at)}
-        </Text>
-        <View style={styles.badgeRow}>
-          <StatusBadge badge={payment} />
-          <StatusBadge badge={fulfillment} />
-        </View>
-      </Pressable>
+      <View key={order.id ?? number} style={styles.orderCard}>
+        <Pressable
+          accessibilityHint="Opens order tracking"
+          accessibilityLabel={`${number}, ${count} ${count === 1 ? 'item' : 'items'}, ${total}, ${payment.label}, ${fulfillment.label}`}
+          accessibilityRole="button"
+          onPress={() => navigation.navigate('OrderTracking', { orderId: order.id })}
+          style={({ pressed }) => [styles.orderSummary, pressed && styles.orderCardPressed]}
+        >
+          <View style={styles.orderTopRow}>
+            <Text numberOfLines={1} style={styles.orderNumber}>{number}</Text>
+          </View>
+          <Text style={styles.orderDetails}>
+            {count} {count === 1 ? 'item' : 'items'} · {total} · {formatKnownDate(order?.created_at)}
+          </Text>
+          <View style={styles.badgeRow}>
+            <StatusBadge badge={payment} />
+            <StatusBadge badge={fulfillment} />
+          </View>
+        </Pressable>
+        {canCancel && (
+          <View style={styles.cancelArea}>
+            {!!cancelError && (
+              <Text accessibilityLiveRegion="assertive" style={styles.cancelError}>
+                {cancelError}
+              </Text>
+            )}
+            {String(pendingCancelId) === String(order?.id) ? (
+              <View accessibilityRole="alert" style={styles.cancelConfirm}>
+                <Text style={styles.cancelError}>
+                  Cancel {number}? This cannot be undone after the server confirms it.
+                </Text>
+                <Pressable
+                  accessibilityLabel={`Confirm cancellation of ${number}`}
+                  accessibilityRole="button"
+                  onPress={() => performCancellation(order)}
+                  style={styles.cancelButton}
+                >
+                  <Text style={styles.cancelButtonText}>Confirm cancellation</Text>
+                </Pressable>
+              </View>
+            ) : null}
+            {String(pendingCancelId) !== String(order?.id) && (
+            <Pressable
+              accessibilityHint="Opens a confirmation before cancelling this unpaid online checkout"
+              accessibilityLabel={`Cancel ${number}`}
+              accessibilityRole="button"
+              accessibilityState={{ busy: isCancelling, disabled: isCancelling }}
+              disabled={isCancelling}
+              onPress={() => confirmCancellation(order)}
+              style={({ pressed }) => [
+                styles.cancelButton,
+                pressed && styles.buttonPressed,
+                isCancelling && styles.buttonDisabled,
+              ]}
+            >
+              {isCancelling ? (
+                <>
+                  <ActivityIndicator color={colors.danger} size="small" />
+                  <Text style={styles.cancelButtonText}>Cancelling…</Text>
+                </>
+              ) : (
+                <Text style={styles.cancelButtonText}>{cancelError ? 'Try cancellation again' : String(order?.payment_method || '').toLowerCase() === 'cod' ? 'Cancel order' : 'Cancel checkout'}</Text>
+              )}
+            </Pressable>
+            )}
+          </View>
+        )}
+      </View>
     );
   };
 
@@ -333,7 +457,8 @@ const styles = StyleSheet.create({
   buttonPressed: { opacity: 0.72 },
   buttonDisabled: { opacity: 0.5 },
   orderList: { gap: 12 },
-  orderCard: { minHeight: 116, padding: 16, gap: 9, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.paper },
+  orderCard: { minHeight: 116, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.paper },
+  orderSummary: { minHeight: 116, padding: 16, gap: 9 },
   orderCardPressed: { backgroundColor: colors.surface, borderColor: colors.ink },
   orderTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   orderNumber: { flex: 1, fontFamily: fonts.monoSemiBold, fontSize: 13, color: colors.ink },
@@ -348,6 +473,11 @@ const styles = StyleSheet.create({
   badgeText: { fontFamily: fonts.interSemiBold, fontSize: 10, color: colors.ink },
   badgeTextOnDark: { color: colors.paper },
   badgeTextDanger: { color: colors.danger },
+  cancelArea: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12, gap: 8, borderTopWidth: 1, borderTopColor: colors.border },
+  cancelError: { fontFamily: fonts.interRegular, fontSize: 11, lineHeight: 16, color: colors.danger },
+  cancelConfirm: { gap: 8 },
+  cancelButton: { minHeight: 44, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.danger, borderRadius: 999, backgroundColor: colors.paper },
+  cancelButtonText: { fontFamily: fonts.interBold, fontSize: 13, color: colors.danger },
   inlineWarning: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13, borderWidth: 1, borderColor: '#E8D47C', borderRadius: 10, backgroundColor: '#FFF9E6' },
   inlineWarningText: { flex: 1, gap: 2 },
   inlineWarningTitle: { fontFamily: fonts.interBold, fontSize: 12, color: colors.ink },

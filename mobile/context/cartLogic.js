@@ -1,6 +1,8 @@
 // Pure cart arithmetic, kept out of the React context so the rules are testable
 // and so the cart screen and checkout screen cannot disagree on a total.
 
+export const DEFAULT_MAX_QUANTITY_PER_VARIANT = 5;
+
 /** Read a field as a finite non-negative number, else fall back. */
 function toFinite(value, fallback) {
   const n = Number(value);
@@ -19,22 +21,81 @@ function toQuantity(value) {
   return Math.max(1, Math.trunc(n));
 }
 
+function toPositiveInteger(value) {
+  if (typeof value === 'boolean' || value === null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isSafeInteger(n) && n >= 1 ? n : null;
+}
+
 /**
- * Apply a quantity delta and clamp the result to [1, stock].
+ * The checkout service owns the per-variant business limit. Catalog responses
+ * copy that value onto cart rows as `maxQuantity`; older/offline rows use the
+ * deliberately matching safe fallback. Stock can only lower the result.
+ */
+export function configuredQuantityLimit(item) {
+  return (
+    toPositiveInteger(item?.maxQuantity) ??
+    toPositiveInteger(item?.max_order_quantity) ??
+    toPositiveInteger(item?.maxOrderQuantity) ??
+    DEFAULT_MAX_QUANTITY_PER_VARIANT
+  );
+}
+
+export function quantityLimit(item) {
+  const configured = configuredQuantityLimit(item);
+  const stock = toFinite(item?.stock, Number.POSITIVE_INFINITY);
+  return Math.max(0, Math.min(configured, Math.trunc(stock)));
+}
+
+export function quantityLimitMessage(item) {
+  const configured = configuredQuantityLimit(item);
+  const limit = quantityLimit(item);
+  if (limit < 1) return 'This variant is currently out of stock. Remove it from your cart and choose another variant.';
+  if (limit < configured) {
+    return `Only ${limit} ${limit === 1 ? 'item is' : 'items are'} currently available for this variant.`;
+  }
+  return `You can order up to ${limit} ${limit === 1 ? 'item' : 'items'} of this variant per order.`;
+}
+
+/** Canonical identity used when display labels differ for the same variant. */
+export function cartVariantKey(item) {
+  const variantId = toPositiveInteger(item?.variantId ?? item?.variant_id);
+  if (variantId !== null) return `variant:${variantId}`;
+  const fallback = item?.id == null ? '' : String(item.id).trim();
+  return fallback ? `item:${fallback}` : null;
+}
+
+/** Refresh variant metadata while treating the incoming quantity as an addend. */
+export function mergeCartVariant(existingItem, newItem) {
+  const incomingQuantity = toQuantity(newItem?.quantity);
+  const refreshed = {
+    ...existingItem,
+    ...newItem,
+    id: existingItem?.id ?? newItem?.id,
+    quantity: toQuantity(existingItem?.quantity),
+  };
+  return {
+    ...refreshed,
+    quantity: clampQuantity(refreshed, incomingQuantity),
+  };
+}
+
+/**
+ * Apply a quantity delta and clamp the result to [1, min(stock, order max)].
  *
  * `requested` is a delta, matching how CartScreen calls changeQuantity(id, ±1).
  *
- * `stock` is optional: most product sources do not report a stock figure, and
- * clamping against `undefined` used to yield NaN, which silently produced a
- * zero-total order and a null quantity in the create-order payload.
+ * `stock` is optional. Missing server-limit metadata uses the backend-matching
+ * fallback above; neither case may produce NaN.
  */
 export function clampQuantity(item, requested) {
   // No line means no quantity to adjust; never invent one from a stray delta.
   if (!item || typeof item !== 'object') return 1;
   const current = toQuantity(item.quantity);
   const delta = toDelta(requested, 0);
-  const stock = toFinite(item.stock, Number.POSITIVE_INFINITY);
-  return Math.max(1, Math.min(current + Math.trunc(delta), stock));
+  const limit = quantityLimit(item);
+  if (limit < 1) return 1;
+  return Math.max(1, Math.min(current + Math.trunc(delta), limit));
 }
 
 /** Sum of price x quantity across the cart, ignoring any malformed line. */

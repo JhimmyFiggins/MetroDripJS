@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, FlatList, TouchableOpacity, Text, View, ActivityIndicator, Image } from 'react-native';
+import { StyleSheet, FlatList, TouchableOpacity, Text, View, ActivityIndicator } from 'react-native';
 import { productService } from '../../src/services/productService';
 import { fonts } from '../Checkout/src/theme';
 import { useNavigation } from '@react-navigation/native'; // Import navigation hook
+import ProductImage from '../components/ProductImage';
 
 export default function ProductCards({ selectedCategory, onSelectProduct, products: productsProp }) {
     const navigation = useNavigation();
@@ -86,13 +87,10 @@ export default function ProductCards({ selectedCategory, onSelectProduct, produc
                         // 3. Fixed: Use item.id instead of 'id'
                         onPress={() => onSelectProduct(item.id)}
                     >
-                        <Image
-                            accessibilityLabel={item.name}
-                            source={
-                                item.image_url
-                                    ? { uri: item.image_url }
-                                    : require('../assets/products/Men\'s Round T-shirt.webp')
-                            }
+                        <ProductImage
+                            accessibilityLabel={`${item.name} product image`}
+                            product={item}
+                            resizeMode="contain"
                             style={styles.productImage}
                         />
                         <Text style={styles.productDetails}>

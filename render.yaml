@@ -42,6 +42,10 @@ services:
         sync: false
       - key: PAYMONGO_WEBHOOK_SECRET
         sync: false
+      # Keep empty until the matching test rails and signed webhook have been
+      # verified for this PayMongo account. Example: gcash,maya,card
+      - key: PAYMONGO_ENABLED_METHODS
+        sync: false
       - key: BREVO_API_KEY
         sync: false
       - key: BREVO_SENDER_EMAIL

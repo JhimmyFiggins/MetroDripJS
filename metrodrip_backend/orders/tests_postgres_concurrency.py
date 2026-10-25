@@ -20,7 +20,7 @@ from catalog.models import (
 from fulfillment.models import ShippingShippingZone
 from identity.models import AccountsCustomer
 
-from .checkout import CheckoutError, execute_checkout
+from .checkout import CheckoutError, cancel_order, execute_checkout
 from .models import OrdersOrder, OrdersPaymentTransition, PaymentWebhookEvent
 from .webhooks import process_paymongo_webhook
 
@@ -232,4 +232,81 @@ class PostgreSQLCheckoutConcurrencyTests(TransactionTestCase):
         self.assertEqual(InventoryStockMovement.objects.filter(ref_order_ref=order.id).count(), 1)
         self.stock.refresh_from_db()
         self.assertEqual(self.stock.quantity, 4)
+        self.assertEqual(self.stock.reserved_quantity, 0)
+
+    def test_parallel_merchant_cod_cancellation_restores_stock_once(self):
+        order, payment, _replay = execute_checkout(
+            self.customer,
+            self._payload('parallel-cod-cancellation'),
+        )
+
+        def cancel():
+            current = OrdersOrder.objects.get(pk=order.pk)
+            cancelled_order, cancelled_payment = cancel_order(
+                current,
+                actor_type='merchant',
+                actor_id=9001,
+                policy='merchant',
+            )
+            return cancelled_order.status, cancelled_payment.status
+
+        results = self._run_parallel([cancel, cancel])
+
+        self.assertEqual(results, [('cancelled', 'cancelled'), ('cancelled', 'cancelled')])
+        self.assertEqual(
+            OrdersPaymentTransition.objects.filter(payment=payment, to_status='cancelled').count(),
+            1,
+        )
+        self.assertEqual(InventoryReservation.objects.get(order_id=order.id).status, 'cancelled')
+        movements = InventoryStockMovement.objects.filter(ref_order_ref=order.id)
+        self.assertEqual(movements.filter(reason='sale', delta=-1).count(), 1)
+        self.assertEqual(movements.filter(reason='return', delta=1).count(), 1)
+        self.assertEqual(movements.count(), 2)
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, 5)
+        self.assertEqual(self.stock.reserved_quantity, 0)
+
+    def test_parallel_online_cancellation_keeps_local_ledger_idempotent(self):
+        class ConcurrentExpiryProvider:
+            def __init__(self):
+                self.gate = Barrier(2)
+                self.expired = []
+
+            def expire_checkout_session(self, provider_ref):
+                self.expired.append(provider_ref)
+                self.gate.wait(timeout=10)
+                return {'data': {'id': provider_ref, 'attributes': {'status': 'expired'}}}
+
+        order, payment, _replay = execute_checkout(
+            self.customer,
+            self._payload('parallel-online-cancellation', method='gcash'),
+            provider_client=FakePayMongoClient(),
+        )
+        provider = ConcurrentExpiryProvider()
+
+        def cancel():
+            current = OrdersOrder.objects.get(pk=order.pk)
+            cancelled_order, cancelled_payment = cancel_order(
+                current,
+                actor_type='merchant',
+                actor_id=9001,
+                policy='merchant',
+                provider_client=provider,
+            )
+            return cancelled_order.status, cancelled_payment.status
+
+        results = self._run_parallel([cancel, cancel])
+
+        self.assertEqual(results, [('cancelled', 'cancelled'), ('cancelled', 'cancelled')])
+        # Provider expiration is deliberately outside the database transaction,
+        # so simultaneous first attempts may both send the retryable request.
+        self.assertEqual(provider.expired, [payment.provider_ref, payment.provider_ref])
+        self.assertEqual(
+            OrdersPaymentTransition.objects.filter(payment=payment, to_status='cancelled').count(),
+            1,
+        )
+        self.assertEqual(InventoryReservation.objects.get(order_id=order.id).status, 'released')
+        self.assertFalse(InventoryStockMovement.objects.filter(ref_order_ref=order.id).exists())
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity, 5)
         self.assertEqual(self.stock.reserved_quantity, 0)

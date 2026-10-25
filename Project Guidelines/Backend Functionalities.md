@@ -6,7 +6,7 @@
 
 **Payment scope:** COD plus PayMongo Hosted Checkout for GCash, Maya, and cards. Hosted rails are offered only when explicitly allowlisted and provider configuration is present.
 
-**Updated:** 2026-10-20
+**Updated:** 2026-10-25
 
 **Release status:** ACADEMIC DEMO HOLD and PRODUCTION HOLD
 
@@ -60,7 +60,7 @@ python manage.py provision_staff --email merchant@example.com --name "MetroDrip 
 | Checkout | `POST /api/orders/checkout/` | Authenticated customer; throttle `30/min` | `201` for a new order, `200` for an idempotent replay; serialized order/payment, immutable line snapshots, and nullable `payment_action` | Flat `{error, code}`; validation `400`, stock/catalog/idempotency/expiry `409`, non-retryable provider `422`, retryable provider failure `503`, auth `401`, throttle `429` |
 | Order history | `GET /orders/` | Authenticated owner | Up to 50 owned orders with their latest payment | `401` |
 | Owned order/status | `GET /orders/{integer_order_id}/` | Authenticated owner | Serialized order plus `reconciliation_status` | `404` owner-safe not found; `409` missing payment; provider failure leaves durable state and returns `reconciliation_status: "deferred"` |
-| Cancel online checkout | `POST /orders/{integer_order_id}/cancel/` | Authenticated owner; throttle `120/min` | Idempotent serialized cancellation for eligible unpaid online checkout; records `CANCELLED` transition | `404`; `409` paid, COD, or missing payment; `503 provider_unavailable` when provider expiry cannot be confirmed |
+| Cancel owned order | `POST /orders/{integer_order_id}/cancel/` | Authenticated owner; throttle `120/min` | Idempotent cancellation for an eligible unpaid online checkout or an unfulfilled COD order (`placed`/`processing` with `pending_collection`). COD restores committed stock through one `return` movement and records `CANCELLED`. | `404` for another owner; `409` paid, fulfilled, or mismatched state; `503 provider_unavailable` when online provider expiry cannot be confirmed |
 | Tracking | `GET /orders/{integer_order_id}/tracking/` | Authenticated owner | Truthful order/items/shipment/timeline; unavailable timestamps/courier/ETA are `null` with an unavailable source | `404`, `401` |
 | Merchant orders list/detail | `GET/PATCH /api/merchant/orders/[<id>/]` | Authenticated merchant/admin | Returns order summary list or order detail with `lines` (including snapshot titles and SKUs) and `payment_transitions` array | `401`, `403`, `404` |
 | Legacy order creation | `POST /orders/` | Authenticated customer | None | `410 legacy_checkout_retired` because it accepted client prices |
@@ -144,7 +144,7 @@ Checkout locks stock rows, creates the order/address/line/payment/reservation re
 3. Outside that transaction, the adapter posts server-controlled line items to PayMongo `/v2/checkout_sessions` with a hashed provider idempotency key. `maya` is serialized as `paymaya`.
 4. Only a trusted `https://checkout.paymongo.com` URL is stored/returned. Definite or uncertain creation errors mark the local payment `setup_failed` and the order `payment_setup_failed`, record a `FAILED` transition with reason, and return `422` or `503`.
 5. A valid paid webhook or an owned-order reconciliation verifies paid status, exact amount, and currency, commits inventory once, sets the payment to `paid`, sets the order to `placed`, and records an immutable `PAID` transition in `OrdersPaymentTransition`. If reserved stock cannot be committed, the order becomes `payment_review` for manual resolution.
-6. Order cancellation (via customer cancel or merchant step-up confirmation modal) expires provider sessions, releases inventory reservations, sets status to `cancelled`, and records a `CANCELLED` transition.
+6. Order cancellation expires a hosted provider session when one exists, releases online reservations or restores committed COD stock, sets status to `cancelled`, and records a `CANCELLED` transition. Customers can cancel their own eligible COD orders; packed, shipped, and paid orders remain rejected.
 
 ### Webhook authenticity, deduplication, and lost-response recovery
 

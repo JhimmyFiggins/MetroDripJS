@@ -13,11 +13,11 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, usePreventRemove, useRoute } from '@react-navigation/native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCart } from '../../../context/CartContext';
 import { createOrder, getOrder, normalizeOrderId } from '../../../../src/services/orderService';
-import { buildOrderPayload, CheckoutPayloadError } from '../data/buildOrderPayload';
+import { buildOrderPayload, CheckoutPayloadError, closeCheckoutAttempt } from '../data/buildOrderPayload';
 import {
   getHostedCheckoutUrl,
   canClearCartForAttempt,
@@ -47,9 +47,22 @@ export function PaymentDetailsScreen() {
 
   const orderDraft = route.params?.orderDraft || null;
   const requestedMethod = route.params?.paymentMethod;
-  const initialMethod = PAYMENT_METHODS.some((method) => method.id === requestedMethod)
+  const routePaymentOptions = Array.isArray(route.params?.paymentOptions)
+    ? route.params.paymentOptions
+    : [];
+  const availablePaymentMethods = PAYMENT_METHODS.map((method) => {
+    const capability = routePaymentOptions.find((option) => option?.id === method.id);
+    return {
+      ...method,
+      ...capability,
+      badge: method.badge,
+      enabled: capability ? capability.enabled === true : method.id === 'cod',
+    };
+  });
+  const requestedOption = availablePaymentMethods.find((method) => method.id === requestedMethod);
+  const initialMethod = requestedOption?.enabled
     ? requestedMethod
-    : 'cod';
+    : availablePaymentMethods.find((method) => method.enabled)?.id || 'cod';
   const hasRouteOrderId = Object.prototype.hasOwnProperty.call(route.params || {}, 'orderId');
   const deepLinkedOrderId = normalizeOrderId(route.params?.orderId);
   const hasLiveDraft = !hasRouteOrderId && Array.isArray(orderDraft?.items) && orderDraft.items.length > 0;
@@ -82,7 +95,7 @@ export function PaymentDetailsScreen() {
   const cartItemsRef = useRef(cart || []);
 
   const currentMethod =
-    PAYMENT_METHODS.find((method) => method.id === selectedMethod) || PAYMENT_METHODS[0];
+    availablePaymentMethods.find((method) => method.id === selectedMethod) || availablePaymentMethods[0];
   const authoritativeTotal = Number(pendingOrder?.total ?? pendingOrder?.total_amount);
   cartItemsRef.current = cart || [];
   const draftTotal = Number(orderDraft?.total);
@@ -157,7 +170,9 @@ export function PaymentDetailsScreen() {
         );
         return;
       }
+      if (!navigation.isFocused()) return;
       completedOrder.current = true;
+      closeCheckoutAttempt(orderDraft?.checkoutAttemptId);
       if (canClearCartForAttempt(liveAttempt.current, savedOrder, cartItemsRef.current)) {
         clearCart();
       }
@@ -165,7 +180,7 @@ export function PaymentDetailsScreen() {
         order: confirmation,
       });
     },
-    [clearCart, navigation],
+    [clearCart, navigation, orderDraft],
   );
 
   const refreshPaymentStatus = useCallback(
@@ -291,12 +306,33 @@ export function PaymentDetailsScreen() {
     }
   };
 
+  const leaveBlocked = isProcessing || ['processing', 'redirecting', 'verifying'].includes(flowState);
+  usePreventRemove(leaveBlocked, () => {
+    showAlert('Payment in progress', 'Wait for this checkout attempt to finish before leaving.');
+  });
+
+  const leavePayment = () => {
+    if (leaveBlocked || submitInFlight.current) {
+      showAlert('Payment in progress', 'Wait for this checkout attempt to finish before leaving.');
+      return;
+    }
+    navigation.goBack();
+  };
+
   const handlePay = async () => {
     // A synchronous ref closes the same-tick window before disabled state renders.
     if (submitInFlight.current) return;
     if (!hasLiveDraft || hasRouteOrderId) {
       setFlowState('entry_error');
       setFlowMessage('Start payment from Checkout. This recovery view cannot create a new order.');
+      return;
+    }
+    const selectedOption = availablePaymentMethods.find((method) => method.id === selectedMethod);
+    if (!selectedOption?.enabled) {
+      const message = selectedOption?.unavailableReason || 'Choose an available payment method before placing your order.';
+      setFlowState('entry_error');
+      setFlowMessage(message);
+      showAlert('Payment method unavailable', message);
       return;
     }
     submitInFlight.current = true;
@@ -519,12 +555,13 @@ export function PaymentDetailsScreen() {
           : `Continue to secure ${currentMethod.title} checkout for ${formatPeso(totalAmount)}`
       }
       accessibilityRole="button"
-      disabled={isProcessing}
+      accessibilityState={{ disabled: isProcessing || currentMethod.enabled === false }}
+      disabled={isProcessing || currentMethod.enabled === false}
       onPress={handlePay}
       style={({ pressed }) => [
         styles.payButton,
         pressed && styles.payButtonPressed,
-        isProcessing && styles.payButtonDisabled,
+        (isProcessing || currentMethod.enabled === false) && styles.payButtonDisabled,
       ]}
     >
       {isProcessing ? (
@@ -600,7 +637,7 @@ export function PaymentDetailsScreen() {
             accessibilityLabel="Go back to checkout"
             accessibilityRole="button"
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            onPress={() => navigation.goBack()}
+            onPress={leavePayment}
           >
             <Text style={styles.backArrow}>‹</Text>
           </Pressable>
@@ -662,20 +699,27 @@ export function PaymentDetailsScreen() {
                 <Text style={styles.modalCloseText}>✕</Text>
               </Pressable>
             </View>
-            {PAYMENT_METHODS.map((method) => {
+            {availablePaymentMethods.map((method) => {
               const isSelected = selectedMethod === method.id;
+              const isEnabled = method.enabled !== false;
               return (
                 <Pressable
                   accessibilityRole="radio"
-                  accessibilityState={{ checked: isSelected }}
+                  accessibilityState={{ checked: isSelected, disabled: !isEnabled }}
+                  disabled={!isEnabled}
                   key={method.id}
                   onPress={() => {
+                    if (!isEnabled) return;
                     setSelectedMethod(method.id);
                     setFlowState('idle');
                     setFlowMessage('');
                     setMethodModalVisible(false);
                   }}
-                  style={[styles.methodOption, isSelected && styles.methodOptionSelected]}
+                  style={[
+                    styles.methodOption,
+                    isSelected && styles.methodOptionSelected,
+                    !isEnabled && styles.methodOptionDisabled,
+                  ]}
                 >
                   <View style={styles.methodBadge}>
                     <Text style={styles.methodBadgeText}>{method.badge}</Text>
@@ -683,6 +727,11 @@ export function PaymentDetailsScreen() {
                   <View style={styles.methodInfo}>
                     <Text style={styles.methodTitle}>{method.title}</Text>
                     <Text style={styles.methodSubtitle}>{method.subtitle}</Text>
+                    {!isEnabled && (
+                      <Text style={styles.unavailableMethodText}>
+                        {method.unavailableReason || 'Temporarily unavailable'}
+                      </Text>
+                    )}
                   </View>
                 </Pressable>
               );
@@ -844,4 +893,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   methodOptionSelected: { borderWidth: 2, borderColor: colors.ink },
+  methodOptionDisabled: { opacity: 0.48, backgroundColor: colors.surface },
+  unavailableMethodText: { fontFamily: fonts.monoRegular, fontSize: 10, lineHeight: 14, color: colors.muted },
 });

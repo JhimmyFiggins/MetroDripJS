@@ -72,7 +72,9 @@ def get_merchant_enabled_methods():
         from identity.models import PlatformSetting
         return PlatformSetting.get_instance().get_enabled_payment_methods()
     except Exception:
-        return ['cod', 'gcash', 'maya', 'card']
+        # Capability discovery must fail closed. COD remains independent of
+        # PayMongo while hosted rails require an explicit persisted opt-in.
+        return ['cod']
 
 
 def is_method_provider_supported(method):
@@ -142,4 +144,3 @@ def payment_capabilities():
         'methods': methods,
         'ttl_seconds': 1800,
     }
-

@@ -1,5 +1,5 @@
 // Import React state for the editable form, payment radios, and selector modal.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../../../../src/services/apiClient';
 import { bannersForPlacement, normalizeBannerList } from '../../../../src/services/bannerContent';
 // Import native primitives required by this adaptive checkout surface.
@@ -23,6 +23,10 @@ import { useCart } from '../../../context/CartContext';
 import { useAuth } from '../../../context/AuthContext';
 import { cartTotals } from '../../../context/cartLogic';
 import {
+  isCheckoutAttemptClosed,
+  mintCheckoutAttemptId,
+} from '../data/buildOrderPayload';
+import {
   getPaymentCapabilities,
   mapPaymentCapabilities,
 } from '../../../../src/services/orderService';
@@ -39,6 +43,7 @@ import {
   initialDeliveryAddress,
   paymentOptions,
 } from '../data/checkout';
+import { buildOrderItems, CheckoutPayloadError } from '../data/buildOrderPayload';
 // Import shared visual tokens.
 import { colors, fonts } from '../theme';
 
@@ -154,6 +159,7 @@ export function CheckoutScreen() {
   const cartContext = useCart();
   const cart = cartContext?.cart || [];
   const { total } = cartTotals(cart);
+  const checkoutAttemptRef = useRef(null);
 
   // Validate all fields before simulated payment initiation.
   const handlePay = () => {
@@ -186,11 +192,48 @@ export function CheckoutScreen() {
           name: it.name,
           variant: `${(it.color || 'BLACK').toUpperCase()} · ${(it.size || 'M').toUpperCase()} · ${(it.fit || 'OVS').toUpperCase()} ×${it.quantity || 1}`,
           price: it.price,
-          quantity: it.quantity || 1,
+          quantity: it.quantity,
+          stock: it.stock,
+          maxQuantity: it.maxQuantity,
           image: it.image,
           badge: it.name ? it.name.charAt(0) : 'M',
         }))
       : [];
+
+    try {
+      // Run the same aggregation and quantity checks used at final submission.
+      // A rejected draft stays in the cart so the customer can correct it.
+      buildOrderItems(orderItems);
+    } catch (caught) {
+      const message = caught instanceof CheckoutPayloadError
+        ? caught.message
+        : 'Review the quantities in your cart before continuing.';
+      showAlert('Update your cart', message);
+      return;
+    }
+
+    const attemptFingerprint = JSON.stringify({
+      items: orderItems.map((item) => ({
+        variantId: item.variantId,
+        quantity: item.quantity,
+      })),
+      fullName: address.fullName.trim(),
+      mobile: address.mobile.trim(),
+      address: address.address.trim(),
+      city: address.city.trim(),
+      zone: address.zone.trim(),
+      paymentMethod,
+    });
+    if (
+      !checkoutAttemptRef.current
+      || checkoutAttemptRef.current.fingerprint !== attemptFingerprint
+      || isCheckoutAttemptClosed(checkoutAttemptRef.current.id)
+    ) {
+      checkoutAttemptRef.current = {
+        id: mintCheckoutAttemptId(),
+        fingerprint: attemptFingerprint,
+      };
+    }
 
     const orderDraft = {
       total: total,
@@ -204,12 +247,14 @@ export function CheckoutScreen() {
       city: address.city,
       zone: address.zone,
       items: orderItems,
+      checkoutAttemptId: checkoutAttemptRef.current.id,
     };
 
     // Navigate sequentially to Payment Details screen (Figma M07/M07a/M07b)
     navigation.navigate('PaymentDetails', {
       orderDraft,
       paymentMethod,
+      paymentOptions: availableOptions,
     });
   };
 

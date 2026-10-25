@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 
 const {
   classifyOrderError,
+  canCancelOnlineOrder,
+  cancellationErrorMessage,
   extractOrders,
   formatKnownDate,
   formatKnownTimestamp,
@@ -64,6 +66,21 @@ test('payment and fulfillment badges do not collapse distinct states', () => {
   });
 });
 
+test('customers can cancel unpaid online checkouts and unfulfilled COD orders', () => {
+  assert.equal(canCancelOnlineOrder({ id: 1, payment_method: 'gcash', status: 'pending_payment', payment_status: 'awaiting_payment' }), true);
+  assert.equal(canCancelOnlineOrder({ id: 2, payment_method: 'card', status: 'payment_setup_failed', payment_status: 'setup_failed' }), true);
+  assert.equal(canCancelOnlineOrder({ id: 3, payment_method: 'cod', status: 'placed', payment_status: 'pending_collection' }), true);
+  assert.equal(canCancelOnlineOrder({ id: 6, payment_method: 'cod', status: 'shipped', payment_status: 'pending_collection' }), false);
+  assert.equal(canCancelOnlineOrder({ id: 4, payment_method: 'maya', status: 'paid', payment_status: 'paid' }), false);
+  assert.equal(canCancelOnlineOrder({ id: 5, payment_method: 'gcash', status: 'cancelled', payment_status: 'cancelled' }), false);
+});
+
+test('cancellation errors distinguish unknown, pending, and terminal outcomes', () => {
+  assert.match(cancellationErrorMessage({ status: 0 }), /may already be cancelled/i);
+  assert.match(cancellationErrorMessage({ data: { code: 'already_paid' } }), /already confirmed/i);
+  assert.match(cancellationErrorMessage({ data: { code: 'provider_unavailable' } }), /remains pending/i);
+});
+
 test('session, permission, not-found and offline errors use non-leaking messages', () => {
   assert.equal(classifyOrderError({ status: 401 }, 'orders').kind, 'session');
   assert.match(classifyOrderError({ status: 401 }, 'orders').message, /Sign in again/);
@@ -97,4 +114,3 @@ test('tracking uses supplied shipment/status data and active item keys only', ()
   ]);
   assert.deepEqual(trackingItems({ order: { lines: [{ name: 'Legacy', quantity: 1 }] } }), []);
 });
-

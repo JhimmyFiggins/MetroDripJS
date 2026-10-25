@@ -24,17 +24,26 @@ export function mapPaymentCapabilities(options, capabilities) {
   return options.map((option) => {
     const method = methodById.get(option.id);
     const enabled = method ? method.available === true : option.id === 'cod';
+    const unavailableCode = method?.unavailable_code || method?.unavailableCode || null;
     let unavailableReason;
     if (!enabled) {
+      const reasonByCode = {
+        provider_not_configured: 'Online payments are not configured.',
+        method_not_enabled: 'This payment method is not enabled for the PayMongo account.',
+        merchant_disabled: 'This payment method is disabled by the store.',
+      };
       unavailableReason = method
-        ? 'Temporarily unavailable'
-        : 'Availability unavailable';
+        ? method.unavailable_reason || method.unavailableReason || reasonByCode[method.unavailable_code] || 'Temporarily unavailable.'
+        : 'Availability could not be confirmed.';
     }
 
     return {
       ...option,
       enabled,
       requiresRedirect: method ? method.type === 'hosted' : option.id !== 'cod',
+      unavailable_code: unavailableCode,
+      unavailable_reason: unavailableReason || null,
+      unavailableCode,
       unavailableReason,
     };
   });
@@ -76,4 +85,12 @@ export async function createOrder(payload) {
 //   events: [{ key, title, state }] }
 export async function getOrderTracking(id) {
   return apiFetch(`/orders/${orderPath(id)}/tracking/`);
+}
+
+// Owner scoping and final eligibility are enforced again by Django. The body is
+// intentionally empty because the server derives the payment and reservations.
+export async function cancelOrder(id) {
+  return apiFetch(`/orders/${orderPath(id)}/cancel/`, {
+    method: 'POST',
+  });
 }

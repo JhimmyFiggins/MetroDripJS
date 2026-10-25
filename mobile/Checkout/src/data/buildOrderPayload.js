@@ -8,8 +8,15 @@
 // send prices, totals, status or a product FK — it sends variant ids, the
 // delivery zone, a canonical payment method, an idempotency key and the
 // shipping address. Provider-specific method names stay behind the API.
+import {
+  configuredQuantityLimit,
+  quantityLimit,
+} from '../../../context/cartLogic';
+
 const PAYMENT_METHODS = new Set(['cod', 'gcash', 'maya', 'card']);
 const checkoutAttempts = new WeakMap();
+const attemptKeys = new Map();
+const closedAttempts = new Set();
 let attemptSequence = 0;
 class CheckoutPayloadError extends Error {
   constructor(message) {
@@ -44,7 +51,9 @@ export function buildOrderItems(items) {
     throw new CheckoutPayloadError('Your cart is empty. Add an item before checking out.');
   }
 
-  return items.map((item, index) => {
+  const byVariant = new Map();
+
+  items.forEach((item, index) => {
     const label = item?.name ? `"${clean(item.name)}"` : `#${index + 1}`;
 
     const variantId = strictPositiveInt(item?.variantId ?? item?.variant_id);
@@ -57,8 +66,35 @@ export function buildOrderItems(items) {
       throw new CheckoutPayloadError(`Cart item ${label} has an invalid quantity. Choose a whole number of 1 or more.`);
     }
 
-    return { variant_id: variantId, quantity };
+    const configuredLimit = configuredQuantityLimit(item);
+    const lineLimit = quantityLimit(item);
+    const existing = byVariant.get(variantId);
+    const nextQuantity = (existing?.quantity || 0) + quantity;
+    const effectiveLimit = Math.min(existing?.limit ?? lineLimit, lineLimit);
+
+    if (!Number.isSafeInteger(nextQuantity)) {
+      throw new CheckoutPayloadError(`Cart item ${label} has an invalid quantity. Choose a smaller whole number.`);
+    }
+    if (nextQuantity > effectiveLimit) {
+      const reason = effectiveLimit < 1
+        ? 'is out of stock'
+        : effectiveLimit < configuredLimit
+          ? `only has ${effectiveLimit} available`
+          : `has a per-order limit of ${effectiveLimit}`;
+      throw new CheckoutPayloadError(
+        `Cart item ${existing?.label || label} ${reason}. Reduce its combined quantity from ${nextQuantity} before checkout.`,
+      );
+    }
+
+    byVariant.set(variantId, {
+      label: existing?.label || label,
+      limit: effectiveLimit,
+      quantity: nextQuantity,
+      variant_id: variantId,
+    });
   });
+
+  return Array.from(byVariant.values(), ({ variant_id, quantity }) => ({ variant_id, quantity }));
 }
 
 /**
@@ -103,12 +139,11 @@ export function normalizePaymentMethod(value) {
   return method;
 }
 
-export function buildIdempotencyKey(draft, items, paymentMethod = 'cod') {
-  const method = normalizePaymentMethod(paymentMethod);
+function payloadFingerprint(draft, items, paymentMethod) {
   const address = splitShippingAddress(draft);
-  const fingerprint = JSON.stringify({
+  return JSON.stringify({
     items,
-    paymentMethod: method,
+    paymentMethod,
     name: clean(draft?.fullName),
     phone: clean(draft?.mobile),
     address: address.address_line1,
@@ -118,10 +153,46 @@ export function buildIdempotencyKey(draft, items, paymentMethod = 'cod') {
     postalCode: clean(draft?.postalCode),
     deliveryZone: clean(draft?.zone ?? draft?.delivery_zone),
   });
+}
+
+function shortHash(value) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+export function mintCheckoutAttemptId() {
+  attemptSequence += 1;
+  return `a${Date.now().toString(36)}${attemptSequence.toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
+
+export function closeCheckoutAttempt(attemptId) {
+  const id = clean(attemptId);
+  if (id) closedAttempts.add(id);
+}
+
+export function isCheckoutAttemptClosed(attemptId) {
+  return closedAttempts.has(clean(attemptId));
+}
+
+export function buildIdempotencyKey(draft, items, paymentMethod = 'cod') {
+  const method = normalizePaymentMethod(paymentMethod);
+  const fingerprint = payloadFingerprint(draft, items, method);
+  const attemptId = clean(draft?.checkoutAttemptId);
+  if (attemptId && !closedAttempts.has(attemptId)) {
+    const scoped = attemptKeys.get(attemptId);
+    if (scoped?.fingerprint === fingerprint) return scoped.key;
+    const key = `md-${attemptId}-${shortHash(fingerprint)}`;
+    attemptKeys.set(attemptId, { fingerprint, key });
+    return key;
+  }
   const previous = checkoutAttempts.get(draft);
   if (previous?.fingerprint === fingerprint) return previous.key;
   // Retries share a draft; a new purchase of identical items must get a new key.
-  const key = `md-${Date.now().toString(36)}-${(++attemptSequence).toString(36)}-${Math.random().toString(36).slice(2)}`;
+  const key = `md-${Date.now().toString(36)}-${(++attemptSequence).toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   checkoutAttempts.set(draft, { fingerprint, key });
   return key;
 }

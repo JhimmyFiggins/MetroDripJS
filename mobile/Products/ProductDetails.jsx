@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator, Image, Alert } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { fonts } from '../../src/theme/font';
 import { productService } from '../../src/services/productService';
@@ -8,8 +8,15 @@ import { getWishlist, addToWishlist, removeFromWishlist } from '../../src/servic
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 
-import { useNavigation } from '@react-navigation/native';
 import CustomerReviews from './components/CustomerReviews';
+import ProductImage from '../components/ProductImage';
+import { productImageUrl } from '../../src/services/productImage';
+import {
+    findExactVariant,
+    initialVariantSelection,
+    selectPurchasableStock,
+    variantOption,
+} from './productVariantLogic';
 
 export default function ProductDetails({ 
     route, 
@@ -35,81 +42,89 @@ export default function ProductDetails({
     const [selectedFit, setSelectedFit] = useState(null);
     const [activeDotIndex, setActiveDotIndex] = useState(0);
 
-    const matchedVariant = variants.find(
-        variant =>
-        variant.attributes &&
-        (!selectedColor || variant.attributes.color === selectedColor) &&
-        (!selectedSize || variant.attributes.size === selectedSize) &&
-        (!selectedFit || variant.attributes.fit === selectedFit)
-    );
-    const selectedVariant = matchedVariant || (variants.length > 0 ? variants[0] : null);
+    const selectedVariant = findExactVariant(variants, {
+        color: selectedColor,
+        size: selectedSize,
+        fit: selectedFit,
+    });
 
     // Stock
     const [stock, setStock] = useState(null);
+    const stockMatchesSelectedVariant = Boolean(
+        selectedVariant && Number(stock?.variant) === Number(selectedVariant.id)
+    );
 
     const productId = selectedProductId; 
-    console.log('PRODUCT ID:', productId);
     //Variants
     useEffect(() => {
+        let cancelled = false;
+        setVariants([]);
+        setSelectedColor(null);
+        setSelectedSize(null);
+        setSelectedFit(null);
+        if (!productId) return () => { cancelled = true; };
         apiFetch(`/products/${productId}/variants/`, { auth: false })
-            .then(data => setVariants(data))
+            .then(data => {
+                if (cancelled) return;
+                const nextVariants = Array.isArray(data) ? data : [];
+                const initial = initialVariantSelection(nextVariants);
+                setVariants(nextVariants);
+                setSelectedColor(initial.color);
+                setSelectedSize(initial.size);
+                setSelectedFit(initial.fit);
+            })
             .catch(error => console.error('Failed to load variants:', error));
+        return () => {
+            cancelled = true;
+        };
     }, [productId]);
 
     
     // Check later if this is still important
     useEffect(() => {
+        let cancelled = false;
+        setProduct(null);
+        if (!productId) {
+            setLoading(false);
+            return () => { cancelled = true; };
+        }
         async function fetchDetails() {
-            if (!productId) return;
             try {
                 setLoading(true);
                 const data = await productService.getProductById(productId);
-                setProduct(data);
-                
-                // Extract options if product defines them or variants have attributes
-                const hasVariantAttributes = data.variants && data.variants.some(v => v.attributes && Object.keys(v.attributes).length > 0);
-                if (hasVariantAttributes) {
-                    const colors = data.colors && data.colors.length > 0 ? data.colors : ['Black', 'White'];
-                    const sizes = data.sizes && data.sizes.length > 0 ? data.sizes : ['S', 'M', 'L'];
-                    const fits = data.fits && data.fits.length > 0 ? data.fits : (data.fit ? [data.fit] : ['Regular']);
-                    setSelectedColor(colors[0]);
-                    setSelectedSize(sizes[0]);
-                    setSelectedFit(fits[0]);
-                } else {
-                    setSelectedColor(null);
-                    setSelectedSize(null);
-                    setSelectedFit(null);
-                }
+                if (!cancelled) setProduct(data);
             } catch (error) {
                 console.error('Error fetching product details:', error);
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         }
         fetchDetails();
+        return () => {
+            cancelled = true;
+        };
     }, [productId]);
     
     useEffect(() => {
-        if (!selectedVariant) {
-            setStock(null);
-            return;
-        }
+        let cancelled = false;
+        const requestedVariantId = selectedVariant?.id;
+        setStock(null);
+        if (!requestedVariantId) return () => { cancelled = true; };
 
-        apiFetch(`/variants/${selectedVariant.id}/stock/`, { auth: false })
+        apiFetch(`/variants/${requestedVariantId}/stock/`, { auth: false })
             .then(data => {
-                const rows = Array.isArray(data) ? data : [];
-                const purchasable = rows.reduce((best, row) => {
-                    const available = Number(row?.available_stock);
-                    if (!Number.isFinite(available)) return best;
-                    return !best || available > Number(best.available_stock) ? row : best;
-                }, null);
-                setStock(purchasable && Number(purchasable.available_stock) > 0 ? purchasable : null);
+                if (cancelled) return;
+                setStock(selectPurchasableStock(data, requestedVariantId));
             })
             .catch(error => {
+                if (cancelled) return;
                 console.error('Failed to load stock:', error);
                 setStock(null);
-        });
-    }, [selectedVariant]);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [selectedVariant?.id]);
 
     // Reflect whether this product is already in the user's wishlist
     useEffect(() => {
@@ -178,17 +193,17 @@ export default function ProductDetails({
 
     // Colors, Sizes, and Fits lists derived from variants
     const sizes = [...new Set(
-        variants.map(variant => variant.attributes && variant.attributes.size).filter(Boolean)
+        variants.map(variant => variantOption(variant, 'size')).filter(Boolean)
     )];
 
     const fits = [...new Set(
-        variants.map(variant => variant.attributes && variant.attributes.fit).filter(Boolean)
+        variants.map(variant => variantOption(variant, 'fit')).filter(Boolean)
     )];
 
     const colorsList = variants
-        .filter(variant => variant.color_hex || (variant.attributes && variant.attributes.color))
+        .filter(variant => variantOption(variant, 'color'))
         .map(variant => ({
-            name: variant.color_name || (variant.attributes && variant.attributes.color) || 'Default',
+            name: variantOption(variant, 'color'),
             hex_code: variant.color_hex || '#000000',
         }))
         .filter(
@@ -220,21 +235,26 @@ export default function ProductDetails({
 
     const handleAddToCart = () => {
         if (!product || !selectedVariant) {
-            alert('Please select a valid product variant.');
+            Alert.alert('Variant unavailable', 'Choose an available color, size, and fit combination.');
             return;
         }
 
-        if (!stock || stock.available_stock <= 0) {
-            alert('This variant is out of stock.');
+        if (!stockMatchesSelectedVariant) {
+            Alert.alert('Checking stock', 'Stock information is still loading for this variant. Please try again.');
+            return;
+        }
+
+        if (Number(stock.available_stock) <= 0) {
+            Alert.alert('Out of stock', 'This variant is out of stock. Choose another option.');
             return;
         }
         if (!product) return;
         const productItem = {
-            id: `${product.id || productId}-${selectedColor || 'Default'}-${selectedSize || 'Default'}-${selectedFit || 'Default'}`,
+            id: `variant-${selectedVariant.id}`,
             variantId: selectedVariant.id,
-            fit: selectedVariant.fit || selectedFit || 'Regular',
             sku: selectedVariant.sku,
-            stock: stock.available_stock,
+            stock: Number(stock.available_stock),
+            maxQuantity: stock.max_order_quantity ?? selectedVariant.max_order_quantity,
             productId: product.id || productId,
             name: product.product_name || product.name || 'MetroDrip Product',
             size: selectedSize || 'One Size',
@@ -245,7 +265,7 @@ export default function ProductDetails({
                 parseFloat(selectedVariant?.price_adjustment || 0)
             ).toFixed(2),
             quantity: 1,
-            image: product.image_url || 'https://via.placeholder.com/300x350',
+            image: productImageUrl(product),
         };
         addToCart(productItem);
         navigation.navigate('Cart');
@@ -279,14 +299,9 @@ export default function ProductDetails({
 
             {/* Image Carousel */}
             <View style={styles.imageContainer}>
-                <Image
-                    source={
-                        product.image_url
-                            ? { uri: product.image_url }
-                            : (product.images && product.images.length > 0 && product.images[0].url
-                                ? { uri: product.images[0].url }
-                                : require("../assets/products/Men's Round T-shirt.webp"))
-                    }
+                <ProductImage
+                    accessibilityLabel={`${product.product_name || product.name} product image`}
+                    product={product}
                     style={styles.imagePlaceholder}
                     resizeMode="contain"
                 />
@@ -406,7 +421,9 @@ export default function ProductDetails({
 
             {/* Stock Warning */}
             <Text style={styles.stockWarning}>
-                {stock && (
+                {!selectedVariant ? (
+                    <Text style={styles.stockText}>This option combination is unavailable. Choose another variant.</Text>
+                ) : stockMatchesSelectedVariant && (
                     <Text style={styles.stockText}>
                         {stock.available_stock > 0
                             ? `Only ${stock.available_stock} left in this variant`
@@ -419,7 +436,12 @@ export default function ProductDetails({
             <CustomerReviews productId={productId} />
 
             {/* Add to Cart Button */}
-            <TouchableOpacity style={styles.addToCartButton} onPress={handleAddToCart}>
+            <TouchableOpacity
+                accessibilityLabel={`Add ${product.product_name || product.name} to cart`}
+                accessibilityRole="button"
+                style={styles.addToCartButton}
+                onPress={handleAddToCart}
+            >
                 <Text style={styles.addToCartText}>
                     Add To Cart {product.product_name || product.name}
                 </Text>

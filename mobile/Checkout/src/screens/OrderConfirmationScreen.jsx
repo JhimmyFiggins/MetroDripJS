@@ -8,12 +8,12 @@ import {
   Platform,
   useWindowDimensions,
   Modal,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { colors, fonts } from '../theme';
 import { formatConfirmationDate, validateConfirmationRoute } from '../data/orderConfirmation';
+import ProductImage from '../../../components/ProductImage';
 
 export function OrderConfirmationScreen() {
   const navigation = useNavigation();
@@ -179,7 +179,11 @@ export function OrderConfirmationScreen() {
                 order.items.map((it, idx) => (
                   <View key={it.id || idx} style={styles.itemRow}>
                     {it.image ? (
-                      <Image source={{ uri: it.image }} style={styles.itemThumb} />
+                      <ProductImage
+                        accessibilityLabel={`${it.name || 'Product'} image`}
+                        uri={it.image}
+                        style={styles.itemThumb}
+                      />
                     ) : (
                       <View style={styles.itemBadge}>
                         <Text style={styles.itemBadgeText}>

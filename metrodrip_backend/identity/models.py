@@ -221,7 +221,9 @@ class AuditLog(models.Model):
 
 
 def _default_payment_methods():
-    return ['cod', 'gcash', 'maya', 'card']
+    # Hosted rails require both an operator allowlist and an intentional
+    # merchant opt-in. New installations therefore start with COD only.
+    return ['cod']
 
 
 class PlatformSetting(models.Model):
@@ -247,7 +249,7 @@ class PlatformSetting(models.Model):
     admin_alert_email = models.EmailField(max_length=254, default='security@metrodrip.ph')
     order_confirmation_emails = models.CharField(max_length=16, default='enabled')
     sender_name = models.CharField(max_length=150, default='MetroDrip Orders')
-    enabled_payment_methods = models.JSONField(default=list)
+    enabled_payment_methods = models.JSONField(default=_default_payment_methods)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -266,7 +268,7 @@ class PlatformSetting(models.Model):
             return obj
         instance = cls(
             id=1,
-            enabled_payment_methods=['cod', 'gcash', 'maya', 'card'],
+            enabled_payment_methods=_default_payment_methods(),
         )
         instance._state.adding = True
         cls._cached_instance = instance
@@ -277,9 +279,16 @@ class PlatformSetting(models.Model):
         PlatformSetting._cached_instance = self
 
     def get_enabled_payment_methods(self):
-        if isinstance(self.enabled_payment_methods, list) and self.enabled_payment_methods:
-            return [str(m).strip().lower() for m in self.enabled_payment_methods if m]
-        return ['cod', 'gcash', 'maya', 'card']
+        allowed = ('cod', 'gcash', 'maya', 'card')
+        raw_methods = self.enabled_payment_methods if isinstance(self.enabled_payment_methods, list) else []
+        methods = []
+        for raw_method in raw_methods:
+            method = str(raw_method).strip().lower()
+            if method in allowed and method not in methods:
+                methods.append(method)
+        # An empty or corrupt row must not disable every rail. An explicit
+        # stored selection, including one that omits COD, is honored.
+        return methods or ['cod']
 
 
 PlatformSetting._cached_instance = PlatformSetting(
@@ -296,7 +305,7 @@ PlatformSetting._cached_instance = PlatformSetting(
     maintenance_mode='off',
     order_confirmation_emails='enabled',
     sender_name='MetroDrip Orders',
-    enabled_payment_methods=['cod', 'gcash', 'maya', 'card'],
+    enabled_payment_methods=_default_payment_methods(),
 )
 
 
@@ -313,4 +322,3 @@ class CustomRole(models.Model):
     class Meta:
         db_table = 'identity_customrole'
         ordering = ['title']
-

@@ -158,6 +158,21 @@ class SettingsMigrationTestSuite(TestCase):
             action__contains='Updated merchant order settings',
         ).exists())
 
+    def test_empty_payment_selection_remains_cod_only(self):
+        self._login(self.merchant)
+
+        response = self.client.patch(
+            '/api/merchant/orders/settings/',
+            {'enabled_payment_methods': []},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['settings']['enabled_payment_methods'], ['cod'])
+        self.setting.refresh_from_db()
+        self.assertEqual(self.setting.enabled_payment_methods, ['cod'])
+        self.assertTrue(is_payment_method_available('cod'))
+
     # =========================================================================
     # PART 2: PAYMENT METHOD CAPABILITIES & ENFORCEMENT
     # =========================================================================

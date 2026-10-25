@@ -19,6 +19,8 @@ const confirmationScreen = read('mobile/Checkout/src/screens/OrderConfirmationSc
 const confirmationData = read('mobile/Checkout/src/data/orderConfirmation.js');
 const cartLogic = read('mobile/context/cartLogic.js');
 const cartContext = read('mobile/context/CartContext.js');
+const cartScreen = read('mobile/Cart/CartScreen.jsx');
+const adaptHeader = read('mobile/components/AdaptHeader.jsx');
 const orderService = read('src/services/orderService.js');
 const appNavigator = read('mobile/navigation/AppNavigator.jsx');
 const authContext = read('mobile/context/AuthContext.jsx');
@@ -74,6 +76,13 @@ test('the handoff keeps city and zone discrete for the shipping_address fields',
   assert.match(checkoutScreen, /zone:\s*address\.zone/);
 });
 
+test('checkout hands capability-mapped methods forward and payment rejects disabled rails', () => {
+  assert.match(checkoutScreen, /paymentOptions:\s*availableOptions/);
+  assert.match(paymentScreen, /route\.params\?\.paymentOptions/);
+  assert.match(paymentScreen, /if\s*\(!selectedOption\?\.enabled\)/);
+  assert.match(paymentScreen, /accessibilityState=\{\{ checked: isSelected, disabled: !isEnabled \}\}/);
+});
+
 // --- cart arithmetic ----------------------------------------------------------
 
 test('cart arithmetic still refuses to produce a NaN total', () => {
@@ -82,6 +91,22 @@ test('cart arithmetic still refuses to produce a NaN total', () => {
   // CartContext keeps routing quantity updates through the shared helper.
   assert.match(cartContext, /clampQuantity/);
   assert.match(cartContext, /from\s+'\.\/cartLogic'/);
+});
+
+test('cart back follows history with a Shop fallback and has an accessible target', () => {
+  assert.match(cartScreen, /navigation\.canGoBack\(\)/);
+  assert.match(cartScreen, /navigation\.goBack\(\)/);
+  assert.match(cartScreen, /navigation\.navigate\('Shop'\)/);
+  assert.match(adaptHeader, /accessibilityLabel=\{`Go back from/);
+  assert.match(adaptHeader, /minWidth:\s*44/);
+  assert.match(adaptHeader, /minHeight:\s*44/);
+});
+
+test('cart limit feedback does not navigate and checkout runs payload preflight', () => {
+  assert.match(cartScreen, /Alert\.alert\('Quantity limit reached'/);
+  assert.match(cartScreen, /quantityLimitMessage\(item\)/);
+  assert.match(cartScreen, /buildOrderItems\(cart\)/);
+  assert.match(checkoutScreen, /buildOrderItems\(orderItems\)/);
 });
 
 // --- payment method surface ---------------------------------------------------

@@ -1,6 +1,6 @@
 # Decisions and Handover
 
-**Status:** ACADEMIC DEMO HOLD and PRODUCTION HOLD; 2026-10-22 active customer QA checkpoint
+**Status:** ACADEMIC DEMO HOLD and PRODUCTION HOLD; 2026-10-25 seven-issue implementation checkpoint
 
 **Project:** MetroDripJS urban streetwear commerce platform
 
@@ -11,6 +11,16 @@
 **Owner:** Core Engineering & Architecture Team  
 
 ---
+
+## Seven-issue implementation checkpoint — 2026-10-25
+
+- **Scope:** Uncommitted local fixes for merchant/customer cancellation, mobile cart Back and quantity limits, checkout preflight, image URL fallback, and fail-closed payment/media gates. No commit, push, deploy, secret change, or production mutation.
+- **Cancellation decision:** Customers can cancel their own unfulfilled COD orders (`placed` or `processing`, `pending_collection`) and eligible unpaid online checkouts. Merchants keep the same COD/online gates. Paid and fulfilled orders stay rejected. COD cancellation restores committed stock with one `return` movement.
+- **Quantity decision:** The server limit remains `CHECKOUT_MAX_QUANTITY_PER_VARIANT` (default 5, declared in `render.yaml`). Mobile clamps to the server metadata or that fallback and shows the error without leaving the cart. It does not raise the business limit to 20.
+- **Payment decision:** Hosted rails stay unavailable until `PAYMONGO_ENABLED_METHODS` names them and the merchant explicitly opts in. COD cannot be removed accidentally through an empty merchant settings write. Do not enable live rails without a verified webhook.
+- **Media decision:** Production filesystem uploads are rejected unless `DJANGO_MEDIA_STORAGE_DURABLE` is true. This prevents new broken references. It does not restore the 19 production files that already return 404.
+- **Next:** Restore the missing originals to durable storage, then set the durable-storage flag. Separately verify PayMongo test rails and webhook delivery before setting the allowlist. Build and install a preview APK on a device for image, Back, quantity, COD, and cancellation checks.
+- **Release status:** HOLD for both academic demo and production.
 
 ## Active customer QA checkpoint - 2026-10-22
 

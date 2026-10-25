@@ -56,6 +56,10 @@ from .paymongo import PayMongoClient, PayMongoError, pesos_to_centavos, verified
 
 
 ONLINE_METHODS = {'gcash', 'maya', 'card'}
+MERCHANT_CANCELLABLE_COD_ORDER_STATUSES = {'placed', 'processing'}
+MERCHANT_CANCELLABLE_ONLINE_ORDER_STATUSES = {'pending_payment', 'payment_setup_failed'}
+MERCHANT_CANCELLABLE_ONLINE_PAYMENT_STATUSES = {'awaiting_payment', 'setup_failed'}
+FULFILLED_ORDER_STATUSES = {'packed', 'shipped', 'out_for_delivery', 'delivered'}
 PAYMENT_METHOD_ALIASES = {
     'cash_on_delivery': 'cod',
     'cod': 'cod',
@@ -338,6 +342,212 @@ def _commit_reservations(order):
     return True
 
 
+def order_cancellation_eligibility(order, payment, policy='merchant'):
+    """Return the authoritative cancellation decision without changing state."""
+    if not payment:
+        return {
+            'can_cancel': False,
+            'idempotent': False,
+            'code': 'payment_missing',
+            'message': 'Payment record not found.',
+        }
+
+    order_status = str(order.status or '').lower()
+    payment_status = str(payment.status or '').lower()
+    payment_method = str(payment.method or '').lower()
+
+    if policy == 'customer':
+        # Customers may cancel their own unpaid online checkout or an unfulfilled
+        # COD order. Paid, packed, and mismatched states stay rejected.
+        if payment_status == 'paid':
+            return {
+                'can_cancel': False,
+                'idempotent': False,
+                'code': 'already_paid',
+                'message': 'Paid orders cannot be cancelled here.',
+            }
+        if payment_method == 'cod':
+            if order_status == 'cancelled' and payment_status == 'cancelled':
+                return {
+                    'can_cancel': False,
+                    'idempotent': True,
+                    'code': 'already_cancelled',
+                    'message': 'This order is already cancelled.',
+                }
+            if (
+                order_status not in MERCHANT_CANCELLABLE_COD_ORDER_STATUSES
+                or payment_status != 'pending_collection'
+                or payment.provider != 'cod'
+                or payment.provider_ref
+            ):
+                return {
+                    'can_cancel': False,
+                    'idempotent': False,
+                    'code': 'cancellation_state_conflict',
+                    'message': 'This cash-on-delivery order is not in a cancellable state.',
+                }
+            return {'can_cancel': True, 'idempotent': False, 'code': None, 'message': ''}
+        if order_status in {'cancelled', 'payment_expired'}:
+            return {
+                'can_cancel': False,
+                'idempotent': True,
+                'code': 'already_cancelled',
+                'message': 'This checkout is already closed.',
+            }
+        return {'can_cancel': True, 'idempotent': False, 'code': None, 'message': ''}
+
+    if policy != 'merchant':
+        raise ValueError(f'Unsupported cancellation policy: {policy}')
+
+    if order_status == 'cancelled' and payment_status == 'cancelled':
+        return {
+            'can_cancel': False,
+            'idempotent': True,
+            'code': 'already_cancelled',
+            'message': 'This order is already cancelled.',
+        }
+    if order_status in {'cancelled', 'payment_expired'} or payment_status in {'cancelled', 'expired'}:
+        return {
+            'can_cancel': False,
+            'idempotent': False,
+            'code': 'cancellation_state_conflict',
+            'message': 'The order and payment cancellation states do not match.',
+        }
+    if payment_status == 'paid':
+        return {
+            'can_cancel': False,
+            'idempotent': False,
+            'code': 'refund_required',
+            'message': 'Paid orders require the refund workflow before cancellation.',
+        }
+    if order_status in FULFILLED_ORDER_STATUSES:
+        return {
+            'can_cancel': False,
+            'idempotent': False,
+            'code': 'order_already_fulfilled',
+            'message': 'Packed or dispatched orders cannot be cancelled here.',
+        }
+
+    if payment_method == 'cod':
+        if (
+            order_status not in MERCHANT_CANCELLABLE_COD_ORDER_STATUSES
+            or payment_status != 'pending_collection'
+            or payment.provider != 'cod'
+            or payment.provider_ref
+        ):
+            return {
+                'can_cancel': False,
+                'idempotent': False,
+                'code': 'cancellation_state_conflict',
+                'message': 'This cash-on-delivery order is not in a cancellable state.',
+            }
+        return {'can_cancel': True, 'idempotent': False, 'code': None, 'message': ''}
+
+    if payment_method in ONLINE_METHODS:
+        if (
+            order_status not in MERCHANT_CANCELLABLE_ONLINE_ORDER_STATUSES
+            or payment_status not in MERCHANT_CANCELLABLE_ONLINE_PAYMENT_STATUSES
+            or payment.provider != 'paymongo'
+            or (payment_status == 'awaiting_payment' and not payment.provider_ref)
+        ):
+            return {
+                'can_cancel': False,
+                'idempotent': False,
+                'code': 'cancellation_state_conflict',
+                'message': 'This online checkout is not in a cancellable state.',
+            }
+        return {'can_cancel': True, 'idempotent': False, 'code': None, 'message': ''}
+
+    return {
+        'can_cancel': False,
+        'idempotent': False,
+        'code': 'unsupported_payment_method',
+        'message': 'This order uses an unsupported payment method.',
+    }
+
+
+def _raise_cancellation_error(eligibility):
+    raise CheckoutError(
+        eligibility['message'],
+        status_code=409,
+        code=eligibility['code'] or 'order_not_cancellable',
+    )
+
+
+def _reservations_and_stock(order, expected_status, for_update=False):
+    reservation_query = InventoryReservation.objects.select_related('variant').filter(
+        order_id=order.id,
+    ).order_by('id')
+    if for_update:
+        reservation_query = reservation_query.select_for_update(of=('self',))
+    reservations = list(reservation_query)
+    if not reservations or any(reservation.status != expected_status for reservation in reservations):
+        raise CheckoutError(
+            'The order inventory state does not match its cancellation state.',
+            status_code=409,
+            code='cancellation_state_conflict',
+        )
+
+    locked_rows = []
+    for reservation in reservations:
+        stock_query = InventoryStockEntry.objects.filter(
+            product_id=reservation.product_id,
+            variant_id=reservation.variant_id,
+            warehouse_id=reservation.warehouse_id,
+        )
+        if for_update:
+            stock_query = stock_query.select_for_update()
+        stock = stock_query.first()
+        if not stock:
+            raise CheckoutError(
+                'The order inventory record is unavailable for cancellation.',
+                status_code=409,
+                code='cancellation_state_conflict',
+            )
+        locked_rows.append((reservation, stock))
+    return locked_rows
+
+
+def _online_reservations_for_cancellation(order, for_update=False):
+    locked_rows = _reservations_and_stock(order, expected_status='active', for_update=for_update)
+    if any(stock.reserved_quantity < reservation.quantity for reservation, stock in locked_rows):
+        raise CheckoutError(
+            'The reserved inventory no longer matches this checkout.',
+            status_code=409,
+            code='cancellation_state_conflict',
+        )
+    return locked_rows
+
+
+def _release_online_reservations_for_cancellation(order, now):
+    locked_rows = _online_reservations_for_cancellation(order, for_update=True)
+    for reservation, stock in locked_rows:
+        stock.reserved_quantity -= reservation.quantity
+        stock.updated_at = now
+        stock.save(update_fields=['reserved_quantity', 'updated_at'])
+        reservation.status = 'released'
+        reservation.released_at = now
+        reservation.save(update_fields=['status', 'released_at'])
+
+
+def _restore_cod_inventory_for_cancellation(order, now):
+    locked_rows = _reservations_and_stock(order, expected_status='committed', for_update=True)
+    for reservation, stock in locked_rows:
+        stock.quantity += reservation.quantity
+        stock.updated_at = now
+        stock.save(update_fields=['quantity', 'updated_at'])
+        InventoryStockMovement.objects.create(
+            variant=reservation.variant,
+            sku=reservation.variant.sku if reservation.variant else None,
+            delta=reservation.quantity,
+            reason='return',
+            ref_order_ref=order.id,
+        )
+        reservation.status = 'cancelled'
+        reservation.released_at = now
+        reservation.save(update_fields=['status', 'released_at'])
+
+
 def _expire_order(order, provider_client=None):
     payment = order.payments.order_by('-created_at').first()
     if not payment or payment.status == 'paid' or order.status in {'cancelled', 'payment_expired'}:
@@ -345,8 +555,9 @@ def _expire_order(order, provider_client=None):
     now = timezone.now()
     provider_ref = None
     with transaction.atomic():
-        locked_payment = OrdersPayment.objects.select_for_update().select_related('order').get(pk=payment.pk)
+        locked_payment = OrdersPayment.objects.select_for_update(of=('self',)).get(pk=payment.pk)
         locked_order = OrdersOrder.objects.select_for_update().get(pk=locked_payment.order_id)
+        locked_payment.order = locked_order
         if locked_payment.status == 'paid':
             return locked_order
         if locked_order.status in {'cancelled', 'payment_expired'}:
@@ -747,9 +958,11 @@ def apply_verified_payment(payment, session_data):
     provider_payment_ref = paid_payment.get('id')
     now = timezone.now()
     with transaction.atomic():
-        locked = OrdersPayment.objects.select_for_update().select_related('order').get(pk=payment.pk)
+        locked = OrdersPayment.objects.select_for_update(of=('self',)).get(pk=payment.pk)
         if locked.status == 'paid':
             return True
+        order = OrdersOrder.objects.select_for_update().get(pk=locked.order_id)
+        locked.order = order
         from_status = locked.status
         locked.status = 'paid'
         locked.provider_payment_ref = provider_payment_ref
@@ -774,7 +987,6 @@ def apply_verified_payment(payment, session_data):
             reason='Verified online payment confirmation',
             metadata={'provider_payment_ref': provider_payment_ref},
         )
-        order = locked.order
         stock_committed = not order.cancelled_at and _commit_reservations(order)
         order.status = 'placed' if stock_committed else 'payment_review'
         order.updated_at = now
@@ -841,31 +1053,56 @@ def reconcile_payment(payment, provider_client=None):
     return payment.status
 
 
-def cancel_checkout(order, provider_client=None):
-    payment = order.payments.order_by('-created_at').first()
-    if not payment:
-        raise CheckoutError('Payment record not found.', status_code=409, code='payment_missing')
-    if payment.status == 'paid':
-        raise CheckoutError('Paid orders cannot be cancelled here.', status_code=409, code='already_paid')
-    if payment.method == 'cod':
-        raise CheckoutError(
-            'Cash-on-delivery orders require the order cancellation workflow.',
-            status_code=409,
-            code='cod_cancellation_requires_support',
-        )
-    if order.status in {'cancelled', 'payment_expired'}:
-        return order, payment
+def cancel_order(
+    order,
+    *,
+    actor_type,
+    actor_id=None,
+    policy='merchant',
+    provider_client=None,
+):
+    """Cancel an order while keeping payment and inventory state consistent."""
+    current_order = OrdersOrder.objects.get(pk=order.pk)
+    payment = current_order.payments.order_by('-created_at', '-id').first()
+    eligibility = order_cancellation_eligibility(current_order, payment, policy=policy)
+    if eligibility['idempotent']:
+        return current_order, payment
+    if not eligibility['can_cancel']:
+        _raise_cancellation_error(eligibility)
+
+    # Provider expiration stays outside the database transaction. If it fails,
+    # the checkout remains locally payable and the caller can retry safely.
+    # Concurrent first attempts can both reach this retryable provider action;
+    # payment/order locks below guarantee exactly-once local ledger effects.
+    if policy == 'merchant' and payment.method in ONLINE_METHODS:
+        _online_reservations_for_cancellation(current_order)
     if payment.provider_ref:
         (provider_client or PayMongoClient()).expire_checkout_session(payment.provider_ref)
+
     now = timezone.now()
     with transaction.atomic():
-        locked_payment = OrdersPayment.objects.select_for_update().select_related('order').get(pk=payment.pk)
-        locked_order = OrdersOrder.objects.select_for_update().get(pk=locked_payment.order_id)
-        if locked_payment.status == 'paid':
-            raise CheckoutError('Paid orders cannot be cancelled here.', status_code=409, code='already_paid')
-        if locked_order.status in {'cancelled', 'payment_expired'}:
+        locked_payment = (
+            OrdersPayment.objects.select_for_update(of=('self',))
+            .filter(order_id=current_order.id)
+            .order_by('-created_at', '-id')
+            .first()
+        )
+        locked_order = OrdersOrder.objects.select_for_update().get(pk=current_order.pk)
+        if locked_payment:
+            locked_payment.order = locked_order
+        eligibility = order_cancellation_eligibility(locked_order, locked_payment, policy=policy)
+        if eligibility['idempotent']:
             return locked_order, locked_payment
-        _release_reservations(locked_order)
+        if not eligibility['can_cancel']:
+            _raise_cancellation_error(eligibility)
+
+        if locked_payment.method == 'cod':
+            _restore_cod_inventory_for_cancellation(locked_order, now)
+        elif policy == 'merchant':
+            _release_online_reservations_for_cancellation(locked_order, now)
+        else:
+            _release_reservations(locked_order)
+
         from_status = locked_payment.status
         locked_payment.status = 'cancelled'
         locked_payment.updated_at = now
@@ -874,15 +1111,29 @@ def cancel_checkout(order, provider_client=None):
             locked_payment,
             to_status='cancelled',
             from_status=from_status,
-            actor_type='customer',
-            actor_id=locked_order.customer_id,
-            reason='Online checkout cancelled by customer',
+            actor_type=actor_type,
+            actor_id=actor_id,
+            reason=(
+                'Order cancelled by store staff'
+                if policy == 'merchant'
+                else 'Online checkout cancelled by customer'
+            ),
         )
         locked_order.status = 'cancelled'
         locked_order.cancelled_at = now
         locked_order.updated_at = now
         locked_order.save(update_fields=['status', 'cancelled_at', 'updated_at'])
     return locked_order, locked_payment
+
+
+def cancel_checkout(order, provider_client=None):
+    return cancel_order(
+        order,
+        actor_type='customer',
+        actor_id=order.customer_id,
+        policy='customer',
+        provider_client=provider_client,
+    )
 
 
 def serialize_checkout(order, payment, is_replay=False):

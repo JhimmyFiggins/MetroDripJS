@@ -36,7 +36,7 @@ test('preview is a standalone internally distributed APK with local app versioni
   assert.equal(eas.build.preview.developmentClient, false);
   assert.equal(eas.build.preview.distribution, 'internal');
   assert.equal(eas.build.preview.android.buildType, 'apk');
-  assert.equal(app.android.versionCode, 1);
+  assert.equal(app.android.versionCode, 2);
   assert.equal(app.ios.buildNumber, '1');
   assert.equal(app.owner, undefined);
   assert.equal(app.extra?.eas?.projectId, undefined);

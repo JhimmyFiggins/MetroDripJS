@@ -1,26 +1,29 @@
 import React, { useState } from 'react';
-import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
-  SafeAreaView,
   View,
   Text,
-  Image,
   TouchableOpacity,
   StyleSheet,
   ScrollView,
   Alert,
 } from 'react-native';
 
-import Footer from '../components/Footer';
 import AdaptHeader from '../components/AdaptHeader';
+import ProductImage from '../components/ProductImage';
 import { useCart } from '../context/CartContext';
-import { cartTotals } from '../context/cartLogic';
+import {
+  cartTotals,
+  quantityLimit,
+  quantityLimitMessage,
+} from '../context/cartLogic';
+import { buildOrderItems, CheckoutPayloadError } from '../Checkout/src/data/buildOrderPayload';
 import { StatusBar } from 'expo-status-bar';
 
 
 export default function CartScreen({navigation}) {
   const { cart, changeQuantity, removeItem } = useCart();
+  const [cartNotice, setCartNotice] = useState('');
 
   const { subtotal, shipping, discount, total } = cartTotals(cart);
 
@@ -32,6 +35,35 @@ export default function CartScreen({navigation}) {
     })}`;
   };
 
+  const handleBack = () => {
+    if (navigation.canGoBack()) navigation.goBack();
+    else navigation.navigate('Shop');
+  };
+
+  const handleIncrease = (item) => {
+    const current = Number(item?.quantity);
+    if (!Number.isSafeInteger(current) || current >= quantityLimit(item)) {
+      const message = `${item.name}: ${quantityLimitMessage(item)}`;
+      setCartNotice(message);
+      Alert.alert('Quantity limit reached', message);
+      return;
+    }
+    setCartNotice('');
+    changeQuantity(item.id, 1);
+  };
+
+  const handleCheckout = () => {
+    try {
+      buildOrderItems(cart);
+      navigation.navigate('Checkout');
+    } catch (caught) {
+      const message = caught instanceof CheckoutPayloadError
+        ? caught.message
+        : 'Review the quantities in your cart before checkout.';
+      setCartNotice(message);
+      Alert.alert('Update your cart', message);
+    }
+  };
 
 
   return (
@@ -44,7 +76,7 @@ export default function CartScreen({navigation}) {
         showsVerticalScrollIndicator={false}
       >
       
-        <AdaptHeader screenTitle={screenTitle}/>
+        <AdaptHeader onBack={handleBack} screenTitle={screenTitle}/>
         {cart.length === 0 ? (
           /* EMPTY CART */
           <View style={styles.emptyCart}>
@@ -78,10 +110,11 @@ export default function CartScreen({navigation}) {
                   key={item.id}
                   style={styles.cartItem}
                 >
-                  <Image
+                  <ProductImage
                     accessibilityLabel={item.name}
-                    source={{ uri: item.image }}
+                    resizeMode="contain"
                     style={styles.productImage}
+                    uri={item.image}
                   />
 
                   {/* Product Details and Quantity */}
@@ -131,17 +164,19 @@ export default function CartScreen({navigation}) {
 
                       <TouchableOpacity
                         accessibilityLabel={`Increase ${item.name} quantity`}
+                        accessibilityHint={quantityLimitMessage(item)}
                         accessibilityRole="button"
                         style={styles.quantityButton}
-                        onPress={() =>
-                          changeQuantity(item.id, 1)
-                        }
+                        onPress={() => handleIncrease(item)}
                       >
                         <Text style={styles.quantityButtonText}>
                           +
                         </Text>
                       </TouchableOpacity>
                     </View>
+                    <Text accessibilityLiveRegion="polite" style={styles.quantityLimitText}>
+                      Maximum {quantityLimit(item)} for this variant
+                    </Text>
 
                     {/* Remove Button */}
                     <TouchableOpacity
@@ -235,11 +270,16 @@ export default function CartScreen({navigation}) {
       {/* Checkout/Footer */}
       {cart.length > 0 && (
         <View style={styles.checkoutContainer}>
+          {!!cartNotice && (
+            <Text accessibilityLiveRegion="polite" accessibilityRole="alert" style={styles.quantityLimitText}>
+              {cartNotice}
+            </Text>
+          )}
           <TouchableOpacity
             accessibilityLabel={`Proceed to checkout, total ${formatPrice(total)}`}
             accessibilityRole="button"
             style={styles.checkout}
-            onPress={() => navigation.navigate('Checkout') }
+            onPress={handleCheckout}
           >
             <Text style={styles.checkoutText}>
               PROCEED TO CHECKOUT
@@ -385,6 +425,13 @@ const styles = StyleSheet.create({
     
     paddingHorizontal: 4,     
     paddingVertical: 2,       
+  },
+
+  quantityLimitText: {
+    marginTop: 6,
+    color: '#555555',
+    fontSize: 10,
+    lineHeight: 14,
   },
   productInfo: {
     color: '#999999',
@@ -581,4 +628,3 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
-

@@ -1210,7 +1210,9 @@ async function renderOrder(route, scope) {
   }
   const action = order.payment_action;
   const canContinue = action?.type === 'redirect' && trustedCheckoutUrl(action.url);
-  const canCancel = order.payment_method !== 'cod' && ['awaiting_payment', 'setup_failed'].includes(order.payment_status);
+  const canCancel = order.payment_method === 'cod'
+    ? ['placed', 'processing'].includes(order.status) && order.payment_status === 'pending_collection'
+    : ['pending_payment', 'payment_setup_failed'].includes(order.status) && ['awaiting_payment', 'setup_failed'].includes(order.payment_status);
 
   return el('section', { class: 'page order-details-page' }, [
     breadcrumbs({ label: 'Orders', href: customerHref('/orders') }, { label: order.order_no || `Order #${order.id}` }),
@@ -1225,7 +1227,7 @@ async function renderOrder(route, scope) {
       action?.url && !canContinue ? notice('error', 'A payment link was present but rejected because it is not PayMongo hosted checkout.') : null,
       el('div', { style: 'display:flex; gap:10px; margin-top:12px;' }, [
         el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => render() }, 'Refresh status'),
-        canCancel ? el('button', { class: 'btn btn-danger', type: 'button', onclick: (event) => cancelOrder(route.id, scope, event.currentTarget) }, 'Cancel unpaid checkout') : null,
+        canCancel ? el('button', { class: 'btn btn-danger', type: 'button', onclick: (event) => cancelOrder(route.id, scope, event.currentTarget) }, order.payment_method === 'cod' ? 'Cancel order' : 'Cancel unpaid checkout') : null,
       ]),
     ]),
     el('h2', { class: 'section-title', style: 'font-size:24px; margin-bottom:12px;' }, 'Items in order'),
@@ -1249,7 +1251,7 @@ function trackingBlock(tracking) {
 
 async function cancelOrder(id, scope, button) {
   return runAction(scope, button, async () => {
-    const confirmed = await openDialog('Cancel this unpaid checkout?', 'Stock stays reserved until the server confirms cancellation.');
+    const confirmed = await openDialog('Cancel this order?', 'Inventory changes only after the server confirms cancellation.');
     if (!confirmed || !isCurrent(scope)) return;
     await request(`/orders/${id}/cancel/`, { method: 'POST', body: {} }, scope);
     if (!isCurrent(scope)) return;

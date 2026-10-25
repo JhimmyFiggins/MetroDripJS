@@ -5,7 +5,18 @@ import './helpers/loader.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-const { clampQuantity, cartSubtotal, cartTotals, FLAT_SHIPPING_FEE } = await import(
+const {
+  DEFAULT_MAX_QUANTITY_PER_VARIANT,
+  cartVariantKey,
+  clampQuantity,
+  configuredQuantityLimit,
+  mergeCartVariant,
+  quantityLimit,
+  quantityLimitMessage,
+  cartSubtotal,
+  cartTotals,
+  FLAT_SHIPPING_FEE,
+} = await import(
   '../../mobile/context/cartLogic.js'
 );
 
@@ -26,6 +37,44 @@ test('decrement stops at 1 instead of going negative or NaN', () => {
 test('increment is capped by a reported stock level', () => {
   assert.equal(clampQuantity(withStock, 1), 3);
   assert.equal(clampQuantity(withStock, 5), 3);
+});
+
+test('missing server metadata uses the backend-matching fallback of 5', () => {
+  assert.equal(DEFAULT_MAX_QUANTITY_PER_VARIANT, 5);
+  assert.equal(configuredQuantityLimit(noStock), 5);
+  assert.equal(clampQuantity({ ...noStock, quantity: 5 }, 1), 5);
+  assert.match(quantityLimitMessage(noStock), /up to 5/);
+});
+
+test('the server-owned maximum accepts max and clamps max plus one', () => {
+  const configured = { ...noStock, maxQuantity: 20, stock: 50 };
+  assert.equal(clampQuantity({ ...configured, quantity: 1 }, 0), 1);
+  assert.equal(clampQuantity({ ...configured, quantity: 19 }, 1), 20);
+  assert.equal(clampQuantity({ ...configured, quantity: 20 }, 1), 20);
+  assert.equal(clampQuantity({ ...configured, quantity: 21 }, 0), 20);
+});
+
+test('stock lowers the server-owned maximum', () => {
+  const scarce = { ...noStock, max_order_quantity: 20, stock: 3 };
+  assert.equal(quantityLimit(scarce), 3);
+  assert.equal(clampQuantity({ ...scarce, quantity: 3 }, 1), 3);
+  assert.match(quantityLimitMessage(scarce), /Only 3 items/);
+});
+
+test('canonical cart identity follows variant id rather than display labels', () => {
+  assert.equal(cartVariantKey({ id: 'Blue-M', variantId: 42 }), 'variant:42');
+  assert.equal(cartVariantKey({ id: 'Black-L', variant_id: '42' }), 'variant:42');
+  assert.equal(cartVariantKey({ id: 'legacy-row' }), 'item:legacy-row');
+});
+
+test('re-adding a variant increments the stored quantity while refreshing metadata', () => {
+  const merged = mergeCartVariant(
+    { id: 'legacy-label', variantId: 42, quantity: 3, stock: 10, maxQuantity: 5 },
+    { id: 'variant-42', variantId: 42, quantity: 1, stock: 8, maxQuantity: 5 },
+  );
+  assert.equal(merged.id, 'legacy-label');
+  assert.equal(merged.quantity, 4);
+  assert.equal(merged.stock, 8);
 });
 
 test('a corrupt stored quantity is repaired instead of propagating NaN', () => {

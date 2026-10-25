@@ -147,6 +147,38 @@ test('a numeric string quantity is accepted because JSON payloads carry strings'
   assert.deepEqual(buildOrderItems([{ ...cartItem, quantity: '3' }]), [{ variant_id: 42, quantity: 3 }]);
 });
 
+test('the default configured limit accepts 1 and 5 but rejects 6', () => {
+  assert.deepEqual(buildOrderItems([{ ...cartItem, quantity: 1 }]), [{ variant_id: 42, quantity: 1 }]);
+  assert.deepEqual(buildOrderItems([{ ...cartItem, quantity: 5 }]), [{ variant_id: 42, quantity: 5 }]);
+  assert.throws(() => buildOrderItems([{ ...cartItem, quantity: 6 }]), /per-order limit of 5/i);
+});
+
+test('a server-owned limit of 20 accepts 19 and 20 but rejects 21', () => {
+  const serverLimited = { ...cartItem, maxQuantity: 20, stock: 50 };
+  assert.deepEqual(buildOrderItems([{ ...serverLimited, quantity: 19 }]), [{ variant_id: 42, quantity: 19 }]);
+  assert.deepEqual(buildOrderItems([{ ...serverLimited, quantity: 20 }]), [{ variant_id: 42, quantity: 20 }]);
+  assert.throws(() => buildOrderItems([{ ...serverLimited, quantity: 21 }]), /per-order limit of 20/i);
+});
+
+test('duplicate display rows aggregate by canonical variant before enforcing the limit', () => {
+  const duplicate = { ...cartItem, id: 'different-display-key' };
+  assert.deepEqual(
+    buildOrderItems([{ ...cartItem, quantity: 2 }, { ...duplicate, quantity: 3 }]),
+    [{ variant_id: 42, quantity: 5 }],
+  );
+  assert.throws(
+    () => buildOrderItems([{ ...cartItem, quantity: 3 }, { ...duplicate, quantity: 3 }]),
+    /combined quantity from 6/i,
+  );
+});
+
+test('available stock can lower the configured business maximum', () => {
+  assert.throws(
+    () => buildOrderItems([{ ...cartItem, quantity: 4, maxQuantity: 20, stock: 3 }]),
+    /only has 3 available/i,
+  );
+});
+
 test('a zero, negative or fractional variant id is rejected', () => {
   for (const variantId of [0, -5, 2.7, '2.7', 'x', null, undefined, false, '']) {
     assert.throws(
@@ -184,6 +216,16 @@ test('the key ignores the display-only draft fields the saga never reads', () =>
 
 test('separate purchases of an identical cart do not replay a previous order', () => {
   assert.notEqual(buildOrderPayload({ ...draft }).idempotency_key, buildOrderPayload({ ...draft }).idempotency_key);
+});
+
+test('a reconstructed draft reuses the key for the same open checkout attempt', () => {
+  const first = buildOrderPayload({ ...draft, checkoutAttemptId: 'attempt-stable-1' });
+  const second = buildOrderPayload({ ...draft, checkoutAttemptId: 'attempt-stable-1' });
+  assert.equal(first.idempotency_key, second.idempotency_key);
+  assert.notEqual(
+    buildOrderPayload({ ...draft, checkoutAttemptId: 'attempt-stable-2' }).idempotency_key,
+    first.idempotency_key,
+  );
 });
 
 test('a changed quantity, item, or address produces a different key', () => {

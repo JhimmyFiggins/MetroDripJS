@@ -1,13 +1,21 @@
-import { StyleSheet, FlatList, TouchableOpacity, Text, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 
-export default function AdaptHeader({screenTitle}){
+export default function AdaptHeader({screenTitle, onBack, fallbackRoute = 'Shop'}){
     const navigation = useNavigation();
+    const handleBack = onBack || (() => {
+        if (navigation.canGoBack()) navigation.goBack();
+        else navigation.navigate(fallbackRoute);
+    });
     return(
         <View style={styles.header}>
-            <TouchableOpacity 
-            onPress={() => navigation.navigate('Shop')}
+            <TouchableOpacity
+            accessibilityLabel={`Go back from ${screenTitle}`}
+            accessibilityRole="button"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            onPress={handleBack}
+            style={styles.backTarget}
             >
                 <Text style={styles.backButton}> <Ionicons name="chevron-back" size={24} color="#111111" /> </Text>
             </TouchableOpacity>
@@ -29,13 +37,19 @@ const styles = StyleSheet.create({
         minHeight: 60,
         borderBottomWidth: 1,
     },  
+    backTarget: {
+        position: 'absolute',
+        left: 0,
+        minWidth: 44,
+        minHeight: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     backButton: {
         color: '#111111',
         fontSize: 30,
         alignSelf: 'center',
         fontWeight: '900',
-        right: 75,
-        
     },
     title: {
         color: '#111111',
@@ -43,6 +57,5 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         letterSpacing: -1,
         justifyContent: 'center',
-        marginRight: 30,
     },
 })

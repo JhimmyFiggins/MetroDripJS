@@ -911,6 +911,7 @@
       });
 
       const mediaFile = addProdMediaInput?.files?.[0];
+      let mediaUploadError = null;
       if (mediaFile && created?.id) {
         try {
           const mediaForm = new FormData();
@@ -925,12 +926,13 @@
             },
             body: mediaForm,
           });
-          if (uploadRes.ok) {
-            const mediaData = await uploadRes.json();
-            created.image_url = mediaData.url;
+          if (!uploadRes.ok) {
+            throw await responseError(uploadRes, 'The product was created, but its image was not uploaded.');
           }
+          const mediaData = await uploadRes.json();
+          created.image_url = mediaData.url;
         } catch (mediaErr) {
-          console.warn('Image upload deferred:', mediaErr);
+          mediaUploadError = mediaErr;
         }
       }
 
@@ -939,7 +941,15 @@
       renderProducts();
       closeAddProductModal();
       setPageState('ready');
-      showToast(`Published product "${created.name}" (SKU: ${created.sku}).`);
+      if (submit) submit.disabled = false;
+      if (mediaUploadError) {
+        showToast(
+          `Published product "${created.name}", but the image upload failed: ${mediaUploadError.message || 'Upload failed.'}`,
+          'error',
+        );
+      } else {
+        showToast(`Published product "${created.name}" (SKU: ${created.sku}).`);
+      }
     } catch (error) {
       if (submit) submit.disabled = false;
       showActionError('Product was not created', error);

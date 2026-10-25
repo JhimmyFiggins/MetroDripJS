@@ -1,10 +1,31 @@
 # Verification and Evaluation
 
-**Status:** ACADEMIC DEMO HOLD and PRODUCTION HOLD; 2026-10-19 audit found current client/browser failures and hosted integration blockers
+**Status:** ACADEMIC DEMO HOLD and PRODUCTION HOLD; 2026-10-25 local fixes pass, but hosted image recovery, PayMongo activation, and device APK checks remain open
 
 **Current authority:** [Comprehensive Repository Audit and Academic Demo Plan — 2026-10-19](Comprehensive%20Repository%20Audit%20and%20Academic%20Demo%20Plan%20-%202026-10-19.md), this matrix, and the dated prior QA reports retained below
 
 **Evidence rule:** An executed unit/mock/SQLite/static check is labeled separately from PostgreSQL, native-device, PayMongo, and Render evidence.
+
+## Seven-issue QA evidence — 2026-10-25
+
+Uncommitted worktree on `master` at `fe6d40e`. These are local/disposable results, not a deployed-SHA, PayMongo sandbox, or device proof.
+
+| Check | Result |
+|---|---|
+| `npm run test:client` | PASS after the order-history syntax fix. |
+| `npx tsc --noEmit` | PASS after closing the order-history confirmation expression. |
+| `python manage.py test` on temporary SQLite | PASS, 173 tests, 6 PostgreSQL-only skips. |
+| Same suite on disposable PostgreSQL 16 at `127.0.0.1:5433` | PASS, 173 tests, 0 skips. Container `metrodrip-qa-20261025` was removed after the run. |
+| `python manage.py check` and `makemigrations --check --dry-run` | PASS, no drift. |
+| `npm run test:browser` | PASS, 64 mocked layouts plus cancellation/state flows. |
+| `npm run test:customer` | PASS, 5 public-page contrast scans, only after Django was listening on `127.0.0.1:8000`. The first run failed with six proxy 502s because that backend was down. This is not checkout or cancellation coverage. |
+| `npm run test:merchant:catalog` | PASS, including one Axe WCAG 2.1 AA scan. |
+| Expo Doctor, dependency check, public config, all-platform export | PASS. Doctor 18/18. Export wrote Android, iOS, and web bundles under `/tmp/kilo/metrodrip-export-20261025`. Public API was `https://metrodripjs-q4ik.onrender.com`; Android cleartext was false. |
+| `npm run eas:config:android:preview` | PASS. Internal APK profile with the public HTTPS API variable. No APK was built or installed. |
+| `adb devices` | No connected device. Native Back, upgrade-in-place, and release image loading are UNVERIFIED. |
+| Read-only production probes | `/health/` returned ok. Capabilities were COD-only with `provider_ready: true` and an empty hosted allowlist. All 19 catalog image URLs returned HTTP 404. |
+| `npm audit --omit=dev` | 12 findings: 7 high, 5 moderate. No forced Expo downgrade was applied. |
+| Render schema validation | NOT RUN. `check-jsonschema` was not installed. |
 
 ## Banner and settings verification — 2026-10-24
 

@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework import serializers
 from .models import (
     CatalogProduct, 
@@ -60,6 +61,7 @@ class CategorySerializer(serializers.ModelSerializer):
 class ProductVariantSerializer(serializers.ModelSerializer):
     color_name = serializers.CharField(source='color.name', read_only=True)
     color_hex = serializers.CharField(source='color.hex_code', read_only=True)
+    max_order_quantity = serializers.SerializerMethodField()
 
     class Meta:
         model = CatalogProductVariant
@@ -71,13 +73,18 @@ class ProductVariantSerializer(serializers.ModelSerializer):
             'color_hex',
             'attributes',
             'price_adjustment',
+            'max_order_quantity',
             'is_active',
             'created_at',
             'updated_at',
         ]
 
+    def get_max_order_quantity(self, obj):
+        return settings.CHECKOUT_MAX_QUANTITY_PER_VARIANT
+
 class VariantStockSerializer(serializers.ModelSerializer):
     available_stock = serializers.SerializerMethodField()
+    max_order_quantity = serializers.SerializerMethodField()
 
     class Meta:
         model = InventoryStockEntry
@@ -88,7 +95,11 @@ class VariantStockSerializer(serializers.ModelSerializer):
             'quantity',
             'reserved_quantity',
             'available_stock',
+            'max_order_quantity',
         ]
 
     def get_available_stock(self, obj):
         return obj.quantity - obj.reserved_quantity
+
+    def get_max_order_quantity(self, obj):
+        return settings.CHECKOUT_MAX_QUANTITY_PER_VARIANT

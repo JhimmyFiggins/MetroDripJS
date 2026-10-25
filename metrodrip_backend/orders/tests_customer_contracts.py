@@ -13,7 +13,7 @@ from catalog.models import (
     InventoryStockEntry,
 )
 from fulfillment.models import ShippingShippingZone
-from identity.models import AccountsCustomer, CustomerAccessToken
+from identity.models import AccountsCustomer, CustomerAccessToken, PlatformSetting
 from orders.models import OrdersOrder
 from orders.paymongo import PayMongoError
 
@@ -54,11 +54,28 @@ class CustomerCapabilityContractTests(TestCase):
         PAYMONGO_ENABLED_METHODS='gcash',
     )
     def test_allowlist_enables_only_named_hosted_rail(self):
+        PlatformSetting.objects.update_or_create(
+            id=1,
+            defaults={'enabled_payment_methods': ['cod', 'gcash']},
+        )
         methods = {item['id']: item for item in self.client.get('/api/payments/capabilities/').json()['methods']}
 
         self.assertTrue(methods['gcash']['available'])
         self.assertFalse(methods['maya']['available'])
         self.assertIsNone(methods['gcash']['unavailable_code'])
+
+    @override_settings(
+        PAYMONGO_SECRET_KEY='sk_test_example',
+        PAYMONGO_WEBHOOK_SECRET='whsec_test_example',
+        PAYMONGO_MODE='test',
+        PAYMONGO_ENABLED_METHODS='gcash',
+    )
+    def test_provider_allowlist_does_not_bypass_merchant_opt_in(self):
+        methods = {item['id']: item for item in self.client.get('/api/payments/capabilities/').json()['methods']}
+
+        self.assertTrue(methods['cod']['available'])
+        self.assertFalse(methods['gcash']['available'])
+        self.assertEqual(methods['gcash']['unavailable_code'], 'merchant_disabled')
 
 
 class CustomerShippingZoneContractTests(TestCase):
@@ -179,6 +196,10 @@ class UnavailableOnlineCheckoutTests(TestCase):
 
     @override_settings(PAYMONGO_ENABLED_METHODS='gcash')
     def test_provider_client_construction_failure_does_not_return_500(self):
+        PlatformSetting.objects.update_or_create(
+            id=1,
+            defaults={'enabled_payment_methods': ['cod', 'gcash']},
+        )
         with patch(
             'orders.checkout.PayMongoClient',
             side_effect=PayMongoError('Offline', code='provider_not_configured', retryable=False),

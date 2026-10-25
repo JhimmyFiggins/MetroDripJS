@@ -6,7 +6,7 @@
 
 **Academic deployment profiles:** Render Free PostgreSQL for a scheduled disposable demo; proposed Neon Free alternative if availability must exceed Render's 30-day database lifetime
 
-**Updated:** 2026-10-19
+**Updated:** 2026-10-25
 
 **Release status:** ACADEMIC DEMO HOLD and PRODUCTION HOLD
 
@@ -84,6 +84,7 @@ Missing target entities are explicit: normalized roles/permissions, account-role
 | `orders/0007_payment_transition_and_line_snapshots.py` | Adds `product_name_snapshot`, `sku_snapshot`, and `variant_desc_snapshot` to `OrdersOrderLine`; creates `OrdersPaymentTransition` table with composite indexes | Additive; non-breaking; fully reversible. Protects historical order lines from catalog mutations. |
 | `fulfillment/0003_seed_shipping_zones.py` | Idempotently creates NCR, Luzon, and VisMin zones with integer fees | Reverse is a no-op so existing business zones are not deleted automatically. |
 | `fulfillment/0004_remove_seeded_demo_notifications.py` | Deletes only the five exact customer-1 demo notification tuples introduced by `0002`, matching category/title/body and null order reference | Reverse is a no-op so fabricated operational notifications are never reintroduced. Legitimate notifications with different fields are preserved. |
+| `identity/0010_alter_platformsetting_payment_method_default.py` | Changes the `enabled_payment_methods` default callable to COD-only for new rows | No data rewrite. Reverse restores the previous field default and does not reconstruct an old list. |
 
 ## 6. Implemented indexes and observed query paths
 

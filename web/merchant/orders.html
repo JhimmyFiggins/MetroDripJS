@@ -218,8 +218,9 @@
             <div style="display: flex; gap: 10px; margin-top: 4px; flex-wrap: wrap;">
               <button type="button" class="btn btn-primary" id="btn-mark-packed" disabled>Mark as packed</button>
               <a href="shipments.html" class="btn btn-secondary is-disabled" id="btn-create-shipment-link" aria-disabled="true" tabindex="-1">Create shipment</a>
-              <button type="button" class="btn btn-secondary" id="btn-cancel-order" disabled>Cancel order</button>
+              <button type="button" class="btn btn-secondary" id="btn-cancel-order" aria-describedby="cancel-order-hint" disabled>Cancel order</button>
             </div>
+            <p class="td-muted" id="cancel-order-hint" style="font-size: 11px;" aria-live="polite">Select an order to check cancellation eligibility.</p>
           </div>
         </section>
 
@@ -310,15 +311,15 @@
     </main>
   </div>
 
-  <!-- Privileged Staff Action Step-Up Modal -->
+  <!-- Order cancellation confirmation modal -->
   <div class="step-up-modal" id="step-up-modal" role="dialog" aria-modal="true" aria-labelledby="step-up-modal-title" hidden>
     <div class="step-up-modal-backdrop" id="step-up-modal-backdrop"></div>
     <div class="step-up-modal-card">
       <div class="step-up-modal-header">
         <div class="step-up-icon-badge" aria-hidden="true">⚠</div>
         <div>
-          <h2 class="step-up-modal-title" id="step-up-modal-title">Confirm Privileged Action</h2>
-          <p class="step-up-modal-sub" id="step-up-modal-sub">This action alters financial and inventory ledger state.</p>
+          <h2 class="step-up-modal-title" id="step-up-modal-title">Confirm order cancellation</h2>
+          <p class="step-up-modal-sub" id="step-up-modal-sub">This updates payment and inventory ledger state.</p>
         </div>
       </div>
       <div class="step-up-modal-body" id="step-up-modal-body">

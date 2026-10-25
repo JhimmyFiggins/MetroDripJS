@@ -18,6 +18,7 @@ const orders = await import('../../src/services/orderService.js');
 const { productService } = await import('../../src/services/productService.js');
 const wishlist = await import('../../src/services/wishlistService.js');
 const notifications = await import('../../src/services/notificationService.js');
+const productImages = await import('../../src/services/productImage.js');
 await import('../../src/services/bannerContent.js');
 
 let fetch;
@@ -102,6 +103,13 @@ test('createOrder forwards the caller body untouched so the builder stays in cha
   assert.deepEqual(sentBody(fetch.last), payload);
 });
 
+test('cancelOrder posts to the owner-scoped cancellation route without a client body', async () => {
+  await orders.cancelOrder(12);
+  assert.equal(pathOf(fetch.last), '/orders/12/cancel/');
+  assert.equal(methodOf(fetch.last), 'POST');
+  assert.equal(fetch.last.init.body, undefined);
+});
+
 test('payment capabilities use the public Django capability route without a token', async () => {
   await orders.getPaymentCapabilities();
   assert.equal(pathOf(fetch.last), '/api/payments/capabilities/');
@@ -117,14 +125,33 @@ test('payment capability mapping follows methods[].available and fails online ra
   const mapped = orders.mapPaymentCapabilities(options, {
     methods: [
       { id: 'cod', available: true, type: 'offline' },
-      { id: 'gcash', available: false, type: 'hosted' },
+      { id: 'gcash', available: false, type: 'hosted', unavailable_code: 'merchant_disabled', unavailable_reason: 'Disabled by the merchant' },
     ],
   });
 
   assert.equal(mapped.find((option) => option.id === 'cod').enabled, true);
   assert.equal(mapped.find((option) => option.id === 'gcash').enabled, false);
+  assert.equal(mapped.find((option) => option.id === 'gcash').unavailableCode, 'merchant_disabled');
+  assert.equal(mapped.find((option) => option.id === 'gcash').unavailable_code, 'merchant_disabled');
+  assert.equal(mapped.find((option) => option.id === 'gcash').unavailableReason, 'Disabled by the merchant');
+  assert.equal(mapped.find((option) => option.id === 'gcash').unavailable_reason, 'Disabled by the merchant');
   assert.equal(mapped.find((option) => option.id === 'maya').enabled, false);
   assert.equal(mapped.find((option) => option.id === 'gcash').requiresRedirect, true);
+});
+
+test('payment capability mapping explains server capability codes', () => {
+  const options = [{ id: 'gcash', title: 'GCash' }];
+  const mapped = orders.mapPaymentCapabilities(options, {
+    methods: [{ id: 'gcash', available: false, type: 'hosted', unavailable_code: 'method_not_enabled' }],
+  });
+  assert.match(mapped[0].unavailableReason, /not enabled for the PayMongo account/i);
+});
+
+test('product image service resolves API-relative media paths', () => {
+  assert.equal(
+    productImages.resolveProductImageUrl('/media/products/front.webp'),
+    `${BASE_URL}/media/products/front.webp`,
+  );
 });
 
 test('the client never puts customer_id in the checkout body; the token identifies the caller', async () => {
@@ -208,6 +235,7 @@ test('every authenticated service call carries the bearer token', async () => {
     () => orders.getOrders(),
     () => orders.getOrder(1),
     () => orders.getOrderTracking(1),
+    () => orders.cancelOrder(1),
     () => orders.createOrder({ items: [{ variant_id: 1, quantity: 1 }] }),
     () => auth.getProfile(),
     () => wishlist.getWishlist(),
@@ -255,7 +283,7 @@ test('every service module under src/services is covered by this file', async ()
   const covered = new Set([
     'apiClient.js', 'authService.js', 'orderService.js', 'productService.js',
     'wishlistService.js', 'notificationService.js', 'categoryService.js',
-    'bannerContent.js',
+    'bannerContent.js', 'productImage.js',
   ]);
   const missing = files.filter((f) => f.endsWith('.js') && !covered.has(f));
   assert.deepEqual(missing, [], `uncovered service modules: ${missing.join(', ')}`);

@@ -37,7 +37,10 @@ const apiState = {
   merchantGet: 'success',
   merchantDetail: 'success',
   merchantPatch: 'failure',
+  merchantCancelPatch: 'failure',
   merchantDelay: 0,
+  merchantDetailGets: new Map(),
+  lastMerchantPatch: null,
 };
 
 const adminUsers = [
@@ -46,8 +49,30 @@ const adminUsers = [
 ];
 
 const merchantOrders = [
-  { id: 318, order_no: 'MD-2026-00318', customer: 'Juan Dela Cruz', total: '₱2,632', pay: 'GCASH', payment_status: 'paid', status: 'Unfulfilled', raw_status: 'unfulfilled', created_at: '2026-09-19 15:42' },
+  { id: 318, order_no: 'MD-2026-00318', customer: 'Juan Dela Cruz', total: '₱2,632', pay: 'GCASH', payment_status: 'paid', status: 'Placed', raw_status: 'placed', can_cancel: false, cancel_unavailable_code: 'refund_required', cancel_unavailable_reason: 'Paid orders require the refund workflow before cancellation.', created_at: '2026-09-19 15:42' },
+  { id: 319, order_no: 'MD-2026-00319', customer: 'Maria Santos', total: '₱1,249', pay: 'GCASH', payment_status: 'awaiting_payment', status: 'Pending payment', raw_status: 'pending_payment', can_cancel: true, cancel_unavailable_code: null, cancel_unavailable_reason: null, created_at: '2026-09-20 10:15' },
 ];
+
+const merchantDetails = {
+  318: {
+    subtotal: 2547,
+    shipping: 85,
+    total: 2632,
+    payment_method: 'GCASH',
+    shipping_address: { name: 'Juan Dela Cruz', line1: 'QA address', city: 'Taguig', state: 'Metro Manila', postal_code: '1634' },
+    lines: [{ product_name: 'QA Hoodie', variant_desc: 'Black · M', quantity: 1, unit_price: 2547 }],
+    payment_transitions: [{ id: 1, from_status: 'awaiting_payment', to_status: 'paid', actor_type: 'system_webhook', reason: 'Verified payment', created_at: '2026-09-19T15:43:00Z' }],
+  },
+  319: {
+    subtotal: 1164,
+    shipping: 85,
+    total: 1249,
+    payment_method: 'GCASH',
+    shipping_address: { name: 'Maria Santos', line1: 'QA address 2', city: 'Makati', state: 'Metro Manila', postal_code: '1200' },
+    lines: [{ product_name: 'QA Tee', variant_desc: 'Blue · L', quantity: 1, unit_price: 1164 }],
+    payment_transitions: [{ id: 2, from_status: 'none', to_status: 'awaiting_payment', actor_type: 'customer', reason: 'Order checkout initiated', created_at: '2026-09-20T10:15:00Z' }],
+  },
+};
 
 async function installFocusedApiRoutes() {
   await context.unroute('**/*');
@@ -98,31 +123,75 @@ async function installFocusedApiRoutes() {
       });
     }
     if (/^\/api\/merchant\/orders\/\d+\/$/.test(url.pathname) && request.method() === 'GET') {
+      const orderId = Number(url.pathname.match(/orders\/(\d+)\//)?.[1]);
+      const summary = merchantOrders.find(order => order.id === orderId);
+      apiState.merchantDetailGets.set(orderId, (apiState.merchantDetailGets.get(orderId) || 0) + 1);
       return route.fulfill({
-        status: apiState.merchantDetail === 'success' ? 200 : 503,
+        status: apiState.merchantDetail === 'success' && summary ? 200 : 503,
         contentType: 'application/json',
         headers: corsHeaders,
-        body: JSON.stringify(apiState.merchantDetail === 'success' ? {
-          id: 318,
-          order_no: 'MD-2026-00318',
-          status: 'Unfulfilled',
-          raw_status: 'unfulfilled',
-          subtotal: 2547,
-          shipping: 85,
-          total: 2632,
-          payment_method: 'GCASH',
-          shipping_address: { name: 'Juan Dela Cruz', line1: 'QA address', city: 'Taguig', state: 'Metro Manila', postal_code: '1634' },
-          lines: [{ product_name: 'QA Hoodie', variant_desc: 'Black · M', quantity: 1, unit_price: 2547 }],
-        } : { error: 'QA simulated detail outage' }),
+        body: JSON.stringify(apiState.merchantDetail === 'success' && summary
+          ? { ...summary, ...merchantDetails[orderId] }
+          : { error: 'QA simulated detail outage' }),
       });
     }
     if (/^\/api\/merchant\/orders\/\d+\/$/.test(url.pathname) && request.method() === 'PATCH') {
+      const orderId = Number(url.pathname.match(/orders\/(\d+)\//)?.[1]);
+      const body = request.postDataJSON();
+      apiState.lastMerchantPatch = {
+        orderId,
+        body,
+        authorization: request.headers().authorization,
+      };
+      if (body.status === 'cancelled') {
+        if (apiState.merchantCancelPatch !== 'success') {
+          return route.fulfill({
+            status: 503,
+            contentType: 'application/json',
+            headers: corsHeaders,
+            body: JSON.stringify({ error: 'QA simulated provider rejection', code: 'provider_unavailable' }),
+          });
+        }
+        const order = merchantOrders.find(item => item.id === orderId);
+        Object.assign(order, {
+          payment_status: 'cancelled',
+          status: 'Cancelled',
+          raw_status: 'cancelled',
+          can_cancel: false,
+          cancel_unavailable_code: 'already_cancelled',
+          cancel_unavailable_reason: 'This order is already cancelled.',
+        });
+        merchantDetails[orderId].payment_transitions.unshift({
+          id: 3,
+          from_status: 'awaiting_payment',
+          to_status: 'cancelled',
+          actor_type: 'merchant',
+          reason: 'Order cancelled by store staff',
+          created_at: '2026-09-20T10:20:00Z',
+        });
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: corsHeaders,
+          body: JSON.stringify({ ...order, message: `Order ${order.order_no} is now cancelled.` }),
+        });
+      }
+      const order = merchantOrders.find(item => item.id === orderId);
+      if (apiState.merchantPatch === 'success') {
+        Object.assign(order, {
+          status: 'Packed',
+          raw_status: 'packed',
+          can_cancel: false,
+          cancel_unavailable_code: 'order_already_fulfilled',
+          cancel_unavailable_reason: 'Packed or dispatched orders cannot be cancelled here.',
+        });
+      }
       return route.fulfill({
         status: apiState.merchantPatch === 'success' ? 200 : 500,
         contentType: 'application/json',
         headers: corsHeaders,
         body: JSON.stringify(apiState.merchantPatch === 'success'
-          ? { id: 318, status: 'Packed', raw_status: 'packed' }
+          ? order
           : { error: 'QA simulated write failure' }),
       });
     }
@@ -251,6 +320,10 @@ try {
   await page.locator('#all-orders-tbody[aria-busy="true"] .skeleton-line').first().waitFor();
   await page.locator('tr[data-order-id="MD-2026-00318"]').waitFor();
   await page.getByText('QA Hoodie · Black · M', { exact: true }).waitFor();
+  if (!(await page.locator('#btn-cancel-order').isDisabled())) {
+    throw new Error('Paid merchant order exposed cancellation without the refund workflow');
+  }
+  await page.getByText('Paid orders require the refund workflow before cancellation.', { exact: true }).waitFor();
   apiState.merchantDelay = 0;
 
   await page.locator('#search-orders-input').fill('no-order-will-match');
@@ -268,12 +341,54 @@ try {
 
   await page.locator('#btn-mark-packed').click();
   await page.getByText('Order was not updated', { exact: true }).waitFor();
-  if (!(await page.locator('tr[data-order-id="MD-2026-00318"]').getByText('Unfulfilled', { exact: true }).isVisible())) {
+  if (!(await page.locator('tr[data-order-id="MD-2026-00318"]').getByText('Placed', { exact: true }).isVisible())) {
     throw new Error('Failed merchant write changed the rendered fulfillment state');
   }
   apiState.merchantPatch = 'success';
   await page.locator('#btn-mark-packed').click();
   await page.locator('tr[data-order-id="MD-2026-00318"]').getByText('Packed', { exact: true }).waitFor();
+
+  await page.locator('tr[data-order-id="MD-2026-00319"]').click();
+  await page.getByText('QA Tee · Blue · L', { exact: true }).waitFor();
+  if (await page.locator('#btn-cancel-order').isDisabled()) {
+    throw new Error('Eligible pending order did not expose cancellation');
+  }
+  const detailGetsBeforeCancel = apiState.merchantDetailGets.get(319);
+  await page.locator('#btn-cancel-order').click();
+  await page.locator('#btn-modal-confirm').click();
+  await page.getByText('Order was not cancelled', { exact: true }).waitFor();
+  await page.locator('#toast-container .toast').filter({ hasText: 'Order was not cancelled: QA simulated provider rejection' }).waitFor();
+  if (await page.locator('#step-up-modal').getAttribute('hidden') !== null) {
+    throw new Error('Failed cancellation unexpectedly closed the confirmation modal');
+  }
+  await page.waitForFunction(() => !document.querySelector('#btn-modal-confirm')?.disabled);
+  if (apiState.merchantDetailGets.get(319) !== detailGetsBeforeCancel) {
+    throw new Error('Failed cancellation refetched and replaced the verified detail state');
+  }
+  if (!(await page.locator('tr[data-order-id="MD-2026-00319"]').getByText('Pending payment', { exact: true }).isVisible())) {
+    throw new Error('Failed cancellation changed the rendered fulfillment state');
+  }
+
+  apiState.merchantCancelPatch = 'success';
+  await page.locator('#btn-modal-confirm').click();
+  await page.locator('tr[data-order-id="MD-2026-00319"]').getByText('Cancelled', { exact: true }).waitFor();
+  await page.locator('tr[data-order-id="MD-2026-00319"]').getByText('GCASH · cancelled', { exact: true }).waitFor();
+  await page.getByText('awaiting_payment → cancelled', { exact: true }).waitFor();
+  if (apiState.merchantDetailGets.get(319) <= detailGetsBeforeCancel) {
+    throw new Error('Successful cancellation did not invalidate and refetch cached order details');
+  }
+  if (JSON.stringify(apiState.lastMerchantPatch?.body) !== JSON.stringify({ status: 'cancelled' })) {
+    throw new Error('Merchant cancellation sent an unexpected request body');
+  }
+  if (apiState.lastMerchantPatch?.authorization !== 'Bearer qa-browser-fixture') {
+    throw new Error('Merchant cancellation omitted bearer authorization');
+  }
+  if (!(await page.locator('#btn-cancel-order').isDisabled())) {
+    throw new Error('Cancelled order left its cancellation control enabled');
+  }
+  if (await page.locator('#step-up-modal').getAttribute('hidden') === null) {
+    throw new Error('Successful cancellation did not close the confirmation modal');
+  }
   if (!(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))) {
     throw new Error('Merchant order workspace overflows at 320px');
   }
@@ -284,7 +399,7 @@ try {
   apiState.merchantGet = 'success';
   await page.locator('#btn-retry-orders').click();
   await page.locator('tr[data-order-id="MD-2026-00318"]').waitFor();
-  console.log('Browser console states: loading, default, empty, partial, failed-write, retry, fixture and narrow layouts passed');
+  console.log('Browser console states: loading, default, empty, partial, failed-write, cancellation/refetch, retry, fixture and narrow layouts passed');
 } catch (err) {
   console.error('Browser test failed:', err.message);
   process.exitCode = 1;

@@ -127,6 +127,9 @@
       paymentStatus,
       fulfillment,
       fulfillmentKey,
+      canCancel: raw.can_cancel === true,
+      cancelUnavailableCode: String(raw.cancel_unavailable_code || ''),
+      cancelUnavailableReason: String(raw.cancel_unavailable_reason || ''),
       placed: String(raw.placed || raw.created_at || 'Not reported'),
     };
   }
@@ -142,6 +145,10 @@
       shipping: money(raw.shipping ?? raw.shipping_fee),
       total: money(raw.total ?? raw.total_amount ?? summary.total),
       customer: String(address.name || raw.customer || summary.customer),
+      paymentStatus: String(raw.payment_status ?? summary.paymentStatus ?? '').toLowerCase(),
+      canCancel: raw.can_cancel === true,
+      cancelUnavailableCode: String(raw.cancel_unavailable_code || ''),
+      cancelUnavailableReason: String(raw.cancel_unavailable_reason || ''),
       address: addressParts.join(', ') || 'Delivery address not reported.',
       speed: String(raw.delivery_estimate || 'Delivery estimate not reported.'),
       items: lines.map(item => ({
@@ -297,13 +304,14 @@
     setDetailActions(false);
   }
 
-  function setDetailActions(enabled, packed = false, cancelled = false) {
+  function setDetailActions(enabled, fulfilled = false, cancelled = false, canCancel = false, cancelReason = '') {
     const packButton = document.getElementById('btn-mark-packed');
     const shipmentLink = document.getElementById('btn-create-shipment-link');
     const cancelButton = document.getElementById('btn-cancel-order');
+    const cancelHint = document.getElementById('cancel-order-hint');
     if (packButton) {
-      packButton.disabled = !enabled || packed || cancelled;
-      packButton.textContent = packed ? 'Already packed ✓' : 'Mark as packed';
+      packButton.disabled = !enabled || fulfilled || cancelled;
+      packButton.textContent = fulfilled ? 'Already packed ✓' : 'Mark as packed';
     }
     if (shipmentLink) {
       shipmentLink.classList.toggle('is-disabled', !enabled || cancelled);
@@ -311,8 +319,16 @@
       shipmentLink.tabIndex = (enabled && !cancelled) ? 0 : -1;
     }
     if (cancelButton) {
-      cancelButton.disabled = !enabled || packed || cancelled;
+      cancelButton.disabled = !enabled || !canCancel;
       cancelButton.textContent = cancelled ? 'Cancelled' : 'Cancel order';
+      cancelButton.title = canCancel ? 'Cancel this order' : cancelReason;
+    }
+    if (cancelHint) {
+      cancelHint.textContent = !enabled
+        ? 'Select an order to check cancellation eligibility.'
+        : (canCancel
+          ? 'Cancellation updates payment and inventory records together.'
+          : (cancelReason || 'This order cannot be cancelled from the merchant console.'));
     }
   }
 
@@ -396,8 +412,8 @@
     }
 
     const isCancelled = order.fulfillmentKey === 'cancelled';
-    const isPacked = ['packed', 'shipped', 'delivered'].includes(order.fulfillmentKey);
-    setDetailActions(true, isPacked, isCancelled);
+    const isFulfilled = ['packed', 'shipped', 'out_for_delivery', 'delivered'].includes(order.fulfillmentKey);
+    setDetailActions(true, isFulfilled, isCancelled, order.canCancel, order.cancelUnavailableReason);
   }
 
   async function selectOrder(id) {
@@ -538,12 +554,16 @@
   function openStepUpModal() {
     const summary = orders.find(order => order.id === selectedOrderId);
     if (!summary) return;
+    if (!summary.canCancel) {
+      showToast(summary.cancelUnavailableReason || 'This order cannot be cancelled.', 'error');
+      return;
+    }
     const modal = document.getElementById('step-up-modal');
     const body = document.getElementById('step-up-modal-body');
     const cancelBtn = document.getElementById('btn-modal-cancel');
     if (!modal || !body) return;
     modalActiveTrigger = document.activeElement;
-    body.innerHTML = `Are you sure you want to cancel Order <strong>${escapeHtml(summary.id)}</strong> (${escapeHtml(summary.customer)}) for <strong>${escapeHtml(summary.total)}</strong>? This action updates the fulfillment state to cancelled.`;
+    body.innerHTML = `Cancel Order <strong>${escapeHtml(summary.id)}</strong> (${escapeHtml(summary.customer)}) for <strong>${escapeHtml(summary.total)}</strong>? Its payment and inventory records will be updated together.`;
     modal.hidden = false;
     modal.classList.add('is-open');
     cancelBtn?.focus();
@@ -575,20 +595,18 @@
       });
       if (!response.ok) throw await responseError(response, `Cancel order returned HTTP ${response.status}.`);
       const result = await response.json();
-      summary.fulfillment = String(result.status || 'Cancelled');
-      summary.fulfillmentKey = String(result.raw_status || result.status || 'cancelled').toLowerCase();
-      const cached = detailCache.get(summary.id);
-      if (cached) {
-        cached.fulfillment = summary.fulfillment;
-        cached.fulfillmentKey = summary.fulfillmentKey;
-      }
+      const updated = normalizeOrder(result);
+      const orderIndex = orders.findIndex(order => order.id === summary.id);
+      if (orderIndex !== -1) orders[orderIndex] = updated;
+      detailCache.delete(summary.id);
       closeStepUpModal();
-      showToast(`Order ${summary.id} is now cancelled.`);
+      showToast(result.message || `Order ${summary.id} is now cancelled.`);
       setPageState('ready');
+      setSourceStatus('API CONNECTED', 'is-success');
       renderTable();
-      if (cached) renderDetail(cached);
-      else await selectOrder(summary.id);
+      await selectOrder(updated.id);
     } catch (error) {
+      setPageState('warning', 'Order was not cancelled', `${error.message} The displayed order state has not been changed.`, false);
       showToast(`Order was not cancelled: ${error.message}`, 'error');
     } finally {
       confirmBtn.disabled = false;

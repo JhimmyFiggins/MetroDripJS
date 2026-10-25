@@ -1,55 +1,32 @@
 import React, { createContext, useContext, useState } from 'react';
-import { clampQuantity } from './cartLogic';
+import { cartVariantKey, clampQuantity, mergeCartVariant, quantityLimit } from './cartLogic';
 
 const CartContext = createContext();
-
-const INITIAL_PRODUCTS = [
-  {
-    id: '1-Lime-Large-Regular',
-    productId: 1,
-    name: 'METRODRIP OVERSIZED HOODIE',
-    size: 'Large',
-    color: 'Lime',
-    fit: 'Regular',
-    price: 1899,
-    quantity: 1,
-    image: 'https://via.placeholder.com/300x350',
-  },
-  {
-    id: '2-White / Black-Medium-Regular',
-    productId: 2,
-    name: 'METRODRIP GRAPHIC TEE',
-    size: 'Medium',
-    color: 'White / Black',
-    fit: 'Regular',
-    price: 899,
-    quantity: 2,
-    image: 'https://via.placeholder.com/300x350',
-  },
-];
 
 export function CartProvider({ children }) {
   const [cart, setCart] = useState([]);
   
   const addToCart = (newItem) => {
     setCart((currentCart) => {
+      const newItemKey = cartVariantKey(newItem);
       const existingIndex = currentCart.findIndex(
-        (item) => item.id === newItem.id
+        (item) => newItemKey !== null && cartVariantKey(item) === newItemKey
       );
 
       if (existingIndex > -1) {
         const updatedCart = [...currentCart];
-        const existingItem = updatedCart[existingIndex];
-
-        updatedCart[existingIndex] = {
-          ...existingItem,
-          quantity: clampQuantity(existingItem, newItem.quantity || 1),
-        };
+        updatedCart[existingIndex] = mergeCartVariant(updatedCart[existingIndex], newItem);
 
         return updatedCart;
       }
 
-      return [newItem, ...currentCart];
+      const requested = Number(newItem?.quantity);
+      const safeRequested = Number.isSafeInteger(requested) && requested >= 1 ? requested : 1;
+      const limit = quantityLimit(newItem);
+      return [{
+        ...newItem,
+        quantity: limit > 0 ? Math.min(safeRequested, limit) : 1,
+      }, ...currentCart];
     });
   };
 

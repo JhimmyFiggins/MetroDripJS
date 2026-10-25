@@ -1,6 +1,6 @@
 import io
 from decimal import Decimal
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APIClient
@@ -149,6 +149,25 @@ class ProductsModernizationTests(TestCase):
             format='multipart',
         )
         self.assertIn(res.status_code, [401, 403])
+
+    @override_settings(MEDIA_STORAGE_DURABLE=False)
+    def test_production_like_ephemeral_storage_rejects_upload_without_side_effects(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.merchant_token}')
+        uploaded = SimpleUploadedFile(
+            'front.jpg',
+            self._make_dummy_image('jpeg'),
+            content_type='image/jpeg',
+        )
+
+        response = self.client.post(
+            f'/api/merchant/products/{self.product.id}/media/',
+            {'file': uploaded},
+            format='multipart',
+        )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.data['code'], 'durable_media_storage_required')
+        self.assertFalse(CatalogProductMedia.objects.filter(product=self.product).exists())
 
     def test_merchant_upload_valid_images_and_sync_primary(self):
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.merchant_token}')

@@ -739,11 +739,19 @@ class ConsolesAPITestCase(TestCase):
         anonymous = APIClient()
         self.assertEqual(anonymous.get('/api/admin/users/').status_code, 401)
         self.assertEqual(anonymous.get('/api/merchant/orders/').status_code, 401)
+        self.assertEqual(
+            anonymous.patch('/api/merchant/orders/318/', {'status': 'cancelled'}, format='json').status_code,
+            401,
+        )
 
         customer_client = APIClient()
         customer_client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.customer_token}')
         self.assertEqual(customer_client.get('/api/admin/users/').status_code, 403)
         self.assertEqual(customer_client.get('/api/merchant/orders/').status_code, 403)
+        self.assertEqual(
+            customer_client.patch('/api/merchant/orders/318/', {'status': 'cancelled'}, format='json').status_code,
+            403,
+        )
 
         merchant_client = APIClient()
         merchant_client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.merchant_token}')

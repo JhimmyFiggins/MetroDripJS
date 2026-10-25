@@ -36,6 +36,9 @@ const POSITIVE_PAYMENT = new Set(['paid', 'captured', 'completed', 'confirmed'])
 const FAILED_PAYMENT = new Set(['failed', 'setup_failed', 'cancelled', 'canceled', 'expired']);
 
 const normalizedStatus = (value) => String(value || '').trim().toLowerCase();
+const ONLINE_PAYMENT_METHODS = new Set(['gcash', 'maya', 'card']);
+const CANCELLABLE_ORDER_STATUSES = new Set(['pending_payment', 'payment_setup_failed']);
+const CANCELLABLE_PAYMENT_STATUSES = new Set(['awaiting_payment', 'setup_failed']);
 
 export function extractOrders(response) {
   if (Array.isArray(response)) return response;
@@ -50,6 +53,32 @@ export function orderItemCount(order) {
     const quantity = Number(item?.quantity);
     return Number.isSafeInteger(quantity) && quantity > 0 ? total + quantity : total;
   }, 0);
+}
+
+const CANCELLABLE_COD_ORDER_STATUSES = new Set(['placed', 'processing']);
+
+export function canCancelOnlineOrder(order) {
+  if (order?.id == null) return false;
+  const method = normalizedStatus(order?.payment_method);
+  const orderStatus = normalizedStatus(order?.status);
+  const paymentStatus = normalizedStatus(order?.payment_status);
+  if (method === 'cod' || method === 'cash_on_delivery') {
+    return CANCELLABLE_COD_ORDER_STATUSES.has(orderStatus) && paymentStatus === 'pending_collection';
+  }
+  return (
+    ONLINE_PAYMENT_METHODS.has(method) &&
+    CANCELLABLE_ORDER_STATUSES.has(orderStatus) &&
+    CANCELLABLE_PAYMENT_STATUSES.has(paymentStatus)
+  );
+}
+
+export function cancellationErrorMessage(error) {
+  const code = normalizedStatus(error?.data?.code);
+  if (code === 'already_paid') return 'Payment was already confirmed, so this order can no longer be cancelled here.';
+  if (code === 'provider_unavailable') return 'Cancellation could not be confirmed. The checkout remains pending; please try again.';
+  if (Number(error?.status) === 0) return 'The cancellation request did not finish. Refresh this order before trying again; it may already be cancelled.';
+  if (code === 'cancellation_state_conflict') return 'This order is no longer in a cancellable state. Refresh it before trying again.';
+  return String(error?.message || 'Cancellation did not complete. Refresh this order before trying again.').trim();
 }
 
 export function formatOrderNumber(order) {

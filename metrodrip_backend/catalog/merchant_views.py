@@ -4,6 +4,7 @@ import re
 import uuid
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlsplit
+from django.conf import settings
 from django.core.files.storage import default_storage
 from django.http import HttpResponse
 from django.utils import timezone
@@ -31,6 +32,8 @@ from orders.models import (
     OrdersPayment,
     ReviewsReview,
 )
+from orders.checkout import CheckoutError, cancel_order, order_cancellation_eligibility
+from orders.paymongo import PayMongoError
 from fulfillment.models import ShippingShipment, ShippingShippingZone
 from content.models import CmsHomepageBanner
 
@@ -71,6 +74,21 @@ def _detect_image_mime(file_obj):
         return 'image/webp'
 
     return None
+
+
+def _media_storage_error():
+    if getattr(settings, 'MEDIA_STORAGE_DURABLE', False):
+        return None
+    return Response(
+        {
+            'error': (
+                'Image uploads are unavailable until durable media storage is configured. '
+                'The product or banner was not changed.'
+            ),
+            'code': 'durable_media_storage_required',
+        },
+        status=status.HTTP_503_SERVICE_UNAVAILABLE,
+    )
 
 
 class MerchantDashboardAPIView(MerchantAPIView):
@@ -519,6 +537,10 @@ class MerchantProductMediaAPIView(MerchantAPIView):
         except CatalogProduct.DoesNotExist:
             return Response({'error': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
 
+        storage_error = _media_storage_error()
+        if storage_error:
+            return storage_error
+
         if product.media.count() >= 12:
             return Response({'error': 'Maximum of 12 images allowed per product.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -906,7 +928,7 @@ def _order_number(order):
 
 
 def _latest_payment(order):
-    return max(order.payments.all(), key=lambda payment: payment.created_at, default=None)
+    return max(order.payments.all(), key=lambda payment: (payment.created_at, payment.id), default=None)
 
 
 def _csv_cell(value):
@@ -916,6 +938,7 @@ def _csv_cell(value):
 
 def _merchant_order_summary(order):
     payment = _latest_payment(order)
+    cancellation = order_cancellation_eligibility(order, payment, policy='merchant')
     address = getattr(order, 'shipping_address', None)
     return {
         'id': order.id,
@@ -926,6 +949,9 @@ def _merchant_order_summary(order):
         'payment_status': payment.status if payment else None,
         'status': order.status.replace('_', ' ').title(),
         'raw_status': order.status.lower(),
+        'can_cancel': cancellation['can_cancel'],
+        'cancel_unavailable_code': None if cancellation['can_cancel'] else cancellation['code'],
+        'cancel_unavailable_reason': None if cancellation['can_cancel'] else cancellation['message'],
         'created_at': order.created_at.isoformat() if order.created_at else None,
     }
 
@@ -1003,6 +1029,32 @@ class MerchantOrdersAPIView(MerchantAPIView):
         if not new_status:
             return Response({'error': 'Status is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        if new_status == 'cancelled':
+            order = OrdersOrder.objects.filter(pk=pk).first()
+            if not order:
+                return Response({'error': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
+            try:
+                order, _payment = cancel_order(
+                    order,
+                    actor_type=request.user.role,
+                    actor_id=request.user.id,
+                    policy='merchant',
+                )
+            except CheckoutError as error:
+                return Response({'error': error.message, 'code': error.code}, status=error.status_code)
+            except PayMongoError:
+                return Response(
+                    {
+                        'error': 'Cancellation could not be confirmed with the payment provider. The order was not changed.',
+                        'code': 'provider_unavailable',
+                    },
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+
+            response = _merchant_order_summary(order)
+            response['message'] = f"Order {_order_number(order)} is now cancelled."
+            return Response(response)
+
         with transaction.atomic():
             order = OrdersOrder.objects.select_for_update().filter(pk=pk).first()
             if not order:
@@ -1021,13 +1073,9 @@ class MerchantOrdersAPIView(MerchantAPIView):
                 order.updated_at = timezone.now()
                 order.save(update_fields=['status', 'updated_at'])
 
-        return Response({
-            'id': order.id,
-            'order_no': _order_number(order),
-            'status': order.status.replace('_', ' ').title(),
-            'raw_status': order.status,
-            'message': f"Order {_order_number(order)} is now {order.status.replace('_', ' ')}.",
-        })
+        response = _merchant_order_summary(order)
+        response['message'] = f"Order {_order_number(order)} is now {order.status.replace('_', ' ')}."
+        return Response(response)
 
 
 class MerchantOrdersExportAPIView(MerchantAPIView):
@@ -1552,6 +1600,10 @@ class MerchantBannerDetailAPIView(MerchantAPIView):
 
 class MerchantBannerUploadAPIView(MerchantAPIView):
     def post(self, request):
+        storage_error = _media_storage_error()
+        if storage_error:
+            return storage_error
+
         file = request.FILES.get('file') or request.FILES.get('image')
         if not file:
             return Response({'error': 'An image file is required.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -1619,8 +1671,10 @@ class MerchantOrderSettingsAPIView(MerchantAPIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            cleaned = []
-            seen = set()
+            # COD is the always-available baseline. Merchants may opt into
+            # verified hosted rails, but cannot accidentally remove COD.
+            cleaned = ['cod']
+            seen = {'cod'}
             hosted_enabled = set(enabled_hosted_methods())
             pm_ready = provider_configured()
 
@@ -1668,4 +1722,3 @@ class MerchantOrderSettingsAPIView(MerchantAPIView):
                 pass
 
         return self.get(request)
-

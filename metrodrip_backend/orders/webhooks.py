@@ -90,7 +90,7 @@ def _recover_unbound_payment(resource, provider_ref):
         return None
 
     payment = (
-        OrdersPayment.objects.select_for_update()
+        OrdersPayment.objects.select_for_update(of=('self',))
         .select_related('order')
         .filter(
             order_id=int(order_id),
@@ -172,7 +172,7 @@ def process_paymongo_webhook(raw_body):
             inbox.save(update_fields=['status', 'error_code', 'processed_at'])
             return 'rejected'
 
-        payment = OrdersPayment.objects.select_for_update().select_related('order').filter(
+        payment = OrdersPayment.objects.select_for_update(of=('self',)).select_related('order').filter(
             provider='paymongo',
             provider_ref=provider_ref,
         ).first()

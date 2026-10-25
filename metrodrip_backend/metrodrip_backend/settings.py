@@ -225,9 +225,21 @@ STATIC_URL = '/static/'
 STATIC_ROOT = Path(os.environ.get('DJANGO_STATIC_ROOT', BASE_DIR / 'staticfiles'))
 MEDIA_URL = '/media/'
 MEDIA_ROOT = Path(os.environ.get('DJANGO_MEDIA_ROOT', BASE_DIR / 'media'))
+MEDIA_STORAGE_BACKEND = os.environ.get(
+    'DJANGO_MEDIA_STORAGE_BACKEND',
+    'django.core.files.storage.FileSystemStorage',
+).strip() or 'django.core.files.storage.FileSystemStorage'
+# Local filesystem media is suitable for development only. A production
+# operator must configure a durable storage backend before uploads are accepted;
+# otherwise a deploy/restart can leave permanent database URLs pointing at
+# missing files.
+MEDIA_STORAGE_DURABLE = env_bool(
+    'DJANGO_MEDIA_STORAGE_DURABLE',
+    DEBUG and not IS_RENDER,
+)
 STORAGES = {
     'default': {
-        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+        'BACKEND': MEDIA_STORAGE_BACKEND,
     },
     'staticfiles': {
         'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
