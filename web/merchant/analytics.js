@@ -77,7 +77,9 @@
     const elSessionRate = document.getElementById('kpi-session-rate');
     const elSessionGrowth = document.getElementById('kpi-session-growth');
     if (elSessionRate && kpis.purchase_session_rate) {
-      elSessionRate.textContent = kpis.purchase_session_rate.value;
+      elSessionRate.textContent = kpis.purchase_session_rate.available === false
+        ? 'Not instrumented'
+        : kpis.purchase_session_rate.value;
       const isUp = kpis.purchase_session_rate.growth_direction === 'up';
       elSessionGrowth.className = `stat-subtext growth-indicator ${isUp ? 'up' : 'down'}`;
       elSessionGrowth.innerHTML = `<span aria-hidden="true">${isUp ? '↑' : '↓'}</span> ${escapeHtml(kpis.purchase_session_rate.growth.replace('+', ''))} vs prior period`;
@@ -169,7 +171,7 @@
         <div class="trending-item">
           <div class="trending-info">
             <span class="trending-name">${escapeHtml(item.name)}</span>
-            <span class="trending-sub">${Number(item.prior_units)} → ${Number(item.current_units)} net units</span>
+            <span class="trending-sub">${Number(item.net_units || item.current_units || 0)} net units</span>
           </div>
           <span class="growth-indicator ${isUp ? 'up' : 'down'}" style="font-size: 13px;">
             <span aria-hidden="true">${isUp ? '↑' : '↓'}</span> ${escapeHtml(formattedGrowth)}
@@ -182,7 +184,11 @@
   // --- Render User Interactions Funnel ---
   function renderUserInteractions(interactions) {
     const container = document.getElementById('interaction-list-container');
-    if (!container || !interactions || !Array.isArray(interactions.funnel)) return;
+    if (!container) return;
+    if (!interactions || interactions.available === false || !Array.isArray(interactions.funnel)) {
+      container.textContent = interactions?.message || 'Interaction events are not recorded.';
+      return;
+    }
 
     container.innerHTML = interactions.funnel.map(row => `
       <div class="interaction-row">
@@ -196,6 +202,24 @@
   }
 
   // --- Setup Interactive Chart Hover Tooltip ---
+  function renderSalesSeries(series) {
+    const container = document.getElementById('sales-chart-container');
+    const summary = document.getElementById('chart-footer-summary');
+    if (!container) return;
+    const rows = Array.isArray(series) ? series : [];
+    container.replaceChildren();
+    const list = document.createElement('ol');
+    list.style.margin = '0';
+    list.style.padding = '16px 20px 16px 36px';
+    rows.forEach((point) => {
+      const item = document.createElement('li');
+      item.textContent = `${point.date}: ₱${point.net_sales}`;
+      list.append(item);
+    });
+    container.append(list);
+    if (summary) summary.textContent = rows.length ? 'Daily net sales from non-cancelled orders, Asia/Manila.' : 'No observed sales in this range.';
+  }
+
   function setupChartTooltips() {
     const container = document.getElementById('sales-chart-container');
     if (!container) return;
@@ -235,7 +259,8 @@
   async function fetchAnalytics(category = 'all') {
     activeCategory = category;
     try {
-      const response = await fetch(`${API_BASE}/analytics/?category=${encodeURIComponent(category)}`, {
+      const range = document.getElementById('select-date-range')?.value || 'last7';
+      const response = await fetch(`${API_BASE}/analytics/?category=${encodeURIComponent(category)}&range=${encodeURIComponent(range)}`, {
         headers: requestHeaders(),
       });
       if (!response.ok) {
@@ -274,6 +299,7 @@
     renderSalesReport(data.product_sales_report, data.totals);
     renderTrendingProducts(data.trending_products);
     renderUserInteractions(data.user_interactions);
+    renderSalesSeries(data.sales_series);
     setupChartTooltips();
   }
 
@@ -359,8 +385,9 @@
     // Date Range Selector
     const selectDateRange = document.getElementById('select-date-range');
     if (selectDateRange) {
-      selectDateRange.addEventListener('change', (e) => {
+      selectDateRange.addEventListener('change', () => {
         const selectedText = selectDateRange.options[selectDateRange.selectedIndex].text.replace(' ▾', '');
+        fetchAnalytics(activeCategory);
         showToast(`Date range updated to ${selectedText}`);
       });
     }

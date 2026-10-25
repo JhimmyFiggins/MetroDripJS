@@ -226,12 +226,18 @@ function productCard(product) {
   const categoryName = getCategoryName(product);
   const initial = categoryName.charAt(0);
 
+  const fallback = el('div', { class: 'artwork-fallback' }, [
+    el('span', { class: 'artwork-initial' }, initial),
+    el('span', { class: 'artwork-sub' }, categoryName),
+  ]);
   const artwork = image
-    ? el('img', { src: image, alt: product.name || '', loading: 'lazy' })
-    : el('div', { class: 'artwork-fallback' }, [
-        el('span', { class: 'artwork-initial' }, initial),
-        el('span', { class: 'artwork-sub' }, categoryName),
-      ]);
+    ? el('img', {
+      src: image,
+      alt: product.name || '',
+      loading: 'lazy',
+      onerror: (event) => event.currentTarget.replaceWith(fallback),
+    })
+    : fallback;
 
   return el('a', { class: 'product-card', href: customerHref(`/products/${product.id}`) }, [
     el('div', { class: 'product-card-media-wrap' }, artwork),

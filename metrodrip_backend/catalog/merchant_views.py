@@ -1101,20 +1101,115 @@ class MerchantOrdersExportAPIView(MerchantAPIView):
         return response
 
 
+def _growth(current, previous):
+    current = Decimal(current or 0)
+    previous = Decimal(previous or 0)
+    if previous == 0:
+        return ('0.0%' if current == 0 else 'n/a', 'flat')
+    delta = ((current - previous) / previous) * Decimal('100')
+    direction = 'up' if delta > 0 else 'down' if delta < 0 else 'flat'
+    return (f'{delta:+.1f}%', direction)
+
+
+def _merchant_sales_analytics(request):
+    from datetime import timedelta
+    from zoneinfo import ZoneInfo
+
+    manila = ZoneInfo('Asia/Manila')
+    now = timezone.now().astimezone(manila)
+    range_key = str(request.query_params.get('range') or 'last7')
+    days = 30 if range_key == 'last30' else 7
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    end = today + timedelta(days=1)
+    start = end - timedelta(days=days)
+    if range_key == 'previous7':
+        end = start
+        start = end - timedelta(days=7)
+    previous_start = start - (end - start)
+    category = str(request.query_params.get('category') or 'all').strip().lower()
+    excluded = {'cancelled', 'payment_expired'}
+
+    def window(start_at, end_at):
+        orders = OrdersOrder.objects.filter(
+            created_at__gte=start_at,
+            created_at__lt=end_at,
+        ).exclude(status__in=excluded)
+        lines = OrdersOrderLine.objects.filter(order__in=orders).select_related('product', 'product__category')
+        if category != 'all':
+            lines = lines.filter(product__category__slug__iexact=category)
+            orders = orders.filter(id__in=lines.values('order_id'))
+        sales = orders.aggregate(total=Sum('total'))['total'] or Decimal('0.00')
+        units = lines.aggregate(total=Sum('quantity'))['total'] or 0
+        return orders, lines, sales, orders.count(), int(units)
+
+    _, lines, sales, order_count, units = window(start, end)
+    _, previous_lines, previous_sales, previous_orders, previous_units = window(previous_start, start)
+    sales_growth, sales_direction = _growth(sales, previous_sales)
+    orders_growth, orders_direction = _growth(order_count, previous_orders)
+    units_growth, units_direction = _growth(units, previous_units)
+    by_product = {}
+    for line in lines:
+        product = line.product
+        row = by_product.setdefault(product.id, {
+            'name': product.name,
+            'net_units': 0,
+            'net_sales': Decimal('0.00'),
+        })
+        row['net_units'] += line.quantity
+        row['net_sales'] += line.total_price
+    report = []
+    for row in sorted(by_product.values(), key=lambda item: item['net_sales'], reverse=True):
+        report.append({
+            'name': row['name'],
+            'net_units': row['net_units'],
+            'net_sales': f'{row["net_sales"]:.2f}',
+            'views': None,
+            'added_to_cart': None,
+            'growth': 'n/a',
+        })
+    series = []
+    day = start
+    while day < end:
+        day_end = day + timedelta(days=1)
+        day_total = OrdersOrder.objects.filter(
+            created_at__gte=day,
+            created_at__lt=day_end,
+        ).exclude(status__in=excluded).aggregate(total=Sum('total'))['total'] or Decimal('0.00')
+        series.append({'date': day.date().isoformat(), 'net_sales': f'{day_total:.2f}'})
+        day = day_end
+    return {
+        'source': 'orders',
+        'timezone': 'Asia/Manila',
+        'range': range_key,
+        'currency': 'PHP',
+        'missing_sources': ['sessions', 'product_views', 'cart_events'],
+        'kpis': {
+            'net_sales': {'formatted': f'₱{sales:,.2f}', 'growth': sales_growth, 'growth_direction': sales_direction, 'available': True},
+            'orders': {'value': order_count, 'growth': orders_growth, 'growth_direction': orders_direction, 'available': True},
+            'net_units_sold': {'value': units, 'growth': units_growth, 'growth_direction': units_direction, 'available': True},
+            'purchase_session_rate': {'value': 'Not instrumented', 'growth': 'Unavailable', 'growth_direction': 'flat', 'available': False},
+        },
+        'sales_series': series,
+        'best_sellers': report[:5],
+        'product_sales_report': report,
+        'totals': {
+            'net_units': units,
+            'net_sales': f'{sales:.2f}',
+            'views': None,
+            'added_to_cart': None,
+            'growth': units_growth,
+        },
+        'trending_products': report[:5],
+        'user_interactions': {
+            'available': False,
+            'message': 'Product views, cart events, and sessions are not recorded.',
+        },
+    }
+
+
 class MerchantAnalyticsAPIView(MerchantAPIView):
     def get(self, request):
-        # Order revenue can be queried, but views, sessions, carts, attribution,
-        # and comparison cohorts are not modeled. Returning the old design
-        # fixture would present invented business metrics as production facts.
-        return Response(
-            {
-                'error': 'Analytics instrumentation is not configured. No sample metrics were returned.',
-                'code': 'analytics_unconfigured',
-                'available_sources': ['orders', 'order_lines', 'payments'],
-                'missing_sources': ['sessions', 'product_views', 'cart_events', 'attribution'],
-            },
-            status=status.HTTP_501_NOT_IMPLEMENTED,
-        )
+        return Response(_merchant_sales_analytics(request))
 
 class MerchantShipmentsAPIView(MerchantAPIView):
     def get(self, request):

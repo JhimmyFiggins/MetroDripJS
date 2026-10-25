@@ -74,6 +74,7 @@ export async function api(path, { method = 'GET', body, auth = true, authSnapsho
       mode: 'same-origin',
       credentials: 'omit',
       redirect: 'error',
+      cache: method === 'GET' ? 'no-store' : 'default',
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
     });

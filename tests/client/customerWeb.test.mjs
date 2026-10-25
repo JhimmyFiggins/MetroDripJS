@@ -20,6 +20,23 @@ import {
   variantLabel,
 } from '../../web/customer/contracts.js';
 
+test('a published homepage hero replaces the default campaign', () => {
+  const banners = normalizeBannerList([{
+    id: 2,
+    title: 'Cyber Monday',
+    headline: 'Cyber Monday Sale',
+    subtext: "Don't miss this out!",
+    button_label: 'Shop Now',
+    placement: 'homepage_hero',
+    link_url: '/shop',
+    order: 1,
+    artwork_mode: 'graphic',
+  }]);
+  const hero = bannersForPlacement(banners, 'homepage_hero')[0];
+  assert.equal(hero.headline, 'Cyber Monday Sale');
+  assert.notEqual(hero.headline, 'Urban Style Redefined');
+});
+
 test('a pending OTP challenge is not treated as a missing customer token', () => {
   assert.equal(pendingOtpChallenge({ otp_required: true, challenge_id: 'abc', purpose: 'login_2fa', code_length: 6 }).challengeId, 'abc');
   assert.equal(pendingOtpChallenge({ access_token: 'token' }), null);

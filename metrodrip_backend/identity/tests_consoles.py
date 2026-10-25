@@ -656,11 +656,14 @@ class ConsolesAPITestCase(TestCase):
         }, format='json')
         self.assertEqual(invalid_boolean.status_code, 400)
 
-    def test_merchant_analytics_fails_closed_without_instrumentation(self):
-        res = self.client.get('/api/merchant/analytics/')
-        self.assertEqual(res.status_code, 501)
-        self.assertEqual(res.data['code'], 'analytics_unconfigured')
-        self.assertNotIn('kpis', res.data)
+    def test_merchant_analytics_uses_orders_and_marks_missing_events(self):
+        res = self.client.get('/api/merchant/analytics/?range=last7')
+        self.assertEqual(res.status_code, 200)
+        self.assertIsInstance(res.data['kpis']['orders']['value'], int)
+        self.assertTrue(res.data['kpis']['net_sales']['formatted'].startswith('₱'))
+        self.assertFalse(res.data['kpis']['purchase_session_rate']['available'])
+        self.assertIn('sessions', res.data['missing_sources'])
+        self.assertEqual(len(res.data['sales_series']), 7)
 
     def test_merchant_banners_crud_and_negative(self):
         # Missing title
