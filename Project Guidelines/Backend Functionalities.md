@@ -6,7 +6,7 @@
 
 **Payment scope:** COD plus PayMongo Hosted Checkout for GCash, Maya, and cards. Hosted rails are offered only when explicitly allowlisted and provider configuration is present.
 
-**Updated:** 2026-10-25
+**Updated:** 2026-10-25 (email OTP)
 
 **Release status:** ACADEMIC DEMO HOLD and PRODUCTION HOLD
 

@@ -78,11 +78,19 @@ export default function SignupScreen({ navigation }) {
     setLoading(true);
 
     try {
-      await signup({
+      const created = await signup({
         name: name.trim(),
         email: email.trim(),
         password: password,
       });
+      if (created?.otp_required) {
+        navigation.navigate('Otp', {
+          challengeId: created.challenge_id,
+          purpose: created.purpose,
+          maskedEmail: created.masked_email,
+        });
+        return;
+      }
 
       Alert.alert(
         'Welcome to MetroDrip',

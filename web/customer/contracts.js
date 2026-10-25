@@ -224,6 +224,7 @@ export function parseCustomerPath(pathname) {
   if (head === 'support' && parts.length === 1) return { name: 'support' };
   if (head === 'team' && parts.length === 1) return { name: 'team' };
   if (head === 'sign-in' && parts.length === 1) return { name: 'sign-in' };
+  if (head === 'verify-otp' && parts.length === 1) return { name: 'verify-otp' };
   if (head === 'sign-up' && parts.length === 1) return { name: 'sign-up' };
   if (head === 'forgot-password' && parts.length === 1) return { name: 'forgot-password' };
   if (head === 'reset-password' && parts.length === 1) return { name: 'reset-password' };

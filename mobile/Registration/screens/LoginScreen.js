@@ -65,6 +65,14 @@ export default function LoginScreen({ navigation }) {
 
     try {
       const data = await loginCustomer(email.trim(), password);
+      if (data?.otp_required) {
+        navigation.navigate('Otp', {
+          challengeId: data.challenge_id,
+          purpose: data.purpose,
+          maskedEmail: data.masked_email,
+        });
+        return;
+      }
       login(data);
       navigation.navigate('Home');
     } catch (error) {

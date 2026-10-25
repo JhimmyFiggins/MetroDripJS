@@ -37,6 +37,7 @@ BACKEND_PATH_PREFIXES = (
     '/forgot-password/',
     '/password-reset/',
     '/payment/',
+    '/auth/',
 )
 BACKEND_PATHS = {'/login/', '/logout/'}
 CUSTOMER_STATIC_SUFFIXES = {'.css', '.html', '.ico', '.js', '.png', '.svg'}

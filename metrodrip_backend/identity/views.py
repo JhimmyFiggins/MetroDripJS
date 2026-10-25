@@ -7,6 +7,7 @@ from .models import (
     AccountsCustomer,
     AuditLog,
     CustomerAccessToken,
+    EmailOtpChallenge,
     PasswordResetToken,
     PlatformSetting,
 )
@@ -22,6 +23,7 @@ from .policy import (
     session_timeout,
 )
 from rest_framework.permissions import IsAuthenticated
+from .otp import issue_challenge, login_requires_otp, otp_enforced, resend_challenge, verify_challenge
 from .throttling import DatabaseScopedRateThrottle
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
@@ -558,27 +560,107 @@ class LoginAPIView(APIView):
         # matched, so existing accounts migrate without a disruptive reset.
         if not customer.password.startswith(('pbkdf2_', 'argon2$', 'bcrypt$', 'scrypt$')):
             customer.set_password(password)
-            customer.last_login = timezone.now()
-            customer.save(update_fields=['password', 'last_login'])
-        else:
-            customer.last_login = timezone.now()
-            customer.save(update_fields=['last_login'])
+            customer.save(update_fields=['password'])
 
-        token, raw_token = CustomerAccessToken.issue(customer, lifetime=session_timeout())
-        return Response({
-            'id': customer.id,
-            'name': customer.name,
-            'email': customer.email,
-            'phone': customer.phone,
-            'addresses': customer.addresses,
-            'access_token': raw_token,
-            'token': raw_token,
-            'token_type': 'Bearer',
-            'expires_at': token.expires_at.isoformat(),
-            'role': customer.role,
-            'is_staff': customer.is_staff,
-            'password_change_required': customer.password_change_required,
-        })
+        if login_requires_otp(customer):
+            purpose = (
+                EmailOtpChallenge.PURPOSE_EMAIL_VERIFICATION
+                if customer.role == 'customer' and not customer.is_staff and customer.email_verified_at is None
+                else EmailOtpChallenge.PURPOSE_LOGIN_2FA
+            )
+            challenge, delivery = issue_challenge(customer, purpose)
+            if challenge is None:
+                return Response(
+                    {
+                        'error': 'The verification email could not be sent. No session was created.',
+                        'code': delivery.get('code') or 'email_delivery_failed',
+                    },
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+            return Response(challenge, status=status.HTTP_200_OK)
+
+        return Response(_issue_session(customer))
+
+def _issue_session(customer):
+    customer.last_login = timezone.now()
+    customer.save(update_fields=['last_login'])
+    token, raw_token = CustomerAccessToken.issue(customer, lifetime=session_timeout())
+    return {
+        'id': customer.id,
+        'name': customer.name,
+        'email': customer.email,
+        'phone': customer.phone,
+        'addresses': customer.addresses,
+        'access_token': raw_token,
+        'token': raw_token,
+        'token_type': 'Bearer',
+        'expires_at': token.expires_at.isoformat(),
+        'role': customer.role,
+        'is_staff': customer.is_staff,
+        'password_change_required': customer.password_change_required,
+    }
+
+
+class OtpVerifyAPIView(APIView):
+    renderer_classes = [JSONRenderer]
+    throttle_classes = [DatabaseScopedRateThrottle]
+    throttle_scope = 'otp_verify'
+
+    def post(self, request):
+        result = verify_challenge(request.data.get('challenge_id'), request.data.get('code'))
+        if not result.get('ok'):
+            messages = {
+                'otp_expired': 'That code has expired. Request a new one.',
+                'otp_locked': 'Too many incorrect codes. Request a new one.',
+            }
+            return Response(
+                {
+                    'error': messages.get(result.get('code'), 'That code is not valid.'),
+                    'code': result.get('code') or 'invalid_otp',
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if result['purpose'] == EmailOtpChallenge.PURPOSE_EMAIL_VERIFICATION:
+            return Response({
+                'verified': True,
+                'purpose': result['purpose'],
+                'message': 'Email confirmed. Sign in to continue.',
+            })
+        return Response(_issue_session(result['customer']))
+
+
+class OtpResendAPIView(APIView):
+    renderer_classes = [JSONRenderer]
+    throttle_classes = [DatabaseScopedRateThrottle]
+    throttle_scope = 'otp_resend'
+
+    def post(self, request):
+        challenge, delivery = resend_challenge(request.data.get('challenge_id'))
+        if challenge is None:
+            code = delivery.get('code')
+            if code == 'resend_cooldown':
+                return Response(
+                    {
+                        'error': 'Wait before requesting another code.',
+                        'code': code,
+                        'retry_after': delivery.get('retry_after'),
+                    },
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                )
+            if code == 'invalid_challenge':
+                return Response(
+                    {'error': 'Request a new code from the sign-in or registration form.', 'code': code},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            return Response(
+                {
+                    'error': 'The verification email could not be sent.',
+                    'code': code or 'email_delivery_failed',
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        return Response(challenge)
+
 
 class CheckCustomerAPIView(APIView):
     renderer_classes = [JSONRenderer]
@@ -620,7 +702,19 @@ class SignupAPIView(APIView):
                 status=400
             )
 
-        if AccountsCustomer.objects.filter(email__iexact=email).exists():
+        existing = AccountsCustomer.objects.filter(email__iexact=email).first()
+        if existing:
+            if otp_enforced() and existing.role == 'customer' and existing.email_verified_at is None:
+                challenge, delivery = issue_challenge(existing, EmailOtpChallenge.PURPOSE_EMAIL_VERIFICATION)
+                if challenge is None:
+                    return Response(
+                        {
+                            'error': 'The verification email could not be sent.',
+                            'code': delivery.get('code') or 'email_delivery_failed',
+                        },
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    )
+                return Response(challenge, status=status.HTTP_202_ACCEPTED)
             return Response(
                 {'error': 'An account with this email already exists.'},
                 status=400
@@ -643,6 +737,8 @@ class SignupAPIView(APIView):
             return Response({'password': list(error.messages)}, status=400)
 
         customer.set_password(password)
+        if not otp_enforced():
+            customer.email_verified_at = timezone.now()
         try:
             with transaction.atomic():
                 customer.save()
@@ -651,6 +747,18 @@ class SignupAPIView(APIView):
                 {'error': 'An account with this email already exists.'},
                 status=400,
             )
+
+        if otp_enforced():
+            challenge, delivery = issue_challenge(customer, EmailOtpChallenge.PURPOSE_EMAIL_VERIFICATION)
+            if challenge is None:
+                return Response(
+                    {
+                        'error': 'The account was not activated because the verification email could not be sent.',
+                        'code': delivery.get('code') or 'email_delivery_failed',
+                    },
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+            return Response(challenge, status=status.HTTP_202_ACCEPTED)
 
         return Response({
             'id': customer.id,

@@ -22,6 +22,7 @@ class AccountsCustomer(models.Model):
     role = models.CharField(max_length=16, db_index=True)
     date_joined = models.DateTimeField()
     password_change_required = models.BooleanField(default=False)
+    email_verified_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'accounts_customer'
@@ -140,6 +141,38 @@ class PasswordResetToken(models.Model):
             created_by=created_by,
         )
         return token, raw_token
+
+
+class EmailOtpChallenge(models.Model):
+    PURPOSE_EMAIL_VERIFICATION = 'email_verification'
+    PURPOSE_LOGIN_2FA = 'login_2fa'
+    PURPOSES = (
+        (PURPOSE_EMAIL_VERIFICATION, 'Email verification'),
+        (PURPOSE_LOGIN_2FA, 'Login two-factor authentication'),
+    )
+
+    id = models.BigAutoField(primary_key=True)
+    customer = models.ForeignKey(
+        AccountsCustomer,
+        on_delete=models.CASCADE,
+        related_name='email_otp_challenges',
+    )
+    purpose = models.CharField(max_length=32)
+    challenge_digest = models.CharField(max_length=64, unique=True)
+    code_digest = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(db_index=True)
+    sent_at = models.DateTimeField()
+    consumed_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    failed_attempts = models.PositiveSmallIntegerField(default=0)
+    max_attempts = models.PositiveSmallIntegerField(default=5)
+
+    class Meta:
+        db_table = 'identity_emailotpchallenge'
+        indexes = [
+            models.Index(fields=['customer', 'purpose', 'consumed_at']),
+            models.Index(fields=['expires_at']),
+        ]
 
 
 class RequestRateLimitBucket(models.Model):

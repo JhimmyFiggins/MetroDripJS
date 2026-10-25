@@ -195,3 +195,43 @@ def render_password_changed_notification(user, changed_at_str=None):
         f"If you did not make this change, please contact support immediately.\n"
     )
     return {"subject": "Your MetroDrip password was changed", "html": html, "text": text}
+
+
+def render_email_otp(user, code, purpose, expires_in_minutes=5):
+    if purpose == 'email_verification':
+        heading = 'Confirm your email'
+        intro = 'Use this code to confirm the email address for your new MetroDrip account.'
+        subject = 'Your MetroDrip verification code'
+    elif getattr(user, 'role', '') == 'admin':
+        heading = 'Administrator sign-in code'
+        intro = 'Use this code to finish signing in to the MetroDrip admin console.'
+        subject = 'Your MetroDrip admin sign-in code'
+    elif getattr(user, 'role', '') == 'merchant':
+        heading = 'Merchant sign-in code'
+        intro = 'Use this code to finish signing in to the MetroDrip merchant console.'
+        subject = 'Your MetroDrip merchant sign-in code'
+    else:
+        heading = 'Sign-in code'
+        intro = 'Use this code to finish signing in to MetroDrip.'
+        subject = 'Your MetroDrip sign-in code'
+    paragraphs = [
+        f'Hello {user.name or "there"},',
+        intro,
+        f'<strong style="font-size:28px; letter-spacing:0.28em; color:#E6FF00;">{code}</strong>',
+        f'This code expires in {expires_in_minutes} minutes and can be used once.',
+    ]
+    notice = 'Never share this code. MetroDrip will not ask for it by phone or chat.'
+    html = _base_email_html(
+        title=subject,
+        heading=heading,
+        body_paragraphs=paragraphs,
+        notice=notice,
+    )
+    text = (
+        f'METRODRIP\n\n{heading}\n\n'
+        f'Hello {user.name or "there"},\n{intro}\n\n'
+        f'Code: {code}\n\n'
+        f'This code expires in {expires_in_minutes} minutes and can be used once.\n'
+        'Never share this code.\n'
+    )
+    return subject, html, text

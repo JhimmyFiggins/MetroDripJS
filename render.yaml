@@ -52,6 +52,15 @@ services:
         sync: false
       - key: BREVO_SENDER_NAME
         value: MetroDrip
+      # Email OTP uses the existing Brevo sender. These defaults match the app.
+      - key: EMAIL_OTP_ENFORCED
+        value: "true"
+      - key: EMAIL_OTP_TTL_SECONDS
+        value: "300"
+      - key: EMAIL_OTP_RESEND_SECONDS
+        value: "60"
+      - key: EMAIL_OTP_MAX_ATTEMPTS
+        value: "5"
       - key: APP_PUBLIC_BASE_URL
         sync: false
       - key: PASSWORD_RESET_TOKEN_TTL_SECONDS

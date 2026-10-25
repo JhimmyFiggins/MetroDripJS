@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
 from django import VERSION as DJANGO_VERSION
@@ -135,6 +136,8 @@ REST_FRAMEWORK = {
         'login': '10/min',
         'signup': '5/hour',
         'password_reset': '5/hour',
+        'otp_verify': '10/min',
+        'otp_resend': '5/hour',
         'checkout': '30/min',
         'payment_status': '120/min',
         'payment_webhook': '300/min',
@@ -142,6 +145,13 @@ REST_FRAMEWORK = {
     },
     'NUM_PROXIES': 1,
 }
+# Email OTP is mandatory for customers outside the automated test runner.
+# `manage.py test` defaults this off so existing authenticated fixtures keep
+# working; OTP tests opt in with override_settings.
+EMAIL_OTP_ENFORCED = env_bool('EMAIL_OTP_ENFORCED', 'test' not in sys.argv)
+EMAIL_OTP_TTL_SECONDS = int(os.environ.get('EMAIL_OTP_TTL_SECONDS', '300'))
+EMAIL_OTP_RESEND_SECONDS = int(os.environ.get('EMAIL_OTP_RESEND_SECONDS', '60'))
+EMAIL_OTP_MAX_ATTEMPTS = int(os.environ.get('EMAIL_OTP_MAX_ATTEMPTS', '5'))
 SECURE_HSTS_SECONDS = int(os.environ.get('DJANGO_HSTS_SECONDS', '0' if DEBUG else '31536000'))
 SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool('DJANGO_HSTS_INCLUDE_SUBDOMAINS', False)
 SECURE_HSTS_PRELOAD = env_bool('DJANGO_HSTS_PRELOAD', False)

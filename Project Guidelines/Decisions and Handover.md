@@ -12,6 +12,14 @@
 
 ---
 
+## Email OTP checkpoint — 2026-10-25
+
+- Customer registration and every new customer login require an email OTP before a bearer token is issued. Existing rows are backfilled as email-verified so they are not locked out; they still receive a login code.
+- Admin and merchant login require an email OTP only when `staff_mfa_policy` is `required`. `optional` keeps password-only staff sign-in.
+- Codes are HMAC-SHA256 digests, expire in five minutes, lock after five failures, and resend is limited to once per 60 seconds. Brevo delivery failure does not create a session.
+- `manage.py test` defaults `EMAIL_OTP_ENFORCED` off so older authenticated fixtures stay valid. OTP tests opt in. Production must keep `EMAIL_OTP_ENFORCED=true`.
+- Live Brevo delivery and device OTP screens were not executed.
+
 ## Seven-issue implementation checkpoint — 2026-10-25
 
 - **Scope:** Uncommitted local fixes for merchant/customer cancellation, mobile cart Back and quantity limits, checkout preflight, image URL fallback, and fail-closed payment/media gates. No commit, push, deploy, secret change, or production mutation.

@@ -3,6 +3,8 @@ from .views import (
     WishlistAPIView,
     ProfileAPIView,
     LoginAPIView,
+    OtpResendAPIView,
+    OtpVerifyAPIView,
     CheckCustomerAPIView,
     SignupAPIView,
     ForgotPasswordAPIView,
@@ -18,6 +20,8 @@ from .views import (
 urlpatterns = [
     path('signup/', SignupAPIView.as_view(), name='customer-signup'),
     path('login/', LoginAPIView.as_view(), name='customer-login'),
+    path('auth/otp/verify/', OtpVerifyAPIView.as_view(), name='otp-verify'),
+    path('auth/otp/resend/', OtpResendAPIView.as_view(), name='otp-resend'),
     path('logout/', CustomerLogoutAPIView.as_view(), name='customer-logout'),
     path('forgot-password/', ForgotPasswordAPIView.as_view(), name='customer-forgot-password'),
     path('password-reset/', ForgotPasswordAPIView.as_view(), name='customer-password-reset'),

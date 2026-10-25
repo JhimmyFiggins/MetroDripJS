@@ -19,6 +19,22 @@ export async function signup(payload) {
 }
 
 // Response: { success, message, email } on 200, or { success:false, error } on 404.
+export async function verifyOtp(challengeId, code) {
+  return apiFetch('/auth/otp/verify/', {
+    method: 'POST',
+    body: { challenge_id: challengeId, code },
+    auth: false,
+  });
+}
+
+export async function resendOtp(challengeId) {
+  return apiFetch('/auth/otp/resend/', {
+    method: 'POST',
+    body: { challenge_id: challengeId },
+    auth: false,
+  });
+}
+
 export async function forgotPassword(email) {
   return apiFetch('/forgot-password/', {
     method: 'POST',

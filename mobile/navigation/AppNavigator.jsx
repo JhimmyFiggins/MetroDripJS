@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import InitialScreen from '../Registration/screens/InitialScreen';
 import LoginScreen from '../Registration/screens/LoginScreen';
 import SignupScreen from '../Registration/screens/SignupScreen';
+import OtpScreen from '../Registration/screens/OtpScreen';
 import ForgotPasswordScreen from '../Registration/screens/ForgotPasswordScreen.js';
 
 import HomeScreen from '../Home/Home';
@@ -58,6 +59,7 @@ export default function AppNavigator() {
                 <Stack.Screen name="Initial" component={InitialScreen} />
                 <Stack.Screen name="Login" component={LoginScreen} />
                 <Stack.Screen name="Signup" component={SignupScreen} />
+                <Stack.Screen name="Otp" component={OtpScreen} />
                 <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
                 <Stack.Screen name="Home" component={HomeScreen} />
                 <Stack.Screen name="Shop" component={ShopScreen} />

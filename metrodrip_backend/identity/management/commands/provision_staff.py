@@ -44,6 +44,7 @@ class Command(BaseCommand):
             is_superuser=role == 'admin',
             role=role,
             date_joined=timezone.now(),
+            email_verified_at=timezone.now(),
         )
         user.set_password(password)
         user.save()

@@ -58,6 +58,14 @@
     if (!response.ok) throw new Error(await parseError(response));
 
     const account = await response.json();
+    if (account.otp_required) {
+      if (account.role && account.role !== expectedRole) {
+        const error = new Error('This account does not have access to the selected console.');
+        error.code = 'role_mismatch';
+        throw error;
+      }
+      return { otpRequired: true, ...account };
+    }
     const token = account.access_token || account.token;
     if (!token || !account.is_staff || account.role !== expectedRole) {
       await revokeUnexpectedToken(token);
@@ -85,6 +93,42 @@
     const submit = form.querySelector('[type="submit"]');
     const status = form.querySelector('[data-form-status]');
     const idleLabel = submit.textContent;
+    let pendingChallenge = null;
+    const otpField = document.createElement('label');
+    otpField.hidden = true;
+    otpField.textContent = 'Email code';
+    const otpInput = document.createElement('input');
+    otpInput.type = 'text';
+    otpInput.inputMode = 'numeric';
+    otpInput.autocomplete = 'one-time-code';
+    otpInput.maxLength = 6;
+    otpInput.required = true;
+    otpInput.setAttribute('aria-label', 'Six-digit email code');
+    otpField.append(otpInput);
+    const resend = document.createElement('button');
+    resend.type = 'button';
+    resend.hidden = true;
+    resend.textContent = 'Resend code';
+    resend.addEventListener('click', async () => {
+      if (!pendingChallenge) return;
+      setLoading(true);
+      try {
+        const response = await fetch(`${API_ROOT}/auth/otp/resend/`, {
+          method: 'POST',
+          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ challenge_id: pendingChallenge.challenge_id }),
+        });
+        if (!response.ok) throw new Error(await parseError(response));
+        const next = await response.json();
+        pendingChallenge = { ...pendingChallenge, ...next, otpRequired: true };
+        setStatus(`A new code was sent to ${next.masked_email}.`);
+      } catch (error) {
+        setStatus(error.message || 'A new code could not be sent.', true);
+      } finally {
+        setLoading(false);
+      }
+    });
+    submit.before(otpField, resend);
 
     const setStatus = (message, isError = false) => {
       status.textContent = message;
@@ -93,7 +137,7 @@
     };
     const setLoading = (loading) => {
       submit.disabled = loading;
-      submit.textContent = loading ? 'SIGNING IN…' : idleLabel;
+      submit.textContent = loading ? 'SIGNING IN…' : (pendingChallenge ? 'VERIFY CODE' : idleLabel);
       form.setAttribute('aria-busy', String(loading));
     };
 
@@ -120,7 +164,48 @@
       setStatus('');
       setLoading(true);
       try {
+        if (pendingChallenge) {
+          const verifyResponse = await fetch(`${API_ROOT}/auth/otp/verify/`, {
+            method: 'POST',
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ challenge_id: pendingChallenge.challenge_id, code: otpInput.value.trim() }),
+          });
+          if (!verifyResponse.ok) throw new Error(await parseError(verifyResponse));
+          const verified = await verifyResponse.json();
+          const token = verified.access_token || verified.token;
+          if (!token || verified.role !== expectedRole) {
+            await revokeUnexpectedToken(token);
+            throw new Error('This account does not have access to the selected console.');
+          }
+          pendingChallenge = null;
+          localStorage.removeItem(STORAGE_KEY);
+          sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+            id: verified.id,
+            name: verified.name,
+            email: verified.email,
+            role: verified.role,
+            is_staff: verified.is_staff,
+            access_token: token,
+            token_type: 'Bearer',
+            expires_at: verified.expires_at,
+            password_change_required: Boolean(verified.password_change_required),
+          }));
+          otpInput.value = '';
+          setStatus(`Signed in. Opening the ${roleLabel} console…`);
+          window.location.assign(expectedRole === 'admin' ? '../../admin/index.html' : '../../merchant/index.html');
+          return;
+        }
         const account = await authenticate(values.email, values.password, expectedRole);
+        if (account.otpRequired) {
+          pendingChallenge = account;
+          otpField.hidden = false;
+          resend.hidden = false;
+          fields.password.disabled = true;
+          submit.textContent = 'VERIFY CODE';
+          setStatus(`Enter the code sent to ${account.masked_email}.`);
+          otpInput.focus();
+          return;
+        }
         localStorage.removeItem(STORAGE_KEY);
         sessionStorage.setItem(STORAGE_KEY, JSON.stringify(account));
         fields.password.value = '';

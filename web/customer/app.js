@@ -141,6 +141,7 @@ const pages = {
   support: renderSupport,
   team: renderTeam,
   'sign-in': renderSignIn,
+  'verify-otp': renderVerifyOtp,
   'sign-up': renderSignUp,
   'forgot-password': renderForgot,
   'reset-password': renderResetPassword,
@@ -337,6 +338,15 @@ function requireSession(nextPath, scope) {
 async function signIn(email, password, scope) {
   const generation = ++loginGeneration;
   const data = await api('/login/', { method: 'POST', auth: false, body: { email, password } });
+  if (data?.otp_required) {
+    sessionStorage.setItem('metrodrip_otp_challenge', JSON.stringify({
+      challengeId: data.challenge_id,
+      purpose: data.purpose,
+      maskedEmail: data.masked_email,
+    }));
+    navigate(customerHref('/verify-otp'));
+    return null;
+  }
   const token = data.access_token || data.token;
   if (!isCurrent(scope) || generation !== loginGeneration || data.role !== 'customer') {
     if (token) {
@@ -1392,6 +1402,69 @@ async function renderTeam() {
   return page('Our Team', 'Every piece is designed in Metro Manila — from concept to cut. MetroDrip brings high-concept streetwear crafted for everyday urban mobility.');
 }
 
+async function renderVerifyOtp(_route, scope) {
+  let pending = null;
+  try {
+    pending = JSON.parse(sessionStorage.getItem('metrodrip_otp_challenge') || 'null');
+  } catch {
+    pending = null;
+  }
+  if (!pending?.challengeId) {
+    return page('Verification required', 'Start from sign-in or registration to request a code.', el('a', { class: 'btn btn-primary', href: customerHref('/sign-in') }, 'Sign in'));
+  }
+  const status = el('p', { class: 'muted', role: 'status' }, '');
+  const input = el('input', {
+    class: 'form-input',
+    name: 'code',
+    inputmode: 'numeric',
+    autocomplete: 'one-time-code',
+    maxlength: '6',
+    'aria-label': 'Six-digit email code',
+    required: 'true',
+  });
+  const form = el('form', { class: 'auth-form-card', onsubmit: async (event) => {
+    event.preventDefault();
+    return runAction(scope, form.querySelector('button[type="submit"]'), async () => {
+      const data = await request('/auth/otp/verify/', {
+        method: 'POST',
+        auth: false,
+        body: { challenge_id: pending.challengeId, code: input.value.trim() },
+      }, scope);
+      if (!isCurrent(scope)) return;
+      if (data.verified || pending.purpose === 'email_verification') {
+        sessionStorage.removeItem('metrodrip_otp_challenge');
+        announce('Email confirmed. Sign in to continue.');
+        navigate(customerHref('/sign-in'));
+        return;
+      }
+      const token = data.access_token || data.token;
+      if (!token || data.role !== 'customer') throw new Error('This shop accepts customer accounts only.');
+      changeSession({ id: data.id, name: data.name, email: data.email, role: data.role, phone: data.phone || '', addresses: data.addresses }, token);
+      sessionStorage.removeItem('metrodrip_otp_challenge');
+      announce('Signed in.');
+      navigate(customerHref('/'));
+    });
+  } }, [
+    el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, pending.purpose === 'email_verification' ? 'Verify your email' : 'Two-factor authentication'),
+    el('p', { class: 'muted' }, `Enter the code sent to ${pending.maskedEmail || 'your email'}. It expires in 5 minutes.`),
+    input,
+    status,
+    el('button', { class: 'btn btn-primary btn-full', type: 'submit' }, 'Verify'),
+    el('button', { class: 'btn btn-secondary btn-full', type: 'button', onclick: async () => {
+      try {
+        const resent = await api('/auth/otp/resend/', { method: 'POST', auth: false, body: { challenge_id: pending.challengeId } });
+        pending = { ...pending, challengeId: resent.challenge_id, maskedEmail: resent.masked_email };
+        sessionStorage.setItem('metrodrip_otp_challenge', JSON.stringify(pending));
+        status.textContent = 'A new code was sent.';
+      } catch (error) {
+        status.textContent = error.message || 'A new code could not be sent.';
+      }
+    } }, 'Resend code'),
+    el('a', { class: 'muted', href: customerHref('/sign-in') }, 'Back to sign in'),
+  ]);
+  return el('section', { class: 'page auth-page' }, [form]);
+}
+
 async function renderSignIn(_route, scope) {
   const next = safeCustomerPath(new URLSearchParams(location.search).get('next') || customerHref('/'));
   
@@ -1444,12 +1517,21 @@ async function renderSignUp(_route, scope) {
     event.preventDefault();
     return runAction(scope, form.querySelector('button[type="submit"]'), async () => {
       const data = new FormData(form);
-      await request('/signup/', { method: 'POST', auth: false, body: {
+      const created = await request('/signup/', { method: 'POST', auth: false, body: {
         name: String(data.get('name') || ''),
         email: String(data.get('email') || ''),
         password: String(data.get('password') || ''),
       } }, scope);
       if (!isCurrent(scope)) return;
+      if (created?.otp_required) {
+        sessionStorage.setItem('metrodrip_otp_challenge', JSON.stringify({
+          challengeId: created.challenge_id,
+          purpose: created.purpose,
+          maskedEmail: created.masked_email,
+        }));
+        navigate(customerHref('/verify-otp'));
+        return;
+      }
       announce('Account created. Sign in to continue.');
       navigate(customerHref('/sign-in'));
     });

@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.utils import timezone
 from rest_framework.authentication import BaseAuthentication, get_authorization_header
 from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
@@ -53,6 +54,17 @@ class CustomerTokenAuthentication(BaseAuthentication):
 
         if token.last_used_at is None or (now - token.last_used_at).total_seconds() >= 300:
             CustomerAccessToken.objects.filter(pk=token.pk).update(last_used_at=now)
+
+        if (
+            getattr(settings, 'EMAIL_OTP_ENFORCED', True)
+            and token.customer.role == 'customer'
+            and not token.customer.is_staff
+            and token.customer.email_verified_at is None
+        ):
+            raise PermissionDenied({
+                'error': 'Verify your email before using this account.',
+                'code': 'email_unverified',
+            })
 
         # Enforce initial temporary-password change requirement server-side
         if getattr(token.customer, 'password_change_required', False):
