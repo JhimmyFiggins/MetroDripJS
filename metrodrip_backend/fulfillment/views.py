@@ -4,7 +4,9 @@ from rest_framework import status
 from rest_framework.renderers import JSONRenderer
 from rest_framework.permissions import IsAuthenticated
 
-from .models import NotificationsNotification
+from django.utils import timezone
+
+from .models import NotificationsDeviceToken, NotificationsNotification
 from identity.authentication import CustomerAuthentication
 
 
@@ -28,15 +30,54 @@ def _resolve_customer_id(request):
 
 def _serialize_notification(notification):
     category = (notification.category or '').strip().lower()
+    kind = 'order' if category.startswith('order_status') else CATEGORY_TO_TYPE.get(category, 'order')
     return {
         'id': notification.id,
-        'type': CATEGORY_TO_TYPE.get(category, 'order'),
+        'type': kind,
         'title': notification.title,
         'body': notification.body,
         'created_at': notification.created_at.isoformat() if notification.created_at else None,
         'is_read': bool(notification.is_read),
+        'read': bool(notification.is_read),
         'order_id': notification.order_ref,
     }
+
+
+class DeviceTokenAPIView(APIView):
+    authentication_classes = [CustomerAuthentication]
+    permission_classes = [IsAuthenticated]
+    renderer_classes = [JSONRenderer]
+
+    def post(self, request):
+        cid = _resolve_customer_id(request)
+        if not cid:
+            return Response({'error': 'Authentication required.'}, status=status.HTTP_401_UNAUTHORIZED)
+        token = str(request.data.get('token') or '').strip()
+        platform = str(request.data.get('platform') or '').strip().lower()
+        if not token.startswith('ExponentPushToken[') and not token.startswith('ExpoPushToken['):
+            return Response({'error': 'A valid Expo push token is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if platform not in {'ios', 'android'}:
+            return Response({'error': 'Platform must be ios or android.'}, status=status.HTTP_400_BAD_REQUEST)
+        now = timezone.now()
+        row, created = NotificationsDeviceToken.objects.get_or_create(
+            token=token,
+            defaults={'customer_ref': cid, 'platform': platform, 'created_at': now, 'last_seen_at': now},
+        )
+        if not created:
+            row.customer_ref = cid
+            row.platform = platform
+            row.last_seen_at = now
+            row.save(update_fields=['customer_ref', 'platform', 'last_seen_at'])
+        return Response({'ok': True})
+
+    def delete(self, request):
+        cid = _resolve_customer_id(request)
+        if not cid:
+            return Response({'error': 'Authentication required.'}, status=status.HTTP_401_UNAUTHORIZED)
+        token = str(request.data.get('token') or request.query_params.get('token') or '').strip()
+        if token:
+            NotificationsDeviceToken.objects.filter(customer_ref=cid, token=token).delete()
+        return Response({'ok': True})
 
 
 class NotificationListAPIView(APIView):

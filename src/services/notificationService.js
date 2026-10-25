@@ -19,6 +19,14 @@ export async function markAllRead() {
   return apiFetch('/notifications/read-all/', { method: 'POST' });
 }
 
+export async function registerDeviceToken(token, platform) {
+  return apiFetch('/notifications/devices/', { method: 'POST', body: { token, platform } });
+}
+
+export async function unregisterDeviceToken(token) {
+  return apiFetch('/notifications/devices/', { method: 'DELETE', body: { token } });
+}
+
 export function timeAgo(iso) {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) {

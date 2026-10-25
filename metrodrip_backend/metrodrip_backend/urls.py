@@ -4,6 +4,7 @@ from django.views.static import serve
 
 from fulfillment.customer_views import CustomerShippingZonesAPIView
 from metrodrip_backend.console_views import console_file
+from metrodrip_backend.media_views import media_file_view
 from orders.views import (
     CheckoutAPIView,
     HealthAPIView,
@@ -34,8 +35,7 @@ urlpatterns = [
     ),
     re_path(
         r'^media/(?P<path>.*)$',
-        serve,
-        {'document_root': settings.MEDIA_ROOT},
+        media_file_view,
         name='media-file',
     ),
 ]

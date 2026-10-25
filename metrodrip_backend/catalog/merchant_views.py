@@ -1072,6 +1072,8 @@ class MerchantOrdersAPIView(MerchantAPIView):
                 order.status = new_status
                 order.updated_at = timezone.now()
                 order.save(update_fields=['status', 'updated_at'])
+                from orders.status_notifications import schedule_order_status_notification
+                schedule_order_status_notification(order, new_status, order.updated_at)
 
         response = _merchant_order_summary(order)
         response['message'] = f"Order {_order_number(order)} is now {order.status.replace('_', ' ')}."
@@ -1158,14 +1160,18 @@ def _merchant_sales_analytics(request):
         row['net_units'] += line.quantity
         row['net_sales'] += line.total_price
     report = []
+    max_sales = max((row['net_sales'] for row in by_product.values()), default=Decimal('0.00'))
     for row in sorted(by_product.values(), key=lambda item: item['net_sales'], reverse=True):
         report.append({
             'name': row['name'],
             'net_units': row['net_units'],
             'net_sales': f'{row["net_sales"]:.2f}',
+            'formatted_sales': f'₱{row["net_sales"]:,.2f}',
+            'bar_percentage': float((row['net_sales'] / max_sales * 100) if max_sales > 0 else 0),
             'views': None,
             'added_to_cart': None,
-            'growth': 'n/a',
+            'growth': 'Unavailable',
+            'growth_direction': 'flat',
         })
     series = []
     day = start
@@ -1177,8 +1183,11 @@ def _merchant_sales_analytics(request):
         ).exclude(status__in=excluded).aggregate(total=Sum('total'))['total'] or Decimal('0.00')
         series.append({'date': day.date().isoformat(), 'net_sales': f'{day_total:.2f}'})
         day = day_end
+    merchant_scope = str(request.query_params.get('merchant') or 'store').strip()
     return {
         'source': 'orders',
+        'scope': 'store_wide',
+        'merchant': merchant_scope,
         'timezone': 'Asia/Manila',
         'range': range_key,
         'currency': 'PHP',
@@ -1195,14 +1204,16 @@ def _merchant_sales_analytics(request):
         'totals': {
             'net_units': units,
             'net_sales': f'{sales:.2f}',
+            'formatted_sales': f'₱{sales:,.2f}',
             'views': None,
             'added_to_cart': None,
             'growth': units_growth,
+            'growth_direction': units_direction,
         },
         'trending_products': report[:5],
         'user_interactions': {
             'available': False,
-            'message': 'Product views, cart events, and sessions are not recorded.',
+            'message': 'Product views, cart events, and sessions are not recorded (not instrumented).',
         },
     }
 

@@ -784,12 +784,19 @@ async function renderProduct(route, scope) {
   const mediaList = Array.isArray(product.media) ? product.media.filter(m => usableImageUrl(m.url)) : [];
   let currentMainUrl = image || (mediaList[0] ? usableImageUrl(mediaList[0].url) : '');
 
+  const pdpFallback = () => el('div', { class: 'artwork-fallback' }, [
+    el('span', { class: 'artwork-initial' }, initial),
+    el('span', { class: 'artwork-sub' }, categoryName),
+  ]);
+
   const mainMediaImg = currentMainUrl
-    ? el('img', { src: currentMainUrl, alt: `${product.name} product image`, fetchpriority: 'high' })
-    : el('div', { class: 'artwork-fallback' }, [
-        el('span', { class: 'artwork-initial' }, initial),
-        el('span', { class: 'artwork-sub' }, categoryName),
-      ]);
+    ? el('img', {
+        src: currentMainUrl,
+        alt: `${product.name} product image`,
+        fetchpriority: 'high',
+        onerror: (event) => event.currentTarget.replaceWith(pdpFallback()),
+      })
+    : pdpFallback();
 
   const mainMedia = el('div', { class: 'pdp-main-media' }, [mainMediaImg]);
 
@@ -815,7 +822,16 @@ async function renderProduct(route, scope) {
           thumbBtn.style.borderColor = 'var(--color-primary, #00E676)';
         },
       }, [
-        el('img', { src: mUrl, alt: m.alt_text || '', style: 'width: 100%; height: 100%; object-fit: cover;' }),
+        el('img', {
+          src: mUrl,
+          alt: m.alt_text || '',
+          style: 'width: 100%; height: 100%; object-fit: cover;',
+          onerror: (event) => {
+            event.currentTarget.replaceWith(el('div', { class: 'artwork-fallback', style: 'width: 100%; height: 100%;' }, [
+              el('span', { class: 'artwork-initial', style: 'font-size: 16px;' }, initial),
+            ]));
+          },
+        }),
       ]);
       return thumbBtn;
     }));
@@ -1346,7 +1362,13 @@ async function renderWishlist(_route, scope) {
   if (!list.length) return page('Wishlist is empty', 'Saved products appear after you add one from a product page.', el('a', { class: 'btn btn-primary', href: customerHref('/shop') }, 'Explore streetwear'));
   return page('Wishlist', 'This list is your account’s saved products.', el('div', { class: 'grid' }, list.map((item) => el('article', { class: 'product-card' }, [
     el('div', { class: 'product-card-media-wrap' }, [
-      usableImageUrl(item.image_url) ? el('img', { src: usableImageUrl(item.image_url), alt: '' }) : el('div', { class: 'artwork-fallback' }, [el('span', { class: 'artwork-initial' }, 'W')]),
+      usableImageUrl(item.image_url)
+        ? el('img', {
+            src: usableImageUrl(item.image_url),
+            alt: item.name || '',
+            onerror: (event) => event.currentTarget.replaceWith(el('div', { class: 'artwork-fallback' }, [el('span', { class: 'artwork-initial' }, (item.name || 'W').charAt(0).toUpperCase())])),
+          })
+        : el('div', { class: 'artwork-fallback' }, [el('span', { class: 'artwork-initial' }, (item.name || 'W').charAt(0).toUpperCase())]),
     ]),
     el('div', { class: 'product-card-body' }, [
       el('h3', { class: 'product-card-title' }, item.name || 'Saved product'),

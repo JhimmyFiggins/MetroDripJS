@@ -19,6 +19,7 @@ import { fonts } from '../../Checkout/src/theme.ts';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import { login as loginCustomer } from '../../../src/services/authService';
+import { syncPushRegistration } from '../../../src/services/pushNotifications';
 import { ApiError } from '../../../src/services/apiClient';
 
 export default function LoginScreen({ navigation }) {
@@ -80,6 +81,7 @@ export default function LoginScreen({ navigation }) {
         return;
       }
       login(data);
+      syncPushRegistration().catch(() => {});
       navigation.navigate('Home');
     } catch (error) {
       console.error('Login failed:', error);

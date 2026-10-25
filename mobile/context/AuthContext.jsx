@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
 import { setAuthToken, clearCustomer } from '../../src/services/apiClient';
+import { syncPushRegistration, clearPushRegistration } from '../../src/services/pushNotifications';
 
 const AuthContext = createContext();
 
@@ -14,9 +15,13 @@ export function AuthProvider({ children }) {
   const login = (customer) => {
     setUser(customer);
     setAuthToken(customer?.token ?? null);
+    if (customer?.token) {
+      syncPushRegistration().catch(() => {});
+    }
   };
 
   const logout = () => {
+    clearPushRegistration().catch(() => {});
     setUser(null);
     clearCustomer();
   };

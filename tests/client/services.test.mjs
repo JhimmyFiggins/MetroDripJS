@@ -204,6 +204,18 @@ test('notification read receipts post to the per-item and bulk routes', async ()
   assert.equal(methodOf(fetch.last), 'POST');
 });
 
+test('device token registration and unregistration hit the correct endpoints', async () => {
+  await notifications.registerDeviceToken('ExponentPushToken[xyz]', 'ios');
+  assert.equal(pathOf(fetch.last), '/notifications/devices/');
+  assert.equal(methodOf(fetch.last), 'POST');
+  assert.deepEqual(sentBody(fetch.last), { token: 'ExponentPushToken[xyz]', platform: 'ios' });
+
+  await notifications.unregisterDeviceToken('ExponentPushToken[xyz]');
+  assert.equal(pathOf(fetch.last), '/notifications/devices/');
+  assert.equal(methodOf(fetch.last), 'DELETE');
+  assert.deepEqual(sentBody(fetch.last), { token: 'ExponentPushToken[xyz]' });
+});
+
 test('the unread count degrades to 0 instead of NaN on a partial response', async () => {
   installFetch().reply({ results: [] });
   assert.equal(await notifications.getUnreadCount(), 0);
@@ -240,6 +252,8 @@ test('every authenticated service call carries the bearer token', async () => {
     () => auth.getProfile(),
     () => wishlist.getWishlist(),
     () => notifications.getNotifications(),
+    () => notifications.registerDeviceToken('ExponentPushToken[xyz]', 'ios'),
+    () => notifications.unregisterDeviceToken('ExponentPushToken[xyz]'),
   ]) {
     await call();
     assert.equal(headerOf(fetch.last, 'Authorization'), 'Bearer tok-test', `missing token on ${pathOf(fetch.last)}`);
@@ -276,6 +290,17 @@ test('caller-supplied authorization headers are also blocked cross-origin', asyn
   assert.equal(fetch.calls.length, 0);
 });
 
+test('pushNotifications handles web platform and clear registration safely', async () => {
+  const { syncPushRegistration, clearPushRegistration } = await import('../../src/services/pushNotifications.js');
+  const res = await syncPushRegistration();
+  // On node/web environment, should return unsupported or missing_module
+  assert.ok(['unsupported', 'missing_module'].includes(res?.status));
+
+  // clearPushRegistration with null/empty token does nothing safely
+  await clearPushRegistration(null);
+  await clearPushRegistration('');
+});
+
 // Guards against a service module being added without a smoke-level assertion.
 test('every service module under src/services is covered by this file', async () => {
   const { readdir } = await import('node:fs/promises');
@@ -283,7 +308,7 @@ test('every service module under src/services is covered by this file', async ()
   const covered = new Set([
     'apiClient.js', 'authService.js', 'orderService.js', 'productService.js',
     'wishlistService.js', 'notificationService.js', 'categoryService.js',
-    'bannerContent.js', 'productImage.js',
+    'bannerContent.js', 'productImage.js', 'pushNotifications.js',
   ]);
   const missing = files.filter((f) => f.endsWith('.js') && !covered.has(f));
   assert.deepEqual(missing, [], `uncovered service modules: ${missing.join(', ')}`);

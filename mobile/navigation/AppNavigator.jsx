@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
@@ -34,8 +36,48 @@ import { normalizeOrderId } from '../../src/services/orderService';
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
+    const navigationRef = useRef(null);
+    useEffect(() => {
+        let Notifications;
+        try {
+            Notifications = require('expo-notifications');
+        } catch {
+            return undefined;
+        }
+
+        Notifications.setNotificationHandler({
+            handleNotification: async () => ({
+                shouldShowAlert: true,
+                shouldPlaySound: true,
+                shouldSetBadge: false,
+            }),
+        });
+
+        if (Platform.OS === 'android') {
+            Notifications.setNotificationChannelAsync('default', {
+                name: 'Default',
+                importance: Notifications.AndroidImportance.MAX,
+                vibrationPattern: [0, 250, 250, 250],
+                lightColor: '#FF231F7C',
+            }).catch(() => {});
+        }
+
+        Notifications.getLastNotificationResponseAsync()
+            .then((response) => {
+                const orderId = response?.notification?.request?.content?.data?.order_id;
+                if (orderId) navigationRef.current?.navigate('OrderTracking', { orderId });
+            })
+            .catch(() => {});
+
+        const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+            const orderId = response?.notification?.request?.content?.data?.order_id;
+            if (orderId) navigationRef.current?.navigate('OrderTracking', { orderId });
+        });
+        return () => subscription.remove();
+    }, []);
     return (
         <NavigationContainer
+            ref={navigationRef}
             linking={{
                 prefixes: ['metrodripjs://'],
                 config: {

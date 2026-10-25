@@ -80,9 +80,14 @@
       elSessionRate.textContent = kpis.purchase_session_rate.available === false
         ? 'Not instrumented'
         : kpis.purchase_session_rate.value;
-      const isUp = kpis.purchase_session_rate.growth_direction === 'up';
-      elSessionGrowth.className = `stat-subtext growth-indicator ${isUp ? 'up' : 'down'}`;
-      elSessionGrowth.innerHTML = `<span aria-hidden="true">${isUp ? '↑' : '↓'}</span> ${escapeHtml(kpis.purchase_session_rate.growth.replace('+', ''))} vs prior period`;
+      if (kpis.purchase_session_rate.available === false) {
+        elSessionGrowth.className = 'stat-subtext text-muted';
+        elSessionGrowth.textContent = 'Unavailable (not instrumented)';
+      } else {
+        const isUp = kpis.purchase_session_rate.growth_direction === 'up';
+        elSessionGrowth.className = `stat-subtext growth-indicator ${isUp ? 'up' : 'down'}`;
+        elSessionGrowth.innerHTML = `<span aria-hidden="true">${isUp ? '↑' : '↓'}</span> ${escapeHtml(kpis.purchase_session_rate.growth.replace('+', ''))} vs prior period`;
+      }
     }
   }
 
@@ -91,17 +96,21 @@
     const container = document.getElementById('best-sellers-container');
     if (!container || !Array.isArray(bestSellers)) return;
 
-    container.innerHTML = bestSellers.map(item => `
+    container.innerHTML = bestSellers.map(item => {
+      const formattedSales = item.formatted_sales || (item.net_sales != null ? `₱${Number(item.net_sales).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '₱0.00');
+      const barPercentage = !isNaN(item.bar_percentage) && item.bar_percentage != null ? Number(item.bar_percentage).toFixed(1) : '100.0';
+      return `
       <div class="best-seller-item">
         <div class="best-seller-meta">
           <span>${escapeHtml(item.name)}</span>
-          <span class="best-seller-price">${escapeHtml(item.formatted_sales)}</span>
+          <span class="best-seller-price">${escapeHtml(formattedSales)}</span>
         </div>
         <div class="meter-track">
-          <div class="meter-fill" style="width: ${Number(item.bar_percentage).toFixed(1)}%;"></div>
+          <div class="meter-fill" style="width: ${barPercentage}%;"></div>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
 
   // --- Render Product Sales Report Table ---
@@ -120,19 +129,22 @@
     } else {
       tbody.innerHTML = products.map(p => {
         const isUp = p.growth_direction === 'up';
-        const formattedGrowth = p.growth ? p.growth.replace('+', '').replace('-', '') : '0.0%';
+        const isFlat = !p.growth_direction || p.growth_direction === 'flat' || p.growth === 'Unavailable' || p.growth === 'n/a';
+        const formattedGrowth = p.growth ? p.growth.replace('+', '').replace('-', '') : 'Unavailable';
+        const formattedSales = p.formatted_sales || (p.net_sales != null ? `₱${Number(p.net_sales).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '₱0.00');
+        const viewsDisplay = p.views == null ? '<span class="text-muted" title="Not instrumented">Unavailable</span>' : Number(p.views).toLocaleString();
+        const cartDisplay = p.added_to_cart == null ? '<span class="text-muted" title="Not instrumented">Unavailable</span>' : Number(p.added_to_cart).toLocaleString();
+        const growthHtml = isFlat
+          ? `<span class="text-muted">${escapeHtml(formattedGrowth)}</span>`
+          : `<span class="growth-indicator ${isUp ? 'up' : 'down'}"><span aria-hidden="true">${isUp ? '↑' : '↓'}</span> ${escapeHtml(formattedGrowth)}</span>`;
         return `
           <tr>
             <td class="td-strong">${escapeHtml(p.name)}</td>
             <td class="td-mono text-right">${Number(p.net_units).toLocaleString()}</td>
-            <td class="td-mono td-strong text-right">${escapeHtml(p.formatted_sales)}</td>
-            <td class="td-mono text-right">${Number(p.views).toLocaleString()}</td>
-            <td class="td-mono text-right">${Number(p.added_to_cart).toLocaleString()}</td>
-            <td class="td-mono text-right">
-              <span class="growth-indicator ${isUp ? 'up' : 'down'}">
-                <span aria-hidden="true">${isUp ? '↑' : '↓'}</span> ${escapeHtml(formattedGrowth)}
-              </span>
-            </td>
+            <td class="td-mono td-strong text-right">${escapeHtml(formattedSales)}</td>
+            <td class="td-mono text-right">${viewsDisplay}</td>
+            <td class="td-mono text-right">${cartDisplay}</td>
+            <td class="td-mono text-right">${growthHtml}</td>
           </tr>
         `;
       }).join('');
@@ -147,9 +159,9 @@
       const elGrowth = document.getElementById('total-growth');
 
       if (elUnits) elUnits.textContent = Number(totals.net_units).toLocaleString();
-      if (elSales) elSales.textContent = totals.formatted_sales;
-      if (elViews) elViews.textContent = Number(totals.views).toLocaleString();
-      if (elCart) elCart.textContent = Number(totals.added_to_cart).toLocaleString();
+      if (elSales) elSales.textContent = totals.formatted_sales || (totals.net_sales != null ? `₱${Number(totals.net_sales).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '₱0.00');
+      if (elViews) elViews.innerHTML = totals.views == null ? '<span class="text-muted">Unavailable</span>' : Number(totals.views).toLocaleString();
+      if (elCart) elCart.innerHTML = totals.added_to_cart == null ? '<span class="text-muted">Unavailable</span>' : Number(totals.added_to_cart).toLocaleString();
       if (elGrowth) {
         const isUp = totals.growth_direction === 'up';
         const formattedGrowth = totals.growth ? totals.growth.replace('+', '').replace('-', '') : '14.3%';
@@ -327,14 +339,18 @@
 
     // Rows
     currentAnalytics.product_sales_report.forEach(p => {
-      const cleanGrowth = p.growth ? p.growth.replace('+', '') : '0.0%';
-      csvContent += `"${p.name.replace(/"/g, '""')}",${p.net_units},${p.net_sales},${p.views},${p.added_to_cart},"${cleanGrowth}"\r\n`;
+      const cleanGrowth = p.growth ? p.growth.replace('+', '') : 'Unavailable';
+      const viewsVal = p.views == null ? 'Unavailable' : p.views;
+      const cartVal = p.added_to_cart == null ? 'Unavailable' : p.added_to_cart;
+      csvContent += `"${p.name.replace(/"/g, '""')}",${p.net_units},${p.net_sales},"${viewsVal}","${cartVal}","${cleanGrowth}"\r\n`;
     });
 
     // Totals
     if (currentAnalytics.totals) {
       const t = currentAnalytics.totals;
-      csvContent += `"TOTAL",${t.net_units},${t.net_sales},${t.views},${t.added_to_cart},"${t.growth ? t.growth.replace('+', '') : '14.3%'}"\r\n\r\n`;
+      const viewsTotal = t.views == null ? 'Unavailable' : t.views;
+      const cartTotal = t.added_to_cart == null ? 'Unavailable' : t.added_to_cart;
+      csvContent += `"TOTAL",${t.net_units},${t.net_sales},"${viewsTotal}","${cartTotal}","${t.growth ? t.growth.replace('+', '') : 'Unavailable'}"\r\n\r\n`;
     }
 
     // KPIs Summary

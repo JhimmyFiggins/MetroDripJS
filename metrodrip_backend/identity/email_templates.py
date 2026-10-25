@@ -197,6 +197,40 @@ def render_password_changed_notification(user, changed_at_str=None):
     return {"subject": "Your MetroDrip password was changed", "html": html, "text": text}
 
 
+def render_order_status_email(name, order_number, status_label, message, changed_at, order_url, support_email):
+    from html import escape
+    safe_name = escape(name or 'there')
+    safe_number = escape(order_number)
+    safe_status = escape(status_label)
+    safe_message = escape(message)
+    safe_when = escape(changed_at)
+    safe_url = escape(order_url, quote=True)
+    safe_support = escape(support_email or 'the MetroDrip support address on your receipt')
+    subject = f'Order {order_number} is now {status_label}'
+    html = _base_email_html(
+        title=subject,
+        heading=safe_status,
+        body_paragraphs=[
+            f'Hello {safe_name},',
+            f'Order <strong>{safe_number}</strong> is now <strong>{safe_status}</strong>.',
+            safe_message,
+            f'Updated at {safe_when}.',
+        ],
+        cta_label='View order',
+        cta_url=safe_url,
+        notice=f'Questions about this order? Contact {safe_support}. MetroDrip will not ask for your password or payment details by email.',
+    )
+    text = (
+        f'METRODRIP\n\n{status_label}\n\n'
+        f'Hello {name or "there"},\n'
+        f'Order {order_number} is now {status_label}.\n{message}\n'
+        f'Updated at {changed_at}.\n\n'
+        f'View order: {order_url}\n'
+        f'Support: {support_email or "see your receipt"}\n'
+    )
+    return subject, html, text
+
+
 def render_email_otp(user, code, purpose, expires_in_minutes=5):
     if purpose == 'email_verification':
         heading = 'Confirm your email'

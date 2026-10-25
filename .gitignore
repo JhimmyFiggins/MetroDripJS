@@ -10,7 +10,32 @@ __pycache__/
 .venv/
 venv/
 metrodrip_backend/staticfiles/
-metrodrip_backend/media/
+metrodrip_backend/media/*
+!metrodrip_backend/media/products/
+!metrodrip_backend/media/products/2026/
+!metrodrip_backend/media/products/2026/10/
+metrodrip_backend/media/products/2026/10/*
+!metrodrip_backend/media/products/2026/10/detail.webp
+!metrodrip_backend/media/products/2026/10/front.jpg
+!metrodrip_backend/media/products/2026/10/tuleleng.png
+!metrodrip_backend/media/products/2026/10/puleleng.png
+!metrodrip_backend/media/products/2026/10/streetwear.jpg
+!metrodrip_backend/media/products/2026/10/cargo.jpg
+!metrodrip_backend/media/products/2026/10/wind.jpg
+!metrodrip_backend/media/products/2026/10/jeans.png
+!metrodrip_backend/media/products/2026/10/bag.png
+!metrodrip_backend/media/products/2026/10/turtle.jpg
+!metrodrip_backend/media/products/2026/10/wallget.png
+!metrodrip_backend/media/products/2026/10/spant.png
+!metrodrip_backend/media/products/2026/10/cyber.png
+!metrodrip_backend/media/products/2026/10/hoodie.png
+!metrodrip_backend/media/products/2026/10/ayos.png
+!metrodrip_backend/media/products/2026/10/cargos.png
+!metrodrip_backend/media/products/2026/10/meshes.jpg
+!metrodrip_backend/media/products/2026/10/terry.jpg
+!metrodrip_backend/media/products/2026/10/5ers.jpg
+!metrodrip_backend/media/products/2026/10/HOODIE.PNG
+!metrodrip_backend/media/products/2026/10/123.png
 
 # Expo
 .expo/

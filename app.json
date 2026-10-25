@@ -31,7 +31,14 @@
       "favicon": "./web/assets/favicon.png"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./web/assets/favicon.png",
+          "color": "#141414"
+        }
+      ]
     ]
   }
 }

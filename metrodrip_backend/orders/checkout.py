@@ -579,6 +579,8 @@ def _expire_order(order, provider_client=None):
         locked_order.cancelled_at = now
         locked_order.updated_at = now
         locked_order.save(update_fields=['status', 'cancelled_at', 'updated_at'])
+        from orders.status_notifications import schedule_order_status_notification
+        schedule_order_status_notification(locked_order, 'payment_expired', now)
         provider_ref = locked_payment.provider_ref
 
     # The local reservation deadline is authoritative for inventory. Provider
@@ -1049,6 +1051,8 @@ def reconcile_payment(payment, provider_client=None):
             locked_order.cancelled_at = now
             locked_order.updated_at = now
             locked_order.save(update_fields=['status', 'cancelled_at', 'updated_at'])
+            from orders.status_notifications import schedule_order_status_notification
+            schedule_order_status_notification(locked_order, 'payment_expired', now)
         return 'expired'
     return payment.status
 
@@ -1123,6 +1127,8 @@ def cancel_order(
         locked_order.cancelled_at = now
         locked_order.updated_at = now
         locked_order.save(update_fields=['status', 'cancelled_at', 'updated_at'])
+        from orders.status_notifications import schedule_order_status_notification
+        schedule_order_status_notification(locked_order, 'cancelled', now)
     return locked_order, locked_payment
 
 
