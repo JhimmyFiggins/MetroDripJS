@@ -1311,8 +1311,9 @@ button, input, select, textarea {
 /* Schedule Fields Grid */
 .schedule-fields-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
   gap: 12px;
+  min-width: 0;
 }
 
 .schedule-fields-grid[hidden] {
@@ -3808,6 +3809,83 @@ button, input, select, textarea {
 /* ==========================================================================
    Hero Artwork Customization & Storefront Preview
    ========================================================================== */
+.banner-editor-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 560px), 1fr));
+}
+.banner-editor-grid > .panel-card {
+  min-width: 0;
+  max-width: 100%;
+}
+#card-banner-editor {
+  container-type: inline-size;
+  container-name: banner-editor;
+  overflow: visible;
+}
+.banner-editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.banner-editor-header > div,
+#banner-editor-editing-notice {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+#form-banner-editor {
+  min-width: 0;
+  width: 100%;
+}
+.banner-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+  align-items: center;
+  min-width: 0;
+}
+.banner-editor-actions #btn-delete-banner {
+  margin-left: auto;
+}
+#form-banner-editor,
+#form-banner-editor .form-group,
+#form-banner-editor .form-input,
+#form-banner-editor .form-select,
+#form-banner-editor .btn {
+  max-width: 100%;
+}
+#form-banner-editor .form-input,
+#form-banner-editor .form-select {
+  min-width: 0;
+  width: 100%;
+}
+.banner-field-grid,
+.artwork-option-grid,
+.artwork-color-grid {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.banner-field-grid,
+.artwork-option-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+}
+.banner-field-grid--priority {
+  grid-template-columns: minmax(0, 2fr) minmax(min(100%, 140px), 1fr);
+}
+.artwork-color-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 168px), 1fr));
+}
+@container banner-editor (max-width: 640px) {
+  .banner-field-grid,
+  .banner-field-grid--priority,
+  .artwork-option-grid,
+  .artwork-color-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .hero-artwork-section {
   border: 1px solid var(--border-color, #2a2a2a);
   border-radius: 8px;
@@ -3817,12 +3895,22 @@ button, input, select, textarea {
   flex-direction: column;
   gap: 14px;
   margin: 4px 0;
+  min-width: 0;
+  min-inline-size: 0;
+  max-width: 100%;
+}
+.artwork-panel {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .hero-artwork-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
 }
 
 .hero-artwork-title {
@@ -3836,17 +3924,23 @@ button, input, select, textarea {
 
 .artwork-mode-radios {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 6px;
+  min-width: 0;
 }
 
 .artwork-mode-tab {
-  flex: 1;
+  flex: 1 1 180px;
+  min-width: min(100%, 180px);
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   padding: 10px 14px;
+  white-space: normal;
+  text-align: center;
+  overflow-wrap: anywhere;
   border-radius: 6px;
   border: 1px solid var(--border-color, #333333);
   background: var(--surface-primary, #181818);
@@ -3877,6 +3971,12 @@ button, input, select, textarea {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+.artwork-color-control .form-input {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .artwork-color-control input[type="color"] {
@@ -3904,10 +4004,20 @@ button, input, select, textarea {
   background-color: rgba(211, 238, 66, 0.06);
 }
 
+.artwork-restore-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+.artwork-restore-row .btn {
+  white-space: normal;
+}
 .artwork-image-card {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
+  min-width: 0;
   padding: 10px 14px;
   background: var(--surface-primary, #181818);
   border: 1px solid var(--border-color, #333333);

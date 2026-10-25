@@ -172,10 +172,10 @@
       </section>
 
       <!-- 2-Column Grid: Banner Editor + Desktop/Mobile Live Preview -->
-      <div class="panel-grid-2col" style="margin-top: 24px;">
+      <div class="panel-grid-2col banner-editor-grid" style="margin-top: 24px;">
         <!-- Left: Edit banner form -->
         <section class="panel-card" id="card-banner-editor" aria-labelledby="heading-banner-editor">
-          <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center;">
+          <div class="panel-header banner-editor-header">
             <div>
               <h2 class="panel-title" id="heading-banner-editor">Edit banner</h2>
               <p id="banner-editor-editing-notice" style="margin:3px 0 0; font-size:12px; color:var(--color-muted);">Select a banner above to edit.</p>
@@ -211,7 +211,7 @@
               <input type="text" class="form-input" id="input-banner-subtext" placeholder="Supporting storefront copy" maxlength="255">
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="banner-field-grid">
               <div class="form-group">
                 <label class="form-label" for="input-banner-button-label">Button label</label>
                 <input type="text" class="form-input" id="input-banner-button-label" placeholder="Shop Now" maxlength="50">
@@ -222,7 +222,7 @@
               </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px;">
+            <div class="banner-field-grid banner-field-grid--priority">
               <div class="form-group">
                 <label class="form-label" for="input-banner-image-url">Image URL (optional)</label>
                 <input type="text" class="form-input" id="input-banner-image-url" placeholder="https://... or /assets/banners/... (optional)" maxlength="254">
@@ -281,7 +281,7 @@
                   </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                <div class="artwork-option-grid">
                   <div class="form-group">
                     <label class="form-label" for="select-artwork-image-fit">Image Fit</label>
                     <select class="form-select" id="select-artwork-image-fit">
@@ -305,7 +305,7 @@
                   <input type="text" class="form-input" id="input-graphic-text-main" placeholder="MD" maxlength="50" value="MD">
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="artwork-option-grid">
                   <div class="form-group">
                     <label class="form-label" for="input-graphic-text-tagline">Tagline</label>
                     <input type="text" class="form-input" id="input-graphic-text-tagline" placeholder="BUILT FOR THE STREETS" maxlength="100" value="BUILT FOR THE STREETS">
@@ -316,7 +316,7 @@
                   </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                <div class="artwork-color-grid">
                   <div class="form-group">
                     <label class="form-label" for="input-graphic-bg-color">Background Color</label>
                     <div class="artwork-color-control">
@@ -340,7 +340,7 @@
                   </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="artwork-option-grid">
                   <div class="form-group">
                     <label class="form-label" for="select-graphic-alignment">Text Alignment</label>
                     <select class="form-select" id="select-graphic-alignment">
@@ -359,7 +359,7 @@
                   </div>
                 </div>
 
-                <div style="display: flex; justify-content: flex-end; margin-top: 4px;">
+                <div class="artwork-restore-row">
                   <button type="button" class="btn btn-secondary btn-sm" id="btn-restore-graphic-defaults">Restore default design</button>
                 </div>
               </div>
@@ -385,7 +385,7 @@
               </div>
             </div>
 
-            <div style="display: flex; gap: 10px; margin-top: 6px; align-items: center;">
+            <div class="banner-editor-actions">
               <button type="submit" class="btn btn-primary" id="btn-publish-banner">Save & Publish</button>
               <button type="button" class="btn btn-secondary" id="btn-save-draft">Save Draft</button>
               <button type="button" class="btn btn-secondary" id="btn-revert-banner" disabled>Revert</button>

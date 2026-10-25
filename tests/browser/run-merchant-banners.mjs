@@ -184,6 +184,49 @@ try {
   if (!artworkSectionVisible) throw new Error('Expected #section-hero-artwork to be visible for homepage_hero');
   console.log('✓ Hero Artwork Customization section is visible');
 
+  const assertEditorFits = async (label) => {
+    const result = await page.evaluate(() => {
+      const editor = document.querySelector('#card-banner-editor');
+      const fieldset = document.querySelector('#section-hero-artwork');
+      const editorBox = editor.getBoundingClientRect();
+      const visible = [...fieldset.querySelectorAll('input, select, button, label, .btn')]
+        .filter((el) => el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden')
+        .map((el) => {
+          const box = el.getBoundingClientRect();
+          return {
+            id: el.id || el.textContent.trim().slice(0, 24),
+            inside: box.width > 0 && box.left >= editorBox.left - 1 && box.right <= editorBox.right + 1,
+          };
+        });
+      const offenders = [...editor.querySelectorAll('*')].filter((el) => el.scrollWidth > el.clientWidth + 1 || el.getBoundingClientRect().right > editorBox.right + 1).slice(0, 6).map((el) => `${el.id || el.className || el.tagName}:${Math.round(el.getBoundingClientRect().width)}`);
+      return {
+        pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        editorOverflow: editor.scrollWidth - editor.clientWidth,
+        fieldsetOverflow: fieldset.scrollWidth - fieldset.clientWidth,
+        clipped: visible.filter((item) => !item.inside).map((item) => item.id),
+        offenders,
+      };
+    });
+    if (result.pageOverflow > 1 || result.editorOverflow > 1 || result.fieldsetOverflow > 1 || result.clipped.length) {
+      throw new Error(`${label} overflow page=${result.pageOverflow} editor=${result.editorOverflow} fieldset=${result.fieldsetOverflow} clipped=${result.clipped.join(',')} offenders=${result.offenders.join('|')}`);
+    }
+  };
+  const savedTheme = await page.evaluate(() => document.documentElement.dataset.theme || 'light');
+  for (const width of [1920, 1440, 1366, 1024, 768, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate((next) => { document.documentElement.dataset.theme = next; }, theme);
+      for (const mode of ['graphic', 'image']) {
+        await page.click(mode === 'graphic' ? '#radio-mode-graphic' : '#radio-mode-image');
+        await assertEditorFits(`${width}px ${theme} ${mode}`);
+      }
+    }
+    console.log(`✓ Banner editor fits at ${width}px in both themes and artwork modes`);
+  }
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.evaluate((next) => { document.documentElement.dataset.theme = next; }, savedTheme);
+  await page.click('#radio-mode-graphic');
+
   // Verify graphic mode active by default
   const isGraphicChecked = await page.$eval('#radio-mode-graphic', (el) => el.checked);
   if (!isGraphicChecked) throw new Error('Expected graphic mode radio to be checked');
