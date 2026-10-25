@@ -145,8 +145,8 @@ REST_FRAMEWORK = {
     },
     'NUM_PROXIES': 1,
 }
-# Temporarily off. Set EMAIL_OTP_ENFORCED=true to require email OTP again.
-EMAIL_OTP_ENFORCED = env_bool('EMAIL_OTP_ENFORCED', False)
+# Required outside tests. Set EMAIL_OTP_ENFORCED=false only for a temporary local bypass.
+EMAIL_OTP_ENFORCED = env_bool('EMAIL_OTP_ENFORCED', 'test' not in sys.argv)
 EMAIL_OTP_TTL_SECONDS = int(os.environ.get('EMAIL_OTP_TTL_SECONDS', '300'))
 EMAIL_OTP_RESEND_SECONDS = int(os.environ.get('EMAIL_OTP_RESEND_SECONDS', '60'))
 EMAIL_OTP_MAX_ATTEMPTS = int(os.environ.get('EMAIL_OTP_MAX_ATTEMPTS', '5'))

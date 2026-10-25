@@ -17,7 +17,7 @@
 - Customer registration and every new customer login require an email OTP before a bearer token is issued. Existing rows are backfilled as email-verified so they are not locked out; they still receive a login code.
 - Admin and merchant login require an email OTP only when `staff_mfa_policy` is `required`. `optional` keeps password-only staff sign-in.
 - Codes are HMAC-SHA256 digests, expire in five minutes, lock after five failures, and resend is limited to once per 60 seconds. Brevo delivery failure does not create a session.
-- `EMAIL_OTP_ENFORCED` is temporarily false. Set it to `true` to require email OTP again. OTP tests still opt in.
+- `EMAIL_OTP_ENFORCED` is on again. OTP tests opt in. Production must keep `EMAIL_OTP_ENFORCED=true`.
 - Live Brevo delivery and device OTP screens were not executed.
 
 ## Seven-issue implementation checkpoint — 2026-10-25

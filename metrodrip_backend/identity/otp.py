@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def otp_enforced():
-    return bool(getattr(settings, 'EMAIL_OTP_ENFORCED', False))
+    return bool(getattr(settings, 'EMAIL_OTP_ENFORCED', True))
 
 
 def otp_lifetime():
