@@ -248,6 +248,35 @@ class SettingsMigrationTestSuite(TestCase):
             action__contains='Updated platform settings',
         ).exists())
 
+    def test_admin_date_format_save_persists_and_rejects_unknown_values(self):
+        self._login(self.admin)
+        original = self.client.get('/api/admin/settings/').data['settings']
+        payload = {
+            **original,
+            'date_format': 'DD MMM YYYY',
+            'maintenance_scheduled_start': None,
+            'maintenance_scheduled_end': None,
+        }
+        saved = self.client.patch('/api/admin/settings/', payload, format='json')
+        self.assertEqual(saved.status_code, 200, saved.data)
+        self.assertEqual(saved.data['settings']['date_format'], 'DD MMM YYYY')
+        self.assertEqual(saved.data['settings']['platform_name'], original['platform_name'])
+        self.assertEqual(saved.data['settings']['currency'], original['currency'])
+
+        reloaded = self.client.get('/api/admin/settings/')
+        self.assertEqual(reloaded.data['settings']['date_format'], 'DD MMM YYYY')
+
+        restored = self.client.patch('/api/admin/settings/', {**payload, 'date_format': 'YYYY-MM-DD'}, format='json')
+        self.assertEqual(restored.status_code, 200, restored.data)
+        self.assertEqual(restored.data['settings']['date_format'], 'YYYY-MM-DD')
+
+        rejected = self.client.patch('/api/admin/settings/', {'date_format': 'weekday'}, format='json')
+        self.assertEqual(rejected.status_code, 400)
+        self.assertEqual(rejected.data['code'], 'invalid_date_format')
+        self.assertEqual(self.client.get('/api/admin/settings/').data['settings']['date_format'], 'YYYY-MM-DD')
+        audit = AuditLog.objects.filter(action__contains='Updated platform settings').latest('created_at')
+        self.assertLessEqual(len(audit.action), 255)
+
     def test_admin_settings_numeric_validation(self):
         self._login(self.admin)
 

@@ -4,6 +4,7 @@ import secrets
 from datetime import timedelta
 from django.conf import settings
 from django.http import HttpResponse
+from django.db import transaction
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
@@ -21,6 +22,7 @@ from fulfillment.models import ShippingShippingZone
 
 
 ALLOWED_ACCOUNT_ROLES = {'customer', 'merchant', 'admin'}
+ALLOWED_DATE_FORMATS = {'YYYY-MM-DD', 'DD MMM YYYY', 'MM/DD/YYYY'}
 
 
 def generate_secure_temporary_password(length=14):
@@ -620,12 +622,22 @@ class AdminSettingsAPIView(AdminAPIView):
                         setattr(setting, field, None)
                 else:
                     val = str(raw_val or '').strip()
+                    if field == 'date_format' and val not in ALLOWED_DATE_FORMATS:
+                        return Response(
+                            {'error': 'Choose a supported date format.', 'code': 'invalid_date_format'},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
                     setattr(setting, field, val)
                 updated_fields.append(field)
 
         if updated_fields:
-            setting.save()
-            _audit(request, f"Updated platform settings ({', '.join(updated_fields)})", "PlatformSetting", setting.id)
+            summary = ', '.join(updated_fields)
+            action = f"Updated platform settings ({summary})"
+            if len(action) > 255:
+                action = f"Updated platform settings ({len(updated_fields)} fields)"
+            with transaction.atomic():
+                setting.save()
+                _audit(request, action, "PlatformSetting", setting.id)
 
         return self.get(request)
 

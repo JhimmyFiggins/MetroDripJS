@@ -208,24 +208,26 @@
     return result;
   }
 
-  function hasChanges() {
-    if (!savedSettings) return false;
-    const current = readSettings();
-    for (const [key, currVal] of Object.entries(current)) {
-      const savedVal = savedSettings[key];
-      if (DATETIME_FIELDS.has(key)) {
-        const currNorm = currVal ? new Date(currVal).getTime() : null;
-        const savedNorm = savedVal ? new Date(savedVal).getTime() : null;
-        if (currNorm !== savedNorm) return true;
-      } else if (NUMERIC_FIELDS.has(key)) {
-        if (Number(currVal) !== Number(savedVal)) return true;
-      } else {
-        const s1 = String(currVal ?? '').trim();
-        const s2 = String(savedVal ?? '').trim();
-        if (s1 !== s2) return true;
-      }
+  function settingChanged(key, currVal, savedVal) {
+    if (DATETIME_FIELDS.has(key)) {
+      const currNorm = currVal ? new Date(currVal).getTime() : null;
+      const savedNorm = savedVal ? new Date(savedVal).getTime() : null;
+      return currNorm !== savedNorm;
     }
-    return false;
+    if (NUMERIC_FIELDS.has(key)) return Number(currVal) !== Number(savedVal);
+    return String(currVal ?? '').trim() !== String(savedVal ?? '').trim();
+  }
+
+  function changedSettings() {
+    if (!savedSettings) return {};
+    const current = readSettings();
+    return Object.fromEntries(
+      Object.entries(current).filter(([key, value]) => settingChanged(key, value, savedSettings[key])),
+    );
+  }
+
+  function hasChanges() {
+    return Object.keys(changedSettings()).length > 0;
   }
 
   function updateUnsavedStatus(isDirty) {
@@ -383,7 +385,8 @@
     if (!savedSettings) return;
     const form = document.getElementById('form-platform-settings');
     if (!form?.reportValidity()) return;
-    const payload = readSettings();
+      const payload = changedSettings();
+      if (!Object.keys(payload).length) return;
     setFormEnabled(false);
     setSourceStatus('SAVING');
     setPageState('info', 'Saving platform settings', 'Waiting for the administrator API to confirm the update.');
