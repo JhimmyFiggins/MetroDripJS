@@ -145,10 +145,8 @@ REST_FRAMEWORK = {
     },
     'NUM_PROXIES': 1,
 }
-# Email OTP is mandatory for customers outside the automated test runner.
-# `manage.py test` defaults this off so existing authenticated fixtures keep
-# working; OTP tests opt in with override_settings.
-EMAIL_OTP_ENFORCED = env_bool('EMAIL_OTP_ENFORCED', 'test' not in sys.argv)
+# Temporarily off. Set EMAIL_OTP_ENFORCED=true to require email OTP again.
+EMAIL_OTP_ENFORCED = env_bool('EMAIL_OTP_ENFORCED', False)
 EMAIL_OTP_TTL_SECONDS = int(os.environ.get('EMAIL_OTP_TTL_SECONDS', '300'))
 EMAIL_OTP_RESEND_SECONDS = int(os.environ.get('EMAIL_OTP_RESEND_SECONDS', '60'))
 EMAIL_OTP_MAX_ATTEMPTS = int(os.environ.get('EMAIL_OTP_MAX_ATTEMPTS', '5'))

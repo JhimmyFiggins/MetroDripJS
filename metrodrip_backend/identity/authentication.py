@@ -56,7 +56,7 @@ class CustomerTokenAuthentication(BaseAuthentication):
             CustomerAccessToken.objects.filter(pk=token.pk).update(last_used_at=now)
 
         if (
-            getattr(settings, 'EMAIL_OTP_ENFORCED', True)
+            getattr(settings, 'EMAIL_OTP_ENFORCED', False)
             and token.customer.role == 'customer'
             and not token.customer.is_staff
             and token.customer.email_verified_at is None
