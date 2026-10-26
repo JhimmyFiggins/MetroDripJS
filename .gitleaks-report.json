@@ -1,0 +1,22 @@
+[
+ {
+  "RuleID": "generic-api-key",
+  "Description": "Detected a Generic API Key, potentially exposing access to various services and sensitive operations.",
+  "StartLine": 348,
+  "EndLine": 348,
+  "StartColumn": 48,
+  "EndColumn": 81,
+  "Match": "BREVO_API_KEY='REDACTED'",
+  "Secret": "REDACTED",
+  "File": "/repo/metrodrip_backend/orders/tests_status_notifications.py",
+  "SymlinkFile": "",
+  "Commit": "",
+  "Entropy": 3.530493,
+  "Author": "",
+  "Email": "",
+  "Date": "",
+  "Message": "",
+  "Tags": [],
+  "Fingerprint": "/repo/metrodrip_backend/orders/tests_status_notifications.py:generic-api-key:348"
+ }
+]
