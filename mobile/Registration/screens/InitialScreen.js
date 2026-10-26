@@ -29,7 +29,7 @@ export default function InitialScreen({ navigation }) {
                 {/* Logo Frame: MetroDrip Logo #5 */}
                 <View style={styles.logoRow}>
                     <Image
-                        source={require('../../assets/branding/logo-badge.png')}
+                        source={require('../../assets/branding/logo-dark.png')}
                         style={styles.logoBadgeImage}
                         resizeMode="contain"
                         accessibilityLabel="MetroDrip"

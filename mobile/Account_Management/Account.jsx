@@ -234,6 +234,14 @@ export default function Account() {
       >
         <Text style={styles.guestLink}>Continue browsing</Text>
       </TouchableOpacity>
+
+      <TouchableOpacity
+        accessibilityLabel="Meet the team"
+        accessibilityRole="button"
+        onPress={() => navigation.navigate('Team')}
+      >
+        <Text style={styles.guestLink}>Meet the team</Text>
+      </TouchableOpacity>
     </View>
   );
 
@@ -434,6 +442,11 @@ export default function Account() {
                   icon="✉"
                   label="Contact us"
                   onPress={() => setPanel('contact')}
+                />
+                <MenuRow
+                  icon="👥"
+                  label="Our Team"
+                  onPress={() => navigation.navigate('Team')}
                 />
               </View>
 

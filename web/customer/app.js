@@ -23,6 +23,7 @@ import {
   usableImageUrl,
   variantLabel,
 } from './contracts.js';
+import { TEAM_MEMBERS, TEAM_HEADING, TEAM_SUBTITLE } from './teamData.js';
 
 const app = document.querySelector('#app');
 const statusNode = document.querySelector('#status');
@@ -1425,7 +1426,57 @@ async function renderSupport() {
 }
 
 async function renderTeam() {
-  return page('Our Team', 'Every piece is designed in Metro Manila — from concept to cut. MetroDrip brings high-concept streetwear crafted for everyday urban mobility.');
+  const cards = TEAM_MEMBERS.map((member) => {
+    const avatarImg = el('img', {
+      class: 'team-avatar-img',
+      src: member.avatar,
+      alt: member.name,
+      loading: 'lazy',
+      onerror: (event) => {
+        event.currentTarget.style.display = 'none';
+      },
+    });
+
+    const initialsFallback = el('span', {
+      class: 'team-avatar-initials',
+      'aria-hidden': 'true',
+    }, member.initials);
+
+    const contributionBadge = el('span', {
+      class: 'team-badge',
+    }, member.contribution);
+
+    const avatarBox = el('div', { class: 'team-avatar-box' }, [
+      initialsFallback,
+      avatarImg,
+      contributionBadge,
+    ]);
+
+    const infoBox = el('div', { class: 'team-card-info' }, [
+      el('h2', { class: 'team-member-name' }, member.name),
+      el('span', { class: 'team-member-role' }, member.role),
+      el('p', { class: 'team-member-bio' }, member.bio),
+    ]);
+
+    return el('article', {
+      class: 'team-card',
+      'aria-label': `${member.name} - ${member.role}`,
+    }, [
+      avatarBox,
+      infoBox,
+    ]);
+  });
+
+  const teamGrid = el('div', { class: 'team-grid' }, cards);
+
+  return el('section', { class: 'page team-page' }, [
+    breadcrumbs({ label: 'Home', href: customerHref('/') }, { label: 'Our Team' }),
+    el('div', { class: 'team-header' }, [
+      el('h1', { tabindex: '-1' }, TEAM_HEADING),
+      el('p', { class: 'lede team-subtitle' }, TEAM_SUBTITLE),
+    ]),
+    teamGrid,
+  ]);
 }
 
 function svgIcon(markup) {
@@ -1671,7 +1722,7 @@ async function renderSignIn(_route, scope) {
   const next = safeCustomerPath(new URLSearchParams(location.search).get('next') || customerHref('/'));
   
   const brandPanel = el('div', { class: 'auth-brand-panel' }, [
-    el('img', { class: 'auth-brand-badge-img', src: '/assets/branding/logo-badge.png', alt: 'METRODRIP' }),
+    el('img', { class: 'auth-brand-badge-img', src: '/assets/branding/logo-dark.png', alt: 'METRODRIP' }),
     el('p', { class: 'auth-brand-tagline' }, ['Your city.', el('br'), 'Your style.']),
     el('p', { class: 'auth-brand-perks' }, 'Order history · Wishlist · Faster checkout'),
   ]);
@@ -1710,7 +1761,7 @@ async function renderSignIn(_route, scope) {
 
 async function renderSignUp(_route, scope) {
   const brandPanel = el('div', { class: 'auth-brand-panel' }, [
-    el('img', { class: 'auth-brand-badge-img', src: '/assets/branding/logo-badge.png', alt: 'METRODRIP' }),
+    el('img', { class: 'auth-brand-badge-img', src: '/assets/branding/logo-dark.png', alt: 'METRODRIP' }),
     el('p', { class: 'auth-brand-tagline' }, ['Join the', el('br'), 'movement.']),
     el('p', { class: 'auth-brand-perks' }, 'Drops notification · Wishlist · Track orders'),
   ]);
@@ -1763,7 +1814,7 @@ function secretField(label, name) {
 
 async function renderForgot(_route, scope) {
   const brandPanel = el('div', { class: 'auth-brand-panel' }, [
-    el('img', { class: 'auth-brand-badge-img', src: '/assets/branding/logo-badge.png', alt: 'METRODRIP' }),
+    el('img', { class: 'auth-brand-badge-img', src: '/assets/branding/logo-dark.png', alt: 'METRODRIP' }),
     el('p', { class: 'auth-brand-tagline' }, ['Account', el('br'), 'Recovery.']),
     el('p', { class: 'auth-brand-perks' }, 'Secure · One-time reset link · Encrypted'),
   ]);
@@ -1819,7 +1870,7 @@ async function renderForgot(_route, scope) {
 
 async function renderResetPassword(scope) {
   const brandPanel = el('div', { class: 'auth-brand-panel' }, [
-    el('img', { class: 'auth-brand-badge-img', src: '/assets/branding/logo-badge.png', alt: 'METRODRIP' }),
+    el('img', { class: 'auth-brand-badge-img', src: '/assets/branding/logo-dark.png', alt: 'METRODRIP' }),
     el('p', { class: 'auth-brand-tagline' }, ['Account', el('br'), 'Recovery.']),
     el('p', { class: 'auth-brand-perks' }, 'Secure · One-time reset link · Encrypted'),
   ]);

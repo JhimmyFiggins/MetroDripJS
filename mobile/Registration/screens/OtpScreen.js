@@ -155,7 +155,7 @@ export default function OtpScreen({ navigation, route }) {
           <View style={styles.cardContainer}>
             <View style={styles.iconCircle}>
               <Image
-                source={require('../../assets/branding/logo-emblem.png')}
+                source={theme.mode === 'dark' ? require('../../assets/branding/logo-emblem-dark.png') : require('../../assets/branding/logo-emblem.png')}
                 style={{ width: 36, height: 36 }}
                 resizeMode="contain"
                 accessible={false}

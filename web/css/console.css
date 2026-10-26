@@ -138,6 +138,11 @@ button, input, select, textarea {
   flex-shrink: 0;
 }
 
+:root[data-theme='dark'] .brand-logo::before,
+[data-theme='dark'] .brand-logo::before {
+  background-image: url('/assets/branding/logo-emblem-dark.png');
+}
+
 .brand-logo span {
   color: var(--color-ink);
   background-color: var(--color-volt);
