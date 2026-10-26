@@ -1,9 +1,9 @@
 from datetime import timedelta
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework.test import APIClient
-from identity.models import AccountsCustomer, AuditLog, CustomerAccessToken
+from identity.models import AccountsCustomer, AuditLog, CustomerAccessToken, PlatformSetting
 from catalog.models import (
     CatalogCategory,
     CatalogProduct,
@@ -737,6 +737,85 @@ class ConsolesAPITestCase(TestCase):
 
         merchant_route = self.client.get('/api/merchant/switch-user/')
         self.assertEqual(merchant_route.status_code, 404)
+
+    @override_settings(EMAIL_OTP_ENFORCED=True)
+    def test_admin_directory_reports_two_factor_and_recorded_activity(self):
+        now = timezone.now()
+        self.customer.email_verified_at = None
+        self.customer.last_login = None
+        self.customer.save(update_fields=['email_verified_at', 'last_login'])
+        self.merchant_user.last_login = now
+        self.merchant_user.save(update_fields=['last_login'])
+        PlatformSetting.objects.update_or_create(id=1, defaults={'staff_mfa_policy': 'optional'})
+        before = {
+            self.customer.id: None,
+            self.merchant_user.id: self.merchant_user.last_login,
+        }
+        response = self.client.get('/api/admin/users/')
+        self.assertEqual(response.status_code, 200)
+        rows = {row['id']: row for row in response.data}
+        self.assertEqual(rows[self.customer.id]['two_factor_status'], 'pending_setup')
+        self.assertIsNone(rows[self.customer.id]['last_active'])
+        self.assertFalse(rows[self.customer.id]['last_active_recorded'])
+        self.assertEqual(rows[self.merchant_user.id]['two_factor_status'], 'disabled')
+        self.assertTrue(rows[self.merchant_user.id]['last_active_recorded'])
+        self.assertIsNone(self.customer.last_login)
+        self.assertEqual(self.merchant_user.last_login, before[self.merchant_user.id])
+
+    def test_authenticated_activity_advances_last_login_and_token_last_used(self):
+        from datetime import timedelta
+        t0 = timezone.now() - timedelta(minutes=30)
+        self.customer.last_login = t0
+        self.customer.save(update_fields=['last_login'])
+        token_obj = CustomerAccessToken.objects.filter(customer=self.customer).first()
+        token_obj.last_used_at = t0
+        token_obj.save(update_fields=['last_used_at'])
+
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.customer_token}')
+        res = client.get('/profile/')
+        self.assertEqual(res.status_code, 200)
+
+        self.customer.refresh_from_db()
+        token_obj.refresh_from_db()
+        t1 = self.customer.last_login
+        self.assertIsNotNone(t1)
+        self.assertGreater(t1, t0)
+        self.assertEqual(token_obj.last_used_at, t1)
+
+        # Immediate second request (< 300s) does not advance last_login (debounced)
+        res2 = client.get('/profile/')
+        self.assertEqual(res2.status_code, 200)
+        self.customer.refresh_from_db()
+        token_obj.refresh_from_db()
+        self.assertEqual(self.customer.last_login, t1)
+        self.assertEqual(token_obj.last_used_at, t1)
+
+        # Failed authentication does NOT update last_login
+        bad_client = APIClient()
+        bad_client.credentials(HTTP_AUTHORIZATION='Bearer invalid_token_12345678901234567890123456789012')
+        res_bad = bad_client.get('/profile/')
+        self.assertEqual(res_bad.status_code, 401)
+        self.customer.refresh_from_db()
+        self.assertEqual(self.customer.last_login, t1)
+
+        # Merchant authenticated request advances merchant last_login
+        m_t0 = timezone.now() - timedelta(minutes=20)
+        self.merchant_user.last_login = m_t0
+        self.merchant_user.save(update_fields=['last_login'])
+        m_token_obj = CustomerAccessToken.objects.filter(customer=self.merchant_user).first()
+        m_token_obj.last_used_at = m_t0
+        m_token_obj.save(update_fields=['last_used_at'])
+
+        m_client = APIClient()
+        m_client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.merchant_token}')
+        m_res = m_client.get('/api/merchant/orders/')
+        self.assertEqual(m_res.status_code, 200)
+
+        self.merchant_user.refresh_from_db()
+        m_token_obj.refresh_from_db()
+        self.assertGreater(self.merchant_user.last_login, m_t0)
+        self.assertEqual(m_token_obj.last_used_at, self.merchant_user.last_login)
 
     def test_staff_role_boundaries_are_server_enforced(self):
         anonymous = APIClient()

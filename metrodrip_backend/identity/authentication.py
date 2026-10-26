@@ -1,8 +1,9 @@
 from django.conf import settings
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework.authentication import BaseAuthentication, get_authorization_header
 from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
-from .models import CustomerAccessToken
+from .models import AccountsCustomer, CustomerAccessToken
 from .policy import session_timeout
 
 RESTRICTED_ALLOWED_PATHS = {
@@ -54,6 +55,9 @@ class CustomerTokenAuthentication(BaseAuthentication):
 
         if token.last_used_at is None or (now - token.last_used_at).total_seconds() >= 300:
             CustomerAccessToken.objects.filter(pk=token.pk).update(last_used_at=now)
+            AccountsCustomer.objects.filter(pk=token.customer_id).filter(
+                Q(last_login__isnull=True) | Q(last_login__lt=now)
+            ).update(last_login=now)
 
         if (
             getattr(settings, 'EMAIL_OTP_ENFORCED', True)

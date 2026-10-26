@@ -87,6 +87,7 @@ class CheckoutRecoveryAPITests(TestCase):
         allowed = (
             'SELECT ', 'SAVEPOINT ', 'RELEASE SAVEPOINT ',
             'UPDATE "identity_customeraccesstoken" ',
+            'UPDATE "accounts_customer" ',
             'INSERT INTO "identity_request_ratelimit" ',
             'UPDATE "identity_request_ratelimit" ',
         )

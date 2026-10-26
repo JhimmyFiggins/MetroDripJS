@@ -39,6 +39,17 @@ def mask_email(email):
     return f'{visible}***@{domain}'
 
 
+def account_two_factor_status(customer, policy=None):
+    if customer.role == 'customer' and not customer.is_staff:
+        if not otp_enforced():
+            return 'disabled'
+        if customer.email_verified_at is None:
+            return 'pending_setup'
+        return 'enabled'
+    active_policy = policy if policy is not None else PlatformSetting.get_instance().staff_mfa_policy
+    return 'enabled' if active_policy == 'required' else 'disabled'
+
+
 def staff_otp_required(customer):
     if customer.role == 'customer' and not customer.is_staff:
         return True

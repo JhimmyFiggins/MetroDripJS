@@ -8,6 +8,8 @@ from metrodrip_backend.console_views import console_file
 
 
 class ConsoleFileViewIntegrationTests(SimpleTestCase):
+    databases = {'default'}
+
     def test_console_home_and_role_dashboards_are_served(self):
         cases = (
             ('/', b'Console & Staff Portal'),

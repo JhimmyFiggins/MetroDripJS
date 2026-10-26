@@ -288,9 +288,9 @@ class MobileBackendAPITestCase(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), len(products))
-        # Fixed overhead includes the maintenance/settings lookup. The bound must
-        # stay flat as wishlist size grows; it is not a per-item query budget.
-        self.assertLessEqual(len(queries), 6)
+        # Fixed overhead includes the maintenance/settings lookup and auth last_login bookkeeping.
+        # The bound must stay flat as wishlist size grows; it is not a per-item query budget.
+        self.assertLessEqual(len(queries), 7)
 
     # 5. PRODUCT REVIEWS API (GET & POST)
     def test_product_reviews_endpoints(self):

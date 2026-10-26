@@ -112,26 +112,37 @@
     return String(role || '').toLowerCase() === 'administrator' ? 'admin' : String(role || '').toLowerCase();
   }
 
-  function formatDate(value, includeTime = false) {
-    if (!value) return 'Not reported';
+  function formatDate(value, includeTime = false, fallback = 'Not recorded') {
+    if (!value) return fallback;
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return String(value);
     return new Intl.DateTimeFormat('en-PH', includeTime
-      ? { dateStyle: 'medium', timeStyle: 'short' }
-      : { dateStyle: 'medium' }).format(date);
+      ? { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Manila' }
+      : { dateStyle: 'medium', timeZone: 'Asia/Manila' }).format(date);
+  }
+
+  function twoFactorLabel(raw) {
+    const status = String(raw.two_factor_status || '').toLowerCase();
+    if (status === 'enabled') return 'Enabled';
+    if (status === 'pending_setup') return 'Pending Setup';
+    if (status === 'disabled') return 'Disabled';
+    if (raw.mfa_enabled === true) return 'Enabled';
+    if (raw.mfa_enabled === false) return 'Disabled';
+    return 'Unavailable';
   }
 
   function normalizeUser(raw) {
-    const mfa = raw.tfa ?? raw.mfa_enabled ?? raw.two_factor_enabled;
+    const recorded = Boolean(raw.last_active_recorded || raw.last_active || raw.last_login);
     return {
       id: String(raw.id),
       name: String(raw.name || raw.full_name || 'Unnamed account'),
       email: String(raw.email || 'Email not reported'),
       role: displayRole(raw.role),
       status: String(raw.status || (raw.is_active === false ? 'Suspended' : 'Active')),
-      tfa: mfa === true || String(mfa).toLowerCase() === 'on' ? 'On' : mfa === false || String(mfa).toLowerCase() === 'off' ? 'Off' : 'Not reported',
-      lastActive: formatDate(raw.last_active || raw.last_login, true),
-      memberSince: formatDate(raw.memberSince || raw.date_joined || raw.created_at),
+      tfa: twoFactorLabel(raw),
+      lastActive: recorded ? formatDate(raw.last_active || raw.last_login, true, 'No activity recorded') : 'No activity recorded',
+      lastActiveExact: raw.last_active || raw.last_login || '',
+      memberSince: formatDate(raw.memberSince || raw.date_joined || raw.created_at, false, 'Not recorded'),
       passwordChangeRequired: Boolean(raw.password_change_required ?? raw.passwordChangeRequired),
     };
   }
@@ -241,13 +252,14 @@
       tbody.innerHTML = filtered.map(user => {
         const selected = user.id === selectedUserId;
         const suspended = user.status.toLowerCase() === 'suspended';
+        const tfaPillClass = user.tfa === 'Enabled' ? 'active' : user.tfa === 'Pending Setup' ? 'pending' : user.tfa === 'Disabled' ? 'inactive' : 'neutral';
         return `
           <tr data-user-id="${escapeHtml(user.id)}" class="clickable-row ${selected ? 'selected-row' : ''}" tabindex="0" aria-selected="${selected}">
             <td data-label="Name / email"><span class="td-strong">${escapeHtml(user.name)}</span><span class="responsive-secondary td-mono">${escapeHtml(user.email)}</span></td>
             <td data-label="Role" class="td-mono">${escapeHtml(user.role)}</td>
             <td data-label="Status"><span class="status-pill ${suspended ? 'suspended' : 'active'}">${escapeHtml(user.status)}</span></td>
-            <td data-label="2FA" class="td-mono td-muted">${escapeHtml(user.tfa)}</td>
-            <td data-label="Last active" class="td-mono td-muted">${escapeHtml(user.lastActive)}</td>
+            <td data-label="2FA"><span class="status-pill ${tfaPillClass}">${escapeHtml(user.tfa)}</span></td>
+            <td data-label="Last active" class="td-mono td-muted" title="${escapeHtml(user.lastActiveExact ? `${user.lastActiveExact} Asia/Manila` : 'No authenticated activity has been recorded')}">${escapeHtml(user.lastActive)}</td>
           </tr>`;
       }).join('');
     }
@@ -323,8 +335,11 @@
     if (name) name.textContent = user.name;
     if (sub) sub.textContent = `${user.email} · ${user.status}`;
     if (role) role.value = user.role.toLowerCase();
-    if (tfa) tfa.innerHTML = `Two-factor authentication: <strong>${escapeHtml(user.tfa === 'On' ? 'Enabled' : user.tfa === 'Off' ? 'Disabled' : 'Not reported')}</strong>`;
-    if (activity) activity.textContent = `Member since ${user.memberSince} · Last active ${user.lastActive}`;
+    if (tfa) tfa.innerHTML = `Two-factor authentication: <strong>${escapeHtml(user.tfa)}</strong>`;
+    if (activity) {
+      const activeText = user.lastActive === 'No activity recorded' ? 'No activity recorded' : `Last active ${user.lastActive}`;
+      activity.textContent = `Member since ${user.memberSince} · ${activeText}`;
+    }
     if (pwdStatus) {
       if (user.passwordChangeRequired) {
         pwdStatus.innerHTML = 'Password status: <strong style="color: var(--color-warning, #B45309);">Temporary / Setup Required</strong>';

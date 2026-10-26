@@ -5,6 +5,13 @@ legible typography, explicit security context, and plain-text fallbacks.
 """
 
 def _base_email_html(title, heading, body_paragraphs, cta_label=None, cta_url=None, notice=None):
+    try:
+        from django.conf import settings
+        base_url = (getattr(settings, 'APP_PUBLIC_BASE_URL', None) or 'https://metrodripjs-q4ik.onrender.com').strip().rstrip('/')
+    except Exception:
+        base_url = 'https://metrodripjs-q4ik.onrender.com'
+    logo_url = f"{base_url}/assets/branding/logo-emblem.png"
+
     paragraphs_html = "".join(f'<p style="margin: 0 0 16px; font-size: 15px; line-height: 1.6; color: #D1D1D1;">{p}</p>' for p in body_paragraphs)
     
     cta_html = ""
@@ -47,9 +54,18 @@ def _base_email_html(title, heading, body_paragraphs, cta_label=None, cta_url=No
         <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 560px; background-color: #141414; border: 1px solid #242424; border-radius: 8px; overflow: hidden;">
           <!-- Header -->
           <tr>
-            <td style="padding: 28px 32px 20px; border-bottom: 1px solid #242424;">
-              <span style="font-family: Impact, 'Arial Black', sans-serif; font-size: 26px; letter-spacing: 0.02em; color: #FFFFFF;">METRO<span style="color: #E6FF00;">DRIP</span></span>
-              <span style="display: block; font-size: 11px; letter-spacing: 0.15em; color: #8E8E93; text-transform: uppercase; margin-top: 4px;">Metro Manila Streetwear</span>
+            <td style="padding: 24px 32px 20px; border-bottom: 1px solid #242424;">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="vertical-align: middle; padding-right: 12px;">
+                    <img src="{logo_url}" alt="MetroDrip" width="38" height="38" style="display: block; border: 0; outline: none; border-radius: 8px;">
+                  </td>
+                  <td style="vertical-align: middle;">
+                    <span style="font-family: Impact, 'Arial Black', sans-serif; font-size: 24px; letter-spacing: 0.02em; color: #FFFFFF;">METRO<span style="color: #E6FF00;">DRIP</span></span>
+                    <span style="display: block; font-size: 11px; letter-spacing: 0.15em; color: #8E8E93; text-transform: uppercase; margin-top: 2px;">Metro Manila Streetwear</span>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
           <!-- Body Content -->
@@ -197,7 +213,7 @@ def render_password_changed_notification(user, changed_at_str=None):
     return {"subject": "Your MetroDrip password was changed", "html": html, "text": text}
 
 
-def render_order_status_email(name, order_number, status_label, message, changed_at, order_url, support_email):
+def render_order_status_email(name, order_number, status_label, message, changed_at, order_url, support_email, subject=None):
     from html import escape
     safe_name = escape(name or 'there')
     safe_number = escape(order_number)
@@ -206,7 +222,7 @@ def render_order_status_email(name, order_number, status_label, message, changed
     safe_when = escape(changed_at)
     safe_url = escape(order_url, quote=True)
     safe_support = escape(support_email or 'the MetroDrip support address on your receipt')
-    subject = f'Order {order_number} is now {status_label}'
+    subject = subject or f'Order {order_number} is now {status_label}'
     html = _base_email_html(
         title=subject,
         heading=safe_status,

@@ -8,6 +8,7 @@ import logging
 from django.utils import timezone
 from identity.brevo import send_transactional_email
 from identity.models import PlatformSetting, AccountsCustomer
+from orders.email_subjects import distinct_product_names, order_email_subject
 from orders.models import OrdersOrderMessage
 
 logger = logging.getLogger(__name__)
@@ -19,16 +20,23 @@ def render_order_confirmation(order, recipient_name, sender_name='MetroDrip Orde
     Returns:
         dict: {'subject': str, 'html': str, 'text': str}
     """
-    subject = f"Order Confirmed #{order.id} — MetroDrip"
     recipient_display = recipient_name or 'Valued Customer'
     shipping_addr = getattr(order, 'shipping_address', None)
     address_str = f"{shipping_addr.address_line1}, {shipping_addr.city}, {shipping_addr.state}" if shipping_addr else "Address on file"
     payment = order.payments.order_by('-created_at').first()
     payment_method_label = (payment.method.upper() if payment else 'COD')
 
-    lines = list(order.lines.all())
+    lines = list(order.lines.select_related('product').order_by('id'))
+    subject = order_email_subject('confirmed', order.id, distinct_product_names(lines))
     items_html_rows = []
     items_text_rows = []
+
+    try:
+        from django.conf import settings
+        base_url = (getattr(settings, 'APP_PUBLIC_BASE_URL', None) or 'https://metrodripjs-q4ik.onrender.com').strip().rstrip('/')
+    except Exception:
+        base_url = 'https://metrodripjs-q4ik.onrender.com'
+    logo_url = f"{base_url}/assets/branding/logo-emblem.png"
 
     for line in lines:
         name = line.product_name_snapshot or getattr(line.product, 'name', 'Streetwear Item')
@@ -67,9 +75,18 @@ def render_order_confirmation(order, recipient_name, sender_name='MetroDrip Orde
         <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 580px; background-color: #141414; border: 1px solid #242424; border-radius: 8px; overflow: hidden;">
           <!-- Header -->
           <tr>
-            <td style="padding: 28px 32px 20px; border-bottom: 1px solid #242424;">
-              <span style="font-family: Impact, 'Arial Black', sans-serif; font-size: 26px; letter-spacing: 0.02em; color: #FFFFFF;">METRO<span style="color: #E6FF00;">DRIP</span></span>
-              <span style="display: block; font-size: 11px; letter-spacing: 0.15em; color: #8E8E93; text-transform: uppercase; margin-top: 4px;">Order Confirmation</span>
+            <td style="padding: 24px 32px 20px; border-bottom: 1px solid #242424;">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="vertical-align: middle; padding-right: 12px;">
+                    <img src="{logo_url}" alt="MetroDrip" width="38" height="38" style="display: block; border: 0; outline: none; border-radius: 8px;">
+                  </td>
+                  <td style="vertical-align: middle;">
+                    <span style="font-family: Impact, 'Arial Black', sans-serif; font-size: 24px; letter-spacing: 0.02em; color: #FFFFFF;">METRO<span style="color: #E6FF00;">DRIP</span></span>
+                    <span style="display: block; font-size: 11px; letter-spacing: 0.15em; color: #8E8E93; text-transform: uppercase; margin-top: 2px;">Order Confirmation</span>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
           <!-- Body Content -->

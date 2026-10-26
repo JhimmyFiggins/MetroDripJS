@@ -37,6 +37,12 @@ export default function Header() {
         accessibilityRole="button"
         accessibilityLabel="MetroDrip Home"
       >
+        <Image
+          source={require('../assets/branding/logo-emblem.png')}
+          style={styles.headerLogoImage}
+          resizeMode="contain"
+          accessible={false}
+        />
         <Text style={styles.logoMetro}>Metro</Text>
         <Text style={styles.logoDrip}>Drip</Text>
       </TouchableOpacity>
@@ -85,6 +91,11 @@ const styles = StyleSheet.create({
   logoButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+  },
+  headerLogoImage: {
+    width: 32,
+    height: 32,
   },
   logoMetro: {
     fontFamily: fonts.anton || 'Anton_400Regular',

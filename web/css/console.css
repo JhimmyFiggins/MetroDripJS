@@ -119,11 +119,23 @@ button, input, select, textarea {
 }
 
 .brand-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-family: var(--font-display);
   font-size: 24px;
   letter-spacing: 0.04em;
   line-height: 1;
   color: var(--color-ink);
+}
+
+.brand-logo::before {
+  content: '';
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  background: url('/assets/branding/logo-emblem.png') no-repeat center / contain;
+  flex-shrink: 0;
 }
 
 .brand-logo span {

@@ -5,6 +5,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.http import HttpResponse
 from django.db import transaction
+from django.db.models import OuterRef, Subquery
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
@@ -15,7 +16,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from identity.authentication import CustomerTokenAuthentication
 from identity.permissions import IsAdminRole
-from .models import AccountsCustomer, AuditLog, PlatformSetting, CustomRole, PasswordResetToken
+from .models import AccountsCustomer, AuditLog, CustomerAccessToken, PlatformSetting, CustomRole, PasswordResetToken
+from .otp import account_two_factor_status
 from .brevo import is_brevo_configured, build_reset_url, send_transactional_email, get_sender_identity
 from .email_templates import render_welcome_setup, render_admin_password_reset
 from fulfillment.models import ShippingShippingZone
@@ -141,19 +143,28 @@ class AdminUsersAPIView(AdminAPIView):
         elif status_filter == 'suspended':
             qs = qs.filter(is_active=False)
 
-        data = [
-            {
-                'id': u.id,
-                'email': u.email,
-                'name': u.name,
-                'role': u.role,
-                'status': 'Active' if u.is_active else 'Suspended',
-                'phone': u.phone,
-                'date_joined': u.date_joined.isoformat() if u.date_joined else None,
-                'password_change_required': u.password_change_required,
-            }
-            for u in qs[:50]
-        ]
+        latest_token = CustomerAccessToken.objects.filter(customer_id=OuterRef('pk')).order_by('-last_used_at').values('last_used_at')[:1]
+        qs = qs.annotate(latest_token_used=Subquery(latest_token))
+        staff_policy = PlatformSetting.get_instance().staff_mfa_policy
+        data = []
+        for user in qs[:50]:
+            recorded = [value for value in (user.last_login, user.latest_token_used) if value]
+            last_active = max(recorded) if recorded else None
+            two_factor = account_two_factor_status(user, staff_policy)
+            data.append({
+                'id': user.id,
+                'email': user.email,
+                'name': user.name,
+                'role': user.role,
+                'status': 'Active' if user.is_active else 'Suspended',
+                'phone': user.phone,
+                'date_joined': user.date_joined.isoformat() if user.date_joined else None,
+                'password_change_required': user.password_change_required,
+                'two_factor_status': two_factor,
+                'mfa_enabled': two_factor == 'enabled',
+                'last_active': last_active.isoformat() if last_active else None,
+                'last_active_recorded': last_active is not None,
+            })
         return Response(data)
 
     def post(self, request):

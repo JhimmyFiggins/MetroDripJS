@@ -10,6 +10,8 @@ from django.utils import timezone
 from fulfillment.models import NotificationsDeviceToken, NotificationsNotification
 from identity.brevo import send_transactional_email
 from identity.email_templates import render_order_status_email
+from orders.email_subjects import distinct_product_names, order_email_subject
+from orders.models import OrdersOrderLine
 from identity.models import AccountsCustomer, PlatformSetting
 
 logger = logging.getLogger(__name__)
@@ -42,7 +44,9 @@ def queue_expo_test_response(body):
 
 
 def schedule_order_status_notification(order, new_status, changed_at=None):
-    status = str(new_status or '').lower()
+    status = str(new_status or '').lower().replace('-', '_')
+    if status == 'expired':
+        status = 'payment_expired'
     if status not in STATUS_COPY or not getattr(order, 'customer_id', None):
         return
     changed_at = changed_at or timezone.now()
@@ -90,6 +94,7 @@ def _send_status_email(customer, order_id, status, title, message, changed_at):
     support = PlatformSetting.get_instance().support_email
     base_url = (getattr(settings, 'APP_PUBLIC_BASE_URL', None) or 'https://metrodripjs-q4ik.onrender.com').strip().rstrip('/')
     order_url = f"{base_url}/customer/orders/{order_id}"
+    lines = OrdersOrderLine.objects.filter(order_id=order_id).select_related('product').order_by('id')
     subject, html, text = render_order_status_email(
         customer.name,
         f'MD-{changed_at.year}-{order_id:05d}',
@@ -98,6 +103,7 @@ def _send_status_email(customer, order_id, status, title, message, changed_at):
         changed_at.isoformat(),
         order_url,
         support,
+        subject=order_email_subject(status, order_id, distinct_product_names(lines)),
     )
     result = send_transactional_email(customer.email, customer.name, subject, html, text)
     if not result.get('success'):

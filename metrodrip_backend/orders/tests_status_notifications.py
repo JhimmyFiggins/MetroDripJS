@@ -6,10 +6,11 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from catalog.models import CatalogProduct
 from fulfillment.models import NotificationsDeviceToken, NotificationsNotification
-from identity.brevo import clear_test_outbox, get_test_outbox
+from identity.brevo import clear_test_outbox, get_test_outbox, send_transactional_email
 from identity.models import AccountsCustomer, CustomerAccessToken
-from orders.models import OrdersOrder
+from orders.models import OrdersOrder, OrdersOrderLine
 from orders.status_notifications import (
     clear_expo_test_outbox,
     get_expo_test_outbox,
@@ -177,3 +178,247 @@ class OrderStatusNotificationTests(TestCase):
         self.assertEqual(item['read'], False)
         self.assertEqual(item['type'], 'order')
         self.assertEqual(item['order_id'], self.order.id)
+
+    def test_packed_out_for_delivery_payment_expired_notifications_with_order_lines(self):
+        product = CatalogProduct.objects.create(
+            sku='TEST-SKU-001',
+            name='Renamed Catalog Item',
+            base_price=Decimal('100.00'),
+            is_active=True,
+            is_featured=False,
+            created_at=timezone.now(),
+            updated_at=timezone.now(),
+        )
+
+        def make_order_with_lines():
+            now = timezone.now()
+            order = OrdersOrder.objects.create(
+                customer_id=self.customer.id,
+                status='placed',
+                subtotal=Decimal('200.00'),
+                tax=Decimal('0.00'),
+                shipping=Decimal('0.00'),
+                discount=Decimal('0.00'),
+                total=Decimal('200.00'),
+                currency='PHP',
+                created_at=now,
+                updated_at=now,
+            )
+            OrdersOrderLine.objects.create(
+                order=order,
+                product=product,
+                quantity=2,
+                unit_price=Decimal('100.00'),
+                total_price=Decimal('200.00'),
+                discount_amount=Decimal('0.00'),
+                tax_amount=Decimal('0.00'),
+                tax_rate=Decimal('0.00'),
+                product_name_snapshot='Rugged Shirt',
+                created_at=now,
+                updated_at=now,
+            )
+            OrdersOrderLine.objects.create(
+                order=order,
+                product=product,
+                quantity=1,
+                unit_price=Decimal('100.00'),
+                total_price=Decimal('100.00'),
+                discount_amount=Decimal('0.00'),
+                tax_amount=Decimal('0.00'),
+                tax_rate=Decimal('0.00'),
+                product_name_snapshot='Cargo Pant',
+                created_at=now,
+                updated_at=now,
+            )
+            return order
+
+        # 1. Packed status
+        order_packed = make_order_with_lines()
+        clear_test_outbox()
+        with self.captureOnCommitCallbacks(execute=True):
+            schedule_order_status_notification(order_packed, 'packed')
+        outbox = get_test_outbox()
+        self.assertEqual(len(outbox), 1)
+        self.assertEqual(
+            outbox[0]['subject'],
+            f'Order Packed: Rugged Shirt + 1 More (#{order_packed.id}) — MetroDrip',
+        )
+
+        # 2. Out for delivery (underscore and hyphen)
+        order_out = make_order_with_lines()
+        clear_test_outbox()
+        with self.captureOnCommitCallbacks(execute=True):
+            schedule_order_status_notification(order_out, 'out_for_delivery')
+        outbox = get_test_outbox()
+        self.assertEqual(len(outbox), 1)
+        self.assertEqual(
+            outbox[0]['subject'],
+            f'Order Out For Delivery: Rugged Shirt + 1 More (#{order_out.id}) — MetroDrip',
+        )
+
+        order_out_hyphen = make_order_with_lines()
+        clear_test_outbox()
+        with self.captureOnCommitCallbacks(execute=True):
+            schedule_order_status_notification(order_out_hyphen, 'out-for-delivery')
+        outbox = get_test_outbox()
+        self.assertEqual(len(outbox), 1)
+        self.assertEqual(
+            outbox[0]['subject'],
+            f'Order Out For Delivery: Rugged Shirt + 1 More (#{order_out_hyphen.id}) — MetroDrip',
+        )
+
+        # 3. Payment expired (underscore, hyphen, and alias)
+        order_exp = make_order_with_lines()
+        clear_test_outbox()
+        with self.captureOnCommitCallbacks(execute=True):
+            schedule_order_status_notification(order_exp, 'payment_expired')
+        outbox = get_test_outbox()
+        self.assertEqual(len(outbox), 1)
+        self.assertEqual(
+            outbox[0]['subject'],
+            f'Order Payment Expired: Rugged Shirt + 1 More (#{order_exp.id}) — MetroDrip',
+        )
+
+        order_exp_hyphen = make_order_with_lines()
+        clear_test_outbox()
+        with self.captureOnCommitCallbacks(execute=True):
+            schedule_order_status_notification(order_exp_hyphen, 'payment-expired')
+        outbox = get_test_outbox()
+        self.assertEqual(len(outbox), 1)
+        self.assertEqual(
+            outbox[0]['subject'],
+            f'Order Payment Expired: Rugged Shirt + 1 More (#{order_exp_hyphen.id}) — MetroDrip',
+        )
+
+        order_exp_alias = make_order_with_lines()
+        clear_test_outbox()
+        with self.captureOnCommitCallbacks(execute=True):
+            schedule_order_status_notification(order_exp_alias, 'expired')
+        outbox = get_test_outbox()
+        self.assertEqual(len(outbox), 1)
+        self.assertEqual(
+            outbox[0]['subject'],
+            f'Order Payment Expired: Rugged Shirt + 1 More (#{order_exp_alias.id}) — MetroDrip',
+        )
+
+    def test_status_notifications_fallback_without_lines_or_empty_snapshot(self):
+        # Without lines
+        clear_test_outbox()
+        now = timezone.now()
+        order_empty = OrdersOrder.objects.create(
+            customer_id=self.customer.id,
+            status='placed',
+            subtotal=Decimal('50.00'),
+            tax=Decimal('0.00'),
+            shipping=Decimal('0.00'),
+            discount=Decimal('0.00'),
+            total=Decimal('50.00'),
+            currency='PHP',
+            created_at=now,
+            updated_at=now,
+        )
+        with self.captureOnCommitCallbacks(execute=True):
+            schedule_order_status_notification(order_empty, 'packed')
+        self.assertEqual(
+            get_test_outbox()[-1]['subject'],
+            f'Order Packed (#{order_empty.id}) — MetroDrip',
+        )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            schedule_order_status_notification(order_empty, 'out_for_delivery')
+        self.assertEqual(
+            get_test_outbox()[-1]['subject'],
+            f'Order Out For Delivery (#{order_empty.id}) — MetroDrip',
+        )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            schedule_order_status_notification(order_empty, 'payment_expired')
+        self.assertEqual(
+            get_test_outbox()[-1]['subject'],
+            f'Order Payment Expired (#{order_empty.id}) — MetroDrip',
+        )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            schedule_order_status_notification(order_empty, 'cancelled')
+        self.assertEqual(
+            get_test_outbox()[-1]['subject'],
+            f'Order Cancelled (#{order_empty.id}) — MetroDrip',
+        )
+
+    @override_settings(BREVO_TEST_MODE=False, BREVO_API_KEY='live-brevo-key-123', BREVO_SENDER_EMAIL='orders@metrodrip.com')
+    def test_live_brevo_delivery_payload_structure_and_header_safety(self):
+        import io
+        import json
+        from urllib.error import HTTPError
+        from orders.email_subjects import order_email_subject
+        from identity.email_templates import render_order_status_email
+
+        subject = order_email_subject('packed', 42, ['Rugged Shirt', 'Cargo Pant'])
+        self.assertEqual(subject, 'Order Packed: Rugged Shirt + 1 More (#42) — MetroDrip')
+
+        rendered_subject, html, text = render_order_status_email(
+            name='Test Customer',
+            order_number='MD-2026-00042',
+            status_label='Order Packed',
+            message='Your order has been packed and is ready for shipping.',
+            changed_at='2026-10-26T08:00:00Z',
+            order_url='https://metrodripjs-q4ik.onrender.com/customer/orders/42',
+            support_email='support@metrodrip.com',
+            subject=subject,
+        )
+
+        # 1. Successful simulated live dispatch via mock urlopen
+        mock_response = io.BytesIO(json.dumps({'messageId': 'brevo-msg-live-999'}).encode('utf-8'))
+        mock_response.getcode = lambda: 201
+
+        captured_requests = []
+
+        def fake_urlopen(req, timeout=10):
+            captured_requests.append(req)
+            return mock_response
+
+        with patch('urllib.request.urlopen', side_effect=fake_urlopen):
+            res = send_transactional_email(
+                to_email='customer@example.com',
+                to_name='Test Customer',
+                subject=rendered_subject,
+                html_content=html,
+                text_content=text,
+            )
+
+        self.assertTrue(res['success'])
+        self.assertEqual(res['message_id'], 'brevo-msg-live-999')
+        self.assertEqual(res['code'], 'accepted')
+
+        # Verify exact request parameters sent over wire
+        self.assertEqual(len(captured_requests), 1)
+        sent_req = captured_requests[0]
+        self.assertEqual(sent_req.get_method(), 'POST')
+        self.assertEqual(sent_req.full_url, 'https://api.brevo.com/v3/smtp/email')
+        self.assertEqual(sent_req.headers.get('Api-key'), 'live-brevo-key-123')
+        self.assertEqual(sent_req.headers.get('Content-type'), 'application/json')
+
+        payload = json.loads(sent_req.data.decode('utf-8'))
+        self.assertEqual(payload['subject'], 'Order Packed: Rugged Shirt + 1 More (#42) — MetroDrip')
+        self.assertNotIn('\r', payload['subject'])
+        self.assertNotIn('\n', payload['subject'])
+        self.assertEqual(payload['to'], [{'email': 'customer@example.com', 'name': 'Test Customer'}])
+        self.assertEqual(payload['sender']['email'], 'orders@metrodrip.com')
+        self.assertIn('<title>Order Packed: Rugged Shirt + 1 More (#42) — MetroDrip</title>', payload['htmlContent'])
+        self.assertIn('MD-2026-00042', payload['textContent'])
+
+        # 2. Provider HTTP error handling (e.g. 400 rejection)
+        err_response = io.BytesIO(json.dumps({'code': 'invalid_parameter', 'message': 'Invalid header'}).encode('utf-8'))
+        http_error = HTTPError('https://api.brevo.com/v3/smtp/email', 400, 'Bad Request', {}, err_response)
+
+        with patch('urllib.request.urlopen', side_effect=http_error):
+            res_err = send_transactional_email(
+                to_email='customer@example.com',
+                to_name='Test Customer',
+                subject=rendered_subject,
+                html_content=html,
+                text_content=text,
+            )
+        self.assertFalse(res_err['success'])
+        self.assertEqual(res_err['code'], 'email_rejected')
+        self.assertIn('Invalid header', res_err['error'])

@@ -38,7 +38,7 @@ export default function HomeHeader() {
 
   return (
     <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}>
-      {/* Brand Logo: Metro (#141414) + Drip (#5C6B12) in Anton */}
+      {/* Brand Logo: MetroDrip Logo #5 Emblem + Wordmark */}
       <TouchableOpacity 
         style={styles.logoButton}
         onPress={() => navigation.navigate('Home')}
@@ -46,6 +46,12 @@ export default function HomeHeader() {
         accessibilityRole="button"
         accessibilityLabel="MetroDrip Home"
       >
+        <Image
+          source={require('../assets/branding/logo-emblem.png')}
+          style={styles.headerLogoImage}
+          resizeMode="contain"
+          accessible={false}
+        />
         <Text style={styles.logoMetro}>Metro</Text>
         <Text style={styles.logoDrip}>Drip</Text>
       </TouchableOpacity>
@@ -100,6 +106,11 @@ const styles = StyleSheet.create({
   logoButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+  },
+  headerLogoImage: {
+    width: 32,
+    height: 32,
   },
   logoMetro: {
     fontFamily: fonts.anton || 'Anton_400Regular',

@@ -26,10 +26,14 @@ export default function InitialScreen({ navigation }) {
 
             {/* Central Branding & Tagline (Figma frame 63:10) */}
             <View style={styles.contentContainer}>
-                {/* Logo Frame (Figma frame 63:11, 175x66) */}
+                {/* Logo Frame: MetroDrip Logo #5 */}
                 <View style={styles.logoRow}>
-                    <Text style={styles.logoMetro}>Metro</Text>
-                    <Text style={styles.logoDrip}>Drip</Text>
+                    <Image
+                        source={require('../../assets/branding/logo-badge.png')}
+                        style={styles.logoBadgeImage}
+                        resizeMode="contain"
+                        accessibilityLabel="MetroDrip"
+                    />
                 </View>
 
                 {/* Subtitle Badge (Figma text 63:14) */}
@@ -113,6 +117,11 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
+        marginBottom: 8,
+    },
+    logoBadgeImage: {
+        width: 220,
+        height: 175,
     },
     logoMetro: {
         fontFamily: fonts.anton || 'Anton_400Regular',

@@ -5,11 +5,11 @@
     "scheme": "metrodripjs",
     "version": "1.0.1",
     "orientation": "portrait",
-    "icon": "./web/assets/favicon.png",
+    "icon": "./mobile/assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./web/assets/favicon.png",
+      "image": "./mobile/assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#141414"
     },
@@ -22,7 +22,7 @@
       "package": "com.metrodrip.js",
       "versionCode": 2,
       "adaptiveIcon": {
-        "foregroundImage": "./web/assets/favicon.png",
+        "foregroundImage": "./mobile/assets/adaptive-icon.png",
         "backgroundColor": "#141414"
       },
       "edgeToEdgeEnabled": true
@@ -35,7 +35,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./web/assets/favicon.png",
+          "icon": "./mobile/assets/adaptive-icon.png",
           "color": "#141414"
         }
       ]

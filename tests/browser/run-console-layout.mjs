@@ -44,8 +44,8 @@ const apiState = {
 };
 
 const adminUsers = [
-  { id: 3, name: 'Store Merchant', email: 'merch@metrodrip.ph', role: 'merchant', status: 'Active', date_joined: '2026-01-12T00:00:00Z' },
-  { id: 4, name: 'Admin User', email: 'admin@metrodrip.ph', role: 'admin', status: 'Active', date_joined: '2026-01-01T00:00:00Z' },
+  { id: 3, name: 'Store Merchant', email: 'merch@metrodrip.ph', role: 'merchant', status: 'Active', date_joined: '2026-01-12T00:00:00Z', two_factor_status: 'disabled', mfa_enabled: false, last_active: '2026-09-18T14:22:00Z', last_active_recorded: true },
+  { id: 4, name: 'Admin User', email: 'admin@metrodrip.ph', role: 'admin', status: 'Active', date_joined: '2026-01-01T00:00:00Z', two_factor_status: 'enabled', mfa_enabled: true, last_active: '2026-09-20T08:15:00Z', last_active_recorded: true },
 ];
 
 const merchantOrders = [

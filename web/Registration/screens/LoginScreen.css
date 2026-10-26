@@ -105,10 +105,22 @@ input {
 }
 
 .logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-family: var(--font-display);
   font-size: 30px;
   letter-spacing: -1px;
   color: var(--brand-ink);
+}
+
+.logo::before {
+  content: '';
+  display: inline-block;
+  width: 34px;
+  height: 34px;
+  background: url('/assets/branding/logo-emblem.png') no-repeat center / contain;
+  flex-shrink: 0;
 }
 
 .logo span {

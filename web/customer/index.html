@@ -6,6 +6,8 @@
   <meta name="color-scheme" content="light dark">
   <title>MetroDrip customer</title>
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="/assets/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -31,7 +33,10 @@
     
     <div class="header-bar">
       <div class="header-brand-wrap">
-        <a class="brand" href="/customer/">METRO<span class="brand-drip">DRIP</span></a>
+        <a class="brand" href="/customer/" aria-label="MetroDrip Home">
+          <img src="/assets/branding/logo-emblem.png" alt="" class="header-brand-emblem" width="34" height="34">
+          <span class="brand-text">METRO<span class="brand-drip">DRIP</span></span>
+        </a>
       </div>
 
       <nav class="desktop-main-links" aria-label="Main store links">
@@ -93,8 +98,13 @@
     <div class="footer-inner">
       <div class="footer-columns">
         <div class="footer-col footer-col-brand">
-          <h2 class="footer-brand">METRODRIP</h2>
-          <p class="footer-tagline">Customer shop for the live MetroDrip catalog.<br>Product origin is shown only when the catalog provides it.</p>
+          <div class="footer-brand-wrap">
+            <a href="/customer/" class="footer-brand-link" aria-label="MetroDrip Home">
+              <img src="/assets/branding/logo.png" alt="MetroDrip" class="footer-brand-logo" width="168" height="134">
+            </a>
+            <h2 class="visually-hidden">MetroDrip</h2>
+            <p class="footer-tagline">Customer shop for the live MetroDrip catalog.<br>Product origin is shown only when the catalog provides it.</p>
+          </div>
         </div>
         <div class="footer-col">
           <h3 class="footer-heading">Explore</h3>

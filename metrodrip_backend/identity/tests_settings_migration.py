@@ -449,6 +449,10 @@ class SettingsMigrationTestSuite(TestCase):
         self.assertTrue(success)
         mock_send.assert_called_once()
         self.assertEqual(mock_send.call_args.kwargs['sender_name_override'], 'Custom Merchant Name')
+        self.assertEqual(
+            mock_send.call_args.kwargs['subject'],
+            'Order Confirmed: Classic Metro Tee (#%s) — MetroDrip' % order.id,
+        )
 
         order.refresh_from_db()
         self.assertIsNotNone(order.confirmation_email_sent_at)

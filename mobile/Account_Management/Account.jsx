@@ -199,7 +199,12 @@ export default function Account() {
 
   const renderSignedOut = () => (
     <View style={styles.guestWrap}>
-      <Text style={styles.guestBrand}>METRODRIP</Text>
+      <Image
+        source={require('../assets/branding/logo.png')}
+        style={styles.guestLogo}
+        resizeMode="contain"
+        accessibilityLabel="MetroDrip"
+      />
       <Text style={styles.guestMessage}>
         Sign in to track orders, save your fits, and check out faster.
       </Text>
@@ -485,6 +490,12 @@ const styles = StyleSheet.create({
   guestWrap: {
     paddingTop: 40,
     paddingHorizontal: 10,
+  },
+
+  guestLogo: {
+    width: 180,
+    height: 144,
+    marginBottom: 16,
   },
 
   guestBrand: {

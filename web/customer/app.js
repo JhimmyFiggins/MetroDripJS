@@ -1428,47 +1428,105 @@ async function renderTeam() {
   return page('Our Team', 'Every piece is designed in Metro Manila — from concept to cut. MetroDrip brings high-concept streetwear crafted for everyday urban mobility.');
 }
 
-function createOtpBoxes(length) {
-  const boxes = Array.from({ length }, () => el('input', {
+function svgIcon(markup) {
+  const span = document.createElement('span');
+  span.innerHTML = markup.trim();
+  return span.firstElementChild;
+}
+
+function createOtpBoxes(length, onChange) {
+  const boxes = Array.from({ length }, (_, index) => el('input', {
     class: 'otp-box',
     type: 'text',
     inputmode: 'numeric',
     maxlength: '1',
-    autocomplete: 'one-time-code',
-    'aria-label': 'Verification digit',
+    autocomplete: index === 0 ? 'one-time-code' : 'off',
+    'aria-label': `Digit ${index + 1} of ${length}`,
   }));
   const group = el('div', { class: 'otp-boxes', role: 'group', 'aria-label': 'Email verification code' }, boxes);
   const value = () => boxes.map((box) => box.value).join('');
   const focusAt = (index) => boxes[Math.max(0, Math.min(index, boxes.length - 1))]?.focus();
+
+  const syncState = () => {
+    boxes.forEach((box) => {
+      box.classList.toggle('is-filled', Boolean(box.value));
+    });
+    group.classList.remove('has-error');
+    boxes.forEach((box) => box.removeAttribute('aria-invalid'));
+    if (typeof onChange === 'function') {
+      onChange(value(), value().length === length);
+    }
+  };
+
   boxes.forEach((box, index) => {
     box.addEventListener('input', () => {
       const digits = box.value.replace(/\D/g, '');
       if (digits.length > 1) {
         digits.slice(0, boxes.length - index).split('').forEach((digit, offset) => {
-          boxes[index + offset].value = digit;
+          if (boxes[index + offset]) boxes[index + offset].value = digit;
         });
-        focusAt(index + digits.length);
+        syncState();
+        focusAt(Math.min(index + digits.length, boxes.length - 1));
         return;
       }
       box.value = digits;
+      syncState();
       if (digits) focusAt(index + 1);
     });
+
     box.addEventListener('keydown', (event) => {
-      if (event.key === 'Backspace' && !box.value && index > 0) {
-        boxes[index - 1].value = '';
+      if (event.key === 'Backspace') {
+        if (!box.value && index > 0) {
+          boxes[index - 1].value = '';
+          syncState();
+          focusAt(index - 1);
+        } else if (box.value) {
+          box.value = '';
+          syncState();
+        }
+      } else if (event.key === 'ArrowLeft' && index > 0) {
         focusAt(index - 1);
+      } else if (event.key === 'ArrowRight' && index < boxes.length - 1) {
+        focusAt(index + 1);
       }
     });
+
     box.addEventListener('paste', (event) => {
       event.preventDefault();
-      const digits = (event.clipboardData?.getData('text') || '').replace(/\D/g, '').slice(0, boxes.length);
+      const rawText = event.clipboardData?.getData('text') || '';
+      const digits = rawText.replace(/\D/g, '').slice(0, boxes.length);
+      if (!digits) return;
       digits.split('').forEach((digit, offset) => {
-        boxes[offset].value = digit;
+        if (boxes[offset]) boxes[offset].value = digit;
       });
-      focusAt(digits.length - 1);
+      syncState();
+      focusAt(Math.min(digits.length, boxes.length - 1));
     });
   });
-  return { group, value, focus: () => focusAt(0), setDisabled: (disabled) => boxes.forEach((box) => { box.disabled = disabled; }) };
+
+  return {
+    group,
+    value,
+    focus: (idx = 0) => focusAt(idx),
+    setDisabled: (disabled) => boxes.forEach((box) => { box.disabled = disabled; }),
+    setError: (hasError) => {
+      group.classList.toggle('has-error', Boolean(hasError));
+      boxes.forEach((box) => {
+        if (hasError) box.setAttribute('aria-invalid', 'true');
+        else box.removeAttribute('aria-invalid');
+      });
+    },
+    clear: () => {
+      boxes.forEach((box) => {
+        box.value = '';
+        box.classList.remove('is-filled');
+        box.removeAttribute('aria-invalid');
+      });
+      group.classList.remove('has-error');
+      syncState();
+      focusAt(0);
+    },
+  };
 }
 
 async function renderVerifyOtp(_route, scope) {
@@ -1481,8 +1539,36 @@ async function renderVerifyOtp(_route, scope) {
   if (!pending?.challengeId) {
     return page('Verification required', 'Start from sign-in or registration to request a code.', el('a', { class: 'btn btn-primary', href: customerHref('/sign-in') }, 'Sign in'));
   }
-  const status = el('p', { class: 'otp-status', role: 'status' }, '');
-  const entry = createOtpBoxes(pending.codeLength || 6);
+
+  const shieldSvg = () => svgIcon('<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>');
+  const mailSvg = () => svgIcon('<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>');
+  const clockSvg = () => svgIcon('<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>');
+  const arrowLeftSvg = () => svgIcon('<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>');
+
+  const isEmailVerification = pending.purpose === 'email_verification';
+  const headingText = isEmailVerification ? 'Verify your email' : 'Two-factor authentication';
+  const instructionText = isEmailVerification
+    ? 'Enter the 6-digit verification code sent to your email to activate your account.'
+    : 'Enter the 6-digit security code sent to your email to verify your identity.';
+
+  const status = el('p', { class: 'otp-status', role: 'status', 'aria-live': 'polite' }, '');
+  const setStatus = (message, isError = false) => {
+    status.textContent = message || '';
+    status.className = message ? `otp-status ${isError ? 'is-error' : 'is-success'}` : 'otp-status';
+    entry.setError(isError);
+  };
+
+  const submitBtn = el('button', { class: 'btn btn-primary btn-full otp-verify-btn', type: 'submit', disabled: true }, 'Verify');
+
+  const entry = createOtpBoxes(pending.codeLength || 6, (_code, isComplete) => {
+    submitBtn.disabled = !isComplete;
+    if (status.textContent) {
+      status.textContent = '';
+      status.className = 'otp-status';
+      entry.setError(false);
+    }
+  });
+
   const resend = el('button', { class: 'otp-resend', type: 'button' }, 'Resend code');
   let cooldown = Number(pending.resendAfter || 60);
   const paintCooldown = () => {
@@ -1495,6 +1581,7 @@ async function renderVerifyOtp(_route, scope) {
     paintCooldown();
     if (cooldown === 0) clearInterval(timer);
   }, 1000);
+
   resend.addEventListener('click', async () => {
     if (resend.disabled) return;
     resend.disabled = true;
@@ -1504,59 +1591,87 @@ async function renderVerifyOtp(_route, scope) {
       if (!resent) throw new Error('A new code could not be sent.');
       pending = { ...pending, ...resent };
       sessionStorage.setItem('metrodrip_otp_challenge', JSON.stringify(pending));
-      status.textContent = `A new code was sent to ${pending.maskedEmail}.`;
+      setStatus(`A new code was sent to ${pending.maskedEmail}.`, false);
       cooldown = pending.resendAfter || 60;
       paintCooldown();
+      entry.clear();
     } catch (error) {
-      status.textContent = error.message || 'A new code could not be sent.';
+      setStatus(error.message || 'A new code could not be sent.', true);
       paintCooldown();
     }
   });
-  const form = el('form', { class: 'auth-form-card', onsubmit: async (event) => {
+
+  const form = el('form', { class: 'auth-form-card otp-card', onsubmit: async (event) => {
     event.preventDefault();
     const code = entry.value();
     if (code.length !== (pending.codeLength || 6)) {
-      status.textContent = 'Enter the full code from your email.';
+      setStatus(`Enter the full ${pending.codeLength || 6}-digit code from your email.`, true);
       return;
     }
-    return runAction(scope, form.querySelector('button[type="submit"]'), async () => {
+    return runAction(scope, submitBtn, async () => {
       entry.setDisabled(true);
-      const data = await request('/auth/otp/verify/', {
-        method: 'POST',
-        auth: false,
-        body: { challenge_id: pending.challengeId, code },
-      }, scope);
-      if (!isCurrent(scope)) return;
-      if (data.verified || pending.purpose === 'email_verification') {
+      try {
+        const data = await request('/auth/otp/verify/', {
+          method: 'POST',
+          auth: false,
+          body: { challenge_id: pending.challengeId, code },
+        }, scope);
+        if (!isCurrent(scope)) return;
+        if (data.verified || pending.purpose === 'email_verification') {
+          clearInterval(timer);
+          sessionStorage.removeItem('metrodrip_otp_challenge');
+          announce('Email confirmed. Sign in to continue.');
+          navigate(customerHref('/sign-in'));
+          return;
+        }
+        const token = data.access_token || data.token;
+        if (!token || data.role !== 'customer') throw new Error('This shop accepts customer accounts only.');
+        clearInterval(timer);
+        changeSession({ id: data.id, name: data.name, email: data.email, role: data.role, phone: data.phone || '', addresses: data.addresses }, token);
         sessionStorage.removeItem('metrodrip_otp_challenge');
-        announce('Email confirmed. Sign in to continue.');
-        navigate(customerHref('/sign-in'));
-        return;
+        announce('Signed in.');
+        navigate(safeCustomerPath(pending.next || customerHref('/')));
+      } catch (error) {
+        entry.setDisabled(false);
+        setStatus(error.message || 'The code could not be verified. Check your email or request a new code.', true);
+        entry.focus();
       }
-      const token = data.access_token || data.token;
-      if (!token || data.role !== 'customer') throw new Error('This shop accepts customer accounts only.');
-      changeSession({ id: data.id, name: data.name, email: data.email, role: data.role, phone: data.phone || '', addresses: data.addresses }, token);
-      sessionStorage.removeItem('metrodrip_otp_challenge');
-      announce('Signed in.');
-      navigate(safeCustomerPath(pending.next || customerHref('/')));
     });
   } }, [
-    el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, pending.purpose === 'email_verification' ? 'Verify your email' : 'Two-factor authentication'),
-    el('p', { class: 'muted' }, `Enter the code sent to ${pending.maskedEmail || 'your email'}. It expires in 5 minutes.`),
+    el('div', { class: 'otp-header-icon', 'aria-hidden': 'true' }, [
+      el('img', { src: '/assets/branding/logo-emblem.png', alt: '', width: '36', height: '36', style: 'object-fit:contain;' }),
+    ]),
+    el('h1', { class: 'otp-title' }, headingText),
+    el('p', { class: 'otp-instruction' }, instructionText),
+    el('div', { class: 'otp-email-chip' }, [
+      mailSvg(),
+      el('span', {}, pending.maskedEmail || 'your email'),
+    ]),
     entry.group,
+    el('div', { class: 'otp-expiry-note' }, [
+      clockSvg(),
+      el('span', {}, 'Code expires in 5 minutes'),
+    ]),
     status,
-    el('button', { class: 'btn btn-primary btn-full', type: 'submit' }, 'Verify'),
+    submitBtn,
     resend,
-    el('a', { class: 'muted', href: customerHref('/sign-in') }, 'Back to sign in'),
+    el('a', { class: 'otp-back-link', href: customerHref('/sign-in') }, [
+      arrowLeftSvg(),
+      el('span', {}, 'Back to sign in'),
+    ]),
   ]);
-  return el('section', { class: 'page auth-page' }, [form]);
+
+  return el('section', { class: 'page auth-page' }, [
+    breadcrumbs({ label: 'Home', href: customerHref('/') }, { label: headingText }),
+    el('div', { class: 'otp-workspace' }, [form]),
+  ]);
 }
 
 async function renderSignIn(_route, scope) {
   const next = safeCustomerPath(new URLSearchParams(location.search).get('next') || customerHref('/'));
   
   const brandPanel = el('div', { class: 'auth-brand-panel' }, [
-    el('h2', { class: 'auth-brand-name' }, 'METRODRIP'),
+    el('img', { class: 'auth-brand-badge-img', src: '/assets/branding/logo-badge.png', alt: 'METRODRIP' }),
     el('p', { class: 'auth-brand-tagline' }, ['Your city.', el('br'), 'Your style.']),
     el('p', { class: 'auth-brand-perks' }, 'Order history · Wishlist · Faster checkout'),
   ]);
@@ -1595,7 +1710,7 @@ async function renderSignIn(_route, scope) {
 
 async function renderSignUp(_route, scope) {
   const brandPanel = el('div', { class: 'auth-brand-panel' }, [
-    el('h2', { class: 'auth-brand-name' }, 'METRODRIP'),
+    el('img', { class: 'auth-brand-badge-img', src: '/assets/branding/logo-badge.png', alt: 'METRODRIP' }),
     el('p', { class: 'auth-brand-tagline' }, ['Join the', el('br'), 'movement.']),
     el('p', { class: 'auth-brand-perks' }, 'Drops notification · Wishlist · Track orders'),
   ]);
@@ -1648,7 +1763,7 @@ function secretField(label, name) {
 
 async function renderForgot(_route, scope) {
   const brandPanel = el('div', { class: 'auth-brand-panel' }, [
-    el('h2', { class: 'auth-brand-name' }, 'METRODRIP'),
+    el('img', { class: 'auth-brand-badge-img', src: '/assets/branding/logo-badge.png', alt: 'METRODRIP' }),
     el('p', { class: 'auth-brand-tagline' }, ['Account', el('br'), 'Recovery.']),
     el('p', { class: 'auth-brand-perks' }, 'Secure · One-time reset link · Encrypted'),
   ]);
@@ -1704,7 +1819,7 @@ async function renderForgot(_route, scope) {
 
 async function renderResetPassword(scope) {
   const brandPanel = el('div', { class: 'auth-brand-panel' }, [
-    el('h2', { class: 'auth-brand-name' }, 'METRODRIP'),
+    el('img', { class: 'auth-brand-badge-img', src: '/assets/branding/logo-badge.png', alt: 'METRODRIP' }),
     el('p', { class: 'auth-brand-tagline' }, ['Account', el('br'), 'Recovery.']),
     el('p', { class: 'auth-brand-perks' }, 'Secure · One-time reset link · Encrypted'),
   ]);
