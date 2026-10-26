@@ -307,7 +307,10 @@ button, input, select, textarea {
 
 .theme-toggle-btn {
   padding: 8px 12px;
-  font-size: 13px;
+  font-size: 15px;
+  min-width: 40px;
+  min-height: 40px;
+  justify-content: center;
 }
 
 .menu-button {
@@ -2016,9 +2019,47 @@ button, input, select, textarea {
   padding: 16px;
   border: 1px solid var(--border, #d7d7d0);
   background: var(--card, #fff);
+  border-radius: 8px;
+}
+.published-banner.has-media {
+  align-items: center;
+}
+.published-banner-media {
+  flex: 0 0 88px;
+  width: 88px;
+  height: 88px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg-subtle, #f0f0ee);
+}
+.published-banner-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.published-banner-content {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .published-banner h2 { margin: 0 0 4px; font-size: 1.25rem; }
-.published-banner p { margin: 0; }
+.published-banner p { margin: 0; color: var(--muted, #666); }
+
+@media (max-width: 640px) {
+  .published-banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .published-banner-media {
+    width: 100%;
+    height: 160px;
+    flex: none;
+  }
+  .published-banner .btn {
+    align-self: stretch;
+    text-align: center;
+  }
+}
 
 /* ==========================================================================
    Our Team Page

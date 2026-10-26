@@ -289,6 +289,9 @@ function paintChrome() {
   if (themeText) themeText.textContent = dark ? 'Dark' : 'Light';
   if (themeIcon) themeIcon.textContent = dark ? '☾' : '☼';
   themeButton.setAttribute('aria-pressed', String(dark));
+  const nextThemeLabel = dark ? 'Switch to light theme' : 'Switch to dark theme';
+  themeButton.setAttribute('aria-label', nextThemeLabel);
+  themeButton.setAttribute('title', nextThemeLabel);
 }
 
 function navigate(path, { replace = false } = {}) {
@@ -375,13 +378,38 @@ function bannerHref(banner) {
 
 function renderPlacementBanner(banner, className) {
   if (!banner) return null;
-  return el('aside', { class: className }, [
-    el('div', {}, [
+  const hasImage = Boolean(banner.image_url);
+  const containerClasses = [className, hasImage ? 'has-media' : ''].filter(Boolean).join(' ');
+  const imageElement = hasImage
+    ? el('div', { class: 'published-banner-media' }, [
+        el('img', {
+          src: banner.image_url,
+          alt: banner.headline || banner.title || 'Promotion',
+          loading: 'lazy',
+        }),
+      ])
+    : null;
+
+  return el('aside', { class: containerClasses }, [
+    imageElement,
+    el('div', { class: 'published-banner-content' }, [
       el('h2', {}, banner.headline || banner.title || 'Promotion'),
       banner.subtext ? el('p', {}, banner.subtext) : null,
     ]),
     el('a', { class: 'btn btn-primary', href: bannerHref(banner) }, banner.button_label || 'Shop Now'),
   ]);
+}
+
+let globalAnnouncementPromise = null;
+function syncAnnouncementBanner() {
+  if (!globalAnnouncementPromise) {
+    globalAnnouncementPromise = api('/banners/?placement=announcement_bar', { auth: false })
+      .then((data) => normalizeBannerList(data))
+      .catch(() => null);
+  }
+  globalAnnouncementPromise.then((list) => {
+    if (list) applyAnnouncement(list);
+  });
 }
 
 function applyAnnouncement(banners) {
@@ -405,8 +433,12 @@ async function renderHome() {
     bannerError = bannerPayload.error;
   } else {
     published = normalizeBannerList(bannerPayload.data);
-    if (published === null) bannerError = new Error('Banner response was not a list.');
-    else applyAnnouncement(published);
+    if (published === null) {
+      bannerError = new Error('Banner response was not a list.');
+    } else {
+      globalAnnouncementPromise = Promise.resolve(published);
+      applyAnnouncement(published);
+    }
   }
   const categoryList = Array.isArray(categories) ? categories : [];
   const productList = Array.isArray(products) ? products : [];
@@ -2132,4 +2164,5 @@ searchForm.addEventListener('submit', (event) => {
 
 loadCart();
 paintChrome();
+syncAnnouncementBanner();
 render();

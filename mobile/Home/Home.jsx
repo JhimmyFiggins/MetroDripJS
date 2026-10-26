@@ -13,7 +13,7 @@ import Footer from '../components/Footer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { apiFetch } from '../../src/services/apiClient';
-import { bannersForPlacement, normalizeBannerList, safeBannerDestination } from '../../src/services/bannerContent';
+import { bannersForPlacement, handleBannerPress, normalizeBannerList, safeBannerDestination } from '../../src/services/bannerContent';
 import ProductCards from '../Products/ProductCards';
 import ProductDetails from '../Products/ProductDetails';
 
@@ -78,27 +78,7 @@ export default function Home({ navigation, route }) {
     };
 
     const handleHeroPress = () => {
-        const link = safeBannerDestination(heroBanner?.link_url);
-        if (link) {
-            if (link.startsWith('http://') || link.startsWith('https://')) {
-                Linking.openURL(link).catch(() => {});
-                return;
-            }
-            const matchProduct = link.match(/\/products\/(\d+)/);
-            if (matchProduct) {
-                navigation.navigate('ProductDetails', { selectedProductId: parseInt(matchProduct[1], 10) });
-                return;
-            }
-            if (link.includes('cart')) {
-                navigation.navigate('Cart');
-                return;
-            }
-            if (link.includes('saved') || link.includes('wishlist')) {
-                navigation.navigate('Saved');
-                return;
-            }
-        }
-        navigation.navigate('Shop');
+        handleBannerPress(heroBanner, navigation);
     };
 
     // Determine legacy image background vs modern hero artwork card
@@ -186,7 +166,13 @@ export default function Home({ navigation, route }) {
                 <>
                 <HomeHeader/>
                 {bannerError ? <Text accessibilityRole="alert">{bannerError}</Text> : null}
-                {announcement ? <Text accessibilityRole="text">{announcement.headline}{announcement.subtext ? ` · ${announcement.subtext}` : ''}</Text> : null}
+                {announcement ? (
+                    <View style={styles.AnnouncementBar}>
+                        <Text style={styles.AnnouncementText} accessibilityRole="text">
+                            {announcement.headline || announcement.title}{announcement.subtext ? ` · ${announcement.subtext}` : ''}
+                        </Text>
+                    </View>
+                ) : null}
                 {isLegacyImageBg ? (
                     <ImageBackground
                         source={{ uri: heroBanner.image_url }}
@@ -200,10 +186,34 @@ export default function Home({ navigation, route }) {
                     bannerContent
                 )}
                 {secondaryBanner ? (
-                    <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
-                        <Text style={{ fontWeight: '700' }}>{secondaryBanner.headline || secondaryBanner.title}</Text>
-                        {secondaryBanner.subtext ? <Text>{secondaryBanner.subtext}</Text> : null}
-                    </View>
+                    <TouchableOpacity
+                        style={styles.SecondaryBannerCard}
+                        onPress={() => handleBannerPress(secondaryBanner, navigation)}
+                        accessibilityRole="button"
+                        accessibilityLabel={secondaryBanner.headline || secondaryBanner.title}
+                        activeOpacity={0.88}
+                    >
+                        {secondaryBanner.image_url ? (
+                            <Image
+                                source={{ uri: secondaryBanner.image_url }}
+                                style={styles.SecondaryBannerImage}
+                                resizeMode="cover"
+                            />
+                        ) : null}
+                        <View style={styles.SecondaryBannerContent}>
+                            <Text style={styles.SecondaryBannerTitle}>
+                                {secondaryBanner.headline || secondaryBanner.title}
+                            </Text>
+                            {secondaryBanner.subtext ? (
+                                <Text style={styles.SecondaryBannerSubtext}>{secondaryBanner.subtext}</Text>
+                            ) : null}
+                            <View style={styles.SecondaryBannerButton}>
+                                <Text style={styles.SecondaryBannerButtonText}>
+                                    {secondaryBanner.button_label || 'Shop Now'}
+                                </Text>
+                            </View>
+                        </View>
+                    </TouchableOpacity>
                 ) : null}
 
                 <View style={styles.CategorySection}>
@@ -460,5 +470,68 @@ const styles = StyleSheet.create({
         paddingLeft: 5,
         fontSize: 12,
         fontFamily: fonts.monoSemiBold,
+    },
+    AnnouncementBar: {
+        backgroundColor: '#141414',
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    AnnouncementText: {
+        color: '#D3EE42',
+        fontSize: 11,
+        fontFamily: fonts.interSemiBold,
+        textAlign: 'center',
+        letterSpacing: 0.5,
+        textTransform: 'uppercase',
+    },
+    SecondaryBannerCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 12,
+        marginHorizontal: 16,
+        marginVertical: 8,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: '#E5E5E0',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    SecondaryBannerImage: {
+        width: '100%',
+        height: 120,
+        borderRadius: 8,
+        marginBottom: 12,
+        backgroundColor: '#F5F5F0',
+    },
+    SecondaryBannerContent: {
+        alignItems: 'flex-start',
+    },
+    SecondaryBannerTitle: {
+        fontSize: 18,
+        fontFamily: fonts.interBold,
+        color: '#141414',
+        marginBottom: 4,
+    },
+    SecondaryBannerSubtext: {
+        fontSize: 13,
+        fontFamily: fonts.interRegular,
+        color: '#666666',
+        marginBottom: 10,
+    },
+    SecondaryBannerButton: {
+        backgroundColor: '#141414',
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        alignSelf: 'flex-start',
+    },
+    SecondaryBannerButtonText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontFamily: fonts.interSemiBold,
     },
 });

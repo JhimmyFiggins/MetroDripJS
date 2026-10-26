@@ -8,13 +8,14 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
+  Image,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
 import SearchField from './SearchField.jsx';
 import { apiFetch } from '../../src/services/apiClient';
-import { bannersForPlacement, normalizeBannerList } from '../../src/services/bannerContent';
+import { bannersForPlacement, handleBannerPress, normalizeBannerList } from '../../src/services/bannerContent';
 
 import FilterContainer from './FilterContainer.jsx';
 import ProductCards from './ProductCards.jsx';
@@ -221,10 +222,34 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
         <>
           <ShopHeader screenTitle={screenTitle} />
           {categoryBanner ? (
-            <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-              <Text style={{ fontWeight: '700' }}>{categoryBanner.headline || categoryBanner.title}</Text>
-              {categoryBanner.subtext ? <Text>{categoryBanner.subtext}</Text> : null}
-            </View>
+            <TouchableOpacity
+              style={styles.CategoryBannerCard}
+              onPress={() => handleBannerPress(categoryBanner, navigation)}
+              accessibilityRole="button"
+              accessibilityLabel={categoryBanner.headline || categoryBanner.title}
+              activeOpacity={0.88}
+            >
+              {categoryBanner.image_url ? (
+                <Image
+                  source={{ uri: categoryBanner.image_url }}
+                  style={styles.CategoryBannerImage}
+                  resizeMode="cover"
+                />
+              ) : null}
+              <View style={styles.CategoryBannerContent}>
+                <Text style={styles.CategoryBannerTitle}>
+                  {categoryBanner.headline || categoryBanner.title}
+                </Text>
+                {categoryBanner.subtext ? (
+                  <Text style={styles.CategoryBannerSubtext}>{categoryBanner.subtext}</Text>
+                ) : null}
+                <View style={styles.CategoryBannerButton}>
+                  <Text style={styles.CategoryBannerButtonText}>
+                    {categoryBanner.button_label || 'Shop Now'}
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
           ) : null}
           <View style={styles.topHeader}>
             <TouchableOpacity
@@ -615,6 +640,55 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   sortOptionTextActive: {
+    fontFamily: fonts.interSemiBold,
+  },
+  CategoryBannerCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 4,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E5E5E0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  CategoryBannerImage: {
+    width: '100%',
+    height: 110,
+    borderRadius: 8,
+    marginBottom: 10,
+    backgroundColor: '#F5F5F0',
+  },
+  CategoryBannerContent: {
+    alignItems: 'flex-start',
+  },
+  CategoryBannerTitle: {
+    fontSize: 16,
+    fontFamily: fonts.interBold,
+    color: '#141414',
+    marginBottom: 4,
+  },
+  CategoryBannerSubtext: {
+    fontSize: 13,
+    fontFamily: fonts.interRegular,
+    color: '#666666',
+    marginBottom: 8,
+  },
+  CategoryBannerButton: {
+    backgroundColor: '#141414',
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    alignSelf: 'flex-start',
+  },
+  CategoryBannerButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
     fontFamily: fonts.interSemiBold,
   },
 });
