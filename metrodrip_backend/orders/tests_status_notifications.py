@@ -345,7 +345,7 @@ class OrderStatusNotificationTests(TestCase):
             f'Order Cancelled (#{order_empty.id}) — MetroDrip',
         )
 
-    @override_settings(BREVO_TEST_MODE=False, BREVO_API_KEY='live-brevo-key-123', BREVO_SENDER_EMAIL='orders@metrodrip.com')
+    @override_settings(BREVO_TEST_MODE=False, BREVO_API_KEY='xkeysib-mock-api-key', BREVO_SENDER_EMAIL='orders@metrodrip.com')  # gitleaks:allow
     def test_live_brevo_delivery_payload_structure_and_header_safety(self):
         import io
         import json
@@ -395,7 +395,7 @@ class OrderStatusNotificationTests(TestCase):
         sent_req = captured_requests[0]
         self.assertEqual(sent_req.get_method(), 'POST')
         self.assertEqual(sent_req.full_url, 'https://api.brevo.com/v3/smtp/email')
-        self.assertEqual(sent_req.headers.get('Api-key'), 'live-brevo-key-123')
+        self.assertEqual(sent_req.headers.get('Api-key'), 'xkeysib-mock-api-key')
         self.assertEqual(sent_req.headers.get('Content-type'), 'application/json')
 
         payload = json.loads(sent_req.data.decode('utf-8'))
