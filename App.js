@@ -7,6 +7,7 @@ import AppNavigator from './mobile/navigation/AppNavigator';
 import { CartProvider } from './mobile/context/CartContext';
 import { AuthProvider } from './mobile/context/AuthContext';
 import { useAppFonts } from './src/theme/font';
+import { ThemeProvider } from './mobile/Registration/theme';
 
 export default function App() {
     const { fontsLoaded } = useAppFonts();
@@ -18,10 +19,12 @@ export default function App() {
     return (
         <SafeAreaProvider>
             <CartProvider>
-                <StatusBar style="dark" />
-                <AuthProvider>
-                    <AppNavigator />
-                </AuthProvider>
+                <ThemeProvider>
+                    <StatusBar style="dark" />
+                    <AuthProvider>
+                        <AppNavigator />
+                    </AuthProvider>
+                </ThemeProvider>
             </CartProvider>
         </SafeAreaProvider>
     );

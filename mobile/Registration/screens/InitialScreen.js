@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../../Checkout/src/theme';
+import BrandLogo from '../../components/BrandLogo';
 
 // Exact 44-stripe barcode pattern extracted from Figma frame 63:15 (334x34)
 const BARCODE_STRIPES = [
@@ -28,10 +29,9 @@ export default function InitialScreen({ navigation }) {
             <View style={styles.contentContainer}>
                 {/* Logo Frame: MetroDrip Logo #5 */}
                 <View style={styles.logoRow}>
-                    <Image
-                        source={require('../../assets/branding/logo-dark.png')}
+                    <BrandLogo
+                        surface="dark"
                         style={styles.logoBadgeImage}
-                        resizeMode="contain"
                         accessibilityLabel="MetroDrip"
                     />
                 </View>

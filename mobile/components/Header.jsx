@@ -5,6 +5,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts, colors } from '../Checkout/src/theme';
 import * as notificationService from '../../src/services/notificationService';
+import BrandLogo from './BrandLogo';
 
 export default function Header() {
   const navigation = useNavigation();
@@ -37,10 +38,10 @@ export default function Header() {
         accessibilityRole="button"
         accessibilityLabel="MetroDrip Home"
       >
-        <Image
-          source={require('../assets/branding/logo-emblem.png')}
+        <BrandLogo
+          variant="emblem"
+          surface="light"
           style={styles.headerLogoImage}
-          resizeMode="contain"
           accessible={false}
         />
         <Text style={styles.logoMetro}>Metro</Text>

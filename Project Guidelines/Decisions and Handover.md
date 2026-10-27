@@ -1,16 +1,25 @@
 # Decisions and Handover
 
-**Status:** ACADEMIC DEMO HOLD and PRODUCTION HOLD; 2026-10-25 seven-issue implementation checkpoint
+**Status:** ACADEMIC DEMO HOLD and PRODUCTION HOLD; 2026-10-27 team content and logo checkpoint
 
 **Project:** MetroDripJS urban streetwear commerce platform
 
 **Current target:** One secured same-origin Django monolith + one no-cost PostgreSQL database + an EAS internal Android APK
 
-**Decision updated:** 2026-10-19
+**Decision updated:** 2026-10-27
 
 **Owner:** Core Engineering & Architecture Team  
 
 ---
+
+## Team content and logo checkpoint — 2026-10-27
+
+- `web/customer/teamData.js` remains the authoritative five-member dataset and `src/data/teamData.js` remains a re-export. Biographies describe evidence-backed responsibilities rather than unverified personal authorship.
+- Customer web header, OTP, and footer theme-sensitive branding use explicit paired images. Theme selection is resolved before paint; a saved user choice wins, while system changes are followed when no choice exists. Fixed dark authentication panels continue to use the dark-surface asset intentionally.
+- Staff console and login branding already selected paired emblems through theme-aware background images and needed no markup rewrite.
+- `mobile/components/BrandLogo.jsx` owns all mobile full-logo, emblem, and wordmark imports. Welcome uses dark-surface artwork; fixed light headers/account/receipt surfaces use light-surface artwork; OTP follows registration theme context. Expo native appearance is now automatic.
+- Local evidence: client 243/243, TypeScript, 64 mocked console layouts, five customer contrast scans, the dedicated team/theme/Axe/browser flow at 320/390/768/1280, Expo Doctor 18/18, dependency compatibility, and Android/iOS/web export all passed. Temporary light/dark screenshots are under `/tmp/metrodrip-logo-qa/`.
+- Physical-device rendering, hosted deployment, and provider behavior were not exercised. Release remains **HOLD**. No database, API, payment, permission, or deployment configuration changed.
 
 ## Email OTP checkpoint — 2026-10-25
 

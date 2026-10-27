@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts, colors } from '../Checkout/src/theme';
 import { useCart } from '../context/CartContext';
 import * as notificationService from '../../src/services/notificationService';
+import BrandLogo from './BrandLogo';
 
 export default function HomeHeader() {
   const navigation = useNavigation();
@@ -46,10 +47,10 @@ export default function HomeHeader() {
         accessibilityRole="button"
         accessibilityLabel="MetroDrip Home"
       >
-        <Image
-          source={require('../assets/branding/logo-emblem.png')}
+        <BrandLogo
+          variant="emblem"
+          surface="light"
           style={styles.headerLogoImage}
-          resizeMode="contain"
           accessible={false}
         />
         <Text style={styles.logoMetro}>Metro</Text>

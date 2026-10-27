@@ -1,13 +1,29 @@
 import { chromium } from 'playwright';
 import AxeBuilder from '@axe-core/playwright';
 import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
 
 const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:3000';
+const SCREENSHOT_DIR = process.env.QA_SCREENSHOT_DIR || '/tmp/metrodrip-logo-qa';
+
+async function assertThemeLogos(page, theme) {
+  assert.equal(await page.locator('html').getAttribute('data-theme'), theme);
+  for (const container of ['.header-brand-emblem', '.footer-brand-logo']) {
+    const light = page.locator(`${container} .theme-logo-light`);
+    const dark = page.locator(`${container} .theme-logo-dark`);
+    assert.equal(await light.isVisible(), theme === 'light', `${container} light variant visibility`);
+    assert.equal(await dark.isVisible(), theme === 'dark', `${container} dark variant visibility`);
+    const active = theme === 'dark' ? dark : light;
+    assert.ok(await active.evaluate((image) => image.complete && image.naturalWidth > 0), `${container} active image loaded`);
+  }
+}
 
 async function main() {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
-  const context = await browser.newContext();
+  const context = await browser.newContext({ colorScheme: 'light' });
   const page = await context.newPage();
+
+  await mkdir(SCREENSHOT_DIR, { recursive: true });
 
   console.log(`Navigating to ${BASE_URL}/customer/team ...`);
   await page.goto(`${BASE_URL}/customer/team`, { waitUntil: 'networkidle' });
@@ -67,9 +83,10 @@ async function main() {
 
   // 5. Test responsive layouts
   const viewports = [
+    { name: 'Narrow mobile', width: 320, height: 720 },
+    { name: 'Mobile', width: 390, height: 844 },
+    { name: 'Tablet', width: 768, height: 1024 },
     { name: 'Desktop', width: 1280, height: 800 },
-    { name: 'Tablet', width: 800, height: 1000 },
-    { name: 'Mobile', width: 375, height: 667 },
   ];
 
   for (const vp of viewports) {
@@ -77,10 +94,33 @@ async function main() {
     await page.waitForTimeout(100);
     const gridBounding = await page.locator('.team-grid').boundingBox();
     assert.ok(gridBounding.width <= vp.width, `Grid width ${gridBounding.width} overflows viewport ${vp.width}`);
+    const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    assert.ok(documentWidth <= vp.width, `Page width ${documentWidth} overflows viewport ${vp.width}`);
     console.log(`✓ Responsive check passed at ${vp.name} (${vp.width}px): no overflow`);
   }
 
-  // 6. Navigation link test from Home
+  // 6. Theme-aware logo behavior and persistence.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`${BASE_URL}/customer/team`, { waitUntil: 'networkidle' });
+  await assertThemeLogos(page, 'light');
+  await page.locator('#theme-toggle').click();
+  await assertThemeLogos(page, 'dark');
+  assert.equal(await page.evaluate(() => localStorage.getItem('metrodrip.customer.theme')), 'dark');
+  await page.reload({ waitUntil: 'networkidle' });
+  await assertThemeLogos(page, 'dark');
+  await page.screenshot({ path: `${SCREENSHOT_DIR}/team-dark-1280.png`, fullPage: true });
+
+  await page.evaluate(() => localStorage.removeItem('metrodrip.customer.theme'));
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.reload({ waitUntil: 'networkidle' });
+  await assertThemeLogos(page, 'dark');
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+  await assertThemeLogos(page, 'light');
+  await page.screenshot({ path: `${SCREENSHOT_DIR}/team-light-1280.png`, fullPage: true });
+  console.log(`✓ Theme selection, persistence, system changes, and logo loading verified; screenshots: ${SCREENSHOT_DIR}`);
+
+  // 7. Navigation link test from Home
   console.log('Testing navigation from /customer/ to /customer/team via header link...');
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto(`${BASE_URL}/customer/`, { waitUntil: 'networkidle' });
