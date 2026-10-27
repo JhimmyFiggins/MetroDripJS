@@ -23,6 +23,7 @@ import {
   usableImageUrl,
   variantLabel,
 } from './contracts.js';
+import { TEAM_MEMBERS, TEAM_HEADING, TEAM_SUBTITLE } from './teamData.js';
 
 const app = document.querySelector('#app');
 const statusNode = document.querySelector('#status');
@@ -288,6 +289,9 @@ function paintChrome() {
   if (themeText) themeText.textContent = dark ? 'Dark' : 'Light';
   if (themeIcon) themeIcon.textContent = dark ? '☾' : '☼';
   themeButton.setAttribute('aria-pressed', String(dark));
+  const nextThemeLabel = dark ? 'Switch to light theme' : 'Switch to dark theme';
+  themeButton.setAttribute('aria-label', nextThemeLabel);
+  themeButton.setAttribute('title', nextThemeLabel);
 }
 
 function navigate(path, { replace = false } = {}) {
@@ -374,13 +378,38 @@ function bannerHref(banner) {
 
 function renderPlacementBanner(banner, className) {
   if (!banner) return null;
-  return el('aside', { class: className }, [
-    el('div', {}, [
+  const hasImage = Boolean(banner.image_url);
+  const containerClasses = [className, hasImage ? 'has-media' : ''].filter(Boolean).join(' ');
+  const imageElement = hasImage
+    ? el('div', { class: 'published-banner-media' }, [
+        el('img', {
+          src: banner.image_url,
+          alt: banner.headline || banner.title || 'Promotion',
+          loading: 'lazy',
+        }),
+      ])
+    : null;
+
+  return el('aside', { class: containerClasses }, [
+    imageElement,
+    el('div', { class: 'published-banner-content' }, [
       el('h2', {}, banner.headline || banner.title || 'Promotion'),
       banner.subtext ? el('p', {}, banner.subtext) : null,
     ]),
     el('a', { class: 'btn btn-primary', href: bannerHref(banner) }, banner.button_label || 'Shop Now'),
   ]);
+}
+
+let globalAnnouncementPromise = null;
+function syncAnnouncementBanner() {
+  if (!globalAnnouncementPromise) {
+    globalAnnouncementPromise = api('/banners/?placement=announcement_bar', { auth: false })
+      .then((data) => normalizeBannerList(data))
+      .catch(() => null);
+  }
+  globalAnnouncementPromise.then((list) => {
+    if (list) applyAnnouncement(list);
+  });
 }
 
 function applyAnnouncement(banners) {
@@ -404,8 +433,12 @@ async function renderHome() {
     bannerError = bannerPayload.error;
   } else {
     published = normalizeBannerList(bannerPayload.data);
-    if (published === null) bannerError = new Error('Banner response was not a list.');
-    else applyAnnouncement(published);
+    if (published === null) {
+      bannerError = new Error('Banner response was not a list.');
+    } else {
+      globalAnnouncementPromise = Promise.resolve(published);
+      applyAnnouncement(published);
+    }
   }
   const categoryList = Array.isArray(categories) ? categories : [];
   const productList = Array.isArray(products) ? products : [];
@@ -1425,7 +1458,57 @@ async function renderSupport() {
 }
 
 async function renderTeam() {
-  return page('Our Team', 'Every piece is designed in Metro Manila — from concept to cut. MetroDrip brings high-concept streetwear crafted for everyday urban mobility.');
+  const cards = TEAM_MEMBERS.map((member) => {
+    const avatarImg = el('img', {
+      class: 'team-avatar-img',
+      src: member.avatar,
+      alt: member.name,
+      loading: 'lazy',
+      onerror: (event) => {
+        event.currentTarget.style.display = 'none';
+      },
+    });
+
+    const initialsFallback = el('span', {
+      class: 'team-avatar-initials',
+      'aria-hidden': 'true',
+    }, member.initials);
+
+    const contributionBadge = el('span', {
+      class: 'team-badge',
+    }, member.contribution);
+
+    const avatarBox = el('div', { class: 'team-avatar-box' }, [
+      initialsFallback,
+      avatarImg,
+      contributionBadge,
+    ]);
+
+    const infoBox = el('div', { class: 'team-card-info' }, [
+      el('h2', { class: 'team-member-name' }, member.name),
+      el('span', { class: 'team-member-role' }, member.role),
+      el('p', { class: 'team-member-bio' }, member.bio),
+    ]);
+
+    return el('article', {
+      class: 'team-card',
+      'aria-label': `${member.name} - ${member.role}`,
+    }, [
+      avatarBox,
+      infoBox,
+    ]);
+  });
+
+  const teamGrid = el('div', { class: 'team-grid' }, cards);
+
+  return el('section', { class: 'page team-page' }, [
+    breadcrumbs({ label: 'Home', href: customerHref('/') }, { label: 'Our Team' }),
+    el('div', { class: 'team-header' }, [
+      el('h1', { tabindex: '-1' }, TEAM_HEADING),
+      el('p', { class: 'lede team-subtitle' }, TEAM_SUBTITLE),
+    ]),
+    teamGrid,
+  ]);
 }
 
 function svgIcon(markup) {
@@ -1671,7 +1754,7 @@ async function renderSignIn(_route, scope) {
   const next = safeCustomerPath(new URLSearchParams(location.search).get('next') || customerHref('/'));
   
   const brandPanel = el('div', { class: 'auth-brand-panel' }, [
-    el('img', { class: 'auth-brand-badge-img', src: '/assets/branding/logo-badge.png', alt: 'METRODRIP' }),
+    el('img', { class: 'auth-brand-badge-img', src: '/assets/branding/logo-dark.png', alt: 'METRODRIP' }),
     el('p', { class: 'auth-brand-tagline' }, ['Your city.', el('br'), 'Your style.']),
     el('p', { class: 'auth-brand-perks' }, 'Order history · Wishlist · Faster checkout'),
   ]);
@@ -1710,7 +1793,7 @@ async function renderSignIn(_route, scope) {
 
 async function renderSignUp(_route, scope) {
   const brandPanel = el('div', { class: 'auth-brand-panel' }, [
-    el('img', { class: 'auth-brand-badge-img', src: '/assets/branding/logo-badge.png', alt: 'METRODRIP' }),
+    el('img', { class: 'auth-brand-badge-img', src: '/assets/branding/logo-dark.png', alt: 'METRODRIP' }),
     el('p', { class: 'auth-brand-tagline' }, ['Join the', el('br'), 'movement.']),
     el('p', { class: 'auth-brand-perks' }, 'Drops notification · Wishlist · Track orders'),
   ]);
@@ -1763,7 +1846,7 @@ function secretField(label, name) {
 
 async function renderForgot(_route, scope) {
   const brandPanel = el('div', { class: 'auth-brand-panel' }, [
-    el('img', { class: 'auth-brand-badge-img', src: '/assets/branding/logo-badge.png', alt: 'METRODRIP' }),
+    el('img', { class: 'auth-brand-badge-img', src: '/assets/branding/logo-dark.png', alt: 'METRODRIP' }),
     el('p', { class: 'auth-brand-tagline' }, ['Account', el('br'), 'Recovery.']),
     el('p', { class: 'auth-brand-perks' }, 'Secure · One-time reset link · Encrypted'),
   ]);
@@ -1819,7 +1902,7 @@ async function renderForgot(_route, scope) {
 
 async function renderResetPassword(scope) {
   const brandPanel = el('div', { class: 'auth-brand-panel' }, [
-    el('img', { class: 'auth-brand-badge-img', src: '/assets/branding/logo-badge.png', alt: 'METRODRIP' }),
+    el('img', { class: 'auth-brand-badge-img', src: '/assets/branding/logo-dark.png', alt: 'METRODRIP' }),
     el('p', { class: 'auth-brand-tagline' }, ['Account', el('br'), 'Recovery.']),
     el('p', { class: 'auth-brand-perks' }, 'Secure · One-time reset link · Encrypted'),
   ]);
@@ -2081,4 +2164,5 @@ searchForm.addEventListener('submit', (event) => {
 
 loadCart();
 paintChrome();
+syncAnnouncementBanner();
 render();

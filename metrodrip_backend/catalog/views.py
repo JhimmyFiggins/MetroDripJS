@@ -305,8 +305,20 @@ class PublicBannersAPIView(APIView):
 
         placement = request.query_params.get('placement')
         if placement:
-            placement = placement.strip().lower()
+            placement = placement.strip().lower().replace('-', '_')
             qs = qs.filter(placement__iexact=placement)
+
+        def _resolve_image(url):
+            if not url:
+                return ''
+            if url.startswith(('http://', 'https://', 'data:')):
+                return url
+            if hasattr(request, 'build_absolute_uri'):
+                try:
+                    return request.build_absolute_uri(url)
+                except Exception:
+                    return url
+            return url
 
         banners = qs.order_by('order', 'id')
         data = [
@@ -318,7 +330,7 @@ class PublicBannersAPIView(APIView):
                 'button_label': banner.button_label or 'Shop Now',
                 'placement': banner.placement,
                 'placement_label': banner.get_placement_display(),
-                'image_url': banner.image_url or '',
+                'image_url': _resolve_image(banner.image_url),
                 'link_url': banner.link_url or '/shop',
                 'order': banner.order,
                 'artwork_mode': getattr(banner, 'artwork_mode', 'graphic') or 'graphic',

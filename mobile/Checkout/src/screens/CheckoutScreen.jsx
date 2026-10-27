@@ -14,6 +14,7 @@ import {
   Text,
   useWindowDimensions,
   View,
+  Image,
 } from 'react-native';
 // Read device safe area insets for fixed elements.
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -356,6 +357,26 @@ export function CheckoutScreen() {
     </View>
   );
 
+  const checkoutFooterBanner = checkoutBanner ? (
+    <View style={styles.checkoutBannerCard}>
+      {checkoutBanner.image_url ? (
+        <Image
+          source={{ uri: checkoutBanner.image_url }}
+          style={styles.checkoutBannerImage}
+          resizeMode="cover"
+        />
+      ) : null}
+      <View style={styles.checkoutBannerContent}>
+        <Text style={styles.checkoutBannerTitle}>
+          {checkoutBanner.headline || checkoutBanner.title}
+        </Text>
+        {checkoutBanner.subtext ? (
+          <Text style={styles.checkoutBannerSubtext}>{checkoutBanner.subtext}</Text>
+        ) : null}
+      </View>
+    </View>
+  ) : null;
+
   return (
     <SafeAreaView edges={Platform.OS === 'web' ? [] : ['top']} style={styles.safeArea}>
       <KeyboardAvoidingView
@@ -383,9 +404,6 @@ export function CheckoutScreen() {
               </Pressable>
               <Text style={styles.headerTitle}>Checkout</Text>
             </View>
-            {checkoutBanner ? (
-              <Text accessibilityRole="text">{checkoutBanner.headline || checkoutBanner.title}</Text>
-            ) : null}
             <Text accessibilityLabel="Secure checkout" style={styles.lockIcon}>
               🔒
             </Text>
@@ -422,6 +440,7 @@ export function CheckoutScreen() {
                     >
                       <Text style={styles.payButtonText}>Continue to Payment Details</Text>
                     </Pressable>
+                    {checkoutFooterBanner}
                     <PayMongoFooter />
                   </View>
                 </View>
@@ -454,6 +473,7 @@ export function CheckoutScreen() {
               >
                 <Text style={styles.payButtonText}>Continue to Payment Details</Text>
               </Pressable>
+              {checkoutFooterBanner}
               <PayMongoFooter />
             </View>
           </View>
@@ -787,5 +807,39 @@ const styles = StyleSheet.create({
     fontFamily: fonts.interBold,
     fontSize: 18,
     lineHeight: 22,
+  },
+  checkoutBannerCard: {
+    backgroundColor: colors.paper,
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 12,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  checkoutBannerImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 6,
+    backgroundColor: colors.card,
+  },
+  checkoutBannerContent: {
+    flex: 1,
+  },
+  checkoutBannerTitle: {
+    color: colors.ink,
+    fontFamily: fonts.interSemiBold,
+    fontSize: 13,
+    lineHeight: 17,
+  },
+  checkoutBannerSubtext: {
+    color: colors.inkSecondary || '#666',
+    fontFamily: fonts.interRegular,
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 2,
   },
 });

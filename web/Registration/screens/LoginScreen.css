@@ -123,6 +123,12 @@ input {
   flex-shrink: 0;
 }
 
+:root[data-theme='dark'] .logo::before,
+.login-page[data-theme='dark'] .logo::before,
+[data-theme='dark'] .logo::before {
+  background-image: url('/assets/branding/logo-emblem-dark.png');
+}
+
 .logo span {
   color: var(--color-volt);
 }

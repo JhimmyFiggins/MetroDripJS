@@ -31,6 +31,7 @@ import { PaymentDetailsScreen } from '../Checkout/src/screens/PaymentDetailsScre
 import OrderConfirmationScreen from '../Checkout/src/screens/OrderConfirmationScreen';
 
 import ProfileManagement from '../Account_Management/ProfileManagement';
+import TeamScreen from '../Account_Management/TeamScreen';
 import { normalizeOrderId } from '../../src/services/orderService';
 
 const Stack = createNativeStackNavigator();
@@ -92,6 +93,7 @@ export default function AppNavigator() {
                             path: 'orders/:orderId',
                             parse: { orderId: normalizeOrderId },
                         },
+                        Team: 'team',
                     },
                 },
             }}
@@ -120,6 +122,7 @@ export default function AppNavigator() {
                 <Stack.Screen name="OrderConfirmation" component={OrderConfirmationScreen} />
                 <Stack.Screen name="Account" component={Account} />
                 <Stack.Screen name="Profile" component={ProfileManagement} />
+                <Stack.Screen name="Team" component={TeamScreen} />
             </Stack.Navigator>
         </NavigationContainer>
     );
