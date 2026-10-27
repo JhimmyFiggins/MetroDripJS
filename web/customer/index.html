@@ -13,12 +13,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/customer/customer.css">
   <script>
+    var systemTheme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    var storedTheme = null;
     try {
-      var storedTheme = localStorage.getItem('metrodrip.customer.theme');
-      if (storedTheme === 'dark' || storedTheme === 'light') {
-        document.documentElement.dataset.theme = storedTheme;
-      }
+      storedTheme = localStorage.getItem('metrodrip.customer.theme');
     } catch (error) {}
+    document.documentElement.dataset.theme = storedTheme === 'dark' || storedTheme === 'light'
+      ? storedTheme
+      : systemTheme;
   </script>
 </head>
 <body>
@@ -34,7 +36,10 @@
     <div class="header-bar">
       <div class="header-brand-wrap">
         <a class="brand" href="/customer/" aria-label="MetroDrip Home">
-          <img src="/assets/branding/logo-emblem.png" alt="" class="header-brand-emblem" width="34" height="34">
+          <span class="theme-logo header-brand-emblem" aria-hidden="true">
+            <img src="/assets/branding/logo-emblem.png" alt="" class="theme-logo-light" width="34" height="34">
+            <img src="/assets/branding/logo-emblem-dark.png" alt="" class="theme-logo-dark" width="34" height="34">
+          </span>
           <span class="brand-text">METRO<span class="brand-drip">DRIP</span></span>
         </a>
       </div>
@@ -99,7 +104,10 @@
         <div class="footer-col footer-col-brand">
           <div class="footer-brand-wrap">
             <a href="/customer/" class="footer-brand-link" aria-label="MetroDrip Home">
-              <img src="/assets/branding/logo.png" alt="MetroDrip" class="footer-brand-logo" width="168" height="134">
+              <span class="theme-logo footer-brand-logo" aria-hidden="true">
+                <img src="/assets/branding/logo.png" alt="" class="theme-logo-light" width="168" height="134">
+                <img src="/assets/branding/logo-dark.png" alt="" class="theme-logo-dark" width="168" height="134">
+              </span>
             </a>
             <h2 class="visually-hidden">MetroDrip</h2>
             <p class="footer-tagline">Customer shop for the live MetroDrip catalog.<br>Product origin is shown only when the catalog provides it.</p>

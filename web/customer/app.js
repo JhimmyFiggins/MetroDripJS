@@ -34,6 +34,7 @@ const cartCountNode = document.querySelector('#cart-count');
 const accountLink = document.querySelector('#account-link');
 const unreadNodes = () => document.querySelectorAll('[data-unread-count]');
 const searchForm = document.querySelector('#header-search');
+const systemThemeQuery = window.matchMedia?.('(prefers-color-scheme: dark)') || null;
 
 const state = {
   session: null,
@@ -165,6 +166,38 @@ function el(tag, attrs = {}, children = []) {
     node.append(child instanceof Node ? child : document.createTextNode(String(child)));
   }
   return node;
+}
+
+function themeLogo(variant, className = '', label = '') {
+  const suffix = variant === 'emblem' ? 'emblem' : variant === 'wordmark' ? 'wordmark' : '';
+  const basename = suffix ? `logo-${suffix}` : 'logo';
+  return el('span', {
+    class: `theme-logo ${className}`.trim(),
+    role: label ? 'img' : null,
+    'aria-label': label || null,
+    'aria-hidden': label ? null : 'true',
+  }, [
+    el('img', { class: 'theme-logo-light', src: `/assets/branding/${basename}.png`, alt: '' }),
+    el('img', { class: 'theme-logo-dark', src: `/assets/branding/${basename}-dark.png`, alt: '' }),
+  ]);
+}
+
+function readThemePreference() {
+  try {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    return stored === 'light' || stored === 'dark' ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+function systemTheme() {
+  return systemThemeQuery?.matches ? 'dark' : 'light';
+}
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  paintChrome();
 }
 
 function money(value) {
@@ -1722,7 +1755,7 @@ async function renderVerifyOtp(_route, scope) {
     });
   } }, [
     el('div', { class: 'otp-header-icon', 'aria-hidden': 'true' }, [
-      el('img', { src: '/assets/branding/logo-emblem.png', alt: '', width: '36', height: '36', style: 'object-fit:contain;' }),
+      themeLogo('emblem'),
     ]),
     el('h1', { class: 'otp-title' }, headingText),
     el('p', { class: 'otp-instruction' }, instructionText),
@@ -2152,9 +2185,15 @@ menuButton.addEventListener('click', () => {
 });
 themeButton.addEventListener('click', () => {
   const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
-  document.documentElement.dataset.theme = next;
-  localStorage.setItem(THEME_STORAGE_KEY, next);
-  paintChrome();
+  applyTheme(next);
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, next);
+  } catch {
+    /* The selected theme still applies for this page view. */
+  }
+});
+systemThemeQuery?.addEventListener('change', () => {
+  if (!readThemePreference()) applyTheme(systemTheme());
 });
 searchForm.addEventListener('submit', (event) => {
   event.preventDefault();

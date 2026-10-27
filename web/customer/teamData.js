@@ -1,6 +1,7 @@
 /**
- * MetroDrip Team Information
- * Authoritative content sourced from TIP_MetroDrip-Ecommerce (apps/storefront/views.py & developers.html).
+ * Authoritative team content shared by the web storefront and mobile app.
+ * Descriptions define role responsibilities; repository history does not verify
+ * individual authorship of each implemented feature.
  */
 
 export const TEAM_HEADING = 'THE TEAM';
@@ -13,7 +14,7 @@ export const TEAM_MEMBERS = [
     id: 'navarro',
     name: 'Navarro, Arshad Edwin',
     role: 'Project Leader',
-    bio: 'Full-stack architect responsible for systems integration strategy, sprint planning, and cross-team coordination. Leads the enterprise architecture alignment with course deliverables.',
+    bio: 'Coordinates MetroDrip\'s modular-monolith architecture and the integration between the Django/DRF backend, responsive web interfaces, and Expo/React Native customer app. This role keeps cross-platform contracts, delivery priorities, and integration decisions aligned.',
     contribution: 'Architecture & Integration',
     avatar: '/assets/team/navarro.png',
     initials: 'AN',
@@ -22,7 +23,7 @@ export const TEAM_MEMBERS = [
     id: 'pameroyan',
     name: 'Pameroyan, Archim Paul C.',
     role: 'Backend Developer',
-    bio: 'Designed and implemented the inventory management system, checkout saga, and payment gateway integration. Owns the stock reservation engine and concurrency-safe transaction flows.',
+    bio: 'Focuses on Django/DRF APIs for inventory, stock reservations, and server-authoritative checkout. This role supports transaction-safe order processing and PayMongo Hosted Checkout integration for configured online payment methods.',
     contribution: 'Inventory & Payments',
     avatar: '/assets/team/pameroyan.png',
     initials: 'AP',
@@ -31,7 +32,7 @@ export const TEAM_MEMBERS = [
     id: 'deborja',
     name: 'De Borja, John Meickann M.',
     role: 'Frontend Developer',
-    bio: 'Built the storefront UI using the MetroDrip design system with Django Templates, HTMX, and Alpine.js. Responsible for responsive layouts and WCAG AA accessibility compliance.',
+    bio: 'Focuses on the HTML, CSS, and JavaScript storefront and the React Native/Expo customer experience. This role maintains responsive layouts, reusable interface patterns, and accessible states across supported screens.',
     contribution: 'Storefront & UI/UX',
     avatar: '/assets/team/deborja.png',
     initials: 'JD',
@@ -40,7 +41,7 @@ export const TEAM_MEMBERS = [
     id: 'carlos',
     name: 'Carlos, Reuel L.',
     role: 'QA & DevOps Engineer',
-    bio: 'Manages the CI/CD pipeline, Docker containerization, and deployment infrastructure. Authors the test suite covering concurrency gates, checkout flows, and migration integrity.',
+    bio: 'Focuses on automated coverage across Django and Node.js tests, Playwright browser checks, and accessibility tooling. This role also maintains deployment configuration and Android build workflows while hosted deployment and device release gates remain unverified.',
     contribution: 'Testing & Deployment',
     avatar: '/assets/team/carlos.png',
     initials: 'RC',
@@ -49,7 +50,7 @@ export const TEAM_MEMBERS = [
     id: 'nogoy',
     name: 'Nogoy, Marcus Dylan',
     role: 'Database & Security Engineer',
-    bio: 'Designed the MySQL 8 schema with InnoDB invariants, wrote the migration verification suite, and implemented webhook signature verification and CSRF protections across all endpoints.',
+    bio: 'Focuses on Django ORM models, schemas, migrations, and SQLite/PostgreSQL compatibility. This role supports authentication, role-based access controls, PayMongo webhook signature verification, and transactional data integrity.',
     contribution: 'Database & Security',
     avatar: '/assets/team/nogoy.png',
     initials: 'MN',

@@ -1,7 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import {
   ActivityIndicator,
-  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -20,6 +19,7 @@ import { fonts } from '../../Checkout/src/theme.ts';
 import { resendOtp, verifyOtp } from '../../../src/services/authService';
 import { ApiError } from '../../../src/services/apiClient';
 import { useAuth } from '../../context/AuthContext';
+import BrandLogo from '../../components/BrandLogo';
 
 export default function OtpScreen({ navigation, route }) {
   const { login } = useAuth();
@@ -154,10 +154,10 @@ export default function OtpScreen({ navigation, route }) {
         >
           <View style={styles.cardContainer}>
             <View style={styles.iconCircle}>
-              <Image
-                source={theme.mode === 'dark' ? require('../../assets/branding/logo-emblem-dark.png') : require('../../assets/branding/logo-emblem.png')}
+              <BrandLogo
+                variant="emblem"
+                surface={theme.mode}
                 style={{ width: 36, height: 36 }}
-                resizeMode="contain"
                 accessible={false}
               />
             </View>

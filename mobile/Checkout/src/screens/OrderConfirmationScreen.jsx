@@ -8,13 +8,13 @@ import {
   Platform,
   useWindowDimensions,
   Modal,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { colors, fonts } from '../theme';
 import { formatConfirmationDate, validateConfirmationRoute } from '../data/orderConfirmation';
 import ProductImage from '../../../components/ProductImage';
+import BrandLogo from '../../../components/BrandLogo';
 
 export function OrderConfirmationScreen() {
   const navigation = useNavigation();
@@ -107,10 +107,10 @@ export function OrderConfirmationScreen() {
               <Text style={styles.navButtonText}>‹ Back to Shop</Text>
             </Pressable>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Image
-                source={require('../../../assets/branding/logo-emblem.png')}
+              <BrandLogo
+                variant="emblem"
+                surface="light"
                 style={{ width: 24, height: 24 }}
-                resizeMode="contain"
                 accessible={false}
               />
               <Text style={styles.brandTitle}>METRODRIP</Text>
@@ -274,10 +274,9 @@ export function OrderConfirmationScreen() {
             </View>
 
             <ScrollView style={styles.modalScroll}>
-              <Image
-                source={require('../../../assets/branding/logo.png')}
+              <BrandLogo
+                surface="light"
                 style={{ width: 150, height: 118, alignSelf: 'center', marginBottom: 10 }}
-                resizeMode="contain"
                 accessibilityLabel="METRODRIP"
               />
               <Text style={styles.receiptStoreName}>METRODRIP MANILA</Text>

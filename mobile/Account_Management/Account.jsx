@@ -14,6 +14,7 @@ import { colors, fonts } from '../Checkout/src/theme';
 
 import AdaptHeader from '../components/AdaptHeader';
 import Footer from '../components/Footer';
+import BrandLogo from '../components/BrandLogo';
 
 import { useAuth } from '../context/AuthContext';
 import { getProfile } from '../../src/services/authService';
@@ -199,10 +200,9 @@ export default function Account() {
 
   const renderSignedOut = () => (
     <View style={styles.guestWrap}>
-      <Image
-        source={require('../assets/branding/logo.png')}
+      <BrandLogo
+        surface="light"
         style={styles.guestLogo}
-        resizeMode="contain"
         accessibilityLabel="MetroDrip"
       />
       <Text style={styles.guestMessage}>

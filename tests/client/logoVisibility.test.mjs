@@ -4,120 +4,97 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 const repoRoot = process.cwd();
+const read = (...parts) => readFileSync(join(repoRoot, ...parts), 'utf8');
 
-test('branding assets exist in both web and mobile directories with required variants', () => {
-  const requiredWeb = [
-    'logo.png',
-    'logo-dark.png',
-    'logo-emblem.png',
-    'logo-emblem-dark.png',
-    'logo-wordmark.png',
-    'logo-wordmark-dark.png',
-    'logo-master.png',
-    'logo-5.png',
-  ];
-  for (const file of requiredWeb) {
-    const p = join(repoRoot, 'web/assets/branding', file);
-    assert.ok(existsSync(p), `Missing web branding asset: ${file}`);
-  }
-
-  const requiredMobile = [
-    'logo.png',
-    'logo-dark.png',
-    'logo-emblem.png',
-    'logo-emblem-dark.png',
-    'logo-wordmark.png',
-    'logo-wordmark-dark.png',
-  ];
-  for (const file of requiredMobile) {
-    const p = join(repoRoot, 'mobile/assets/branding', file);
-    assert.ok(existsSync(p), `Missing mobile branding asset: ${file}`);
+test('branding assets exist in both web and mobile directories with complete light/dark pairs', () => {
+  const variants = ['logo', 'logo-emblem', 'logo-wordmark'];
+  for (const directory of ['web/assets/branding', 'mobile/assets/branding']) {
+    for (const variant of variants) {
+      for (const suffix of ['', '-dark']) {
+        const file = `${variant}${suffix}.png`;
+        assert.ok(existsSync(join(repoRoot, directory, file)), `Missing ${directory}/${file}`);
+      }
+    }
   }
 });
 
-test('web customer CSS defines responsive, theme-aware logo treatments without filter smudges', () => {
-  const css = readFileSync(join(repoRoot, 'web/customer/customer.css'), 'utf8');
-  assert.match(css, /\.header-brand-emblem/, 'customer.css must style .header-brand-emblem');
-  assert.match(
-    css,
-    /:root\[data-theme="dark"\]\s+\.header-brand-emblem\s*\{\s*content:\s*url\('\/assets\/branding\/logo-emblem-dark\.png'\);/,
-    'customer.css must swap header emblem to logo-emblem-dark.png in dark theme'
-  );
-  assert.match(
-    css,
-    /:root\[data-theme="dark"\]\s+\.footer-brand-logo\s*\{\s*content:\s*url\('\/assets\/branding\/logo-dark\.png'\);/,
-    'customer.css must swap footer logo to logo-dark.png in dark theme'
-  );
-  assert.doesNotMatch(
-    css,
-    /:root\[data-theme="dark"\]\s+\.footer-brand-logo\s*\{\s*filter:\s*drop-shadow/,
-    'customer.css should not rely on blurry drop-shadow filters for footer logo'
-  );
+test('customer markup exposes both logo variants and CSS switches visibility without image content replacement', () => {
+  const html = read('web', 'customer', 'index.html');
+  const css = read('web', 'customer', 'customer.css');
+
+  for (const file of ['logo.png', 'logo-dark.png', 'logo-emblem.png', 'logo-emblem-dark.png']) {
+    assert.match(html, new RegExp(`/assets/branding/${file.replace('.', '\\.')}"`));
+  }
+  assert.match(html, /class="theme-logo header-brand-emblem" aria-hidden="true"/);
+  assert.match(html, /class="theme-logo footer-brand-logo" aria-hidden="true"/);
+  assert.match(css, /:root\[data-theme="dark"\]\s+\.theme-logo-light\s*\{[^}]*display:\s*none/s);
+  assert.match(css, /:root\[data-theme="dark"\]\s+\.theme-logo-dark\s*\{[^}]*display:\s*block/s);
+  assert.doesNotMatch(css, /content:\s*url\([^)]*branding\/logo/);
+  assert.doesNotMatch(css, /filter:\s*(?:drop-shadow|invert)/);
 });
 
-test('web customer app renders clean dark-theme logo on auth panels without solid white box badges', () => {
-  const js = readFileSync(join(repoRoot, 'web/customer/app.js'), 'utf8');
-  assert.doesNotMatch(
-    js,
-    /\/assets\/branding\/logo-badge\.png/,
-    'app.js must not reference legacy solid-box logo-badge.png'
-  );
-  assert.match(
-    js,
-    /\/assets\/branding\/logo-dark\.png/,
-    'app.js must reference seamless logo-dark.png for auth cards'
-  );
+test('customer theme resolves before paint, persists explicit choices, and follows system changes only without a choice', () => {
+  const html = read('web', 'customer', 'index.html');
+  const js = read('web', 'customer', 'app.js');
+
+  assert.match(html, /matchMedia\('\(prefers-color-scheme: dark\)'\)/);
+  assert.match(html, /document\.documentElement\.dataset\.theme\s*=/);
+  assert.match(js, /const systemThemeQuery = window\.matchMedia\?\.\('\(prefers-color-scheme: dark\)'\)/);
+  assert.match(js, /systemThemeQuery\?\.addEventListener\('change'/);
+  assert.match(js, /if \(!readThemePreference\(\)\) applyTheme\(systemTheme\(\)\)/);
+  assert.match(js, /localStorage\.setItem\(THEME_STORAGE_KEY, next\)/);
 });
 
-test('admin and merchant console stylesheets support dark theme branding', () => {
-  const consoleCss = readFileSync(join(repoRoot, 'web/css/console.css'), 'utf8');
-  assert.match(
-    consoleCss,
-    /:root\[data-theme='dark'\]\s+\.brand-logo::before/,
-    'console.css must declare dark theme for .brand-logo::before'
-  );
-  assert.match(
-    consoleCss,
-    /\/assets\/branding\/logo-emblem-dark\.png/,
-    'console.css must reference logo-emblem-dark.png in dark mode'
-  );
-
-  const loginCss = readFileSync(join(repoRoot, 'web/Registration/screens/LoginScreen.css'), 'utf8');
-  assert.match(
-    loginCss,
-    /\/assets\/branding\/logo-emblem-dark\.png/,
-    'LoginScreen.css must reference logo-emblem-dark.png for dark theme login branding'
-  );
+test('customer auth branding uses the dark-surface asset while theme-sensitive OTP branding uses the shared pair', () => {
+  const js = read('web', 'customer', 'app.js');
+  assert.doesNotMatch(js, /\/assets\/branding\/logo-badge\.png/);
+  assert.match(js, /src: '\/assets\/branding\/logo-dark\.png'/);
+  assert.match(js, /themeLogo\('emblem'\)/);
 });
 
-test('mobile welcome screen renders transparent logo-dark.png without solid white container', () => {
-  const initialJs = readFileSync(join(repoRoot, 'mobile/Registration/screens/InitialScreen.js'), 'utf8');
-  assert.doesNotMatch(
-    initialJs,
-    /logo-badge\.png/,
-    'InitialScreen.js must not reference legacy solid-box logo-badge.png'
-  );
-  assert.match(
-    initialJs,
-    /logo-dark\.png/,
-    'InitialScreen.js must reference seamless logo-dark.png'
-  );
+test('staff console and login branding select the contrasting emblem for each theme', () => {
+  const consoleCss = read('web', 'css', 'console.css');
+  const loginCss = read('web', 'Registration', 'screens', 'LoginScreen.css');
+  for (const css of [consoleCss, loginCss]) {
+    assert.match(css, /logo-emblem\.png/);
+    assert.match(css, /logo-emblem-dark\.png/);
+    assert.doesNotMatch(css, /filter:\s*(?:drop-shadow|invert)/);
+  }
 });
 
-test('mobile OTP screen dynamically selects theme-appropriate emblem', () => {
-  const otpJs = readFileSync(join(repoRoot, 'mobile/Registration/screens/OtpScreen.js'), 'utf8');
-  assert.match(
-    otpJs,
-    /logo-emblem-dark\.png/,
-    'OtpScreen.js must reference logo-emblem-dark.png for dark mode'
-  );
+test('mobile logo rendering is centralized and every consumer declares the actual backing surface', () => {
+  const component = read('mobile', 'components', 'BrandLogo.jsx');
+  for (const file of [
+    'logo.png', 'logo-dark.png',
+    'logo-emblem.png', 'logo-emblem-dark.png',
+    'logo-wordmark.png', 'logo-wordmark-dark.png',
+  ]) {
+    assert.match(component, new RegExp(file.replace('.', '\\.')));
+  }
+  assert.match(component, /surface === 'dark' \? assets\.dark : assets\.light/);
+
+  const consumers = [
+    ['mobile/Registration/screens/InitialScreen.js', /<BrandLogo[\s\S]*surface="dark"/],
+    ['mobile/Registration/screens/OtpScreen.js', /<BrandLogo[\s\S]*surface=\{theme\.mode\}/],
+    ['mobile/components/Header.jsx', /<BrandLogo[\s\S]*surface="light"/],
+    ['mobile/components/HomeHeader.jsx', /<BrandLogo[\s\S]*surface="light"/],
+    ['mobile/Account_Management/Account.jsx', /<BrandLogo[\s\S]*surface="light"/],
+    ['mobile/Checkout/src/screens/OrderConfirmationScreen.jsx', /<BrandLogo[\s\S]*surface="light"/],
+  ];
+  for (const [file, pattern] of consumers) {
+    assert.match(read(...file.split('/')), pattern, `${file} must select its logo by surface`);
+  }
 });
 
-test('SVG favicon utilizes dark-adapted emblem against dark background', () => {
-  const svg = readFileSync(join(repoRoot, 'web/assets/favicon.svg'), 'utf8');
-  assert.match(
-    svg,
-    /logo-emblem-dark\.png/,
-    'favicon.svg must reference logo-emblem-dark.png'
-  );
+test('the active Expo root provides system theme context and permits native appearance changes', () => {
+  const app = read('App.js');
+  const config = JSON.parse(read('app.json'));
+  assert.match(app, /<ThemeProvider>/);
+  assert.equal(config.expo.userInterfaceStyle, 'automatic');
+});
+
+test('SVG favicon keeps the dark-adapted emblem on its dark tile', () => {
+  const svg = read('web', 'assets', 'favicon.svg');
+  assert.match(svg, /fill: #141414/);
+  assert.match(svg, /logo-emblem-dark\.png/);
 });

@@ -1,10 +1,30 @@
 # Verification and Evaluation
 
-**Status:** ACADEMIC DEMO HOLD and PRODUCTION HOLD; 2026-10-25 local fixes pass, but hosted image recovery, PayMongo activation, and device APK checks remain open
+**Status:** ACADEMIC DEMO HOLD and PRODUCTION HOLD; 2026-10-27 team/logo checks pass, but hosted image recovery, PayMongo activation, and device APK checks remain open
 
 **Current authority:** [Comprehensive Repository Audit and Academic Demo Plan — 2026-10-19](Comprehensive%20Repository%20Audit%20and%20Academic%20Demo%20Plan%20-%202026-10-19.md), this matrix, and the dated prior QA reports retained below
 
 **Evidence rule:** An executed unit/mock/SQLite/static check is labeled separately from PostgreSQL, native-device, PayMongo, and Render evidence.
+
+## Team content and logo visibility — 2026-10-27
+
+The shared Our Team dataset now describes role responsibilities against the active Django/DRF modular monolith, HTML/CSS/JavaScript storefront, Expo/React Native client, SQLite/PostgreSQL path, Hosted Checkout integration, and current QA/build tooling. It no longer attributes unverified individual authorship or presents HTMX, Alpine.js, MySQL 8, completed CI/CD, or the historical five-service topology as current team work.
+
+Customer web logos now render explicit light/dark asset pairs selected by the resolved `data-theme`; this replaces CSS `content: url(...)` source replacement. Theme resolution occurs in the document head, a saved customer choice wins over the operating-system preference, and operating-system changes apply when no choice is saved. Staff console/login branding already uses paired emblem backgrounds. Mobile logo imports are centralized in `mobile/components/BrandLogo.jsx`, and each consumer selects artwork for its actual backing surface; the active app now provides registration theme context and permits automatic native appearance changes.
+
+| Check | Result |
+|---|---|
+| `npm run test:client` | **PASS**, 243/243. Includes exact five-member content synchronization, obsolete-stack exclusions, asset-pair coverage, web theme contracts, staff branding, centralized mobile consumers, Expo theme configuration, and favicon coverage. |
+| `npx tsc --noEmit` | **PASS**, no diagnostics. |
+| `node tests/browser/run-team-page.mjs` | **PASS** in headless Chrome. Five cards and navigation passed; Axe reported 0 WCAG A/AA violations; 320, 390, 768, and 1280 px widths had no overflow; light/dark visibility, immediate switching, saved-choice reload, system-theme changes, and loaded image dimensions passed. |
+| Browser screenshots | **PASS by visual inspection** for `/tmp/metrodrip-logo-qa/team-light-1280.png` and `/tmp/metrodrip-logo-qa/team-dark-1280.png`. Header emblems and complete footer emblem/wordmarks remained visible. These are local temporary artifacts, not committed release evidence. |
+| `npm run test:browser` | **PASS**, 64 mocked console layouts plus keyboard/state checks. |
+| `npm run test:customer` | **PASS**, 5 public customer-page Axe/contrast scans against owned local web and Django processes. Authentication, mutations, checkout, and provider behavior are outside this smoke test. |
+| `npx expo export --platform all --output-dir <temporary>` | **PASS**, exit 0; Android, iOS, and web bundles include all six mobile logo variants. This is bundle evidence, not device rendering. |
+| `npx expo-doctor`; `npx expo install --check`; resolved public Expo config | **PASS**, 18/18 Doctor checks, dependencies current, and `userInterfaceStyle: automatic`. |
+| Physical Android/iOS appearance switching and high-density rendering | **UNVERIFIED**; no simulator/device run was performed for this change. |
+
+The local Django startup used for the customer smoke reported two unapplied `identity` migrations. They were not applied because this task does not change the database; the smoke pages still passed. Release status remains **HOLD** and no deployment, provider, database, or payment configuration was changed.
 
 ## Seven-issue QA evidence — 2026-10-25
 
