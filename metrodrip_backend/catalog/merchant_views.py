@@ -92,6 +92,7 @@ def _media_storage_error():
 
 
 class MerchantDashboardAPIView(MerchantAPIView):
+    required_permission = "view_orders"
     def get(self, request):
         now = timezone.now()
         start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -158,6 +159,7 @@ class MerchantDashboardAPIView(MerchantAPIView):
 
 
 class MerchantProductsAPIView(MerchantAPIView):
+    required_permission = "manage_catalog"
     def get(self, request):
         products = CatalogProduct.objects.all().select_related('category').prefetch_related('variants', 'stock_entries', 'media')
         data = []
@@ -288,6 +290,7 @@ class MerchantProductsAPIView(MerchantAPIView):
 
 
 class MerchantProductDetailAPIView(MerchantAPIView):
+    required_permission = "manage_catalog"
     def get(self, request, pk):
         try:
             product = CatalogProduct.objects.select_related('category').prefetch_related('variants', 'stock_entries', 'media').get(pk=pk)
@@ -509,6 +512,7 @@ class MerchantProductDetailAPIView(MerchantAPIView):
 
 
 class MerchantProductMediaAPIView(MerchantAPIView):
+    required_permission = "manage_catalog"
     def get(self, request, pk):
         try:
             product = CatalogProduct.objects.get(pk=pk)
@@ -604,6 +608,7 @@ class MerchantProductMediaAPIView(MerchantAPIView):
 
 
 class MerchantProductMediaDetailAPIView(MerchantAPIView):
+    required_permission = "manage_catalog"
     def patch(self, request, pk, media_id):
         try:
             product = CatalogProduct.objects.get(pk=pk)
@@ -689,6 +694,7 @@ class MerchantProductMediaDetailAPIView(MerchantAPIView):
 
 
 class MerchantCategoriesAPIView(MerchantAPIView):
+    required_permission = "manage_catalog"
     def get(self, request):
         categories = CatalogCategory.objects.all().order_by('name')
 
@@ -745,6 +751,7 @@ class MerchantCategoriesAPIView(MerchantAPIView):
 
 
 class MerchantRestockAPIView(MerchantAPIView):
+    required_permission = "adjust_stock"
     def post(self, request):
         sku = str(request.data.get('sku') or '').strip()
         reason = str(request.data.get('reason') or 'restock').strip().lower()
@@ -805,6 +812,7 @@ class MerchantRestockAPIView(MerchantAPIView):
 
 
 class MerchantStockMovementsAPIView(MerchantAPIView):
+    required_permission = "view_inventory"
     def get(self, request):
         movements = InventoryStockMovement.objects.all().order_by('-created_at')[:20]
         data = [
@@ -821,6 +829,7 @@ class MerchantStockMovementsAPIView(MerchantAPIView):
 
 
 class MerchantReviewsAPIView(MerchantAPIView):
+    required_permission = "reply_reviews"
     def get(self, request):
         reviews = ReviewsReview.objects.all().order_by('-created_at')[:20]
         data = [
@@ -844,6 +853,7 @@ class MerchantReviewsAPIView(MerchantAPIView):
 
 
 class MerchantReviewDetailAPIView(MerchantAPIView):
+    required_permission = "reply_reviews"
     def get(self, request, pk):
         try:
             review = ReviewsReview.objects.get(pk=pk)
@@ -864,6 +874,7 @@ class MerchantReviewDetailAPIView(MerchantAPIView):
 
 
 class MerchantReviewReplyAPIView(MerchantAPIView):
+    required_permission = "reply_reviews"
     def post(self, request, pk):
         raw_reply = request.data.get('reply', '')
         if not isinstance(raw_reply, str):
@@ -891,6 +902,7 @@ class MerchantReviewReplyAPIView(MerchantAPIView):
 
 
 class MerchantReviewModerateAPIView(MerchantAPIView):
+    required_permission = "reply_reviews"
     """Deprecated: Retained for backwards compatibility."""
     def post(self, request, pk):
         new_status = str(request.data.get('status') or '').strip().lower()
@@ -957,6 +969,10 @@ def _merchant_order_summary(order):
 
 
 class MerchantOrdersAPIView(MerchantAPIView):
+    def get_required_permission(self, request):
+        if request.method in ('GET', 'HEAD', 'OPTIONS'):
+            return 'view_orders'
+        return 'manage_orders'
     def get(self, request, pk=None):
         if pk is not None:
             order = OrdersOrder.objects.select_related('shipping_address').prefetch_related('payments').filter(pk=pk).first()
@@ -1081,6 +1097,7 @@ class MerchantOrdersAPIView(MerchantAPIView):
 
 
 class MerchantOrdersExportAPIView(MerchantAPIView):
+    required_permission = "manage_orders"
     def get(self, request):
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="metrodrip_merchant_orders_{timezone.now().strftime("%Y%m%d")}.csv"'
@@ -1219,10 +1236,12 @@ def _merchant_sales_analytics(request):
 
 
 class MerchantAnalyticsAPIView(MerchantAPIView):
+    required_permission = "view_orders"
     def get(self, request):
         return Response(_merchant_sales_analytics(request))
 
 class MerchantShipmentsAPIView(MerchantAPIView):
+    required_permission = "manage_shipments"
     def get(self, request):
         shipments_qs = list(ShippingShipment.objects.all().order_by('-id'))
         order_map = {
@@ -1265,6 +1284,7 @@ class MerchantShipmentsAPIView(MerchantAPIView):
 
 
 class MerchantShipmentDetailAPIView(MerchantAPIView):
+    required_permission = "manage_shipments"
     def get(self, request, pk):
         shipment = ShippingShipment.objects.filter(pk=pk).first()
         if not shipment:
@@ -1313,6 +1333,7 @@ class MerchantShipmentDetailAPIView(MerchantAPIView):
 
 
 class MerchantShippingZonesAPIView(MerchantAPIView):
+    required_permission = "edit_shipping_zones"
     def get(self, request):
         zones = ShippingShippingZone.objects.all().order_by('id')
 
@@ -1365,6 +1386,7 @@ class MerchantShippingZonesAPIView(MerchantAPIView):
 
 
 class MerchantShippingEligibilityAPIView(MerchantAPIView):
+    required_permission = "edit_shipping_zones"
     def post(self, request):
         address = str(request.data.get('address') or '').strip()
 
@@ -1528,6 +1550,7 @@ def _serialize_banner(banner):
 
 
 class MerchantBannersAPIView(MerchantAPIView):
+    required_permission = "publish_content"
     def get(self, request):
         banners = CmsHomepageBanner.objects.all().order_by('order')
 
@@ -1608,6 +1631,7 @@ class MerchantBannersAPIView(MerchantAPIView):
 
 
 class MerchantBannerDetailAPIView(MerchantAPIView):
+    required_permission = "publish_content"
     def patch(self, request, pk):
         try:
             banner = CmsHomepageBanner.objects.get(pk=pk)
@@ -1705,6 +1729,7 @@ class MerchantBannerDetailAPIView(MerchantAPIView):
 
 
 class MerchantBannerUploadAPIView(MerchantAPIView):
+    required_permission = "publish_content"
     def post(self, request):
         storage_error = _media_storage_error()
         if storage_error:
@@ -1743,6 +1768,7 @@ class MerchantBannerUploadAPIView(MerchantAPIView):
 
 
 class MerchantOrderSettingsAPIView(MerchantAPIView):
+    required_permission = "manage_orders"
     def get(self, request):
         from identity.models import PlatformSetting
         from orders.capabilities import payment_capabilities

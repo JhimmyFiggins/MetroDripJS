@@ -1,4 +1,4 @@
-// Administrator role summary and fail-closed custom-role workflow.
+// Administrator role summary and dynamic custom-role workflow.
 (() => {
   const API_BASE = (['localhost', '127.0.0.1'].includes(window.location.hostname) && window.location.port !== '3000')
     ? 'http://127.0.0.1:8000/api/admin'
@@ -6,6 +6,38 @@
 
   let roles = [];
   let rolesLoaded = false;
+  let currentBaseRole = 'merchant';
+  let hasUnsavedChanges = false;
+
+  const PERMISSION_DEFINITIONS = {
+    administrator: [
+      { id: 'manage_users', label: 'User administration', default: 'allow' },
+      { id: 'delete_users', label: 'User deletion', default: 'allow' },
+      { id: 'manage_roles', label: 'Assign roles & permissions', default: 'allow' },
+      { id: 'manage_settings', label: 'Platform settings', default: 'allow' },
+      { id: 'audit_trail', label: 'Audit trail (view / export)', default: 'allow' },
+      { id: 'export_users', label: 'Export user directory', default: 'allow' },
+      { id: 'manage_shipping', label: 'Shipping zones & rates', default: 'allow' },
+    ],
+    merchant: [
+      { id: 'manage_catalog', label: 'Catalog & product management', default: 'allow' },
+      { id: 'view_inventory', label: 'View inventory', default: 'allow' },
+      { id: 'adjust_stock', label: 'Adjust stock & restock', default: 'allow' },
+      { id: 'view_orders', label: 'View orders', default: 'allow' },
+      { id: 'manage_orders', label: 'Order management', default: 'allow' },
+      { id: 'manage_shipments', label: 'Manage shipments', default: 'allow' },
+      { id: 'edit_shipping_zones', label: 'Shipping zones & rates', default: 'allow' },
+      { id: 'reply_reviews', label: 'Customer reviews (view / reply)', default: 'allow' },
+      { id: 'publish_content', label: 'Publish marketing content', default: 'allow' },
+    ],
+    customer: [
+      { id: 'manage_profile', label: 'Profile management & addresses', default: 'allow' },
+      { id: 'browse_catalog', label: 'Browse catalog & products', default: 'allow' },
+      { id: 'create_orders', label: 'Create orders & checkout', default: 'allow' },
+      { id: 'view_own_orders', label: 'View personal orders', default: 'allow' },
+      { id: 'submit_reviews', label: 'Submit product reviews', default: 'allow' },
+    ],
+  };
 
   function escapeHtml(value) {
     const div = document.createElement('div');
@@ -105,7 +137,7 @@
     const systemRoles = roles.filter(role => !role.is_custom);
     const customRoles = roles.filter(role => role.is_custom);
     const staffCount = roles
-      .filter(role => ['admin', 'merchant'].includes(String(role.role).toLowerCase()))
+      .filter(role => ['admin', 'merchant'].includes(String(role.role).toLowerCase()) || (role.is_custom && ['admin', 'merchant'].includes(String(role.base_role).toLowerCase())))
       .reduce((sum, role) => sum + Number(role.user_count || 0), 0);
     const merchant = roles.find(role => String(role.role).toLowerCase() === 'merchant');
     const values = {
@@ -121,7 +153,7 @@
     if (staffDetail) staffDetail.textContent = `${staffCount} staff account${staffCount === 1 ? '' : 's'} across system roles`;
     const customDetail = document.getElementById('metric-custom-detail');
     if (customDetail) {
-      customDetail.textContent = `${customRoles.length} custom staff role${customRoles.length === 1 ? '' : 's'} created`;
+      customDetail.textContent = `${customRoles.length} custom role${customRoles.length === 1 ? '' : 's'} created`;
     }
     const merchantAssignment = document.getElementById('merchant-role-assignment');
     if (merchantAssignment) {
@@ -139,6 +171,63 @@
     if (staffDetail) staffDetail.textContent = 'Role data unavailable';
     const merchantAssignment = document.getElementById('merchant-role-assignment');
     if (merchantAssignment) merchantAssignment.textContent = 'System role · assignment data unavailable';
+  }
+
+  function renderPermissionsForRole(baseRoleKey) {
+    const key = String(baseRoleKey || 'merchant').toLowerCase();
+    const normalizedKey = (key === 'admin' || key === 'administrator') ? 'administrator' : key;
+    const defs = PERMISSION_DEFINITIONS[normalizedKey] || PERMISSION_DEFINITIONS.merchant;
+    const container = document.getElementById('custom-role-permissions-container');
+    if (!container) return;
+
+    container.innerHTML = defs.map(perm => {
+      const isAllowed = perm.default === 'allow';
+      return `
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 13px;">${escapeHtml(perm.label)}</span>
+          <select class="matrix-toggle-select ${isAllowed ? 'allow' : 'deny'}" data-perm="${escapeHtml(perm.id)}" aria-label="${escapeHtml(perm.label)}">
+            <option value="allow" ${isAllowed ? 'selected' : ''}>Allow ▾</option>
+            <option value="deny" ${!isAllowed ? 'selected' : ''}>Deny ▾</option>
+          </select>
+        </div>`;
+    }).join('');
+
+    container.querySelectorAll('.matrix-toggle-select').forEach(select => {
+      select.addEventListener('change', () => {
+        select.className = `matrix-toggle-select ${select.value === 'allow' ? 'allow' : 'deny'}`;
+        hasUnsavedChanges = true;
+      });
+    });
+
+    currentBaseRole = baseRoleKey;
+    hasUnsavedChanges = false;
+  }
+
+  function handleBaseRoleChange(event) {
+    const nextRole = event.target.value;
+    if (nextRole === currentBaseRole) return;
+
+    if (hasUnsavedChanges) {
+      const confirmed = window.confirm(
+        'You have unsaved customized permissions. Changing the base role will replace them with the new role defaults. Do you want to continue?'
+      );
+      if (!confirmed) {
+        event.target.value = currentBaseRole;
+        return;
+      }
+    }
+
+    renderPermissionsForRole(nextRole);
+  }
+
+  function resetRoleForm() {
+    const form = document.getElementById('form-custom-role');
+    form?.reset();
+    const baseSelect = document.getElementById('custom-role-base');
+    if (baseSelect) baseSelect.value = 'merchant';
+    currentBaseRole = 'merchant';
+    hasUnsavedChanges = false;
+    renderPermissionsForRole('merchant');
   }
 
   async function loadRoles() {
@@ -161,11 +250,26 @@
       const records = Array.isArray(payload) ? payload : payload?.results;
       if (!Array.isArray(records)) throw new Error('Roles API returned an unexpected response.');
       roles = records;
+
+      // Update permission definitions if backend returned capabilities
+      records.forEach(r => {
+        if (!r.is_custom && r.capabilities && Array.isArray(r.capabilities)) {
+          const key = r.role === 'admin' ? 'administrator' : r.role;
+          if (PERMISSION_DEFINITIONS[key]) {
+            PERMISSION_DEFINITIONS[key] = r.capabilities;
+          }
+        }
+      });
+
       rolesLoaded = true;
       updateMetrics();
       setCreationEnabled(true);
       setSourceStatus('API CONNECTED', 'is-success');
       setPageState('ready');
+
+      // Render current base role permissions
+      const baseSelect = document.getElementById('custom-role-base');
+      renderPermissionsForRole(baseSelect?.value || 'merchant');
     } catch (error) {
       const denied = error.status === 401 || error.status === 403;
       roles = [];
@@ -177,16 +281,6 @@
     }
   }
 
-  function resetRoleForm() {
-    const form = document.getElementById('form-custom-role');
-    form?.reset();
-    document.querySelectorAll('.matrix-toggle-select').forEach(select => {
-      const allowedByDefault = ['view_orders', 'manage_shipments', 'view_inventory'].includes(select.dataset.perm);
-      select.value = allowedByDefault ? 'allow' : 'deny';
-      select.className = `matrix-toggle-select ${allowedByDefault ? 'allow' : 'deny'}`;
-    });
-  }
-
   async function createCustomRole(event) {
     event.preventDefault();
     if (!rolesLoaded) return;
@@ -194,12 +288,16 @@
     const baseInput = document.getElementById('custom-role-base');
     const button = document.getElementById('btn-submit-custom-role');
     const roleName = nameInput?.value.trim() || '';
-    const baseRole = baseInput?.value || '';
+    let baseRole = baseInput?.value || 'merchant';
+    if (baseRole.toLowerCase() === 'administrator') baseRole = 'admin';
+
     if (!roleName || !baseRole) return;
-    const permissions = [...document.querySelectorAll('.matrix-toggle-select')]
+
+    const permissions = [...document.querySelectorAll('#custom-role-permissions-container .matrix-toggle-select')]
       .filter(select => select.value === 'allow')
       .map(select => select.dataset.perm)
       .filter(Boolean);
+
     const original = button?.textContent || 'Create role';
     if (button) {
       button.disabled = true;
@@ -227,11 +325,11 @@
   }
 
   function initHandlers() {
-    document.querySelectorAll('.matrix-toggle-select').forEach(select => {
-      select.addEventListener('change', () => {
-        select.className = `matrix-toggle-select ${select.value === 'allow' ? 'allow' : 'deny'}`;
-      });
+    document.getElementById('custom-role-base')?.addEventListener('change', handleBaseRoleChange);
+    document.getElementById('custom-role-name')?.addEventListener('input', () => {
+      hasUnsavedChanges = true;
     });
+
     document.getElementById('btn-create-role-top')?.addEventListener('click', () => {
       const card = document.getElementById('card-create-custom-role');
       card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -248,6 +346,7 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     initHandlers();
+    renderPermissionsForRole('merchant');
     setCreationEnabled(false);
     loadRoles();
   });

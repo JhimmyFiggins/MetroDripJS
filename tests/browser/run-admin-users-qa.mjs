@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const root = new URL('../../web/', import.meta.url);
 const types = {
@@ -91,8 +92,9 @@ function startServer() {
       return;
     }
     let path = url.pathname;
-    const file = normalize(join(root.pathname, path));
-    if (!file.startsWith(root.pathname)) {
+    const rootPath = fileURLToPath(root);
+    const file = normalize(join(rootPath, path));
+    if (!file.startsWith(rootPath)) {
       response.writeHead(403);
       response.end();
       return;
@@ -146,13 +148,14 @@ try {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto(`http://127.0.0.1:${port}/admin/users.html`, { waitUntil: 'networkidle' });
 
-  // Verify headers and structure
+  // Verify headers and structure (master checkbox + 5 data columns)
   const headerTexts = await page.locator('#users-directory-table thead th').allTextContents();
   assert.deepEqual(
-    headerTexts.map(t => t.trim()),
+    headerTexts.map(t => t.trim()).filter(Boolean),
     ['NAME / EMAIL', 'ROLE', 'STATUS', '2FA', 'LAST ACTIVE'],
     'Table headers must match specification'
   );
+  assert.ok(await page.locator('#checkbox-select-all').isVisible(), 'Master checkbox should be visible in table header');
 
   // Wait for rows to render
   const rows = page.locator('#users-directory-table tbody tr');
@@ -206,6 +209,42 @@ try {
   assert.equal(staffAccounts, '2', 'Staff accounts count should be 2');
   const suspendedCount = (await page.locator('#metric-suspended').textContent()).trim();
   assert.equal(suspendedCount, '1', 'Suspended accounts count should be 1');
+
+  // 1b. Verify Single User Deletion Button & Modal
+  assert.ok(await page.locator('#btn-delete-user').isVisible(), 'Delete user button should be visible in detail card');
+  await page.locator('#btn-delete-user').click();
+  assert.ok(await page.locator('#modal-delete-user').isVisible(), 'Single delete confirmation modal should open');
+  const deleteModalName = await page.locator('#delete-user-name').textContent();
+  assert.equal(deleteModalName, 'Maria Clara', 'Delete modal should display selected user name');
+  await page.locator('#btn-cancel-delete-user').click();
+  assert.ok(!(await page.locator('#modal-delete-user').isVisible()), 'Delete modal should close on Cancel');
+
+  // 1c. Verify Protected Identity Prevention & Checkboxes
+  // Sisa Admin (id=4) is the current signed-in user and should have a disabled checkbox
+  const row4Checkbox = rows.nth(3).locator('.user-row-checkbox');
+  assert.ok(await row4Checkbox.isDisabled(), 'Signed-in admin account checkbox must be disabled');
+
+  // Eligible row checkbox toggle
+  const row1Checkbox = rows.nth(0).locator('.user-row-checkbox');
+  await row1Checkbox.check();
+  assert.ok(await page.locator('#bulk-actions-bar').isVisible(), 'Bulk actions bar should become visible when an account is selected');
+  const bulkCount1 = (await page.locator('#bulk-selected-count').textContent()).trim();
+  assert.equal(bulkCount1, '1 account selected', 'Bulk selected count should reflect 1 selected account');
+
+  // Master checkbox toggle
+  await page.locator('#checkbox-select-all').check();
+  const bulkCountAll = (await page.locator('#bulk-selected-count').textContent()).trim();
+  assert.ok(bulkCountAll.includes('selected'), 'Bulk count should update with all eligible accounts selected');
+
+  // Bulk Delete Modal
+  await page.locator('#btn-bulk-delete').click();
+  assert.ok(await page.locator('#modal-bulk-delete').isVisible(), 'Bulk delete confirmation modal should open');
+  await page.locator('#btn-cancel-bulk-delete').click();
+  assert.ok(!(await page.locator('#modal-bulk-delete').isVisible()), 'Bulk delete modal should close on Cancel');
+
+  // Clear Selection
+  await page.locator('#btn-clear-selection').click();
+  assert.ok(!(await page.locator('#bulk-actions-bar').isVisible()), 'Bulk actions bar should hide when selection is cleared');
 
   // 2. Dark Mode Switching & Rendering Verification
   const darkBtn = page.locator('.theme-toggle-btn[data-theme-option="dark"]');

@@ -145,13 +145,21 @@
 
       <!-- User Directory Table Panel -->
       <section class="panel-card" aria-labelledby="heading-user-directory">
-        <div class="panel-header">
+        <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
           <h2 class="panel-title" id="heading-user-directory">User directory</h2>
+          <div id="bulk-actions-bar" style="display: none; align-items: center; gap: 10px;">
+            <span id="bulk-selected-count" class="td-strong" style="font-size: 13px; color: var(--color-ink);">0 selected</span>
+            <button type="button" class="btn btn-secondary btn-danger-outline btn-sm" id="btn-bulk-delete">Delete selected</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-clear-selection">Clear selection</button>
+          </div>
         </div>
         <div class="table-responsive">
           <table class="data-table data-table--adaptive" id="users-directory-table">
             <thead>
               <tr>
+                <th scope="col" style="width: 44px; text-align: center;">
+                  <input type="checkbox" id="checkbox-select-all" aria-label="Select all accounts on this page">
+                </th>
                 <th scope="col">NAME / EMAIL</th>
                 <th scope="col">ROLE</th>
                 <th scope="col">STATUS</th>
@@ -204,6 +212,7 @@
               <button type="button" class="btn btn-secondary" id="btn-reset-password" disabled aria-disabled="true">Reset password</button>
               <button type="button" class="btn btn-secondary" id="btn-resend-invite" disabled aria-disabled="true" style="display: none;">Resend invite</button>
               <button type="button" class="btn btn-secondary btn-danger-outline" id="btn-toggle-suspend" disabled aria-disabled="true">Suspend account</button>
+              <button type="button" class="btn btn-secondary btn-danger-outline" id="btn-delete-user" disabled aria-disabled="true">Delete user</button>
             </div>
           </div>
         </section>
@@ -327,6 +336,54 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-primary" id="btn-done-temp-password">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Delete User Confirmation Dialog -->
+  <div class="modal-overlay" id="modal-delete-user" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-delete-user-title">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-delete-user-title" style="color: var(--color-danger, #EF4444);">Delete User Account</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-delete-modal" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
+        <p style="font-size: 13px; color: var(--color-ink); line-height: 1.5;">
+          Are you sure you want to delete the user account for <strong id="delete-user-name"></strong> (<span id="delete-user-email"></span>)?
+        </p>
+        <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid var(--color-danger, #EF4444); border-radius: 6px; padding: 12px;">
+          <p style="font-size: 12px; color: var(--color-danger, #EF4444); margin: 0; line-height: 1.4;">
+            ⚠️ <strong>Warning:</strong> This action will immediately revoke user access and terminate active sessions. Depending on order and transaction history, this account may be permanently removed.
+          </p>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button" class="btn btn-secondary" id="btn-cancel-delete-user">Cancel</button>
+        <button type="button" class="btn btn-secondary btn-danger-outline" id="btn-confirm-delete-user">Confirm Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Bulk Delete Confirmation Dialog -->
+  <div class="modal-overlay" id="modal-bulk-delete" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-bulk-delete-title">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-bulk-delete-title" style="color: var(--color-danger, #EF4444);">Delete Selected Accounts</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-bulk-delete-modal" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
+        <p style="font-size: 13px; color: var(--color-ink); line-height: 1.5;">
+          Are you sure you want to delete <strong id="bulk-delete-count-text">0 accounts</strong>?
+        </p>
+        <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid var(--color-danger, #EF4444); border-radius: 6px; padding: 12px;">
+          <p style="font-size: 12px; color: var(--color-danger, #EF4444); margin: 0; line-height: 1.4;">
+            ⚠️ <strong>Irreversible Administrative Action:</strong> Access for all selected users will be immediately revoked and their authenticated sessions will be terminated. Accounts without order records will be permanently removed.
+          </p>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button" class="btn btn-secondary" id="btn-cancel-bulk-delete">Cancel</button>
+        <button type="button" class="btn btn-secondary btn-danger-outline" id="btn-confirm-bulk-delete">Confirm Delete</button>
       </div>
     </div>
   </div>

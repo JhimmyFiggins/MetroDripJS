@@ -236,53 +236,13 @@
               <select class="toolbar-select" id="custom-role-base" style="width: 100%;">
                 <option value="merchant" selected>Merchant</option>
                 <option value="administrator">Administrator</option>
+                <option value="customer">Customer</option>
               </select>
             </div>
 
-            <!-- Permission Toggles -->
-            <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 6px;">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 13px;">View orders</span>
-                <select class="matrix-toggle-select allow" data-perm="view_orders">
-                  <option value="allow" selected>Allow ▾</option>
-                  <option value="deny">Deny ▾</option>
-                </select>
-              </div>
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 13px;">Manage shipments</span>
-                <select class="matrix-toggle-select allow" data-perm="manage_shipments">
-                  <option value="allow" selected>Allow ▾</option>
-                  <option value="deny">Deny ▾</option>
-                </select>
-              </div>
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 13px;">View inventory</span>
-                <select class="matrix-toggle-select allow" data-perm="view_inventory">
-                  <option value="allow" selected>Allow ▾</option>
-                  <option value="deny">Deny ▾</option>
-                </select>
-              </div>
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 13px;">Adjust stock</span>
-                <select class="matrix-toggle-select deny" data-perm="adjust_stock">
-                  <option value="allow">Allow ▾</option>
-                  <option value="deny" selected>Deny ▾</option>
-                </select>
-              </div>
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 13px;">Edit shipping zones</span>
-                <select class="matrix-toggle-select deny" data-perm="edit_shipping_zones">
-                  <option value="allow">Allow ▾</option>
-                  <option value="deny" selected>Deny ▾</option>
-                </select>
-              </div>
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 13px;">Publish content</span>
-                <select class="matrix-toggle-select deny" data-perm="publish_content">
-                  <option value="allow">Allow ▾</option>
-                  <option value="deny" selected>Deny ▾</option>
-                </select>
-              </div>
+            <!-- Permission Toggles Container -->
+            <div id="custom-role-permissions-container" style="display: flex; flex-direction: column; gap: 10px; margin-top: 6px;">
+              <!-- Dynamically rendered based on selected base role -->
             </div>
 
             <p class="td-muted" style="font-size: 11px;">Unselected permissions are denied by default. Custom roles are persisted and immediately available for staff assignment.</p>

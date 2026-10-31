@@ -5,7 +5,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.http import HttpResponse
 from django.db import transaction
-from django.db.models import OuterRef, Subquery
+from django.db.models import OuterRef, Subquery, Q
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
@@ -15,16 +15,89 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from identity.authentication import CustomerTokenAuthentication
-from identity.permissions import IsAdminRole
-from .models import AccountsCustomer, AuditLog, CustomerAccessToken, PlatformSetting, CustomRole, PasswordResetToken
+from identity.permissions import (
+    IsAdminRole,
+    ROLE_PERMISSIONS_REGISTRY,
+    BASE_ROLES,
+    normalize_base_role,
+    get_role_definition,
+    get_user_base_role,
+    has_role_permission,
+)
+from .models import (
+    AccountsCustomer,
+    AuditLog,
+    CustomerAccessToken,
+    PlatformSetting,
+    CustomRole,
+    PasswordResetToken,
+    EmailOtpChallenge,
+)
 from .otp import account_two_factor_status
 from .brevo import is_brevo_configured, build_reset_url, send_transactional_email, get_sender_identity
 from .email_templates import render_welcome_setup, render_admin_password_reset
 from fulfillment.models import ShippingShippingZone
+from orders.models import OrdersOrder, ReviewsReview
 
 
 ALLOWED_ACCOUNT_ROLES = {'customer', 'merchant', 'admin'}
 ALLOWED_DATE_FORMATS = {'YYYY-MM-DD', 'DD MMM YYYY', 'MM/DD/YYYY'}
+
+
+def get_protected_emails():
+    setting = PlatformSetting.get_instance()
+    emails = {
+        'support@metrodrip.ph',
+        'admin.security@metrodrip.ph',
+        'security@metrodrip.ph',
+    }
+    if getattr(setting, 'support_email', None):
+        emails.add(setting.support_email.strip().lower())
+    if getattr(setting, 'admin_alert_email', None):
+        emails.add(setting.admin_alert_email.strip().lower())
+    return emails
+
+
+def get_all_admin_roles():
+    custom_admin_roles = list(CustomRole.objects.filter(base_role='admin').values_list('name', flat=True))
+    return ['admin', 'administrator'] + custom_admin_roles
+
+
+def perform_user_deletion(user):
+    """
+    Execute appropriate deletion strategy:
+    - Revoke all authentication tokens and sessions immediately.
+    - If user has historical orders or reviews: soft-delete to preserve referential
+      integrity, financial/audit history, and scramble personal info and email.
+    - If user has no orders or reviews: hard delete the record.
+    """
+    user_id = user.id
+    user_email = user.email
+    user_name = user.name
+
+    # Invalidate tokens and sessions immediately
+    CustomerAccessToken.objects.filter(customer=user).delete()
+    PasswordResetToken.objects.filter(customer=user).delete()
+    EmailOtpChallenge.objects.filter(customer=user).delete()
+
+    has_orders = OrdersOrder.objects.filter(customer_id=user_id).exists()
+    has_reviews = ReviewsReview.objects.filter(customer_ref=user_id).exists()
+
+    if has_orders or has_reviews:
+        user.is_active = False
+        user.is_deleted = True
+        user.deleted_at = timezone.now()
+        user.password = make_password(None)
+        timestamp = int(timezone.now().timestamp())
+        user.email = f"deleted_{user_id}_{timestamp}@deleted.invalid"
+        user.name = f"Deleted User #{user_id}"
+        user.phone = ""
+        user.addresses = []
+        user.save()
+        return 'soft', user_name, user_email
+    else:
+        user.delete()
+        return 'hard', user_name, user_email
 
 
 def generate_secure_temporary_password(length=14):
@@ -60,9 +133,11 @@ def _csv_cell(value):
 
 
 def _audit(request, action, target_model=None, target_id=None):
+    actor_name = getattr(request.user, 'name', None) or getattr(request.user, 'email', 'System')
+    actor_role = getattr(request.user, 'role', 'admin')
     AuditLog.objects.create(
-        actor=request.user.name or request.user.email,
-        actor_role=request.user.role,
+        actor=actor_name,
+        actor_role=actor_role,
         action=action,
         target_model=target_model,
         target_id=str(target_id) if target_id is not None else None,
@@ -80,14 +155,14 @@ class AdminDashboardAPIView(AdminAPIView):
         yesterday = now - timedelta(hours=24)
         week_ago = now - timedelta(days=7)
 
-        total_customers = AccountsCustomer.objects.filter(role='customer').count()
-        new_this_week = AccountsCustomer.objects.filter(role='customer', date_joined__gte=week_ago).count()
-        merchants_count = AccountsCustomer.objects.filter(role='merchant').count()
-        admins_count = AccountsCustomer.objects.filter(role='admin').count()
-        suspended_count = AccountsCustomer.objects.filter(is_active=False).count()
+        total_customers = AccountsCustomer.objects.filter(role='customer', is_deleted=False).count()
+        new_this_week = AccountsCustomer.objects.filter(role='customer', is_deleted=False, date_joined__gte=week_ago).count()
+        merchants_count = AccountsCustomer.objects.filter(role='merchant', is_deleted=False).count()
+        admins_count = AccountsCustomer.objects.filter(role='admin', is_deleted=False).count()
+        suspended_count = AccountsCustomer.objects.filter(is_active=False, is_deleted=False).count()
         audit_count_24h = AuditLog.objects.filter(created_at__gte=yesterday).count()
 
-        recent_users_qs = AccountsCustomer.objects.all().order_by('-date_joined')[:10]
+        recent_users_qs = AccountsCustomer.objects.filter(is_deleted=False).order_by('-date_joined')[:10]
         users_data = [
             {
                 'id': u.id,
@@ -126,8 +201,10 @@ class AdminDashboardAPIView(AdminAPIView):
 
 
 class AdminUsersAPIView(AdminAPIView):
+    required_permission = 'manage_users'
+
     def get(self, request):
-        qs = AccountsCustomer.objects.all().order_by('-date_joined')
+        qs = AccountsCustomer.objects.filter(is_deleted=False).order_by('-date_joined')
 
         search = request.GET.get('search', '').strip()
         if search:
@@ -135,7 +212,10 @@ class AdminUsersAPIView(AdminAPIView):
 
         role = request.GET.get('role', '').strip()
         if role and role != 'all':
-            qs = qs.filter(role=role)
+            if role in ('admin', 'administrator'):
+                qs = qs.filter(role__in=['admin', 'administrator'])
+            else:
+                qs = qs.filter(role=role)
 
         status_filter = request.GET.get('status', '').strip().lower()
         if status_filter == 'active':
@@ -147,7 +227,7 @@ class AdminUsersAPIView(AdminAPIView):
         qs = qs.annotate(latest_token_used=Subquery(latest_token))
         staff_policy = PlatformSetting.get_instance().staff_mfa_policy
         data = []
-        for user in qs[:50]:
+        for user in qs[:100]:
             recorded = [value for value in (user.last_login, user.latest_token_used) if value]
             last_active = max(recorded) if recorded else None
             two_factor = account_two_factor_status(user, staff_policy)
@@ -185,15 +265,26 @@ class AdminUsersAPIView(AdminAPIView):
         email = raw_email.strip().lower()
         name = raw_name.strip()
         role = raw_role.strip().lower()
+        if role == 'administrator':
+            role = 'admin'
         phone = raw_phone.strip()
 
         if not email or not name:
             return Response({'error': 'Email and name are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if role not in ALLOWED_ACCOUNT_ROLES:
+        valid_roles = {'customer', 'merchant', 'admin'}.union(
+            CustomRole.objects.values_list('name', flat=True)
+        )
+        if role not in valid_roles:
             return Response({'error': 'Select a supported account role.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if AccountsCustomer.objects.filter(email__iexact=email).exists():
+        base_role, _, _, _ = get_role_definition(role)
+
+        # Do not grant staff-console access to customer-based roles
+        if data.get('is_staff_account') and base_role == 'customer':
+            return Response({'error': 'Customer-based roles cannot be assigned to staff accounts.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if AccountsCustomer.objects.filter(email__iexact=email, is_deleted=False).exists():
             return Response({'error': 'An account with this email already exists.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Determine password provisioning strategy
@@ -208,7 +299,7 @@ class AdminUsersAPIView(AdminAPIView):
             length_error = password_length_error(custom_password)
             if length_error:
                 return Response({'error': length_error, 'code': 'password_too_short'}, status=status.HTTP_400_BAD_REQUEST)
-            
+
             prohibited_terms = ['password', '12345678', 'metrodrip', name.lower(), email.split('@')[0].lower()]
             for term in prohibited_terms:
                 if term and len(term) >= 4 and term in custom_password.lower():
@@ -248,8 +339,8 @@ class AdminUsersAPIView(AdminAPIView):
             password=hashed_password,
             addresses=[],
             is_active=True,
-            is_staff=role in ['admin', 'merchant'],
-            is_superuser=role == 'admin',
+            is_staff=base_role in ['admin', 'merchant'],
+            is_superuser=(role == 'admin'),
             date_joined=timezone.now(),
             password_change_required=True,
         )
@@ -292,9 +383,14 @@ class AdminUsersAPIView(AdminAPIView):
 
 
 class AdminUserDetailAPIView(AdminAPIView):
+    def get_required_permission(self, request):
+        if request.method == 'DELETE':
+            return 'delete_users'
+        return 'manage_users'
+
     def patch(self, request, pk):
         try:
-            user = AccountsCustomer.objects.get(pk=pk)
+            user = AccountsCustomer.objects.get(pk=pk, is_deleted=False)
         except AccountsCustomer.DoesNotExist:
             return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -303,11 +399,20 @@ class AdminUserDetailAPIView(AdminAPIView):
 
         if is_active is not None and not isinstance(is_active, bool):
             return Response({'error': 'is_active must be a boolean.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        valid_roles = {'customer', 'merchant', 'admin'}.union(
+            CustomRole.objects.values_list('name', flat=True)
+        )
         if role is not None:
-            if not isinstance(role, str) or role.strip().lower() not in ALLOWED_ACCOUNT_ROLES:
+            if not isinstance(role, str) or role.strip().lower() not in valid_roles:
                 return Response({'error': 'Select a supported account role.'}, status=status.HTTP_400_BAD_REQUEST)
             role = role.strip().lower()
-        if user.id == request.user.id and (is_active is False or (role and role != 'admin')):
+            if role == 'administrator':
+                role = 'admin'
+
+        base_role, _, _, _ = get_role_definition(role or user.role)
+
+        if user.id == request.user.id and (is_active is False or (role and base_role != 'admin')):
             return Response(
                 {'error': 'You cannot suspend or remove your own administrator access.'},
                 status=status.HTTP_409_CONFLICT,
@@ -321,8 +426,8 @@ class AdminUserDetailAPIView(AdminAPIView):
         if role:
             old_role = user.role
             user.role = role
-            user.is_staff = role in ['admin', 'merchant']
-            user.is_superuser = role == 'admin'
+            user.is_staff = base_role in ['admin', 'merchant']
+            user.is_superuser = (role == 'admin')
             _audit(request, f"Granted {role} role → {user.name} (was {old_role})", 'AccountsCustomer', user.id)
 
         user.save()
@@ -334,8 +439,156 @@ class AdminUserDetailAPIView(AdminAPIView):
             'status': 'Active' if user.is_active else 'Suspended',
         })
 
+    def delete(self, request, pk):
+        try:
+            user = AccountsCustomer.objects.get(pk=pk, is_deleted=False)
+        except AccountsCustomer.DoesNotExist:
+            return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Safeguard 1: Prevent self-deletion
+        if user.id == request.user.id:
+            return Response(
+                {'error': 'You cannot delete your own signed-in administrator account.', 'code': 'cannot_delete_self'},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        # Safeguard 2: Protect the last active administrator
+        base_role = get_user_base_role(user)
+        if base_role == 'admin':
+            admin_roles = get_all_admin_roles()
+            active_admin_count = AccountsCustomer.objects.filter(
+                role__in=admin_roles,
+                is_active=True,
+                is_deleted=False,
+            ).count()
+            if active_admin_count <= 1:
+                return Response(
+                    {'error': 'Cannot delete the last active administrator account.', 'code': 'cannot_delete_last_admin'},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+        # Safeguard 3: Prevent deletion of protected system/service identities
+        protected_emails = get_protected_emails()
+        if user.email.lower() in protected_emails:
+            return Response(
+                {'error': 'Protected system and service identities cannot be deleted.', 'code': 'protected_account'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        orig_name = user.name
+        orig_email = user.email
+        with transaction.atomic():
+            strategy, _, _ = perform_user_deletion(user)
+            _audit(request, f"Deleted account #{pk} ({orig_name} <{orig_email}>, strategy: {strategy})", 'AccountsCustomer', pk)
+
+        return Response({
+            'success': True,
+            'message': f"Account for {orig_name} ({orig_email}) was deleted successfully.",
+            'id': pk,
+            'strategy': strategy,
+        }, status=status.HTTP_200_OK)
+
+
+class AdminUsersBulkDeleteAPIView(AdminAPIView):
+    required_permission = 'delete_users'
+
+    def post(self, request):
+        raw_ids = request.data.get('user_ids')
+        if not isinstance(raw_ids, (list, tuple)) or not raw_ids:
+            return Response(
+                {'error': 'user_ids must be a non-empty list of account identifiers.', 'code': 'invalid_payload'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            target_ids = list(dict.fromkeys(int(i) for i in raw_ids))
+        except (ValueError, TypeError):
+            return Response(
+                {'error': 'All user_ids must be valid integers.', 'code': 'invalid_user_id'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if len(target_ids) > 100:
+            return Response(
+                {'error': 'Bulk deletion is limited to 100 accounts per request.', 'code': 'batch_limit_exceeded'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        protected_emails = get_protected_emails()
+        admin_roles = get_all_admin_roles()
+
+        active_admins_total = AccountsCustomer.objects.filter(
+            role__in=admin_roles,
+            is_active=True,
+            is_deleted=False,
+        ).count()
+
+        users_to_delete = []
+        failed = []
+
+        found_users = {u.id: u for u in AccountsCustomer.objects.filter(id__in=target_ids, is_deleted=False)}
+        admin_candidates_count = 0
+
+        for uid in target_ids:
+            if uid not in found_users:
+                failed.append({'id': uid, 'reason': 'Account not found or already deleted.'})
+                continue
+            u = found_users[uid]
+
+            if u.id == request.user.id:
+                failed.append({'id': uid, 'email': u.email, 'reason': 'You cannot delete your own signed-in administrator account.'})
+                continue
+
+            if u.email.lower() in protected_emails:
+                failed.append({'id': uid, 'email': u.email, 'reason': 'Protected system identity cannot be deleted.'})
+                continue
+
+            base_role = get_user_base_role(u)
+            if base_role == 'admin' and u.is_active:
+                if active_admins_total - admin_candidates_count <= 1:
+                    failed.append({'id': uid, 'email': u.email, 'reason': 'Cannot delete the last active administrator account.'})
+                    continue
+                admin_candidates_count += 1
+
+            users_to_delete.append(u)
+
+        if not users_to_delete:
+            return Response({
+                'success': False,
+                'deleted_count': 0,
+                'deleted_ids': [],
+                'failed': failed,
+                'message': 'No eligible accounts were available for deletion.',
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        deleted_ids = []
+        with transaction.atomic():
+            for u in users_to_delete:
+                orig_name = u.name
+                orig_email = u.email
+                orig_id = u.id
+                strategy, _, _ = perform_user_deletion(u)
+                deleted_ids.append(orig_id)
+                _audit(request, f"Bulk deleted account #{orig_id} ({orig_name} <{orig_email}>, strategy: {strategy})", 'AccountsCustomer', orig_id)
+
+            _audit(
+                request,
+                f"Executed bulk deletion of {len(deleted_ids)} account(s) (IDs: {deleted_ids})",
+                'AccountsCustomer',
+            )
+
+        return Response({
+            'success': True,
+            'deleted_count': len(deleted_ids),
+            'deleted_ids': deleted_ids,
+            'failed': failed,
+            'message': f"Successfully deleted {len(deleted_ids)} account(s).",
+        }, status=status.HTTP_200_OK)
+
 
 class AdminAuditLogsAPIView(AdminAPIView):
+    required_permission = 'audit_trail'
+
     def get(self, request):
         qs = AuditLog.objects.all().order_by('-created_at')
 
@@ -368,6 +621,8 @@ class AdminAuditLogsAPIView(AdminAPIView):
 
 
 class AdminExportUsersCSVAPIView(AdminAPIView):
+    required_permission = 'export_users'
+
     def get(self, request):
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="metrodrip_users_{timezone.now().strftime("%Y%m%d")}.csv"'
@@ -375,7 +630,7 @@ class AdminExportUsersCSVAPIView(AdminAPIView):
         writer = csv.writer(response)
         writer.writerow(['ID', 'Email', 'Name', 'Role', 'Status', 'Date Joined'])
 
-        for u in AccountsCustomer.objects.all().order_by('-date_joined'):
+        for u in AccountsCustomer.objects.filter(is_deleted=False).order_by('-date_joined'):
             writer.writerow([
                 u.id,
                 _csv_cell(u.email),
@@ -390,6 +645,8 @@ class AdminExportUsersCSVAPIView(AdminAPIView):
 
 
 class AdminShippingZonesAPIView(AdminAPIView):
+    required_permission = 'manage_shipping'
+
     def get(self, request):
         zones = ShippingShippingZone.objects.all().order_by('id')
 
@@ -465,40 +722,50 @@ class AdminShippingZonesAPIView(AdminAPIView):
 
 
 class AdminRolesAPIView(AdminAPIView):
+    required_permission = 'manage_roles'
+
     def get(self, request):
+        admin_roles = get_all_admin_roles()
+        merchant_roles = ['merchant'] + list(CustomRole.objects.filter(base_role='merchant').values_list('name', flat=True))
+        customer_roles = ['customer'] + list(CustomRole.objects.filter(base_role='customer').values_list('name', flat=True))
+
         roles_summary = [
             {
                 'role': 'admin',
                 'title': 'Administrator',
                 'description': 'Full access to user management, platform configurations, financial reports, and audit logs.',
-                'user_count': AccountsCustomer.objects.filter(role='admin').count(),
-                'permissions': ['read_all', 'write_all', 'manage_users', 'manage_settings', 'audit_trail'],
+                'user_count': AccountsCustomer.objects.filter(role__in=admin_roles, is_deleted=False).count(),
+                'permissions': [p['id'] for p in ROLE_PERMISSIONS_REGISTRY['admin']],
+                'capabilities': ROLE_PERMISSIONS_REGISTRY['admin'],
                 'is_custom': False,
             },
             {
                 'role': 'merchant',
                 'title': 'Store Merchant',
                 'description': 'Manage product catalog, inventory restock, fulfillment orders, and respond to customer reviews.',
-                'user_count': AccountsCustomer.objects.filter(role='merchant').count(),
-                'permissions': ['manage_catalog', 'manage_inventory', 'manage_orders', 'reply_reviews'],
+                'user_count': AccountsCustomer.objects.filter(role__in=merchant_roles, is_deleted=False).count(),
+                'permissions': [p['id'] for p in ROLE_PERMISSIONS_REGISTRY['merchant']],
+                'capabilities': ROLE_PERMISSIONS_REGISTRY['merchant'],
                 'is_custom': False,
             },
             {
                 'role': 'customer',
                 'title': 'Customer',
                 'description': 'Browse catalog, place drops and orders, save shipping addresses, and submit product reviews.',
-                'user_count': AccountsCustomer.objects.filter(role='customer').count(),
-                'permissions': ['browse_catalog', 'create_orders', 'submit_reviews'],
+                'user_count': AccountsCustomer.objects.filter(role__in=customer_roles, is_deleted=False).count(),
+                'permissions': [p['id'] for p in ROLE_PERMISSIONS_REGISTRY['customer']],
+                'capabilities': ROLE_PERMISSIONS_REGISTRY['customer'],
                 'is_custom': False,
             },
         ]
         custom_roles = [
             {
+                'id': r.id,
                 'role': r.name,
                 'title': r.title,
                 'base_role': r.base_role,
                 'description': r.description or f"Custom staff role based on {r.base_role}.",
-                'user_count': AccountsCustomer.objects.filter(role=r.name).count(),
+                'user_count': AccountsCustomer.objects.filter(role=r.name, is_deleted=False).count(),
                 'permissions': r.permissions,
                 'is_custom': True,
             }
@@ -508,13 +775,27 @@ class AdminRolesAPIView(AdminAPIView):
 
     def post(self, request):
         title = (request.data.get('title') or '').strip()
-        base_role = (request.data.get('base_role') or 'merchant').strip().lower()
+        role_param = (request.data.get('role') or '').strip().lower()
+        raw_base = (request.data.get('base_role') or 'merchant').strip().lower()
+        base_role = normalize_base_role(raw_base)
         permissions = request.data.get('permissions') or []
+        description = (request.data.get('description') or f"Custom staff role based on {base_role}.").strip()
 
         if not title:
             return Response({'error': 'Role title is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        slug = re.sub(r'[^a-z0-9]+', '_', title.lower()).strip('_')
+        if base_role not in BASE_ROLES:
+            return Response({'error': 'Select a valid base role: Administrator, Merchant, or Customer.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not isinstance(permissions, list):
+            return Response({'error': 'Permissions must be provided as a list.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        allowed_perm_ids = {p['id'] for p in ROLE_PERMISSIONS_REGISTRY[base_role]}
+        for perm in permissions:
+            if perm not in allowed_perm_ids:
+                return Response({'error': f"Permission '{perm}' is not supported for base role '{base_role}'."}, status=status.HTTP_400_BAD_REQUEST)
+
+        slug = role_param or re.sub(r'[^a-z0-9]+', '_', title.lower()).strip('_')[:64]
         if not slug:
             slug = f"role_{secrets.token_hex(4)}"
 
@@ -525,15 +806,16 @@ class AdminRolesAPIView(AdminAPIView):
             name=slug,
             title=title,
             base_role=base_role,
-            description=f"Custom staff role based on {base_role}.",
+            description=description,
             permissions=permissions,
         )
-        _audit(request, f"Created custom role {role.title}", "CustomRole", role.id)
+        _audit(request, f"Created custom role {role.title} (based on {role.base_role})", "CustomRole", role.id)
         return Response({
             'id': role.id,
             'role': role.name,
             'title': role.title,
             'base_role': role.base_role,
+            'description': role.description,
             'permissions': role.permissions,
             'user_count': 0,
             'is_custom': True,
@@ -541,6 +823,8 @@ class AdminRolesAPIView(AdminAPIView):
 
 
 class AdminSettingsAPIView(AdminAPIView):
+    required_permission = 'manage_settings'
+
     def get(self, request):
         setting = PlatformSetting.get_instance(refresh=True)
         return Response({
@@ -661,7 +945,7 @@ class AdminHealthAPIView(AdminAPIView):
         # Database Check
         t0 = time.monotonic()
         try:
-            AccountsCustomer.objects.filter(role='admin').exists()
+            AccountsCustomer.objects.filter(role='admin', is_deleted=False).exists()
             db_latency_ms = round((time.monotonic() - t0) * 1000, 2)
             db_status = 'healthy'
         except Exception:
@@ -719,9 +1003,11 @@ class AdminHealthAPIView(AdminAPIView):
 
 
 class AdminUserResetPasswordAPIView(AdminAPIView):
+    required_permission = 'manage_users'
+
     def post(self, request, pk):
         try:
-            user = AccountsCustomer.objects.get(pk=pk)
+            user = AccountsCustomer.objects.get(pk=pk, is_deleted=False)
         except AccountsCustomer.DoesNotExist:
             return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -731,7 +1017,6 @@ class AdminUserResetPasswordAPIView(AdminAPIView):
                 'code': 'account_inactive',
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check if delivery is configured
         if not is_brevo_configured():
             _audit(
                 request,
@@ -744,10 +1029,8 @@ class AdminUserResetPasswordAPIView(AdminAPIView):
                 'code': 'reset_delivery_unconfigured',
             }, status=status.HTTP_501_NOT_IMPLEMENTED)
 
-        # Invalidate previous unused reset tokens
         PasswordResetToken.objects.filter(customer=user, consumed_at__isnull=True).update(consumed_at=timezone.now())
 
-        # Generate new cryptographically secure token
         token_obj, raw_token = PasswordResetToken.issue(
             customer=user,
             purpose='reset',
@@ -789,9 +1072,11 @@ class AdminUserResetPasswordAPIView(AdminAPIView):
 
 
 class AdminUserResendInviteAPIView(AdminAPIView):
+    required_permission = 'manage_users'
+
     def post(self, request, pk):
         try:
-            user = AccountsCustomer.objects.get(pk=pk)
+            user = AccountsCustomer.objects.get(pk=pk, is_deleted=False)
         except AccountsCustomer.DoesNotExist:
             return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -807,7 +1092,6 @@ class AdminUserResendInviteAPIView(AdminAPIView):
                 'code': 'reset_delivery_unconfigured',
             }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
-        # Invalidate previous unused setup tokens
         PasswordResetToken.objects.filter(customer=user, consumed_at__isnull=True).update(consumed_at=timezone.now())
 
         token_obj, raw_token = PasswordResetToken.issue(
@@ -845,6 +1129,8 @@ class AdminUserResendInviteAPIView(AdminAPIView):
 
 
 class AdminExportAuditLogsCSVAPIView(AdminAPIView):
+    required_permission = 'audit_trail'
+
     def get(self, request):
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="metrodrip_audit_log_{timezone.now().strftime("%Y%m%d")}.csv"'

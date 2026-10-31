@@ -1,11 +1,11 @@
-// Administrator user directory: API-backed reads/writes with explicit resilient UI states.
+// Administrator user directory: API-backed reads/writes with resilient UI states,
+// role-based access control, single/bulk user deletion, and dynamic custom roles.
 (() => {
   const API_BASE = (['localhost', '127.0.0.1'].includes(window.location.hostname) && window.location.port !== '3000')
     ? 'http://127.0.0.1:8000/api/admin'
     : '/api/admin';
   const fixtureMode = new URLSearchParams(window.location.search).get('fixture') === 'users';
 
-  // Fixtures are opt-in, visibly labeled, and read-only so development never looks like a successful write.
   const DEVELOPMENT_USERS = [
     { id: 'fixture-1', name: 'Juan Dela Cruz', email: 'juan@example.invalid', role: 'customer', status: 'Active', tfa: 'Off', lastActive: 'Fixture value', memberSince: 'Fixture value' },
     { id: 'fixture-2', name: 'Store Merchant', email: 'merchant@example.invalid', role: 'merchant', status: 'Active', tfa: 'On', lastActive: 'Fixture value', memberSince: 'Fixture value' },
@@ -14,10 +14,15 @@
   ];
 
   let users = [];
+  let availableRoles = [];
   let selectedUserId = null;
+  let selectedUserIds = new Set();
   let isLoading = true;
   let loadGeneration = 0;
   let writesEnabled = false;
+
+  const PAGE_SIZE = 15;
+  let currentPage = 1;
 
   function escapeHtml(value) {
     const div = document.createElement('div');
@@ -49,7 +54,7 @@
       const data = await response.json();
       message = data?.error?.message || data?.error || data?.detail || fallback;
     } catch {
-      // The status-specific fallback remains safe when a response is not JSON.
+      // Keep status-specific fallback
     }
     const error = new Error(message);
     error.status = response.status;
@@ -105,11 +110,14 @@
     const normalized = String(role || 'customer').toLowerCase();
     if (normalized === 'admin' || normalized === 'administrator') return 'Administrator';
     if (normalized === 'merchant') return 'Merchant';
-    return 'Customer';
+    if (normalized === 'customer') return 'Customer';
+    const found = availableRoles.find(r => (r.role && r.role.toLowerCase() === normalized) || (r.name && r.name.toLowerCase() === normalized));
+    return found ? found.title : role;
   }
 
   function apiRole(role) {
-    return String(role || '').toLowerCase() === 'administrator' ? 'admin' : String(role || '').toLowerCase();
+    const r = String(role || '').toLowerCase();
+    return r === 'administrator' ? 'admin' : r;
   }
 
   function formatDate(value, includeTime = false, fallback = 'Not recorded') {
@@ -137,6 +145,7 @@
       id: String(raw.id),
       name: String(raw.name || raw.full_name || 'Unnamed account'),
       email: String(raw.email || 'Email not reported'),
+      rawRole: String(raw.role || 'customer').toLowerCase(),
       role: displayRole(raw.role),
       status: String(raw.status || (raw.is_active === false ? 'Suspended' : 'Active')),
       tfa: twoFactorLabel(raw),
@@ -147,22 +156,75 @@
     };
   }
 
+  function isAccountProtected(user) {
+    const session = activeSession();
+    const currentUserId = String(session?.id || '');
+    const currentUserEmail = String(session?.email || '').toLowerCase();
+    const userEmail = String(user.email || '').toLowerCase();
+    const protectedEmails = [
+      'support@metrodrip.ph',
+      'admin.security@metrodrip.ph',
+      'security@metrodrip.ph',
+    ];
+
+    if (currentUserId && String(user.id) === currentUserId) {
+      return { protected: true, reason: 'Signed-in administrator account' };
+    }
+    if (currentUserEmail && userEmail === currentUserEmail) {
+      return { protected: true, reason: 'Signed-in administrator account' };
+    }
+    if (protectedEmails.includes(userEmail)) {
+      return { protected: true, reason: 'Protected system identity' };
+    }
+    if (user.role === 'Administrator' && user.status === 'Active') {
+      const activeAdmins = users.filter(u => u.role === 'Administrator' && u.status === 'Active');
+      if (activeAdmins.length <= 1) {
+        return { protected: true, reason: 'Last active administrator account' };
+      }
+    }
+    return { protected: false, reason: '' };
+  }
+
   function setMutationEnabled(enabled) {
     writesEnabled = enabled && !fixtureMode;
-    ['btn-open-add-user', 'btn-save-user-role', 'btn-reset-password', 'btn-resend-invite', 'btn-toggle-suspend', 'btn-send-invite', 'btn-submit-add-user']
-      .forEach(id => {
-        const element = document.getElementById(id);
-        if (element) {
-          const isDisabled = !writesEnabled || (['btn-save-user-role', 'btn-reset-password', 'btn-resend-invite', 'btn-toggle-suspend'].includes(id) && !selectedUserId);
-          element.disabled = isDisabled;
-          element.setAttribute('aria-disabled', String(isDisabled));
-          if (isDisabled) {
-            element.setAttribute('disabled', '');
+    const isSelected = Boolean(selectedUserId);
+    const selectedUser = isSelected ? users.find(u => u.id === selectedUserId) : null;
+    const isProtected = selectedUser ? isAccountProtected(selectedUser).protected : false;
+
+    [
+      'btn-open-add-user',
+      'btn-save-user-role',
+      'btn-reset-password',
+      'btn-resend-invite',
+      'btn-toggle-suspend',
+      'btn-delete-user',
+      'btn-send-invite',
+      'btn-submit-add-user',
+    ].forEach(id => {
+      const element = document.getElementById(id);
+      if (element) {
+        let isDisabled = !writesEnabled;
+        if (['btn-save-user-role', 'btn-reset-password', 'btn-resend-invite', 'btn-toggle-suspend', 'btn-delete-user'].includes(id)) {
+          isDisabled = isDisabled || !isSelected;
+        }
+        if (id === 'btn-delete-user') {
+          isDisabled = isDisabled || isProtected;
+          if (isProtected) {
+            element.setAttribute('title', selectedUser ? isAccountProtected(selectedUser).reason : 'Protected account');
           } else {
-            element.removeAttribute('disabled');
+            element.removeAttribute('title');
           }
         }
-      });
+        element.disabled = isDisabled;
+        element.setAttribute('aria-disabled', String(isDisabled));
+        if (isDisabled) {
+          element.setAttribute('disabled', '');
+        } else {
+          element.removeAttribute('disabled');
+        }
+      }
+    });
+
     document.querySelectorAll('#form-invite-staff input, #form-invite-staff select').forEach(control => {
       control.disabled = !writesEnabled;
       control.setAttribute('aria-disabled', String(!writesEnabled));
@@ -172,9 +234,10 @@
         control.removeAttribute('disabled');
       }
     });
+
     const roleSelect = document.getElementById('detail-user-role');
     if (roleSelect) {
-      const isDisabled = !writesEnabled || !selectedUserId;
+      const isDisabled = !writesEnabled || !isSelected;
       roleSelect.disabled = isDisabled;
       roleSelect.setAttribute('aria-disabled', String(isDisabled));
       if (isDisabled) {
@@ -191,7 +254,7 @@
     tbody.setAttribute('aria-busy', 'true');
     tbody.innerHTML = `
       <tr class="table-state-row table-loading-row">
-        <td colspan="5">
+        <td colspan="6">
           <div class="skeleton-stack" aria-hidden="true">
             <span class="skeleton-line is-wide"></span>
             <span class="skeleton-line"></span>
@@ -208,7 +271,7 @@
     tbody.setAttribute('aria-busy', 'false');
     tbody.innerHTML = `
       <tr class="table-state-row">
-        <td colspan="5">
+        <td colspan="6">
           <div class="table-state">
             <strong>${escapeHtml(title)}</strong>
             <span>${escapeHtml(message)}</span>
@@ -224,10 +287,49 @@
     const status = (document.getElementById('filter-status-select')?.value || 'all').toLowerCase();
     return users.filter(user => {
       const matchesSearch = !search || `${user.name} ${user.email}`.toLowerCase().includes(search);
-      const matchesRole = role === 'all' || apiRole(user.role) === apiRole(role);
+      const matchesRole = role === 'all' || apiRole(user.role).toLowerCase() === apiRole(role).toLowerCase() || (user.rawRole && user.rawRole.toLowerCase() === role);
       const matchesStatus = status === 'all' || user.status.toLowerCase() === status;
       return matchesSearch && matchesRole && matchesStatus;
     });
+  }
+
+  function getPageUsers(filtered) {
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }
+
+  function updateBulkActionBar() {
+    const bar = document.getElementById('bulk-actions-bar');
+    const countSpan = document.getElementById('bulk-selected-count');
+    const count = selectedUserIds.size;
+    if (!bar || !countSpan) return;
+
+    if (count > 0) {
+      bar.style.display = 'inline-flex';
+      countSpan.textContent = `${count} account${count === 1 ? '' : 's'} selected`;
+    } else {
+      bar.style.display = 'none';
+    }
+  }
+
+  function updateMasterCheckboxState(pageUsers) {
+    const master = document.getElementById('checkbox-select-all');
+    if (!master) return;
+    const eligiblePageUsers = pageUsers.filter(u => !isAccountProtected(u).protected);
+    if (!eligiblePageUsers.length) {
+      master.checked = false;
+      master.indeterminate = false;
+      master.disabled = true;
+      return;
+    }
+    master.disabled = false;
+    const allSelected = eligiblePageUsers.every(u => selectedUserIds.has(u.id));
+    const someSelected = eligiblePageUsers.some(u => selectedUserIds.has(u.id));
+    master.checked = allSelected;
+    master.indeterminate = !allSelected && someSelected;
   }
 
   function renderTable() {
@@ -247,14 +349,24 @@
         hasFilters ? 'Try a different search or clear the active filters.' : 'Accounts created through the administrator API will appear here.',
         hasFilters ? 'clear' : 'retry',
       );
+      updateMasterCheckboxState([]);
     } else {
+      const pageUsers = getPageUsers(filtered);
       tbody.setAttribute('aria-busy', isLoading ? 'true' : 'false');
-      tbody.innerHTML = filtered.map(user => {
+      tbody.innerHTML = pageUsers.map(user => {
         const selected = user.id === selectedUserId;
         const suspended = user.status.toLowerCase() === 'suspended';
         const tfaPillClass = user.tfa === 'Enabled' ? 'active' : user.tfa === 'Pending Setup' ? 'pending' : user.tfa === 'Disabled' ? 'inactive' : 'neutral';
+        const protection = isAccountProtected(user);
+        const isChecked = selectedUserIds.has(user.id);
+
+        const checkboxCell = protection.protected
+          ? `<input type="checkbox" class="user-row-checkbox" disabled title="${escapeHtml(protection.reason)}" aria-label="Protected: ${escapeHtml(protection.reason)}">`
+          : `<input type="checkbox" class="user-row-checkbox" data-user-id="${escapeHtml(user.id)}" ${isChecked ? 'checked' : ''} aria-label="Select ${escapeHtml(user.name)}">`;
+
         return `
           <tr data-user-id="${escapeHtml(user.id)}" class="clickable-row ${selected ? 'selected-row' : ''}" tabindex="0" aria-selected="${selected}">
+            <td style="width: 44px; text-align: center;" class="row-checkbox-cell">${checkboxCell}</td>
             <td data-label="Name / email"><span class="td-strong">${escapeHtml(user.name)}</span><span class="responsive-secondary td-mono">${escapeHtml(user.email)}</span></td>
             <td data-label="Role" class="td-mono">${escapeHtml(user.role)}</td>
             <td data-label="Status"><span class="status-pill ${suspended ? 'suspended' : 'active'}">${escapeHtml(user.status)}</span></td>
@@ -262,11 +374,29 @@
             <td data-label="Last active" class="td-mono td-muted" title="${escapeHtml(user.lastActiveExact ? `${user.lastActiveExact} Asia/Manila` : 'No authenticated activity has been recorded')}">${escapeHtml(user.lastActive)}</td>
           </tr>`;
       }).join('');
+      updateMasterCheckboxState(pageUsers);
     }
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const info = document.getElementById('pagination-info');
-    if (info) info.textContent = filtered.length === users.length
-      ? `Showing ${filtered.length} account${filtered.length === 1 ? '' : 's'}`
-      : `Showing ${filtered.length} of ${users.length} accounts`;
+    if (info) {
+      if (filtered.length === 0) {
+        info.textContent = '0 accounts';
+      } else if (filtered.length <= PAGE_SIZE) {
+        info.textContent = `Showing ${filtered.length} account${filtered.length === 1 ? '' : 's'}`;
+      } else {
+        const start = (currentPage - 1) * PAGE_SIZE + 1;
+        const end = Math.min(currentPage * PAGE_SIZE, filtered.length);
+        info.textContent = `Showing ${start}–${end} of ${filtered.length} accounts (Page ${currentPage} of ${totalPages})`;
+      }
+    }
+
+    const prevBtn = document.getElementById('btn-prev-page');
+    const nextBtn = document.getElementById('btn-next-page');
+    if (prevBtn) prevBtn.disabled = currentPage <= 1;
+    if (nextBtn) nextBtn.disabled = currentPage >= totalPages;
+
+    updateBulkActionBar();
     updateMetrics();
   }
 
@@ -283,7 +413,7 @@
 
   function updateMetrics() {
     const customers = users.filter(user => user.role === 'Customer').length;
-    const merchants = users.filter(user => user.role === 'Merchant').length;
+    const merchants = users.filter(user => user.role === 'Merchant' || (user.rawRole && !['admin', 'administrator', 'customer'].includes(user.rawRole))).length;
     const admins = users.filter(user => user.role === 'Administrator').length;
     const suspended = users.filter(user => user.status.toLowerCase() === 'suspended').length;
     const total = document.getElementById('metric-total-customers');
@@ -334,7 +464,9 @@
     const suspend = document.getElementById('btn-toggle-suspend');
     if (name) name.textContent = user.name;
     if (sub) sub.textContent = `${user.email} · ${user.status}`;
-    if (role) role.value = user.role.toLowerCase();
+    if (role) {
+      role.value = user.rawRole || user.role.toLowerCase();
+    }
     if (tfa) tfa.innerHTML = `Two-factor authentication: <strong>${escapeHtml(user.tfa)}</strong>`;
     if (activity) {
       const activeText = user.lastActive === 'No activity recorded' ? 'No activity recorded' : `Last active ${user.lastActive}`;
@@ -381,6 +513,83 @@
     setMutationEnabled(false);
   }
 
+  async function loadAvailableRoles() {
+    try {
+      const response = await fetch(`${API_BASE}/roles/`, { headers: requestHeaders() });
+      if (!response.ok) return;
+      const records = await response.json();
+      if (!Array.isArray(records)) return;
+      availableRoles = records;
+
+      // Populate Role Dropdowns
+      // 1. Add Staff Account (#invite-role): Admin + Merchant + Custom staff roles based on admin/merchant
+      const inviteSelect = document.getElementById('invite-role');
+      if (inviteSelect) {
+        const staffRoles = [
+          { role: 'merchant', title: 'Merchant' },
+          { role: 'administrator', title: 'Administrator' },
+        ];
+        records.filter(r => r.is_custom && ['merchant', 'admin'].includes(String(r.base_role).toLowerCase())).forEach(r => {
+          staffRoles.push({ role: r.role, title: `${r.title} (Custom ${r.base_role === 'admin' ? 'Admin' : 'Merchant'})` });
+        });
+        const currentVal = inviteSelect.value;
+        inviteSelect.innerHTML = staffRoles.map(r => `<option value="${escapeHtml(r.role)}">${escapeHtml(r.title)}</option>`).join('');
+        if (staffRoles.some(r => r.role === currentVal)) inviteSelect.value = currentVal;
+      }
+
+      // 2. Selected User Assigned Role (#detail-user-role): All system + custom roles
+      const detailSelect = document.getElementById('detail-user-role');
+      if (detailSelect) {
+        const allRoles = [
+          { role: 'customer', title: 'Customer' },
+          { role: 'merchant', title: 'Merchant' },
+          { role: 'administrator', title: 'Administrator' },
+        ];
+        records.filter(r => r.is_custom).forEach(r => {
+          allRoles.push({ role: r.role, title: `${r.title} (Custom)` });
+        });
+        const currentVal = detailSelect.value;
+        detailSelect.innerHTML = allRoles.map(r => `<option value="${escapeHtml(r.role)}">${escapeHtml(r.title)}</option>`).join('');
+        if (allRoles.some(r => r.role === currentVal)) detailSelect.value = currentVal;
+      }
+
+      // 3. Add Platform User Modal (#add-user-role): All system + custom roles
+      const addModalSelect = document.getElementById('add-user-role');
+      if (addModalSelect) {
+        const allRoles = [
+          { role: 'customer', title: 'Customer' },
+          { role: 'merchant', title: 'Merchant' },
+          { role: 'administrator', title: 'Administrator' },
+        ];
+        records.filter(r => r.is_custom).forEach(r => {
+          allRoles.push({ role: r.role, title: `${r.title} (Custom)` });
+        });
+        const currentVal = addModalSelect.value;
+        addModalSelect.innerHTML = allRoles.map(r => `<option value="${escapeHtml(r.role)}">${escapeHtml(r.title)}</option>`).join('');
+        if (allRoles.some(r => r.role === currentVal)) addModalSelect.value = currentVal;
+      }
+
+      // 4. Role Filter Toolbar (#filter-role-select): All
+      const filterSelect = document.getElementById('filter-role-select');
+      if (filterSelect) {
+        const filterOpts = [
+          { role: 'all', title: 'Role: All' },
+          { role: 'customer', title: 'Customer' },
+          { role: 'merchant', title: 'Merchant' },
+          { role: 'administrator', title: 'Administrator' },
+        ];
+        records.filter(r => r.is_custom).forEach(r => {
+          filterOpts.push({ role: r.role, title: r.title });
+        });
+        const currentVal = filterSelect.value;
+        filterSelect.innerHTML = filterOpts.map(r => `<option value="${escapeHtml(r.role)}">${escapeHtml(r.title)}</option>`).join('');
+        if (filterOpts.some(r => r.role === currentVal)) filterSelect.value = currentVal;
+      }
+    } catch {
+      // Retain fallback options
+    }
+  }
+
   async function loadUsers() {
     if (fixtureMode) {
       users = DEVELOPMENT_USERS.map(normalizeUser);
@@ -410,6 +619,7 @@
     }
 
     try {
+      await loadAvailableRoles();
       const response = await fetch(`${API_BASE}/users/`, { headers: requestHeaders() });
       if (!response.ok) throw await httpError(response, `Administrator API returned HTTP ${response.status}.`);
       const payload = await response.json();
@@ -420,6 +630,11 @@
       isLoading = false;
       setSourceStatus('API CONNECTED', 'is-success');
       setPageState('ready');
+
+      // Prune selectedUserIds that no longer exist
+      const existingIds = new Set(users.map(u => u.id));
+      selectedUserIds = new Set([...selectedUserIds].filter(id => existingIds.has(id)));
+
       renderTable();
       setMutationEnabled(true);
       if (users.length) {
@@ -442,6 +657,7 @@
     if (search) search.value = '';
     if (role) role.value = 'all';
     if (status) status.value = 'all';
+    currentPage = 1;
     renderTable();
     search?.focus();
   }
@@ -571,7 +787,6 @@
       const user = normalizeUser(data);
       users.unshift(user);
       form.reset();
-      // Reset option display
       const optSelect = document.getElementById('add-user-password-option');
       if (optSelect) optSelect.value = 'generated';
       document.getElementById('group-custom-password')?.setAttribute('style', 'display: none;');
@@ -588,7 +803,7 @@
     }, `Created account for ${name}.`);
   }
 
-  function initModal() {
+  function initAddUserModal() {
     const modal = document.getElementById('modal-add-user');
     const open = document.getElementById('btn-open-add-user');
     const close = document.getElementById('btn-close-modal');
@@ -662,35 +877,234 @@
     initTempPasswordModal();
   }
 
+  // Single User Deletion Modal & Handler
+  function initSingleDeleteModal() {
+    const modal = document.getElementById('modal-delete-user');
+    const btnOpen = document.getElementById('btn-delete-user');
+    const btnClose = document.getElementById('btn-close-delete-modal');
+    const btnCancel = document.getElementById('btn-cancel-delete-user');
+    const btnConfirm = document.getElementById('btn-confirm-delete-user');
+    const nameEl = document.getElementById('delete-user-name');
+    const emailEl = document.getElementById('delete-user-email');
+
+    const openModal = () => {
+      const user = users.find(u => u.id === selectedUserId);
+      if (!user || !writesEnabled) return;
+      const protection = isAccountProtected(user);
+      if (protection.protected) {
+        showToast(`Cannot delete this account: ${protection.reason}.`, 'error');
+        return;
+      }
+      if (nameEl) nameEl.textContent = user.name;
+      if (emailEl) emailEl.textContent = user.email;
+      if (modal) modal.hidden = false;
+      btnConfirm?.focus();
+    };
+
+    const closeModal = () => {
+      if (modal) modal.hidden = true;
+      btnOpen?.focus();
+    };
+
+    btnOpen?.addEventListener('click', openModal);
+    btnClose?.addEventListener('click', closeModal);
+    btnCancel?.addEventListener('click', closeModal);
+    modal?.addEventListener('click', event => {
+      if (event.target === modal) closeModal();
+    });
+    modal?.addEventListener('keydown', event => {
+      if (event.key === 'Escape') closeModal();
+    });
+
+    btnConfirm?.addEventListener('click', async () => {
+      const user = users.find(u => u.id === selectedUserId);
+      if (!user) return;
+      const originalText = btnConfirm.textContent;
+      btnConfirm.disabled = true;
+      btnConfirm.textContent = 'Deleting…';
+
+      try {
+        const response = await fetch(`${API_BASE}/users/${encodeURIComponent(user.id)}/`, {
+          method: 'DELETE',
+          headers: requestHeaders(),
+        });
+        if (!response.ok) throw await httpError(response, `Deletion returned HTTP ${response.status}.`);
+
+        selectedUserIds.delete(user.id);
+        closeModal();
+        showToast(`Account for ${user.name} (${user.email}) was deleted successfully.`);
+        renderEmptyDetails('Selected account was deleted.');
+        await loadUsers();
+      } catch (error) {
+        showToast(`Failed to delete account: ${error.message}`, 'error');
+        setPageState('warning', 'User account was not deleted', error.message, { retry: true });
+      } finally {
+        btnConfirm.disabled = false;
+        btnConfirm.textContent = originalText;
+      }
+    });
+  }
+
+  // Bulk Deletion Modal & Handler
+  function initBulkDeleteModal() {
+    const modal = document.getElementById('modal-bulk-delete');
+    const btnOpen = document.getElementById('btn-bulk-delete');
+    const btnClose = document.getElementById('btn-close-bulk-delete-modal');
+    const btnCancel = document.getElementById('btn-cancel-bulk-delete');
+    const btnConfirm = document.getElementById('btn-confirm-bulk-delete');
+    const countText = document.getElementById('bulk-delete-count-text');
+
+    const openModal = () => {
+      if (!selectedUserIds.size || !writesEnabled) return;
+      if (countText) {
+        countText.textContent = `${selectedUserIds.size} selected account${selectedUserIds.size === 1 ? '' : 's'}`;
+      }
+      if (modal) modal.hidden = false;
+      btnConfirm?.focus();
+    };
+
+    const closeModal = () => {
+      if (modal) modal.hidden = true;
+      btnOpen?.focus();
+    };
+
+    btnOpen?.addEventListener('click', openModal);
+    btnClose?.addEventListener('click', closeModal);
+    btnCancel?.addEventListener('click', closeModal);
+    modal?.addEventListener('click', event => {
+      if (event.target === modal) closeModal();
+    });
+    modal?.addEventListener('keydown', event => {
+      if (event.key === 'Escape') closeModal();
+    });
+
+    btnConfirm?.addEventListener('click', async () => {
+      if (!selectedUserIds.size) return;
+      const originalText = btnConfirm.textContent;
+      btnConfirm.disabled = true;
+      btnConfirm.textContent = 'Deleting…';
+
+      const userIdsList = Array.from(selectedUserIds).map(id => isNaN(Number(id)) ? id : Number(id));
+
+      try {
+        const response = await fetch(`${API_BASE}/users/bulk-delete/`, {
+          method: 'POST',
+          headers: requestHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ user_ids: userIdsList }),
+        });
+        if (!response.ok) throw await httpError(response, `Bulk delete returned HTTP ${response.status}.`);
+        const result = await response.json();
+
+        const count = result.deleted_count ?? selectedUserIds.size;
+        selectedUserIds.clear();
+        closeModal();
+        showToast(`Successfully deleted ${count} account${count === 1 ? '' : 's'}.`);
+
+        if (selectedUserId && !users.some(u => u.id === selectedUserId)) {
+          renderEmptyDetails();
+        }
+        await loadUsers();
+      } catch (error) {
+        showToast(`Bulk deletion failed: ${error.message}`, 'error');
+        setPageState('warning', 'Bulk deletion failed', error.message, { retry: true });
+      } finally {
+        btnConfirm.disabled = false;
+        btnConfirm.textContent = originalText;
+      }
+    });
+
+    document.getElementById('btn-clear-selection')?.addEventListener('click', () => {
+      selectedUserIds.clear();
+      renderTable();
+      showToast('Selection cleared.');
+    });
+  }
+
   function initHandlers() {
     ['search-users-input', 'filter-role-select', 'filter-status-select'].forEach(id => {
       const element = document.getElementById(id);
-      element?.addEventListener(id === 'search-users-input' ? 'input' : 'change', renderTable);
+      element?.addEventListener(id === 'search-users-input' ? 'input' : 'change', () => {
+        currentPage = 1;
+        renderTable();
+      });
     });
     document.getElementById('btn-refresh-users')?.addEventListener('click', loadUsers);
     document.getElementById('btn-retry-users')?.addEventListener('click', loadUsers);
 
+    // Master checkbox handler
+    document.getElementById('checkbox-select-all')?.addEventListener('change', event => {
+      const checked = event.target.checked;
+      const pageUsers = getPageUsers(filteredUsers());
+      pageUsers.forEach(u => {
+        if (!isAccountProtected(u).protected) {
+          if (checked) {
+            selectedUserIds.add(u.id);
+          } else {
+            selectedUserIds.delete(u.id);
+          }
+        }
+      });
+      renderTable();
+    });
+
+    // Pagination buttons
+    document.getElementById('btn-prev-page')?.addEventListener('click', () => {
+      if (currentPage > 1) {
+        currentPage--;
+        renderTable();
+      }
+    });
+    document.getElementById('btn-next-page')?.addEventListener('click', () => {
+      const totalPages = Math.ceil(filteredUsers().length / PAGE_SIZE);
+      if (currentPage < totalPages) {
+        currentPage++;
+        renderTable();
+      }
+    });
+
+    // Table body click & keyboard delegation
     const tbody = document.getElementById('users-directory-tbody');
     tbody?.addEventListener('click', event => {
+      const checkbox = event.target.closest('.user-row-checkbox');
+      if (checkbox) {
+        const uid = checkbox.dataset.userId;
+        if (uid) {
+          if (checkbox.checked) {
+            selectedUserIds.add(uid);
+          } else {
+            selectedUserIds.delete(uid);
+          }
+          updateBulkActionBar();
+          updateMasterCheckboxState(getPageUsers(filteredUsers()));
+        }
+        return;
+      }
+
       const action = event.target.closest('[data-table-action]')?.dataset.tableAction;
       if (action === 'clear') return clearFilters();
       if (action === 'retry') return loadUsers();
+
       const row = event.target.closest('tr[data-user-id]');
       if (row) selectUser(row.dataset.userId);
     });
+
     tbody?.addEventListener('keydown', event => {
-      const row = event.target.closest('tr[data-user-id]');
-      if (!row || !['Enter', ' '].includes(event.key)) return;
-      event.preventDefault();
-      selectUser(row.dataset.userId);
+      if (['Enter', ' '].includes(event.key)) {
+        if (event.target.classList.contains('user-row-checkbox')) return;
+        const row = event.target.closest('tr[data-user-id]');
+        if (!row) return;
+        event.preventDefault();
+        selectUser(row.dataset.userId);
+      }
     });
 
+    // Save user role button
     document.getElementById('btn-save-user-role')?.addEventListener('click', event => {
       const user = users.find(item => item.id === selectedUserId);
       const selectedRole = document.getElementById('detail-user-role')?.value;
       if (!user || !selectedRole) return;
-      const nextRole = displayRole(selectedRole);
-      if (user.role === nextRole) {
+      const nextRoleDisplay = displayRole(selectedRole);
+      if (user.role === nextRoleDisplay) {
         showToast('No role change to save.');
         return;
       }
@@ -704,6 +1118,7 @@
       }, `Updated the role for ${user.name}.`);
     });
 
+    // Password Reset
     document.getElementById('btn-reset-password')?.addEventListener('click', event => {
       const user = users.find(item => item.id === selectedUserId);
       if (!user) return;
@@ -714,6 +1129,7 @@
       }, () => {}, `Password reset email dispatched to ${user.email}.`);
     });
 
+    // Resend Invite
     document.getElementById('btn-resend-invite')?.addEventListener('click', event => {
       const user = users.find(item => item.id === selectedUserId);
       if (!user) return;
@@ -724,6 +1140,7 @@
       }, () => {}, `Setup invitation dispatched to ${user.email}.`);
     });
 
+    // Suspend / Activate Account
     document.getElementById('btn-toggle-suspend')?.addEventListener('click', event => {
       const user = users.find(item => item.id === selectedUserId);
       if (!user) return;
@@ -738,10 +1155,9 @@
       }, `${user.name} is now ${activate ? 'active' : 'suspended'}.`);
     });
 
+    // Add Staff Account Form
     document.getElementById('form-invite-staff')?.addEventListener('submit', event => {
       event.preventDefault();
-      const form = event.currentTarget;
-      // Reuse the API-backed create path while preserving native form validation.
       const values = {
         name: document.getElementById('invite-name')?.value || '',
         email: document.getElementById('invite-email')?.value || '',
@@ -751,18 +1167,24 @@
       if (!values.name.trim() || !values.email.trim()) return;
       runWrite(button, {
         url: `${API_BASE}/users/`,
-        options: { method: 'POST', headers: requestHeaders({ 'Content-Type': 'application/json' }), body: JSON.stringify({ ...values, role: apiRole(values.role), password_option: 'email_invite' }) },
+        options: {
+          method: 'POST',
+          headers: requestHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ ...values, role: apiRole(values.role), password_option: 'email_invite', is_staff_account: true }),
+        },
       }, data => {
         const user = normalizeUser(data);
         users.unshift(user);
-        form.reset();
+        event.currentTarget.reset();
         renderTable();
         selectUser(user.id);
         showTempPasswordModal(user, null, 'email_invite');
       }, `Created staff account and queued invite for ${values.name}.`);
     });
 
-    initModal();
+    initAddUserModal();
+    initSingleDeleteModal();
+    initBulkDeleteModal();
   }
 
   document.addEventListener('DOMContentLoaded', () => {

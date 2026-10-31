@@ -19,10 +19,12 @@ class AccountsCustomer(models.Model):
     addresses = models.JSONField()
     is_active = models.BooleanField()
     is_staff = models.BooleanField()
-    role = models.CharField(max_length=16, db_index=True)
+    role = models.CharField(max_length=64, db_index=True)
     date_joined = models.DateTimeField()
     password_change_required = models.BooleanField(default=False)
     email_verified_at = models.DateTimeField(null=True, blank=True)
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'accounts_customer'

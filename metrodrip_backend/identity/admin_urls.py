@@ -2,6 +2,7 @@ from django.urls import path
 from .admin_views import (
     AdminDashboardAPIView,
     AdminUsersAPIView,
+    AdminUsersBulkDeleteAPIView,
     AdminUserDetailAPIView,
     AdminUserResetPasswordAPIView,
     AdminUserResendInviteAPIView,
@@ -19,6 +20,7 @@ urlpatterns = [
     path('dashboard/', AdminDashboardAPIView.as_view(), name='admin-dashboard'),
     path('health/', AdminHealthAPIView.as_view(), name='admin-health'),
     path('users/', AdminUsersAPIView.as_view(), name='admin-users'),
+    path('users/bulk-delete/', AdminUsersBulkDeleteAPIView.as_view(), name='admin-users-bulk-delete'),
     path('users/<int:pk>/', AdminUserDetailAPIView.as_view(), name='admin-user-detail'),
     path('users/<int:pk>/reset-password/', AdminUserResetPasswordAPIView.as_view(), name='admin-user-reset-password'),
     path('users/<int:pk>/resend-invite/', AdminUserResendInviteAPIView.as_view(), name='admin-user-resend-invite'),
@@ -32,5 +34,3 @@ urlpatterns = [
     path('logout/', LogoutAPIView.as_view(), name='admin-logout'),
     path('switch-user/', SwitchUserAPIView.as_view(), name='admin-switch-user'),
 ]
-
-
