@@ -354,9 +354,18 @@
         paymentStatus.textContent = pmReady ? 'CONFIGURED' : 'UNCONFIGURED';
         paymentStatus.className = `data-source-badge ${pmReady ? 'is-success' : 'is-warning'}`;
         paymentMode.textContent = `PayMongo (${mode})`;
-        paymentDetail.textContent = pmReady
-          ? `Active rails: ${rails.join(', ').toUpperCase() || 'None'}. Webhooks verified.`
-          : 'PayMongo secret keys unconfigured. Hosted payments offline.';
+        const webhookVerified = health.payment_provider?.webhook_verified === true;
+        const webhookConfigured = health.payment_provider?.webhook_configured === true;
+        if (!pmReady) {
+          paymentDetail.textContent = 'PayMongo secret keys unconfigured. Hosted payments offline.';
+        } else {
+          const verificationStatus = webhookVerified
+            ? 'Webhooks verified.'
+            : webhookConfigured
+              ? 'Webhook secret configured (unverified delivery).'
+              : 'Webhook secret missing.';
+          paymentDetail.textContent = `Active rails: ${rails.join(', ').toUpperCase() || 'None'}. ${verificationStatus}`;
+        }
       }
 
       // Environment

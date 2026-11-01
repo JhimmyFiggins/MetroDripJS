@@ -1,6 +1,6 @@
 // Keep client-facing values provider-neutral; the backend owns PayMongo's
 // provider-specific mapping (for example, `maya` to `paymaya`).
-export type PaymentMethod = 'cod' | 'gcash' | 'maya' | 'card';
+export type PaymentMethod = 'cod' | 'gcash' | 'maya' | 'card' | 'qrph';
 
 // Describe the editable delivery information collected by checkout.
 export type DeliveryAddress = {

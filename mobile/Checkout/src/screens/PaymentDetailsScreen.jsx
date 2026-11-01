@@ -35,6 +35,7 @@ const PAYMENT_METHODS = [
   { id: 'gcash', title: 'GCash', subtitle: 'Continue in PayMongo secure checkout', badge: 'GC' },
   { id: 'maya', title: 'Maya', subtitle: 'Continue in PayMongo secure checkout', badge: 'MY' },
   { id: 'card', title: 'Credit or Debit Card', subtitle: 'Enter details securely on PayMongo', badge: 'CARD' },
+  { id: 'qrph', title: 'QR Ph', subtitle: 'Scan and pay using your preferred bank or e-wallet', badge: 'QRPH' },
 ];
 
 export function PaymentDetailsScreen() {

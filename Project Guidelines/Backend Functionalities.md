@@ -4,7 +4,7 @@
 
 **Active runtime:** One Django/DRF application in `metrodrip_backend/`. Local development defaults to SQLite. The intended academic deployment connects the same application and packaged staff consoles to one no-cost PostgreSQL database through one HTTPS origin.
 
-**Payment scope:** COD plus PayMongo Hosted Checkout for GCash, Maya, and cards. Hosted rails are offered only when explicitly allowlisted and provider configuration is present.
+**Payment scope:** COD plus PayMongo Hosted Checkout for GCash, Maya, cards, and QR Ph (`qrph`). Hosted rails are offered only when explicitly allowlisted and provider configuration is present.
 
 **Updated:** 2026-10-25 (email OTP)
 
@@ -56,7 +56,7 @@ python manage.py provision_staff --email merchant@example.com --name "MetroDrip 
 
 | Use case | Route | Authorization | Current success contract | Important failures |
 |---|---|---|---|---|
-| Payment capabilities | `GET /api/payments/capabilities/` | Public / `AllowAny` | `200` JSON object declaring provider mode (`paymongo`), secrets status, default rail (`cod`), and supported rails (`cod`, `gcash`, `maya`, `card`) with `enabled` flags | None; fail-safe defaults |
+| Payment capabilities | `GET /api/payments/capabilities/` | Public / `AllowAny` | `200` JSON object declaring provider mode (`paymongo`), secrets status, default rail (`cod`), and supported rails (`cod`, `gcash`, `maya`, `card`, `qrph`) with `enabled` flags | None; fail-safe defaults |
 | Checkout | `POST /api/orders/checkout/` | Authenticated customer; throttle `30/min` | `201` for a new order, `200` for an idempotent replay; serialized order/payment, immutable line snapshots, and nullable `payment_action` | Flat `{error, code}`; validation `400`, stock/catalog/idempotency/expiry `409`, non-retryable provider `422`, retryable provider failure `503`, auth `401`, throttle `429` |
 | Order history | `GET /orders/` | Authenticated owner | Up to 50 owned orders with their latest payment | `401` |
 | Owned order/status | `GET /orders/{integer_order_id}/` | Authenticated owner | Serialized order plus `reconciliation_status` | `404` owner-safe not found; `409` missing payment; provider failure leaves durable state and returns `reconciliation_status: "deferred"` |
@@ -92,7 +92,7 @@ The dynamic discovery endpoint `GET /api/payments/capabilities/` allows client a
 }
 ```
 
-`items` may also be sent as `lines`; variant keys may be `variant_id`, `variant`, or `variantId`. Duplicate variant lines are aggregated. `payment_method` accepts `cod`, `cash_on_delivery`, `gcash`, `maya`/`paymaya`, and `card`/`cards`, normalized to `cod`, `gcash`, `maya`, or `card`. The provider adapter alone maps `maya` to `paymaya`.
+`items` may also be sent as `lines`; variant keys may be `variant_id`, `variant`, or `variantId`. Duplicate variant lines are aggregated. `payment_method` accepts `cod`, `cash_on_delivery`, `gcash`, `maya`/`paymaya`, `card`/`cards`, and `qrph`/`qr_ph`/`qr-ph`/`qr`, normalized to `cod`, `gcash`, `maya`, `card`, or `qrph`. The provider adapter alone maps `maya` to `paymaya`.
 
 Any nested key named `account_number`, `card_number`, `pan`, `cvc`, `cvv`, `expiration`, `expiry`, or `otp` is rejected with `raw_payment_credentials_rejected`.
 
@@ -178,7 +178,7 @@ All listed scopes use `DatabaseScopedRateThrottle`: an atomic fixed-window count
 
 - The customer website is `web/customer/`, served by Django at `/customer/`. Extensionless paths such as `/customer/shop` and `/customer/products/12` return `web/customer/index.html`. This namespace does not replace `/products/`, `/orders/`, `/login/`, or staff console routes.
 - `GET /api/shipping-zones/` is public and read-only. It returns `{ "currency": "PHP", "zones": [{ "id", "name", "fee" }] }` for `is_active=True` rows. `fee` is the stored whole-peso integer rendered as a two-decimal string. Checkout still selects an active zone by `delivery_zone` name and calculates shipping itself.
-- Hosted payment availability is fail-closed. `provider_ready` means PayMongo mode is `test` or `live` and both server secrets are present. A hosted method is `available` only when `provider_ready` is true and its id is in `PAYMONGO_ENABLED_METHODS` (`gcash`, `maya`, `card`; `paymaya` maps to `maya`). An empty allowlist leaves GCash, Maya, and card unavailable even if secrets exist.
+- Hosted payment availability is fail-closed. `provider_ready` means PayMongo mode is `test` or `live` and both server secrets are present. A hosted method is `available` only when `provider_ready` is true and its id is in `PAYMONGO_ENABLED_METHODS` (`gcash`, `maya`, `card`, `qrph`; `paymaya` maps to `maya`, `qr_ph` to `qrph`). An empty allowlist leaves hosted methods unavailable even if secrets exist.
 - A new online checkout whose method is unavailable returns `422 payment_method_unavailable` before an order or stock hold is created. Constructing the PayMongo client after an allowed checkout raises a checkout error instead of an uncaught 500.
 
 ## 7. Fail-closed capabilities

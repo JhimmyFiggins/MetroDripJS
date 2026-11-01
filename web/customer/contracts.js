@@ -10,6 +10,7 @@ const PAYMENT_OPTIONS = [
   { id: 'gcash', name: 'GCash', detail: 'Hosted PayMongo checkout. MetroDrip never collects the wallet PIN.' },
   { id: 'maya', name: 'Maya', detail: 'Hosted PayMongo checkout. MetroDrip never collects the wallet password.' },
   { id: 'card', name: 'Credit / debit card', detail: 'Hosted PayMongo checkout. MetroDrip never collects the card number or CVV.' },
+  { id: 'qrph', name: 'QR Ph', detail: 'Hosted PayMongo checkout. Scan to pay with any supported bank or e-wallet.' },
 ];
 
 export function safeBannerDestination(url) {
@@ -287,7 +288,7 @@ export function buildCheckoutPayload({ lines, address, zoneName, method, idempot
   if (typeof zoneName !== 'string' || zoneName.trim() === '') {
     throw new Error('Select a delivery zone returned by the server.');
   }
-  if (!['cod', 'gcash', 'maya', 'card'].includes(method)) {
+  if (!['cod', 'gcash', 'maya', 'card', 'qrph'].includes(method)) {
     throw new Error('Select an available payment method.');
   }
   if (typeof idempotencyKey !== 'string' || !/^[A-Za-z0-9._:-]{8,128}$/.test(idempotencyKey)) {

@@ -8,7 +8,7 @@ allowlist all agree.
 from django.conf import settings
 
 
-ONLINE_METHOD_IDS = ('gcash', 'maya', 'card')
+ONLINE_METHOD_IDS = ('gcash', 'maya', 'card', 'qrph')
 METHOD_CATALOG = (
     {
         'id': 'cod',
@@ -42,6 +42,14 @@ METHOD_CATALOG = (
         'min_amount': '100.00',
         'max_amount': '100000.00',
     },
+    {
+        'id': 'qrph',
+        'name': 'QR Ph',
+        'description': 'Scan and pay using a supported bank or e-wallet.',
+        'type': 'hosted',
+        'min_amount': '1.00',
+        'max_amount': None,
+    },
 )
 
 
@@ -54,6 +62,8 @@ def enabled_hosted_methods():
         method = str(token).strip().lower()
         if method == 'paymaya':
             method = 'maya'
+        elif method in {'qr_ph', 'qr-ph', 'qr'}:
+            method = 'qrph'
         if method in ONLINE_METHOD_IDS and method not in seen:
             seen.add(method)
             enabled.append(method)

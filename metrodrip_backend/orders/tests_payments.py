@@ -81,7 +81,7 @@ class RecordingPayMongoClient(PayMongoClient):
     PAYMONGO_SECRET_KEY='sk_test_example',
     PAYMONGO_WEBHOOK_SECRET='whsec_test_example',
     PAYMONGO_MODE='test',
-    PAYMONGO_ENABLED_METHODS='gcash,maya,card',
+    PAYMONGO_ENABLED_METHODS='gcash,maya,card,qrph',
 )
 class HostedCheckoutAPITest(TestCase):
     def setUp(self):
@@ -89,7 +89,7 @@ class HostedCheckoutAPITest(TestCase):
         self.now = timezone.now()
         PlatformSetting.objects.update_or_create(
             id=1,
-            defaults={'enabled_payment_methods': ['cod', 'gcash', 'maya', 'card']},
+            defaults={'enabled_payment_methods': ['cod', 'gcash', 'maya', 'card', 'qrph']},
         )
         self.customer = AccountsCustomer(
             email='buyer@example.com',
@@ -251,6 +251,45 @@ class HostedCheckoutAPITest(TestCase):
         self.assertEqual(first.data['payment_action']['type'], 'redirect')
         self.assertTrue(first.data['payment_action']['url'].startswith('https://checkout.paymongo.com/'))
         self.assertEqual(provider.created_methods, ['gcash'])
+        self.assertEqual(OrdersOrder.objects.filter(customer_id=self.customer.id).count(), 1)
+
+    def test_qrph_maps_to_paymongo_qrph(self):
+        order = self.client.post('/api/orders/checkout/', self.payload(), format='json', **self.auth)
+        order_model = OrdersOrder.objects.get(pk=order.data['id'])
+        payment = order_model.payments.get()
+        payment.method = 'qrph'
+        client = RecordingPayMongoClient()
+        client.create_checkout_session(
+            order_model,
+            payment,
+            [{'name': 'Test Item', 'amount': 100, 'currency': 'PHP', 'quantity': 1}],
+            order_model.shipping_address,
+            self.customer.email,
+        )
+        _, path, provider_payload, idempotency_key = client.request
+        attributes = provider_payload['data']['attributes']
+        self.assertEqual(path, '/v2/checkout_sessions')
+        self.assertEqual(attributes['payment_method_types'], ['qrph'])
+        self.assertEqual(attributes['line_items'][0]['amount'], 100)
+        self.assertNotIn('card_number', json.dumps(provider_payload))
+        self.assertEqual(
+            idempotency_key,
+            'metrodrip-' + hashlib.sha256(b'checkout-attempt-001').hexdigest(),
+        )
+
+    def test_qrph_online_checkout_returns_hosted_action_and_replays_idempotently(self):
+        provider = FakePayMongoClient()
+        with patch('orders.checkout.PayMongoClient', return_value=provider):
+            first = self.client.post('/api/orders/checkout/', self.payload('qrph'), format='json', **self.auth)
+            replay = self.client.post('/api/orders/checkout/', self.payload('qrph'), format='json', **self.auth)
+
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(replay.status_code, 200)
+        self.assertEqual(first.data['id'], replay.data['id'])
+        self.assertEqual(first.data['payment_status'], 'awaiting_payment')
+        self.assertEqual(first.data['payment_action']['type'], 'redirect')
+        self.assertTrue(first.data['payment_action']['url'].startswith('https://checkout.paymongo.com/'))
+        self.assertEqual(provider.created_methods, ['qrph'])
         self.assertEqual(OrdersOrder.objects.filter(customer_id=self.customer.id).count(), 1)
 
     def test_maya_maps_to_paymongo_paymaya_without_wallet_credentials(self):
@@ -754,6 +793,34 @@ class HostedCheckoutAPITest(TestCase):
             content_type='application/json',
             HTTP_PAYMONGO_SIGNATURE=f't={timestamp},te={signature},li=',
         )
+
+    def test_qrph_signed_paid_webhook_transitions_order_to_paid(self):
+        order, _ = self._online_order(method='qrph', key='checkout-qrph-webhook')
+        event = self._paid_event(order)
+
+        response = self._post_signed_event(event)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['result'], 'processed')
+        payment = OrdersPayment.objects.get(order=order)
+        order.refresh_from_db()
+        self.assertEqual(payment.method, 'qrph')
+        self.assertEqual(payment.status, 'paid')
+        self.assertEqual(order.status, 'placed')
+
+    def test_qr_expiration_does_not_expire_order_while_checkout_is_active(self):
+        order, _ = self._online_order(method='qrph', key='checkout-qrph-active-reconcile')
+        payment = OrdersPayment.objects.get(order=order)
+        provider = FakePayMongoClient()
+        provider.session_data = {
+            'data': {
+                'id': payment.provider_ref,
+                'attributes': {'status': 'active', 'payments': []},
+            },
+        }
+        status = reconcile_payment(payment, provider_client=provider)
+        self.assertEqual(status, 'awaiting_payment')
+        order.refresh_from_db()
+        self.assertEqual(order.status, 'pending_payment')
 
     def test_signed_paid_webhook_is_verified_and_deduplicated(self):
         order, _ = self._online_order()

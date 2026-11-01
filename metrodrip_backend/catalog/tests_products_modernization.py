@@ -12,6 +12,8 @@ from catalog.models import (
     CatalogProductVariant,
     CatalogProductMedia,
     InventoryStockEntry,
+    InventoryStockMovement,
+    InventoryReservation,
 )
 
 
@@ -302,3 +304,308 @@ class ProductsModernizationTests(TestCase):
         )
         self.assertEqual(res13.status_code, 400)
         self.assertIn('Maximum of 12 images', res13.data['error'])
+
+    def test_bulk_activate_and_deactivate(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.merchant_token}')
+        now = timezone.now()
+        p2 = CatalogProduct.objects.create(
+            name='Test Pants',
+            sku='MD-PANTS-001',
+            description='Test pants',
+            category=self.category,
+            base_price=Decimal('1000.00'),
+            is_active=True,
+            is_featured=False,
+            created_at=now,
+            updated_at=now,
+        )
+
+        # Bulk deactivate
+        res = self.client.post('/api/merchant/products/bulk/', {
+            'action': 'deactivate',
+            'product_ids': [self.product.id, p2.id],
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['affected_count'], 2)
+
+        self.product.refresh_from_db()
+        p2.refresh_from_db()
+        self.assertFalse(self.product.is_active)
+        self.assertFalse(p2.is_active)
+
+        # Bulk activate
+        res_act = self.client.post('/api/merchant/products/bulk/', {
+            'action': 'activate',
+            'product_ids': [self.product.id, p2.id],
+        }, format='json')
+        self.assertEqual(res_act.status_code, 200)
+        self.assertEqual(res_act.data['affected_count'], 2)
+
+        self.product.refresh_from_db()
+        p2.refresh_from_db()
+        self.assertTrue(self.product.is_active)
+        self.assertTrue(p2.is_active)
+
+    def test_bulk_change_category(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.merchant_token}')
+        new_cat = CatalogCategory.objects.create(
+            name='Accessories › Bags',
+            slug='accessories-bags',
+            description='Bags category',
+            is_active=True,
+            created_at=timezone.now(),
+            updated_at=timezone.now(),
+        )
+
+        res = self.client.post('/api/merchant/products/bulk/', {
+            'action': 'change_category',
+            'product_ids': [self.product.id],
+            'params': {'category_id': new_cat.id},
+        }, format='json')
+        self.assertEqual(res.status_code, 200)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.category_id, new_cat.id)
+
+    def test_bulk_update_stock_set_increase_decrease(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.merchant_token}')
+        # Set stock to 100
+        res_set = self.client.post('/api/merchant/products/bulk/', {
+            'action': 'update_stock',
+            'product_ids': [self.product.id],
+            'params': {'mode': 'set', 'quantity': 100},
+        }, format='json')
+        self.assertEqual(res_set.status_code, 200)
+        self.stock_entry.refresh_from_db()
+        self.assertEqual(self.stock_entry.quantity, 100)
+        self.assertTrue(InventoryStockMovement.objects.filter(variant=self.variant, delta=50, reason='bulk_adjustment').exists())
+
+        # Increase by 25
+        res_inc = self.client.post('/api/merchant/products/bulk/', {
+            'action': 'update_stock',
+            'product_ids': [self.product.id],
+            'params': {'mode': 'increase', 'quantity': 25},
+        }, format='json')
+        self.assertEqual(res_inc.status_code, 200)
+        self.stock_entry.refresh_from_db()
+        self.assertEqual(self.stock_entry.quantity, 125)
+
+        # Decrease by 20
+        res_dec = self.client.post('/api/merchant/products/bulk/', {
+            'action': 'update_stock',
+            'product_ids': [self.product.id],
+            'params': {'mode': 'decrease', 'quantity': 20},
+        }, format='json')
+        self.assertEqual(res_dec.status_code, 200)
+        self.stock_entry.refresh_from_db()
+        self.assertEqual(self.stock_entry.quantity, 105)
+
+    def test_bulk_update_stock_rejects_multi_stock_ambiguity(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.merchant_token}')
+        # Create second stock entry for same product (warehouse 2)
+        InventoryStockEntry.objects.create(
+            product=self.product,
+            variant=self.variant,
+            warehouse_id=2,
+            quantity=30,
+            reserved_quantity=0,
+            last_counted_at=timezone.now(),
+            created_at=timezone.now(),
+            updated_at=timezone.now(),
+        )
+
+        res = self.client.post('/api/merchant/products/bulk/', {
+            'action': 'update_stock',
+            'product_ids': [self.product.id],
+            'params': {'mode': 'set', 'quantity': 80},
+        }, format='json')
+        self.assertEqual(res.status_code, 409)
+        self.assertEqual(res.data['code'], 'warehouse_stock_ambiguous')
+
+    def test_bulk_update_stock_rejects_reduction_below_reserved(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.merchant_token}')
+        # self.stock_entry quantity=50, reserved_quantity=5
+        res = self.client.post('/api/merchant/products/bulk/', {
+            'action': 'update_stock',
+            'product_ids': [self.product.id],
+            'params': {'mode': 'set', 'quantity': 3},  # 3 < 5 reserved
+        }, format='json')
+        self.assertEqual(res.status_code, 409)
+        self.assertEqual(res.data['code'], 'stock_reserved')
+
+    def test_bulk_delete_and_single_delete_block_active_reservations(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.merchant_token}')
+        # Active reservation
+        reservation = InventoryReservation.objects.create(
+            order_id=999,
+            product=self.product,
+            variant=self.variant,
+            quantity=2,
+            warehouse_id=1,
+            status='active',
+            expires_at=timezone.now() + timezone.timedelta(hours=1),
+            created_at=timezone.now(),
+        )
+
+        # Single delete should fail with 409
+        del_single = self.client.delete(f'/api/merchant/products/{self.product.id}/')
+        self.assertEqual(del_single.status_code, 409)
+        self.assertEqual(del_single.data['code'], 'active_reservations')
+
+        # Bulk delete should fail with 409
+        del_bulk = self.client.post('/api/merchant/products/bulk/', {
+            'action': 'delete',
+            'product_ids': [self.product.id],
+        }, format='json')
+        self.assertEqual(del_bulk.status_code, 409)
+        self.assertEqual(del_bulk.data['code'], 'active_reservations')
+
+        # Release reservation
+        reservation.status = 'released'
+        reservation.released_at = timezone.now()
+        reservation.save()
+
+        # Bulk delete now succeeds (soft-deactivates)
+        del_ok = self.client.post('/api/merchant/products/bulk/', {
+            'action': 'delete',
+            'product_ids': [self.product.id],
+        }, format='json')
+        self.assertEqual(del_ok.status_code, 200)
+        self.product.refresh_from_db()
+        self.assertFalse(self.product.is_active)
+
+    def test_create_product_with_variations(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.merchant_token}')
+        payload = {
+            'name': 'Cargo Pants',
+            'category': 'Bottoms › Cargo',
+            'sku': 'MD-CARGO-MAIN',
+            'price': 1500,
+            'description': 'Tactical streetwear cargo pants',
+            'variants': [
+                {
+                    'sku': 'MD-CARGO-BLK-S',
+                    'attributes': {'Size': 'S', 'Color': 'Black'},
+                    'price_override': 1500,
+                    'stock': 15,
+                    'is_active': True,
+                },
+                {
+                    'sku': 'MD-CARGO-BLK-M',
+                    'attributes': {'Size': 'M', 'Color': 'Black'},
+                    'price_override': 1600,
+                    'stock': 20,
+                    'is_active': True,
+                },
+            ]
+        }
+        res = self.client.post('/api/merchant/products/', payload, format='json')
+        self.assertEqual(res.status_code, 201)
+        prod_id = res.data['id']
+        self.assertEqual(res.data['stock'], 35)
+        self.assertEqual(res.data['variants_count'], 2)
+
+        prod = CatalogProduct.objects.get(id=prod_id)
+        variants = list(prod.variants.all().order_by('id'))
+        self.assertEqual(len(variants), 2)
+        self.assertEqual(variants[0].sku, 'MD-CARGO-BLK-S')
+        self.assertEqual(variants[0].price_adjustment, Decimal('0.00'))
+        self.assertEqual(variants[1].sku, 'MD-CARGO-BLK-M')
+        self.assertEqual(variants[1].price_adjustment, Decimal('100.00'))
+
+        # Verify stock entries
+        entry1 = InventoryStockEntry.objects.get(variant=variants[0])
+        self.assertEqual(entry1.quantity, 15)
+        entry2 = InventoryStockEntry.objects.get(variant=variants[1])
+        self.assertEqual(entry2.quantity, 20)
+
+    def test_create_product_variations_validation_and_duplicate_rejection(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.merchant_token}')
+        # Duplicate combination
+        payload = {
+            'name': 'Duplicate Combo Tee',
+            'category': 'Tops › T-Shirts',
+            'sku': 'MD-TEE-DUP',
+            'price': 800,
+            'variants': [
+                {'sku': 'MD-TEE-1', 'attributes': {'Size': 'M'}, 'stock': 5},
+                {'sku': 'MD-TEE-2', 'attributes': {'Size': 'M'}, 'stock': 5},
+            ]
+        }
+        res = self.client.post('/api/merchant/products/', payload, format='json')
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('Duplicate variation combination', res.data['error'])
+
+        # Duplicate SKU with existing
+        payload_sku = {
+            'name': 'Duplicate SKU Tee',
+            'category': 'Tops › T-Shirts',
+            'sku': 'MD-TEE-SKU-DUP',
+            'price': 800,
+            'variants': [
+                {'sku': self.product.sku, 'attributes': {'Size': 'L'}, 'stock': 5},
+            ]
+        }
+        res_sku = self.client.post('/api/merchant/products/', payload_sku, format='json')
+        self.assertEqual(res_sku.status_code, 409)
+
+    def test_edit_product_with_variations(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.merchant_token}')
+        # Detail get returns variants
+        detail_res = self.client.get(f'/api/merchant/products/{self.product.id}/')
+        self.assertEqual(detail_res.status_code, 200)
+        self.assertIn('variants', detail_res.data)
+        self.assertEqual(len(detail_res.data['variants']), 1)
+        v1_id = detail_res.data['variants'][0]['id']
+
+        # Edit to update variant and add a second variant
+        patch_res = self.client.patch(f'/api/merchant/products/{self.product.id}/', {
+            'variants': [
+                {
+                    'id': v1_id,
+                    'sku': self.product.sku,
+                    'attributes': {'Size': 'Standard'},
+                    'stock': 60,
+                    'price_override': 1250,
+                    'is_active': True,
+                },
+                {
+                    'sku': 'MD-HOOD-001-XL',
+                    'attributes': {'Size': 'XL'},
+                    'stock': 15,
+                    'price_override': 1350,
+                    'is_active': True,
+                }
+            ]
+        }, format='json')
+        self.assertEqual(patch_res.status_code, 200)
+        self.assertEqual(patch_res.data['total_stock'], 75)
+        self.assertEqual(len(patch_res.data['variants']), 2)
+
+    def test_edit_product_cannot_remove_variant_with_active_reservations(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.merchant_token}')
+        # Put active reservation on self.variant
+        InventoryReservation.objects.create(
+            order_id=888,
+            product=self.product,
+            variant=self.variant,
+            quantity=1,
+            warehouse_id=1,
+            status='active',
+            expires_at=timezone.now() + timezone.timedelta(hours=1),
+            created_at=timezone.now(),
+        )
+
+        # Attempt to patch variants omitting self.variant
+        res = self.client.patch(f'/api/merchant/products/{self.product.id}/', {
+            'variants': [
+                {
+                    'sku': 'MD-HOOD-NEW-ONLY',
+                    'attributes': {'Size': 'XXL'},
+                    'stock': 10,
+                    'is_active': True,
+                }
+            ]
+        }, format='json')
+        self.assertEqual(res.status_code, 409)
+        self.assertEqual(res.data['code'], 'active_reservations')
+

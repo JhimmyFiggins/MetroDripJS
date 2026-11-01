@@ -106,12 +106,21 @@
           <span class="search-icon" aria-hidden="true">🔍</span>
           <input class="search-input" id="input-catalog-search" type="search" placeholder="Search products, SKU…" aria-label="Search products and SKU">
         </div>
-        <div class="category-tabs" role="tablist" aria-label="Category filters">
-          <button type="button" class="category-tab-btn is-active" role="tab" aria-selected="true" data-category="all">All</button>
-          <button type="button" class="category-tab-btn" role="tab" aria-selected="false" data-category="tops">Tops</button>
-          <button type="button" class="category-tab-btn" role="tab" aria-selected="false" data-category="bottoms">Bottoms</button>
-          <button type="button" class="category-tab-btn" role="tab" aria-selected="false" data-category="accessories">Accessories</button>
-          <button type="button" class="category-tab-btn" role="tab" aria-selected="false" data-category="inactive">Inactive</button>
+        <div class="catalog-filters" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <div class="filter-group">
+            <label for="select-category-filter" class="sr-only">Filter by Category</label>
+            <select class="form-select" id="select-category-filter" aria-label="Filter products by category" style="min-width: 170px; height: 38px; font-size: 13px;">
+              <option value="all">All categories</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="select-status-filter" class="sr-only">Filter by Status</label>
+            <select class="form-select" id="select-status-filter" aria-label="Filter products by status" style="min-width: 130px; height: 38px; font-size: 13px;">
+              <option value="all">All statuses</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -119,12 +128,31 @@
       <section class="panel-card full-width" style="margin-bottom: 24px;" aria-labelledby="heading-products-list">
         <div class="panel-header">
           <h2 class="panel-title" id="heading-products-list">Products</h2>
-          <a class="panel-link" href="#bulk">Bulk actions</a>
+          <div class="bulk-actions-toolbar" style="display: flex; align-items: center; gap: 8px;">
+            <span id="bulk-selection-count" class="bulk-selection-count" style="display: none; font-size: 12px; font-weight: 600; color: var(--color-volt);">0 selected</span>
+            <button type="button" id="btn-bulk-deselect" class="btn btn-secondary btn-sm" style="display: none; padding: 4px 8px; font-size: 11px;">Clear</button>
+            <div class="bulk-actions-dropdown" style="position: relative;">
+              <button type="button" id="btn-bulk-actions" class="btn btn-secondary btn-sm" disabled aria-expanded="false" aria-haspopup="true">
+                Bulk actions ▾
+              </button>
+              <div id="menu-bulk-actions" class="dropdown-menu" style="display: none; position: absolute; right: 0; top: calc(100% + 4px); z-index: 100; min-width: 180px; background: var(--color-surface, #1e1e1e); border: 1px solid var(--color-border, #333); border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.5); padding: 4px 0;" role="menu" aria-label="Bulk actions menu">
+                <button type="button" class="dropdown-item" data-action="activate" role="menuitem" style="display: block; width: 100%; text-align: left; padding: 8px 14px; background: none; border: none; color: var(--color-text, #fff); font-size: 13px; cursor: pointer;">Activate selected</button>
+                <button type="button" class="dropdown-item" data-action="deactivate" role="menuitem" style="display: block; width: 100%; text-align: left; padding: 8px 14px; background: none; border: none; color: var(--color-text, #fff); font-size: 13px; cursor: pointer;">Deactivate selected</button>
+                <button type="button" class="dropdown-item" data-action="change_category" role="menuitem" style="display: block; width: 100%; text-align: left; padding: 8px 14px; background: none; border: none; color: var(--color-text, #fff); font-size: 13px; cursor: pointer;">Change category…</button>
+                <button type="button" class="dropdown-item" data-action="update_stock" role="menuitem" style="display: block; width: 100%; text-align: left; padding: 8px 14px; background: none; border: none; color: var(--color-text, #fff); font-size: 13px; cursor: pointer;">Update stock…</button>
+                <div style="height: 1px; background: var(--color-border, #333); margin: 4px 0;" role="separator"></div>
+                <button type="button" class="dropdown-item text-danger" data-action="delete" role="menuitem" style="display: block; width: 100%; text-align: left; padding: 8px 14px; background: none; border: none; color: var(--color-danger, #ff4d4f); font-size: 13px; cursor: pointer;">Delete selected…</button>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="table-responsive">
           <table class="data-table" id="products-table">
             <thead>
               <tr>
+                <th scope="col" style="width: 40px; text-align: center;">
+                  <input type="checkbox" id="select-all-products" aria-label="Select all visible products" style="cursor: pointer;">
+                </th>
                 <th scope="col" style="width: 44px;"></th>
                 <th scope="col">PRODUCT</th>
                 <th scope="col">CATEGORY</th>
@@ -330,6 +358,44 @@
             <label class="form-label" for="add-prod-desc">Description</label>
             <textarea class="form-textarea" id="add-prod-desc" name="description" rows="2" placeholder="Fabric, fit details and care instructions..."></textarea>
           </div>
+          <div class="form-group" style="margin-top: 10px; margin-bottom: 12px; padding: 10px; background: var(--color-surface, #1e1e1e); border: 1px solid var(--color-border, #333); border-radius: 6px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; font-size: 13px; margin: 0;">
+              <input type="checkbox" id="add-prod-has-variants" style="cursor: pointer;">
+              <span>This product has multiple variations (e.g. Size, Color)</span>
+            </label>
+          </div>
+
+          <div id="add-prod-variants-section" style="display: none; margin-bottom: 16px; border: 1px solid var(--color-border, #333); border-radius: 6px; padding: 12px; background: rgba(255,255,255,0.02);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <h4 style="margin: 0; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-volt);">Variation Attributes</h4>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-add-attr-add-prod">+ Add Attribute</button>
+            </div>
+            <div id="add-prod-attributes-container" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+              <!-- Attribute rows -->
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-top: 8px; border-top: 1px solid var(--color-border, #333);">
+              <span id="add-prod-combos-preview" style="font-size: 12px; color: var(--color-muted);">0 combinations</span>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-generate-add-variants">Generate Variations</button>
+            </div>
+            <div id="add-prod-variants-table-container" style="display: none; overflow-x: auto;">
+              <table class="data-table" style="font-size: 12px; width: 100%;">
+                <thead>
+                  <tr>
+                    <th scope="col">Variation</th>
+                    <th scope="col">SKU</th>
+                    <th scope="col">Price Override</th>
+                    <th scope="col">Stock</th>
+                    <th scope="col" style="width: 50px;">Active</th>
+                    <th scope="col" style="width: 40px;"></th>
+                  </tr>
+                </thead>
+                <tbody id="add-prod-variants-tbody">
+                  <!-- Variant rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <div class="form-group">
             <label class="form-label" for="add-prod-media">Product Image (optional)</label>
             <input class="form-input" id="add-prod-media" name="file" type="file" accept="image/jpeg,image/png,image/webp">
@@ -473,6 +539,44 @@
             <label class="form-label" for="edit-prod-desc">Description</label>
             <textarea class="form-textarea" id="edit-prod-desc" name="description" rows="2" placeholder="Fabric, fit details and care instructions..."></textarea>
           </div>
+          <div class="form-group" style="margin-top: 10px; margin-bottom: 12px; padding: 10px; background: var(--color-surface, #1e1e1e); border: 1px solid var(--color-border, #333); border-radius: 6px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; font-size: 13px; margin: 0;">
+              <input type="checkbox" id="edit-prod-has-variants" style="cursor: pointer;">
+              <span>Manage product variations (e.g. Size, Color)</span>
+            </label>
+          </div>
+
+          <div id="edit-prod-variants-section" style="display: none; margin-bottom: 16px; border: 1px solid var(--color-border, #333); border-radius: 6px; padding: 12px; background: rgba(255,255,255,0.02);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <h4 style="margin: 0; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-volt);">Variation Attributes</h4>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-add-attr-edit-prod">+ Add Attribute</button>
+            </div>
+            <div id="edit-prod-attributes-container" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
+              <!-- Attribute rows -->
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-top: 8px; border-top: 1px solid var(--color-border, #333);">
+              <span id="edit-prod-combos-preview" style="font-size: 12px; color: var(--color-muted);">0 combinations</span>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-generate-edit-variants">Generate Variations</button>
+            </div>
+            <div id="edit-prod-variants-table-container" style="display: none; overflow-x: auto;">
+              <table class="data-table" style="font-size: 12px; width: 100%;">
+                <thead>
+                  <tr>
+                    <th scope="col">Variation</th>
+                    <th scope="col">SKU</th>
+                    <th scope="col">Price Override</th>
+                    <th scope="col">Stock</th>
+                    <th scope="col" style="width: 50px;">Active</th>
+                    <th scope="col" style="width: 40px;"></th>
+                  </tr>
+                </thead>
+                <tbody id="edit-prod-variants-tbody">
+                  <!-- Variant rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <div class="form-group" style="margin-top: 12px; border-top: 1px solid var(--color-border); padding-top: 12px;">
             <label class="form-label" id="label-edit-prod-media">Product Media & Gallery</label>
             <div id="edit-prod-media-container" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;" aria-labelledby="label-edit-prod-media">
@@ -542,6 +646,83 @@
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" id="btn-close-categories-footer">Done</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal: Bulk Confirmation Dialog -->
+  <div class="modal-overlay" id="modal-bulk-confirm" role="dialog" aria-modal="true" aria-labelledby="modal-bulk-confirm-title" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-bulk-confirm-title">Confirm Bulk Action</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-bulk-confirm" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="bulk-confirm-message" style="margin: 0; line-height: 1.5;"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn-cancel-bulk-confirm">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btn-submit-bulk-confirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Bulk Change Category Dialog -->
+  <div class="modal-overlay" id="modal-bulk-category" role="dialog" aria-modal="true" aria-labelledby="modal-bulk-category-title" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-bulk-category-title">Change Category for Selected Products</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-bulk-category" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="form-bulk-category">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="bulk-select-category">Select Target Category</label>
+            <select class="form-select" id="bulk-select-category" required>
+              <!-- Populated by merchant.js -->
+            </select>
+          </div>
+          <p style="font-size: 12px; color: var(--color-muted); margin-top: 8px;">
+            All selected products will be moved to this category.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-bulk-category">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-bulk-category">Apply Category</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Bulk Update Stock Dialog -->
+  <div class="modal-overlay" id="modal-bulk-stock" role="dialog" aria-modal="true" aria-labelledby="modal-bulk-stock-title" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-bulk-stock-title">Update Stock for Selected Products</h3>
+        <button type="button" class="modal-close-btn" id="btn-close-bulk-stock" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="form-bulk-stock">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="bulk-stock-mode">Adjustment Mode</label>
+            <select class="form-select" id="bulk-stock-mode" required>
+              <option value="set">Set stock to exact quantity</option>
+              <option value="increase">Increase stock by quantity (+)</option>
+              <option value="decrease">Decrease stock by quantity (-)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="bulk-stock-qty" id="label-bulk-stock-qty">Stock Quantity</label>
+            <input class="form-input" id="bulk-stock-qty" type="number" min="0" step="1" required>
+          </div>
+          <p style="font-size: 12px; color: var(--color-muted); margin-top: 8px;">
+            Note: Multi-variant or multi-warehouse products must have stock adjusted individually to avoid ambiguity. Stock cannot be reduced below active reserved orders.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-bulk-stock">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-bulk-stock">Update Stock</button>
+        </div>
+      </form>
     </div>
   </div>
 

@@ -26,24 +26,32 @@ const INACTIVE_ORDER_STATUSES = ['delivered', 'completed', 'cancelled'];
 
 const FAQ_ITEMS = [
   {
-    q: 'Where do you ship and how long does it take?',
-    a: 'Available delivery zones are shown at checkout. Timing depends on the destination and courier; tracking updates appear after dispatch.',
-  },
-  {
-    q: 'What is your return and exchange policy?',
-    a: 'Contact support before returning an item so the team can confirm eligibility and provide the correct instructions.',
-  },
-  {
-    q: 'How do I pick the right size?',
-    a: 'Use the sizing information on the product page. If measurements are missing, contact support before ordering.',
-  },
-  {
-    q: 'What payment methods do you accept?',
-    a: 'Checkout shows the payment methods that are currently available. Online methods appear only when the payment provider is ready.',
-  },
-  {
     q: 'How can I track my order?',
-    a: 'Open Orders from the menu below, tap your order, and check the tracking timeline for the latest status.',
+    a: 'Sign in to your account, open Orders & Tracking, and select an order to view its latest available updates.',
+  },
+  {
+    q: 'What payment methods can I use?',
+    a: 'Available payment methods are shown at checkout. Options may vary depending on payment service availability.',
+  },
+  {
+    q: 'When will my order arrive?',
+    a: 'Delivery times depend on your location and the shipping service. You can check your order page for available shipping updates.',
+  },
+  {
+    q: 'Can I cancel an order?',
+    a: 'Some orders can be cancelled before they reach certain fulfillment or payment stages. Open your order details to check whether cancellation is available.',
+  },
+  {
+    q: 'How do I update my account information?',
+    a: 'Sign in, go to My Account, update the available profile fields, and select Save Profile.',
+  },
+  {
+    q: 'How do I choose the right size?',
+    a: 'Check the sizing and variation details on the product page before completing your order.',
+  },
+  {
+    q: 'What if I need a return or exchange?',
+    a: 'Contact MetroDrip through its confirmed support channel before returning an item so the team can review your request and provide instructions.',
   },
 ];
 

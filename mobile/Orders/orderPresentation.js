@@ -36,7 +36,7 @@ const POSITIVE_PAYMENT = new Set(['paid', 'captured', 'completed', 'confirmed'])
 const FAILED_PAYMENT = new Set(['failed', 'setup_failed', 'cancelled', 'canceled', 'expired']);
 
 const normalizedStatus = (value) => String(value || '').trim().toLowerCase();
-const ONLINE_PAYMENT_METHODS = new Set(['gcash', 'maya', 'card']);
+const ONLINE_PAYMENT_METHODS = new Set(['gcash', 'maya', 'card', 'qrph']);
 const CANCELLABLE_ORDER_STATUSES = new Set(['pending_payment', 'payment_setup_failed']);
 const CANCELLABLE_PAYMENT_STATUSES = new Set(['awaiting_payment', 'setup_failed']);
 

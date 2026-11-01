@@ -23,6 +23,7 @@ from catalog.models import (
     CatalogCategory,
     InventoryStockEntry,
     InventoryStockMovement,
+    InventoryReservation,
     CatalogProductMedia,
 )
 from orders.models import (
@@ -172,6 +173,7 @@ class MerchantProductsAPIView(MerchantAPIView):
                 'id': p.id,
                 'name': p.name,
                 'category': p.category.name if p.category else None,
+                'category_id': p.category.id if p.category else None,
                 'sku': p.sku,
                 'image_url': p.image_url or '',
                 'variants_count': variant_count,
@@ -207,23 +209,98 @@ class MerchantProductsAPIView(MerchantAPIView):
             price = Decimal(str(data.get('price'))).quantize(Decimal('0.01'))
         except (InvalidOperation, TypeError, ValueError):
             return Response({'error': 'price must be a positive amount.'}, status=status.HTTP_400_BAD_REQUEST)
-        stock_value = data.get('stock')
-        if isinstance(stock_value, bool):
-            return Response({'error': 'stock must be a non-negative integer.'}, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            parsed_stock_value = Decimal(str(stock_value))
-            if not parsed_stock_value.is_finite() or parsed_stock_value != parsed_stock_value.to_integral_value():
-                raise ValueError
-            stock_qty = int(parsed_stock_value)
-        except (InvalidOperation, TypeError, ValueError):
-            return Response({'error': 'stock must be a non-negative integer.'}, status=status.HTTP_400_BAD_REQUEST)
-        if not price.is_finite() or price <= 0 or stock_qty < 0:
-            return Response(
-                {'error': 'price must be positive and stock must be a non-negative integer.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        if not price.is_finite() or price <= 0:
+            return Response({'error': 'price must be a positive amount.'}, status=status.HTTP_400_BAD_REQUEST)
+
         if CatalogProduct.objects.filter(sku__iexact=sku).exists() or CatalogProductVariant.objects.filter(sku__iexact=sku).exists():
             return Response({'error': 'SKU is already in use.'}, status=status.HTTP_409_CONFLICT)
+
+        variants_input = data.get('variants')
+        validated_variants = []
+
+        if variants_input is not None:
+            if not isinstance(variants_input, list) or len(variants_input) == 0:
+                return Response({'error': 'variants must be a non-empty list.'}, status=status.HTTP_400_BAD_REQUEST)
+            if len(variants_input) > 100:
+                return Response({'error': 'Cannot create more than 100 variants.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            seen_skus = {sku.lower()}
+            seen_combos = set()
+
+            for idx, v in enumerate(variants_input):
+                if not isinstance(v, dict):
+                    return Response({'error': f"Variant at index {idx} must be an object."}, status=status.HTTP_400_BAD_REQUEST)
+                v_sku = str(v.get('sku', '')).strip()
+                if not v_sku:
+                    return Response({'error': f"Variant at index {idx} requires a SKU."}, status=status.HTTP_400_BAD_REQUEST)
+                if v_sku.lower() in seen_skus:
+                    return Response({'error': f"Duplicate SKU '{v_sku}' in variants."}, status=status.HTTP_409_CONFLICT)
+                if CatalogProduct.objects.filter(sku__iexact=v_sku).exists() or CatalogProductVariant.objects.filter(sku__iexact=v_sku).exists():
+                    return Response({'error': f"SKU '{v_sku}' is already in use."}, status=status.HTTP_409_CONFLICT)
+                seen_skus.add(v_sku.lower())
+
+                v_attrs = v.get('attributes') or {}
+                if not isinstance(v_attrs, dict):
+                    return Response({'error': f"Variant '{v_sku}' attributes must be a key-value object."}, status=status.HTTP_400_BAD_REQUEST)
+
+                combo_key = tuple(sorted((str(k).strip().lower(), str(val).strip().lower()) for k, val in v_attrs.items() if str(k).strip()))
+                if combo_key in seen_combos:
+                    return Response({'error': f"Duplicate variation combination for SKU '{v_sku}'."}, status=status.HTTP_400_BAD_REQUEST)
+                seen_combos.add(combo_key)
+
+                v_price_adj = Decimal('0.00')
+                if 'price_override' in v and v['price_override'] is not None and str(v['price_override']).strip() != '':
+                    try:
+                        v_override = Decimal(str(v['price_override'])).quantize(Decimal('0.01'))
+                        if not v_override.is_finite() or v_override <= 0:
+                            return Response({'error': f"Price override for SKU '{v_sku}' must be positive."}, status=status.HTTP_400_BAD_REQUEST)
+                        v_price_adj = v_override - price
+                    except (InvalidOperation, TypeError, ValueError):
+                        return Response({'error': f"Invalid price override for SKU '{v_sku}'."}, status=status.HTTP_400_BAD_REQUEST)
+                elif 'price_adjustment' in v and v['price_adjustment'] is not None and str(v['price_adjustment']).strip() != '':
+                    try:
+                        v_price_adj = Decimal(str(v['price_adjustment'])).quantize(Decimal('0.01'))
+                        if not v_price_adj.is_finite() or (price + v_price_adj) <= 0:
+                            return Response({'error': f"Effective price for SKU '{v_sku}' must be positive."}, status=status.HTTP_400_BAD_REQUEST)
+                    except (InvalidOperation, TypeError, ValueError):
+                        return Response({'error': f"Invalid price adjustment for SKU '{v_sku}'."}, status=status.HTTP_400_BAD_REQUEST)
+
+                raw_v_stock = v.get('stock', 0)
+                if isinstance(raw_v_stock, bool):
+                    return Response({'error': f"Stock for SKU '{v_sku}' must be an integer."}, status=status.HTTP_400_BAD_REQUEST)
+                try:
+                    v_stock_dec = Decimal(str(raw_v_stock))
+                    if not v_stock_dec.is_finite() or v_stock_dec != v_stock_dec.to_integral_value():
+                        raise ValueError
+                    v_stock = int(v_stock_dec)
+                except (InvalidOperation, TypeError, ValueError):
+                    return Response({'error': f"Stock for SKU '{v_sku}' must be a non-negative integer."}, status=status.HTTP_400_BAD_REQUEST)
+                if v_stock < 0:
+                    return Response({'error': f"Stock for SKU '{v_sku}' cannot be negative."}, status=status.HTTP_400_BAD_REQUEST)
+
+                v_is_active = bool(v.get('is_active', True))
+                validated_variants.append({
+                    'sku': v_sku,
+                    'attributes': v_attrs,
+                    'price_adjustment': v_price_adj,
+                    'stock': v_stock,
+                    'is_active': v_is_active,
+                })
+
+            stock_qty = sum(item['stock'] for item in validated_variants)
+        else:
+            stock_value = data.get('stock')
+            if isinstance(stock_value, bool):
+                return Response({'error': 'stock must be a non-negative integer.'}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                parsed_stock_value = Decimal(str(stock_value))
+                if not parsed_stock_value.is_finite() or parsed_stock_value != parsed_stock_value.to_integral_value():
+                    raise ValueError
+                stock_qty = int(parsed_stock_value)
+            except (InvalidOperation, TypeError, ValueError):
+                return Response({'error': 'stock must be a non-negative integer.'}, status=status.HTTP_400_BAD_REQUEST)
+            if stock_qty < 0:
+                return Response({'error': 'stock must be a non-negative integer.'}, status=status.HTTP_400_BAD_REQUEST)
 
         now = timezone.now()
         with transaction.atomic():
@@ -249,43 +326,73 @@ class MerchantProductsAPIView(MerchantAPIView):
                 created_at=now,
                 updated_at=now,
             )
-            # The form captures a primary SKU but no size/color attributes.
-            # Persist an attribute-free variant instead of inventing metadata.
-            variant = CatalogProductVariant.objects.create(
-                product=product,
-                sku=sku,
-                attributes={},
-                price_adjustment=Decimal('0.00'),
-                is_active=True,
-                created_at=now,
-                updated_at=now,
-            )
-            InventoryStockEntry.objects.create(
-                product=product,
-                variant=variant,
-                warehouse_id=1,
-                quantity=stock_qty,
-                reserved_quantity=0,
-                last_counted_at=now,
-                created_at=now,
-                updated_at=now,
-            )
-            if stock_qty:
-                InventoryStockMovement.objects.create(
-                    variant=variant,
-                    sku=variant.sku,
-                    delta=stock_qty,
-                    reason='restock',
+
+            if validated_variants:
+                for item in validated_variants:
+                    variant = CatalogProductVariant.objects.create(
+                        product=product,
+                        sku=item['sku'],
+                        attributes=item['attributes'],
+                        price_adjustment=item['price_adjustment'],
+                        is_active=item['is_active'],
+                        created_at=now,
+                        updated_at=now,
+                    )
+                    InventoryStockEntry.objects.create(
+                        product=product,
+                        variant=variant,
+                        warehouse_id=1,
+                        quantity=item['stock'],
+                        reserved_quantity=0,
+                        last_counted_at=now,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                    if item['stock']:
+                        InventoryStockMovement.objects.create(
+                            variant=variant,
+                            sku=variant.sku,
+                            delta=item['stock'],
+                            reason='restock',
+                        )
+            else:
+                variant = CatalogProductVariant.objects.create(
+                    product=product,
+                    sku=sku,
+                    attributes={},
+                    price_adjustment=Decimal('0.00'),
+                    is_active=True,
+                    created_at=now,
+                    updated_at=now,
                 )
+                InventoryStockEntry.objects.create(
+                    product=product,
+                    variant=variant,
+                    warehouse_id=1,
+                    quantity=stock_qty,
+                    reserved_quantity=0,
+                    last_counted_at=now,
+                    created_at=now,
+                    updated_at=now,
+                )
+                if stock_qty:
+                    InventoryStockMovement.objects.create(
+                        variant=variant,
+                        sku=variant.sku,
+                        delta=stock_qty,
+                        reason='restock',
+                    )
 
         return Response({
             'id': product.id,
             'name': product.name,
             'sku': product.sku,
             'category': category.name,
+            'category_id': category.id,
             'stock': stock_qty,
             'price': int(product.base_price),
             'status': 'Active',
+            'variants_count': len(validated_variants) if validated_variants else 1,
         }, status=status.HTTP_201_CREATED)
 
 
@@ -312,12 +419,33 @@ class MerchantProductDetailAPIView(MerchantAPIView):
             }
             for m in product.media.all().order_by('sort_order', 'id')
         ]
+        variants_data = []
+        for v in product.variants.all().order_by('id'):
+            v_stocks = [e for e in product.stock_entries.all() if e.variant_id == v.id]
+            v_total_stock = sum(e.quantity for e in v_stocks)
+            v_reserved_stock = sum(e.reserved_quantity for e in v_stocks)
+            v_available_stock = sum(max(0, e.quantity - e.reserved_quantity) for e in v_stocks)
+            effective_price = (product.base_price + v.price_adjustment).quantize(Decimal('0.01'))
+            variants_data.append({
+                'id': v.id,
+                'sku': v.sku,
+                'attributes': v.attributes or {},
+                'price_adjustment': str(v.price_adjustment),
+                'effective_price': float(effective_price),
+                'price_override': float(effective_price) if v.price_adjustment != Decimal('0.00') else None,
+                'stock': v_total_stock,
+                'reserved_stock': v_reserved_stock,
+                'available_stock': v_available_stock,
+                'is_active': v.is_active,
+            })
+
         return Response({
             'id': product.id,
             'name': product.name,
             'sku': product.sku,
             'image_url': product.image_url or '',
             'media': media_list,
+            'variants': variants_data,
             'category': product.category.name if product.category else None,
             'category_id': product.category.id if product.category else None,
             'price': int(product.base_price),
@@ -378,32 +506,93 @@ class MerchantProductDetailAPIView(MerchantAPIView):
         if CatalogProductVariant.objects.filter(sku__iexact=proposed_sku).exclude(product=product).exists():
             return Response({'error': 'SKU is already in use.'}, status=status.HTTP_409_CONFLICT)
 
+        variants_input = data.get('variants')
+        validated_variants = None
+        base_p = parsed_price if parsed_price is not None else product.base_price
+
+        if variants_input is not None:
+            if not isinstance(variants_input, list) or len(variants_input) == 0:
+                return Response({'error': 'variants must be a non-empty list.'}, status=status.HTTP_400_BAD_REQUEST)
+            if len(variants_input) > 100:
+                return Response({'error': 'Cannot manage more than 100 variants.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            seen_skus = set()
+            seen_combos = set()
+            validated_variants = []
+
+            for idx, v in enumerate(variants_input):
+                if not isinstance(v, dict):
+                    return Response({'error': f"Variant at index {idx} must be an object."}, status=status.HTTP_400_BAD_REQUEST)
+                v_id = v.get('id')
+                if v_id is not None:
+                    try:
+                        v_id = int(v_id)
+                    except (TypeError, ValueError):
+                        return Response({'error': f"Invalid variant ID at index {idx}."}, status=status.HTTP_400_BAD_REQUEST)
+
+                v_sku = str(v.get('sku', '')).strip()
+                if not v_sku:
+                    return Response({'error': f"Variant at index {idx} requires a SKU."}, status=status.HTTP_400_BAD_REQUEST)
+                if v_sku.lower() in seen_skus:
+                    return Response({'error': f"Duplicate SKU '{v_sku}' in variants."}, status=status.HTTP_409_CONFLICT)
+                if CatalogProduct.objects.filter(sku__iexact=v_sku).exclude(pk=product.pk).exists():
+                    return Response({'error': f"SKU '{v_sku}' is already in use by another product."}, status=status.HTTP_409_CONFLICT)
+                if CatalogProductVariant.objects.filter(sku__iexact=v_sku).exclude(product=product).exists():
+                    return Response({'error': f"SKU '{v_sku}' is already in use by another variant."}, status=status.HTTP_409_CONFLICT)
+                seen_skus.add(v_sku.lower())
+
+                v_attrs = v.get('attributes') or {}
+                if not isinstance(v_attrs, dict):
+                    return Response({'error': f"Variant '{v_sku}' attributes must be a key-value object."}, status=status.HTTP_400_BAD_REQUEST)
+
+                combo_key = tuple(sorted((str(k).strip().lower(), str(val).strip().lower()) for k, val in v_attrs.items() if str(k).strip()))
+                if combo_key in seen_combos:
+                    return Response({'error': f"Duplicate variation combination for SKU '{v_sku}'."}, status=status.HTTP_400_BAD_REQUEST)
+                seen_combos.add(combo_key)
+
+                v_price_adj = Decimal('0.00')
+                if 'price_override' in v and v['price_override'] is not None and str(v['price_override']).strip() != '':
+                    try:
+                        v_override = Decimal(str(v['price_override'])).quantize(Decimal('0.01'))
+                        if not v_override.is_finite() or v_override <= 0:
+                            return Response({'error': f"Price override for SKU '{v_sku}' must be positive."}, status=status.HTTP_400_BAD_REQUEST)
+                        v_price_adj = v_override - base_p
+                    except (InvalidOperation, TypeError, ValueError):
+                        return Response({'error': f"Invalid price override for SKU '{v_sku}'."}, status=status.HTTP_400_BAD_REQUEST)
+                elif 'price_adjustment' in v and v['price_adjustment'] is not None and str(v['price_adjustment']).strip() != '':
+                    try:
+                        v_price_adj = Decimal(str(v['price_adjustment'])).quantize(Decimal('0.01'))
+                        if not v_price_adj.is_finite() or (base_p + v_price_adj) <= 0:
+                            return Response({'error': f"Effective price for SKU '{v_sku}' must be positive."}, status=status.HTTP_400_BAD_REQUEST)
+                    except (InvalidOperation, TypeError, ValueError):
+                        return Response({'error': f"Invalid price adjustment for SKU '{v_sku}'."}, status=status.HTTP_400_BAD_REQUEST)
+
+                raw_v_stock = v.get('stock', 0)
+                if isinstance(raw_v_stock, bool):
+                    return Response({'error': f"Stock for SKU '{v_sku}' must be an integer."}, status=status.HTTP_400_BAD_REQUEST)
+                try:
+                    v_stock_dec = Decimal(str(raw_v_stock))
+                    if not v_stock_dec.is_finite() or v_stock_dec != v_stock_dec.to_integral_value():
+                        raise ValueError
+                    v_stock = int(v_stock_dec)
+                except (InvalidOperation, TypeError, ValueError):
+                    return Response({'error': f"Stock for SKU '{v_sku}' must be a non-negative integer."}, status=status.HTTP_400_BAD_REQUEST)
+                if v_stock < 0:
+                    return Response({'error': f"Stock for SKU '{v_sku}' cannot be negative."}, status=status.HTTP_400_BAD_REQUEST)
+
+                v_is_active = bool(v.get('is_active', True))
+                validated_variants.append({
+                    'id': v_id,
+                    'sku': v_sku,
+                    'attributes': v_attrs,
+                    'price_adjustment': v_price_adj,
+                    'stock': v_stock,
+                    'is_active': v_is_active,
+                })
+
         with transaction.atomic():
             product = CatalogProduct.objects.select_for_update().get(pk=pk)
             previous_sku = product.sku
-            stock_entries = []
-            if parsed_stock is not None:
-                stock_entries = list(
-                    InventoryStockEntry.objects.select_for_update().filter(product=product).order_by('id')
-                )
-                if len(stock_entries) > 1:
-                    return Response(
-                        {
-                            'error': 'This product has multiple warehouse stock rows. Adjust a specific SKU instead.',
-                            'code': 'warehouse_stock_ambiguous',
-                        },
-                        status=status.HTTP_409_CONFLICT,
-                    )
-                if stock_entries and parsed_stock < stock_entries[0].reserved_quantity:
-                    return Response(
-                        {'error': 'Stock cannot be lower than the reserved quantity.', 'code': 'stock_reserved'},
-                        status=status.HTTP_409_CONFLICT,
-                    )
-                if not stock_entries and not product.variants.exists():
-                    return Response(
-                        {'error': 'A product variant is required before setting stock.', 'code': 'variant_required'},
-                        status=status.HTTP_409_CONFLICT,
-                    )
 
             if 'name' in data:
                 product.name = data['name'].strip()
@@ -431,39 +620,156 @@ class MerchantProductDetailAPIView(MerchantAPIView):
             product.updated_at = timezone.now()
             product.save()
 
-            primary_variant = product.variants.order_by('id').first()
-            if proposed_sku != previous_sku and primary_variant and primary_variant.sku == previous_sku:
-                primary_variant.sku = proposed_sku
-                primary_variant.updated_at = timezone.now()
-                primary_variant.save(update_fields=['sku', 'updated_at'])
+            if validated_variants is not None:
+                existing_variants = {v.id: v for v in product.variants.select_for_update().all()}
+                incoming_ids = {item['id'] for item in validated_variants if item['id'] is not None}
+                removed_ids = set(existing_variants.keys()) - incoming_ids
 
-            if parsed_stock is not None:
-                stock_entry = stock_entries[0] if stock_entries else None
-                variant = stock_entry.variant if stock_entry else product.variants.order_by('id').first()
-                old_stock = stock_entry.quantity if stock_entry else 0
-                delta = parsed_stock - old_stock
-                if stock_entry:
-                    stock_entry.quantity = parsed_stock
-                    stock_entry.updated_at = timezone.now()
-                    stock_entry.save(update_fields=['quantity', 'updated_at'])
-                else:
-                    InventoryStockEntry.objects.create(
-                        product=product,
-                        variant=variant,
-                        warehouse_id=1,
-                        quantity=parsed_stock,
-                        reserved_quantity=0,
-                        last_counted_at=timezone.now(),
-                        created_at=timezone.now(),
-                        updated_at=timezone.now(),
+                for rem_id in removed_ids:
+                    rem_variant = existing_variants[rem_id]
+                    if InventoryReservation.objects.filter(variant=rem_variant, status='active').exists():
+                        return Response({
+                            'error': f"Cannot remove variant '{rem_variant.sku}' because it has active inventory reservations.",
+                            'code': 'active_reservations',
+                            'variant_id': rem_variant.id,
+                        }, status=status.HTTP_409_CONFLICT)
+
+                for rem_id in removed_ids:
+                    rem_variant = existing_variants[rem_id]
+                    InventoryStockEntry.objects.filter(variant=rem_variant).delete()
+                    rem_variant.delete()
+
+                for item in validated_variants:
+                    if item['id'] and item['id'] in existing_variants:
+                        var_obj = existing_variants[item['id']]
+                        var_obj.sku = item['sku']
+                        var_obj.attributes = item['attributes']
+                        var_obj.price_adjustment = item['price_adjustment']
+                        var_obj.is_active = item['is_active']
+                        var_obj.updated_at = timezone.now()
+                        var_obj.save()
+
+                        stock_entries = list(InventoryStockEntry.objects.select_for_update().filter(variant=var_obj))
+                        if len(stock_entries) > 1:
+                            return Response({
+                                'error': f"Variant '{var_obj.sku}' has multiple warehouse stock rows. Adjust stock specifically.",
+                                'code': 'warehouse_stock_ambiguous',
+                            }, status=status.HTTP_409_CONFLICT)
+
+                        entry = stock_entries[0] if stock_entries else None
+                        if entry and item['stock'] < entry.reserved_quantity:
+                            return Response({
+                                'error': f"Stock for variant '{var_obj.sku}' cannot be lower than reserved quantity ({entry.reserved_quantity}).",
+                                'code': 'stock_reserved',
+                            }, status=status.HTTP_409_CONFLICT)
+
+                        current_qty = entry.quantity if entry else 0
+                        delta = item['stock'] - current_qty
+                        if entry:
+                            entry.quantity = item['stock']
+                            entry.updated_at = timezone.now()
+                            entry.save(update_fields=['quantity', 'updated_at'])
+                        else:
+                            InventoryStockEntry.objects.create(
+                                product=product,
+                                variant=var_obj,
+                                warehouse_id=1,
+                                quantity=item['stock'],
+                                reserved_quantity=0,
+                                last_counted_at=timezone.now(),
+                                created_at=timezone.now(),
+                                updated_at=timezone.now(),
+                            )
+                        if delta:
+                            InventoryStockMovement.objects.create(
+                                variant=var_obj,
+                                sku=var_obj.sku,
+                                delta=delta,
+                                reason='manual_adjustment',
+                            )
+                    else:
+                        var_obj = CatalogProductVariant.objects.create(
+                            product=product,
+                            sku=item['sku'],
+                            attributes=item['attributes'],
+                            price_adjustment=item['price_adjustment'],
+                            is_active=item['is_active'],
+                            created_at=timezone.now(),
+                            updated_at=timezone.now(),
+                        )
+                        InventoryStockEntry.objects.create(
+                            product=product,
+                            variant=var_obj,
+                            warehouse_id=1,
+                            quantity=item['stock'],
+                            reserved_quantity=0,
+                            last_counted_at=timezone.now(),
+                            created_at=timezone.now(),
+                            updated_at=timezone.now(),
+                        )
+                        if item['stock']:
+                            InventoryStockMovement.objects.create(
+                                variant=var_obj,
+                                sku=var_obj.sku,
+                                delta=item['stock'],
+                                reason='manual_adjustment',
+                            )
+            else:
+                primary_variant = product.variants.order_by('id').first()
+                if proposed_sku != previous_sku and primary_variant and primary_variant.sku == previous_sku:
+                    primary_variant.sku = proposed_sku
+                    primary_variant.updated_at = timezone.now()
+                    primary_variant.save(update_fields=['sku', 'updated_at'])
+
+                if parsed_stock is not None:
+                    stock_entries = list(
+                        InventoryStockEntry.objects.select_for_update().filter(product=product).order_by('id')
                     )
-                if delta:
-                    InventoryStockMovement.objects.create(
-                        variant=variant,
-                        sku=variant.sku,
-                        delta=delta,
-                        reason='manual_adjustment',
-                    )
+                    if len(stock_entries) > 1:
+                        return Response(
+                            {
+                                'error': 'This product has multiple warehouse stock rows. Adjust a specific SKU instead.',
+                                'code': 'warehouse_stock_ambiguous',
+                            },
+                            status=status.HTTP_409_CONFLICT,
+                        )
+                    if stock_entries and parsed_stock < stock_entries[0].reserved_quantity:
+                        return Response(
+                            {'error': 'Stock cannot be lower than the reserved quantity.', 'code': 'stock_reserved'},
+                            status=status.HTTP_409_CONFLICT,
+                        )
+                    if not stock_entries and not product.variants.exists():
+                        return Response(
+                            {'error': 'A product variant is required before setting stock.', 'code': 'variant_required'},
+                            status=status.HTTP_409_CONFLICT,
+                        )
+
+                    stock_entry = stock_entries[0] if stock_entries else None
+                    variant = stock_entry.variant if stock_entry else product.variants.order_by('id').first()
+                    old_stock = stock_entry.quantity if stock_entry else 0
+                    delta = parsed_stock - old_stock
+                    if stock_entry:
+                        stock_entry.quantity = parsed_stock
+                        stock_entry.updated_at = timezone.now()
+                        stock_entry.save(update_fields=['quantity', 'updated_at'])
+                    else:
+                        InventoryStockEntry.objects.create(
+                            product=product,
+                            variant=variant,
+                            warehouse_id=1,
+                            quantity=parsed_stock,
+                            reserved_quantity=0,
+                            last_counted_at=timezone.now(),
+                            created_at=timezone.now(),
+                            updated_at=timezone.now(),
+                        )
+                    if delta:
+                        InventoryStockMovement.objects.create(
+                            variant=variant,
+                            sku=variant.sku,
+                            delta=delta,
+                            reason='manual_adjustment',
+                        )
 
         product.refresh_from_db()
         stock_entries = list(product.stock_entries.all())
@@ -482,12 +788,33 @@ class MerchantProductDetailAPIView(MerchantAPIView):
             }
             for m in product.media.all().order_by('sort_order', 'id')
         ]
+        variants_data = []
+        for v in product.variants.all().order_by('id'):
+            v_stocks = [e for e in product.stock_entries.all() if e.variant_id == v.id]
+            v_total_stock = sum(e.quantity for e in v_stocks)
+            v_reserved_stock = sum(e.reserved_quantity for e in v_stocks)
+            v_available_stock = sum(max(0, e.quantity - e.reserved_quantity) for e in v_stocks)
+            effective_price = (product.base_price + v.price_adjustment).quantize(Decimal('0.01'))
+            variants_data.append({
+                'id': v.id,
+                'sku': v.sku,
+                'attributes': v.attributes or {},
+                'price_adjustment': str(v.price_adjustment),
+                'effective_price': float(effective_price),
+                'price_override': float(effective_price) if v.price_adjustment != Decimal('0.00') else None,
+                'stock': v_total_stock,
+                'reserved_stock': v_reserved_stock,
+                'available_stock': v_available_stock,
+                'is_active': v.is_active,
+            })
+
         return Response({
             'id': product.id,
             'name': product.name,
             'sku': product.sku,
             'image_url': product.image_url or '',
             'media': media_list,
+            'variants': variants_data,
             'category': product.category.name if product.category else None,
             'category_id': product.category.id if product.category else None,
             'price': int(product.base_price),
@@ -504,11 +831,228 @@ class MerchantProductDetailAPIView(MerchantAPIView):
     def delete(self, request, pk):
         try:
             product = CatalogProduct.objects.get(pk=pk)
+            if InventoryReservation.objects.filter(product=product, status='active').exists():
+                return Response({
+                    'error': 'Cannot delete product with active inventory reservations.',
+                    'code': 'active_reservations',
+                }, status=status.HTTP_409_CONFLICT)
             product.is_active = False
             product.save()
             return Response({'message': f'Product #{pk} deactivated successfully.'})
         except CatalogProduct.DoesNotExist:
             return Response({'error': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class MerchantProductsBulkAPIView(MerchantAPIView):
+    required_permission = "manage_catalog"
+
+    def post(self, request):
+        data = request.data or {}
+        action = data.get('action')
+        product_ids = data.get('product_ids')
+        params = data.get('params') or {}
+
+        if not action or not isinstance(action, str):
+            return Response({'error': 'Action is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        valid_actions = {'activate', 'deactivate', 'change_category', 'update_stock', 'delete'}
+        if action not in valid_actions:
+            return Response({'error': f"Invalid bulk action '{action}'."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not isinstance(product_ids, list) or not product_ids:
+            return Response({'error': 'product_ids must be a non-empty list of IDs.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(product_ids) > 100:
+            return Response({'error': 'Cannot process more than 100 products in a single bulk operation.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        clean_ids = []
+        for pid in product_ids:
+            try:
+                clean_ids.append(int(pid))
+            except (TypeError, ValueError):
+                return Response({'error': f"Invalid product ID '{pid}'."}, status=status.HTTP_400_BAD_REQUEST)
+
+        now = timezone.now()
+
+        with transaction.atomic():
+            products = list(CatalogProduct.objects.select_for_update().filter(id__in=clean_ids))
+            if not products:
+                return Response({'error': 'No matching products found.'}, status=status.HTTP_404_NOT_FOUND)
+
+            if action == 'activate':
+                for p in products:
+                    p.is_active = True
+                    p.updated_at = now
+                    p.save(update_fields=['is_active', 'updated_at'])
+                return Response({
+                    'success': True,
+                    'action': action,
+                    'affected_count': len(products),
+                    'affected_ids': [p.id for p in products],
+                    'message': f"Successfully activated {len(products)} products.",
+                })
+
+            elif action == 'deactivate':
+                for p in products:
+                    p.is_active = False
+                    p.updated_at = now
+                    p.save(update_fields=['is_active', 'updated_at'])
+                return Response({
+                    'success': True,
+                    'action': action,
+                    'affected_count': len(products),
+                    'affected_ids': [p.id for p in products],
+                    'message': f"Successfully deactivated {len(products)} products.",
+                })
+
+            elif action == 'change_category':
+                category_id = params.get('category_id')
+                category_name = params.get('category_name') or params.get('category')
+                target_category = None
+                if category_id:
+                    try:
+                        target_category = CatalogCategory.objects.get(id=int(category_id))
+                    except (CatalogCategory.DoesNotExist, ValueError):
+                        return Response({'error': 'Selected category does not exist.'}, status=status.HTTP_400_BAD_REQUEST)
+                elif category_name and isinstance(category_name, str) and category_name.strip():
+                    cat_name_clean = category_name.strip()
+                    target_category, _ = CatalogCategory.objects.get_or_create(
+                        name=cat_name_clean,
+                        defaults={
+                            'slug': cat_name_clean.lower().replace(' › ', '-').replace(' ', '-'),
+                            'description': cat_name_clean,
+                            'is_active': True,
+                            'created_at': now,
+                            'updated_at': now,
+                        }
+                    )
+                else:
+                    return Response({'error': 'Target category must be specified.'}, status=status.HTTP_400_BAD_REQUEST)
+
+                for p in products:
+                    p.category = target_category
+                    p.updated_at = now
+                    p.save(update_fields=['category', 'updated_at'])
+
+                return Response({
+                    'success': True,
+                    'action': action,
+                    'affected_count': len(products),
+                    'affected_ids': [p.id for p in products],
+                    'message': f"Successfully changed category to '{target_category.name}' for {len(products)} products.",
+                })
+
+            elif action == 'update_stock':
+                mode = params.get('mode')
+                if mode not in {'set', 'increase', 'decrease'}:
+                    return Response({'error': "Stock update mode must be 'set', 'increase', or 'decrease'."}, status=status.HTTP_400_BAD_REQUEST)
+
+                raw_qty = params.get('quantity')
+                if isinstance(raw_qty, bool):
+                    return Response({'error': 'Stock quantity must be an integer.'}, status=status.HTTP_400_BAD_REQUEST)
+                try:
+                    qty_dec = Decimal(str(raw_qty))
+                    if not qty_dec.is_finite() or qty_dec != qty_dec.to_integral_value():
+                        raise ValueError
+                    qty = int(qty_dec)
+                except (InvalidOperation, TypeError, ValueError):
+                    return Response({'error': 'Stock quantity must be a valid integer.'}, status=status.HTTP_400_BAD_REQUEST)
+
+                if mode == 'set' and qty < 0:
+                    return Response({'error': 'Stock quantity cannot be negative.'}, status=status.HTTP_400_BAD_REQUEST)
+                if mode in {'increase', 'decrease'} and qty <= 0:
+                    return Response({'error': f"Quantity to {mode} must be greater than zero."}, status=status.HTTP_400_BAD_REQUEST)
+
+                for p in products:
+                    stock_entries = list(InventoryStockEntry.objects.select_for_update().filter(product=p))
+                    if len(stock_entries) > 1:
+                        return Response({
+                            'error': f"Product '{p.name}' (#{p.id}) has multiple warehouse stock rows or variants. Bulk stock update cannot be applied ambiguously.",
+                            'code': 'warehouse_stock_ambiguous',
+                            'product_id': p.id,
+                        }, status=status.HTTP_409_CONFLICT)
+                    if not stock_entries and not p.variants.exists():
+                        return Response({
+                            'error': f"Product '{p.name}' (#{p.id}) has no variant configured for stock adjustment.",
+                            'code': 'variant_required',
+                            'product_id': p.id,
+                        }, status=status.HTTP_409_CONFLICT)
+
+                    entry = stock_entries[0] if stock_entries else None
+                    variant = entry.variant if entry else p.variants.order_by('id').first()
+                    current_qty = entry.quantity if entry else 0
+                    reserved_qty = entry.reserved_quantity if entry else 0
+
+                    if mode == 'set':
+                        new_qty = qty
+                    elif mode == 'increase':
+                        new_qty = current_qty + qty
+                    else:
+                        new_qty = current_qty - qty
+
+                    if new_qty < reserved_qty:
+                        return Response({
+                            'error': f"Stock for '{p.name}' (#{p.id}) cannot be reduced below reserved quantity ({reserved_qty}).",
+                            'code': 'stock_reserved',
+                            'product_id': p.id,
+                        }, status=status.HTTP_409_CONFLICT)
+
+                    delta = new_qty - current_qty
+                    if entry:
+                        entry.quantity = new_qty
+                        entry.updated_at = now
+                        entry.save(update_fields=['quantity', 'updated_at'])
+                    else:
+                        entry = InventoryStockEntry.objects.create(
+                            product=p,
+                            variant=variant,
+                            warehouse_id=1,
+                            quantity=new_qty,
+                            reserved_quantity=0,
+                            last_counted_at=now,
+                            created_at=now,
+                            updated_at=now,
+                        )
+
+                    if delta != 0:
+                        InventoryStockMovement.objects.create(
+                            variant=variant,
+                            sku=variant.sku,
+                            delta=delta,
+                            reason='bulk_adjustment',
+                        )
+
+                return Response({
+                    'success': True,
+                    'action': action,
+                    'affected_count': len(products),
+                    'affected_ids': [p.id for p in products],
+                    'message': f"Successfully updated stock for {len(products)} products.",
+                })
+
+            elif action == 'delete':
+                has_active_reservations = InventoryReservation.objects.filter(
+                    product__in=products,
+                    status='active'
+                ).exists()
+                if has_active_reservations:
+                    return Response({
+                        'error': 'Cannot delete products with active inventory reservations.',
+                        'code': 'active_reservations',
+                    }, status=status.HTTP_409_CONFLICT)
+
+                for p in products:
+                    p.is_active = False
+                    p.updated_at = now
+                    p.save(update_fields=['is_active', 'updated_at'])
+
+                return Response({
+                    'success': True,
+                    'action': action,
+                    'affected_count': len(products),
+                    'affected_ids': [p.id for p in products],
+                    'message': f"Successfully deactivated {len(products)} products.",
+                })
 
 
 class MerchantProductMediaAPIView(MerchantAPIView):
@@ -1812,10 +2356,10 @@ class MerchantOrderSettingsAPIView(MerchantAPIView):
 
             for item in methods_in:
                 m_str = str(item).strip().lower()
-                if m_str not in {'cod', 'gcash', 'maya', 'card'}:
+                if m_str not in {'cod', 'gcash', 'maya', 'card', 'qrph'}:
                     return Response({'error': f"Unknown payment method '{m_str}'."}, status=status.HTTP_400_BAD_REQUEST)
                 # Ensure merchants only enable online methods supported by the provider
-                if m_str in {'gcash', 'maya', 'card'}:
+                if m_str in {'gcash', 'maya', 'card', 'qrph'}:
                     if not pm_ready or m_str not in hosted_enabled:
                         return Response({
                             'error': f"Payment method '{m_str}' cannot be enabled because it is not configured or allowed by the payment provider."

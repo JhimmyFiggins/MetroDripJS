@@ -960,13 +960,22 @@ class AdminHealthAPIView(AdminAPIView):
         # Payment Provider Check (PayMongo)
         try:
             from orders.capabilities import provider_configured, enabled_hosted_methods
+            from orders.models import OrdersPayment, PaymentWebhookEvent
             pm_ready = provider_configured()
             pm_mode = getattr(settings, 'PAYMONGO_MODE', 'test')
             pm_methods = enabled_hosted_methods()
+            has_secret = bool(getattr(settings, 'PAYMONGO_SECRET_KEY', ''))
+            has_webhook = bool(getattr(settings, 'PAYMONGO_WEBHOOK_SECRET', ''))
+            webhook_verified = PaymentWebhookEvent.objects.filter(status='processed').exists()
+            transaction_verified = OrdersPayment.objects.filter(status='paid', provider='paymongo').exists()
         except Exception:
             pm_ready = False
             pm_mode = 'unknown'
             pm_methods = []
+            has_secret = False
+            has_webhook = False
+            webhook_verified = False
+            transaction_verified = False
 
         overall = 'healthy'
         if db_status != 'healthy':
@@ -992,6 +1001,10 @@ class AdminHealthAPIView(AdminAPIView):
                     'status': 'ready' if pm_ready else 'unconfigured',
                     'provider': 'paymongo',
                     'mode': pm_mode,
+                    'credentials_configured': has_secret,
+                    'webhook_configured': has_webhook,
+                    'webhook_verified': webhook_verified,
+                    'transaction_verified': transaction_verified,
                     'enabled_hosted_methods': pm_methods,
                 },
                 'environment': {

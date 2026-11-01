@@ -314,7 +314,7 @@ class PlatformSetting(models.Model):
         PlatformSetting._cached_instance = self
 
     def get_enabled_payment_methods(self):
-        allowed = ('cod', 'gcash', 'maya', 'card')
+        allowed = ('cod', 'gcash', 'maya', 'card', 'qrph')
         raw_methods = self.enabled_payment_methods if isinstance(self.enabled_payment_methods, list) else []
         methods = []
         for raw_method in raw_methods:

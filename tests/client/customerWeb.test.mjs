@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { api, ApiError, getAuthSnapshot, getAuthToken, isAuthCurrent, setAuthToken } from '../../web/customer/api.js';
@@ -71,6 +72,7 @@ test('capabilities fail closed when a hosted rail is not explicitly available', 
   assert.equal(options.find((option) => option.id === 'cod').enabled, true);
   assert.equal(options.find((option) => option.id === 'gcash').enabled, false);
   assert.equal(options.find((option) => option.id === 'card').enabled, false);
+  assert.equal(options.find((option) => option.id === 'qrph').enabled, false);
 });
 
 test('cart drafts keep only bounded variant lines and expire', () => {
@@ -293,4 +295,56 @@ test('body read failures become bounded API errors rather than raw stream errors
   mockApi(t, async () => ({ ok: true, status: 200, text: async () => { throw new TypeError('Broken stream'); } }));
   await assert.rejects(api('/profile/'), { name: 'ApiError', status: 0, message: /Network request failed/ });
   assert.equal(clear.mock.callCount(), 1);
+});
+
+test('customer care and FAQ experience provides truthful, verified store answers', () => {
+  const appContent = fs.readFileSync('web/customer/app.js', 'utf8');
+  const indexContent = fs.readFileSync('web/customer/index.html', 'utf8');
+  const mobileContent = fs.readFileSync('mobile/Account_Management/Account.jsx', 'utf8');
+
+  // Help & FAQ content checks
+  assert.match(appContent, /Help & FAQ/);
+  assert.match(appContent, /Need a hand\? Find answers about shopping, payments, deliveries, and your MetroDrip account\./);
+  assert.match(appContent, /support@metrodrip\.ph/);
+  assert.match(appContent, /Monday–Saturday, 9:00 AM–6:00 PM PHT/);
+  assert.match(appContent, /Metro Manila, Philippines/);
+
+  // Verified FAQ questions
+  const requiredQuestions = [
+    'How can I track my order?',
+    'What payment methods can I use?',
+    'When will my order arrive?',
+    'Can I cancel an order?',
+    'How do I update my account information?',
+    'How do I choose the right size?',
+    'What if I need a return or exchange?',
+  ];
+  for (const q of requiredQuestions) {
+    assert.ok(appContent.includes(q), `app.js missing question: ${q}`);
+    assert.ok(mobileContent.includes(q), `Account.jsx missing question: ${q}`);
+  }
+
+  // Developer-facing technical jargon is removed
+  assert.ok(!appContent.includes('Browser support requests are not connected to a working delivery endpoint'));
+  assert.ok(!appContent.includes('Password reset status'));
+  assert.ok(!appContent.includes('Matches a stored variant size. It does not invent sizes.'));
+  assert.ok(!appContent.includes('The customer token stays in memory for this tab'));
+  assert.ok(!appContent.includes('Saved addresses are a list. This page will not rewrite that shape.'));
+  assert.ok(!indexContent.includes('Product origin is shown only when the catalog provides it'));
+
+  // Orders & Tracking copy
+  assert.match(appContent, /Orders & Tracking/);
+  assert.match(appContent, /No orders yet/);
+  assert.match(appContent, /Your orders will appear here after checkout\. Explore the collection to find your next fit\./);
+  assert.match(appContent, /Shipping updates will appear here when they're available\./);
+  assert.match(appContent, /Payment confirmation is still being checked with the payment provider\./);
+
+  // My Account copy
+  assert.match(appContent, /Personal Information/);
+  assert.match(appContent, /Keep your contact details up to date for a smoother shopping experience\./);
+  assert.match(appContent, /Save Changes/);
+  assert.match(appContent, /Your account information has been updated\./);
+
+  // Footer brand copy
+  assert.match(indexContent, /Urban streetwear essentials and curated drops\.<br>Designed and delivered across the Philippines\./);
 });

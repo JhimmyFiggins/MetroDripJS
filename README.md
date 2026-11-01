@@ -41,9 +41,18 @@ Open the merchant or administrator login under `http://127.0.0.1:3000/Registrati
 
 ### Checkout and online payments
 
-Authenticated customers submit `POST /api/orders/checkout/` with `idempotency_key` in JSON, cart variant IDs/quantities, a Philippine shipping address, a delivery zone, and `payment_method` set to `cod`, `gcash`, `maya`, or `card`. Prices, shipping, currency, and stock are calculated by the server. Online methods create a PayMongo Hosted Checkout action; MetroDrip does not collect PAN, CVV, wallet credentials, PINs, or OTPs. A return page is informational only—payment becomes paid only after a verified provider result is applied by the signed webhook or bounded owned-order reconciliation.
+Authenticated customers submit `POST /api/orders/checkout/` with `idempotency_key` in JSON, cart variant IDs/quantities, a Philippine shipping address, a delivery zone, and `payment_method` set to `cod`, `gcash`, `maya`, `card`, or `qrph` (QR Ph). Prices, shipping, currency, and stock are calculated by the server. Online methods create a PayMongo Hosted Checkout action; MetroDrip does not collect PAN, CVV, wallet credentials, PINs, or OTPs. A return page is informational only—payment becomes paid only after a verified provider result is applied by the signed webhook or bounded owned-order reconciliation.
 
-PayMongo secrets are optional for COD-only local work and must stay in environment variables. Live provider capability, native browser/deep-link return, and real charges/refunds are **UNVERIFIED** and are not authorized by this repository setup.
+PayMongo secrets are optional for COD-only local work and must stay in environment variables (`PAYMONGO_ENABLED_METHODS=gcash,maya,card,qrph` with `PAYMONGO_MODE=test`). Live provider capability, native browser/deep-link return, and real charges/refunds are **UNVERIFIED** and are not authorized by this repository setup.
+
+#### QR Ph Hosted Checkout Integration (PayMongo v2)
+MetroDripJS integrates QR Ph via PayMongo Hosted Checkout v2 (`POST /v2/checkout_sessions`). When a customer selects QR Ph:
+- A checkout session is created with `payment_method_types: ["qrph"]`.
+- The customer is directed to PayMongo's secure hosted page (`checkout.paymongo.com`) displaying the dynamic QR Ph code.
+- Supported banks and e-wallets scan the standard QR Ph code to process payments in PHP (minimum amount: PHP 1.00).
+- **Expiration Behavior**: A single QR Ph scan window expiration does not expire the MetroDrip checkout session or order. Order reservations expire independently after 30 minutes, or upon explicit provider session expiration.
+- **Merchant Controls**: Merchants can enable or disable QR Ph under Merchant Console → Order Settings → Payment Methods (`enabled_payment_methods`).
+- **Security & Webhooks**: Orders transition to `paid` strictly upon cryptographically verified `checkout_session.payment.paid` webhooks with HMAC-SHA256 signatures or server reconciliation. Redirects, screenshots, or client claims are never accepted as proof of payment.
 
 ### Current verification commands
 

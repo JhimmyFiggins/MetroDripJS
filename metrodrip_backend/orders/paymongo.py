@@ -91,7 +91,7 @@ class PayMongoClient:
             raise PayMongoError('Payment provider is temporarily unavailable.') from error
 
     def create_checkout_session(self, order, payment, line_items, shipping_address, customer_email):
-        method_map = {'gcash': 'gcash', 'maya': 'paymaya', 'card': 'card'}
+        method_map = {'gcash': 'gcash', 'maya': 'paymaya', 'card': 'card', 'qrph': 'qrph'}
         provider_method = method_map[payment.method]
         success_url = getattr(
             settings,

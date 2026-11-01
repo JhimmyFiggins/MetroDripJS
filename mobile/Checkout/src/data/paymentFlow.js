@@ -1,4 +1,4 @@
-const ONLINE_METHODS = new Set(['gcash', 'maya', 'card']);
+const ONLINE_METHODS = new Set(['gcash', 'maya', 'card', 'qrph']);
 const PAYMONGO_CHECKOUT_ORIGIN = 'https://checkout.paymongo.com';
 const FAILED_STATUSES = new Set(['failed', 'cancelled', 'canceled', 'expired']);
 const SETUP_FAILED_STATUSES = new Set(['setup_failed', 'payment_setup_failed']);

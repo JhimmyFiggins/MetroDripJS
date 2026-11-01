@@ -19,6 +19,12 @@ from orders.paymongo import PayMongoError
 
 
 class CustomerCapabilityContractTests(TestCase):
+    @override_settings(
+        PAYMONGO_SECRET_KEY='',
+        PAYMONGO_WEBHOOK_SECRET='',
+        PAYMONGO_MODE='test',
+        PAYMONGO_ENABLED_METHODS='',
+    )
     def test_capabilities_fail_closed_without_provider_configuration(self):
         response = self.client.get('/api/payments/capabilities/')
 
@@ -28,6 +34,10 @@ class CustomerCapabilityContractTests(TestCase):
         self.assertTrue(methods['cod']['available'])
         self.assertFalse(methods['gcash']['available'])
         self.assertEqual(methods['gcash']['unavailable_code'], 'provider_not_configured')
+        self.assertFalse(methods['qrph']['available'])
+        self.assertEqual(methods['qrph']['unavailable_code'], 'provider_not_configured')
+        self.assertEqual(methods['qrph']['min_amount'], '1.00')
+        self.assertIsNone(methods['qrph']['max_amount'])
         self.assertEqual(payload['enabled_methods'], [])
         self.assertFalse(payload['provider_ready'])
 
@@ -46,6 +56,8 @@ class CustomerCapabilityContractTests(TestCase):
         self.assertFalse(methods['maya']['available'])
         self.assertFalse(methods['card']['available'])
         self.assertEqual(methods['card']['unavailable_code'], 'method_not_enabled')
+        self.assertFalse(methods['qrph']['available'])
+        self.assertEqual(methods['qrph']['unavailable_code'], 'method_not_enabled')
 
     @override_settings(
         PAYMONGO_SECRET_KEY='sk_test_example',
@@ -63,6 +75,25 @@ class CustomerCapabilityContractTests(TestCase):
         self.assertTrue(methods['gcash']['available'])
         self.assertFalse(methods['maya']['available'])
         self.assertIsNone(methods['gcash']['unavailable_code'])
+
+    @override_settings(
+        PAYMONGO_SECRET_KEY='sk_test_example',
+        PAYMONGO_WEBHOOK_SECRET='whsec_test_example',
+        PAYMONGO_MODE='test',
+        PAYMONGO_ENABLED_METHODS='qrph',
+    )
+    def test_allowlist_and_merchant_opt_in_enables_qrph(self):
+        PlatformSetting.objects.update_or_create(
+            id=1,
+            defaults={'enabled_payment_methods': ['cod', 'qrph']},
+        )
+        response = self.client.get('/api/payments/capabilities/')
+        payload = response.json()
+        methods = {item['id']: item for item in payload['methods']}
+        self.assertTrue(methods['qrph']['available'])
+        self.assertEqual(methods['qrph']['type'], 'hosted')
+        self.assertEqual(methods['qrph']['name'], 'QR Ph')
+        self.assertIn('qrph', payload['enabled_methods'])
 
     @override_settings(
         PAYMONGO_SECRET_KEY='sk_test_example',

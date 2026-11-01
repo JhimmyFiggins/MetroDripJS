@@ -72,7 +72,7 @@ test('the cart row id is never used as a variant id', () => {
 });
 
 test('payment_method carries each canonical backend value', () => {
-  for (const method of ['cod', 'gcash', 'maya', 'card']) {
+  for (const method of ['cod', 'gcash', 'maya', 'card', 'qrph']) {
     assert.equal(buildOrderPayload(draft, method).payment_method, method);
   }
 });
@@ -80,6 +80,7 @@ test('payment_method carries each canonical backend value', () => {
 test('unknown payment methods fail before the request is spent', () => {
   assert.throws(() => buildOrderPayload(draft, 'bank-transfer'), /supported payment method/i);
   assert.equal(normalizePaymentMethod(' GCASH '), 'gcash');
+  assert.equal(normalizePaymentMethod(' QRPH '), 'qrph');
 });
 
 test('delivery_zone comes from the selected zone', () => {

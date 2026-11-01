@@ -309,6 +309,12 @@ class SettingsMigrationTestSuite(TestCase):
         self.assertIn('latency_ms', health['database'])
         self.assertIn('transactional_email', health)
         self.assertIn('payment_provider', health)
+        pp = health['payment_provider']
+        self.assertIn('credentials_configured', pp)
+        self.assertIn('webhook_configured', pp)
+        self.assertIn('webhook_verified', pp)
+        self.assertIn('transaction_verified', pp)
+        self.assertIn('enabled_hosted_methods', pp)
         self.assertIn('environment', health)
 
     # =========================================================================

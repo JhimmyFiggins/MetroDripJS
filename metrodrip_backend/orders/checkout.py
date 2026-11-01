@@ -55,7 +55,7 @@ from .notifications import dispatch_order_confirmation_if_enabled
 from .paymongo import PayMongoClient, PayMongoError, pesos_to_centavos, verified_paid_payment
 
 
-ONLINE_METHODS = {'gcash', 'maya', 'card'}
+ONLINE_METHODS = {'gcash', 'maya', 'card', 'qrph'}
 MERCHANT_CANCELLABLE_COD_ORDER_STATUSES = {'placed', 'processing'}
 MERCHANT_CANCELLABLE_ONLINE_ORDER_STATUSES = {'pending_payment', 'payment_setup_failed'}
 MERCHANT_CANCELLABLE_ONLINE_PAYMENT_STATUSES = {'awaiting_payment', 'setup_failed'}
@@ -68,6 +68,10 @@ PAYMENT_METHOD_ALIASES = {
     'paymaya': 'maya',
     'card': 'card',
     'cards': 'card',
+    'qrph': 'qrph',
+    'qr_ph': 'qrph',
+    'qr-ph': 'qrph',
+    'qr': 'qrph',
 }
 ZONE_ALIASES = {
     'metro manila (ncr)': 'NCR (Metro Manila)',

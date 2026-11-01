@@ -69,6 +69,7 @@ test('payment and fulfillment badges do not collapse distinct states', () => {
 test('customers can cancel unpaid online checkouts and unfulfilled COD orders', () => {
   assert.equal(canCancelOnlineOrder({ id: 1, payment_method: 'gcash', status: 'pending_payment', payment_status: 'awaiting_payment' }), true);
   assert.equal(canCancelOnlineOrder({ id: 2, payment_method: 'card', status: 'payment_setup_failed', payment_status: 'setup_failed' }), true);
+  assert.equal(canCancelOnlineOrder({ id: 7, payment_method: 'qrph', status: 'pending_payment', payment_status: 'awaiting_payment' }), true);
   assert.equal(canCancelOnlineOrder({ id: 3, payment_method: 'cod', status: 'placed', payment_status: 'pending_collection' }), true);
   assert.equal(canCancelOnlineOrder({ id: 6, payment_method: 'cod', status: 'shipped', payment_status: 'pending_collection' }), false);
   assert.equal(canCancelOnlineOrder({ id: 4, payment_method: 'maya', status: 'paid', payment_status: 'paid' }), false);

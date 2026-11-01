@@ -363,12 +363,12 @@ async function refreshUnread() {
 
 function signInPanel(nextPath) {
   return page(
-    'Sign in required',
-    'The customer token stays in memory for this tab and is not written to browser storage.',
+    'Sign In Required',
+    'Sign in to access your orders, saved items, and account information.',
     el('a', {
       class: 'btn btn-primary',
       href: `${customerHref('/sign-in')}?next=${encodeURIComponent(nextPath)}`,
-    }, 'Sign in'),
+    }, 'Sign In'),
   );
 }
 
@@ -665,7 +665,7 @@ async function renderShop() {
       ]),
     ]),
     field('Search keyword', 'search', params.get('search') || ''),
-    field('Size attribute', 'size', params.get('size') || '', 'Matches a stored variant size. It does not invent sizes.'),
+    field('Size', 'size', params.get('size') || '', 'Filter by size (e.g. S, M, L, XL).'),
     field('Fit attribute', 'fit', params.get('fit') || '', 'Matches a stored fit attribute.'),
     field('Color', 'color', params.get('color') || '', 'Matches a stored color name.'),
     el('button', { class: 'btn btn-primary btn-full', type: 'submit' }, 'Apply Filters'),
@@ -1120,7 +1120,7 @@ async function renderCheckout(_route, scope) {
   const saved = profile?.addresses && typeof profile.addresses === 'object' && !Array.isArray(profile.addresses) ? profile.addresses : {};
 
   const form = el('form', { class: 'checkout-form-card', onsubmit: (event) => submitCheckout(event, form, methods, scope) }, [
-    capabilitiesPayload?.error ? notice('error', 'Payment options could not be loaded. Online methods stay off.') : null,
+    capabilitiesPayload?.error ? notice('error', 'Online payment options could not be loaded. Please select Cash on Delivery or refresh to retry.') : null,
     zones.length ? null : notice('error', 'No active delivery zone was returned, so checkout cannot quote shipping.'),
     el('h2', { class: 'checkout-section-title' }, '1. Shipping details'),
     field('Full name *', 'name', saved.name || profile?.name || ''),
@@ -1235,7 +1235,7 @@ async function submitCheckout(event, form, methods, scope) {
         navigate(customerHref(`/orders/${order.id}`));
         return;
       }
-      announce('Opening hosted checkout. Your cart stays until the server confirms payment.');
+      announce('Redirecting to secure checkout…');
       location.assign(action.url);
       return;
     }
@@ -1270,18 +1270,34 @@ async function renderOrders(_route, scope) {
   if (!state.session) return signInPanel(customerHref('/orders'));
   const orders = await request('/orders/', {}, scope);
   const list = Array.isArray(orders) ? orders : [];
-  if (!list.length) return page('Orders', 'No owned orders were returned. This list shows the latest records that have a payment.', el('a', { class: 'btn btn-primary', href: customerHref('/shop') }, 'Shop collection'));
-  return page('Orders', 'Only your orders are returned. Complete payment status and tracking come from the server.', el('div', { class: 'summary-card' }, [
-    el('table', { style: 'width:100%; border-collapse:collapse; text-align:left;' }, [
-      el('thead', {}, el('tr', { style: 'border-bottom:1px solid var(--border); font-family:var(--font-mono); font-size:12px;' }, ['ORDER', 'STATUS', 'PAYMENT', 'TOTAL'].map((label) => el('th', { style: 'padding:10px 8px;' }, label)))),
-      el('tbody', {}, list.map((order) => el('tr', { style: 'border-bottom:1px solid var(--border);' }, [
-        el('td', { style: 'padding:14px 8px; font-weight:600;' }, el('a', { href: customerHref(`/orders/${order.id}`) }, order.order_no || `Order #${order.id}`)),
-        el('td', { style: 'padding:14px 8px;' }, order.status || 'Unknown'),
-        el('td', { style: 'padding:14px 8px;' }, order.payment_status || 'Unknown'),
-        el('td', { class: 'mono', style: 'padding:14px 8px;' }, money(order.total)),
-      ]))),
+  if (!list.length) {
+    return el('section', { class: 'page orders-page' }, [
+      breadcrumbs({ label: 'Home', href: customerHref('/') }, { label: 'Orders & Tracking' }),
+      el('h1', { tabindex: '-1' }, 'Orders & Tracking'),
+      el('p', { class: 'lede' }, 'View your orders, check payment progress, and follow available delivery updates.'),
+      el('div', { class: 'summary-card', style: 'text-align: center; padding: 48px 24px;' }, [
+        el('h2', { style: 'font-size: 24px; margin: 0 0 8px;' }, 'No orders yet'),
+        el('p', { class: 'muted', style: 'margin: 0 0 24px;' }, 'Your orders will appear here after checkout. Explore the collection to find your next fit.'),
+        el('a', { class: 'btn btn-primary', href: customerHref('/shop') }, 'Shop Now'),
+      ]),
+    ]);
+  }
+  return el('section', { class: 'page orders-page' }, [
+    breadcrumbs({ label: 'Home', href: customerHref('/') }, { label: 'Orders & Tracking' }),
+    el('h1', { tabindex: '-1' }, 'Orders & Tracking'),
+    el('p', { class: 'lede' }, 'View your orders, check payment progress, and follow available delivery updates.'),
+    el('div', { class: 'summary-card' }, [
+      el('table', { style: 'width:100%; border-collapse:collapse; text-align:left;' }, [
+        el('thead', {}, el('tr', { style: 'border-bottom:1px solid var(--border); font-family:var(--font-mono); font-size:12px;' }, ['ORDER NUMBER', 'ORDER STATUS', 'PAYMENT STATUS', 'TOTAL'].map((label) => el('th', { style: 'padding:10px 8px;' }, label)))),
+        el('tbody', {}, list.map((order) => el('tr', { style: 'border-bottom:1px solid var(--border);' }, [
+          el('td', { style: 'padding:14px 8px; font-weight:600;' }, el('a', { href: customerHref(`/orders/${order.id}`) }, order.order_no || `Order #${order.id}`)),
+          el('td', { style: 'padding:14px 8px;' }, order.status || 'Unknown'),
+          el('td', { style: 'padding:14px 8px;' }, order.payment_status || 'Unknown'),
+          el('td', { class: 'mono', style: 'padding:14px 8px;' }, money(order.total)),
+        ]))),
+      ]),
     ]),
-  ]));
+  ]);
 }
 
 async function renderOrder(route, scope) {
@@ -1311,47 +1327,49 @@ async function renderOrder(route, scope) {
     : ['pending_payment', 'payment_setup_failed'].includes(order.status) && ['awaiting_payment', 'setup_failed'].includes(order.payment_status);
 
   return el('section', { class: 'page order-details-page' }, [
-    breadcrumbs({ label: 'Orders', href: customerHref('/orders') }, { label: order.order_no || `Order #${order.id}` }),
-    el('h1', {}, order.order_no || `Order #${order.id}`),
-    el('p', { class: 'lede' }, 'Payment state is read directly from the server. This page does not treat a browser redirect as paid proof.'),
+    breadcrumbs({ label: 'Orders & Tracking', href: customerHref('/orders') }, { label: order.order_no || `Order #${order.id}` }),
+    el('h1', { tabindex: '-1' }, order.order_no || `Order #${order.id}`),
+    el('p', { class: 'lede' }, 'Review your order details, payment progress, and the latest available delivery updates.'),
     el('div', { class: 'summary-card', style: 'margin-bottom:24px;' }, [
-      el('p', {}, `Order status: ${order.status || 'Unknown'}`),
-      el('p', {}, `Payment: ${order.payment_status || 'Unknown'} · ${order.payment_method || 'Unknown method'}`),
-      el('p', { class: 'pdp-price', style: 'font-size:24px;' }, `Server total ${money(order.total)} including shipping ${money(order.shipping)}`),
-      order.reconciliation_status === 'deferred' ? notice('error', 'Payment provider lookup is delayed. The status above is the last confirmed server state.') : null,
-      canContinue ? el('a', { class: 'btn btn-primary', href: action.url }, 'Continue hosted checkout') : null,
+      el('p', {}, `Order Status: ${order.status || 'Unknown'}`),
+      el('p', {}, `Payment Status: ${order.payment_status || 'Unknown'}`),
+      el('p', {}, `Payment Method: ${order.payment_method ? order.payment_method.toUpperCase() : 'Unknown'}`),
+      el('p', { class: 'pdp-price', style: 'font-size:24px;' }, `Order Total: ${money(order.total)}`),
+      el('p', { class: 'muted', style: 'font-size:14px; margin-top:-8px;' }, `Shipping Fee: ${money(order.shipping)}`),
+      order.reconciliation_status === 'deferred' ? notice('info', 'Payment confirmation is still being checked with the payment provider. Please do not attempt a duplicate payment while this check is in progress.') : null,
+      canContinue ? el('a', { class: 'btn btn-primary', href: action.url }, 'Continue to Checkout') : null,
       action?.url && !canContinue ? notice('error', 'A payment link was present but rejected because it is not PayMongo hosted checkout.') : null,
-      el('div', { style: 'display:flex; gap:10px; margin-top:12px;' }, [
-        el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => render() }, 'Refresh status'),
-        canCancel ? el('button', { class: 'btn btn-danger', type: 'button', onclick: (event) => cancelOrder(route.id, scope, event.currentTarget) }, order.payment_method === 'cod' ? 'Cancel order' : 'Cancel unpaid checkout') : null,
+      el('div', { style: 'display:flex; gap:10px; margin-top:16px;' }, [
+        el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => render() }, 'Refresh Status'),
+        canCancel ? el('button', { class: 'btn btn-danger', type: 'button', onclick: (event) => cancelOrder(route.id, scope, event.currentTarget) }, 'Cancel Order') : null,
       ]),
     ]),
-    el('h2', { class: 'section-title', style: 'font-size:24px; margin-bottom:12px;' }, 'Items in order'),
+    el('h2', { class: 'section-title', style: 'font-size:24px; margin-bottom:12px;' }, 'Items Ordered'),
     el('div', { class: 'summary-card', style: 'margin-bottom:24px;' }, (order.items || []).map((item) => el('div', { style: 'display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--border); font-size:14px;' }, [
       el('span', {}, `${item.product_name || 'Item'} · ${item.variant_desc || item.sku || 'Variant'} (×${item.quantity})`),
       el('span', { class: 'mono' }, money(item.total_price)),
     ]))),
-    trackingError ? notice('error', `Tracking could not be loaded. ${trackingError.message}`) : trackingBlock(tracking),
+    trackingError ? notice('error', "We couldn't load your latest delivery updates. Please try again.") : trackingBlock(tracking),
   ]);
 }
 
 function trackingBlock(tracking) {
-  if (!tracking) return el('p', { class: 'muted' }, 'No tracking payload was returned.');
+  if (!tracking) return el('p', { class: 'muted' }, "Shipping updates will appear here when they're available.");
   const events = Array.isArray(tracking.events) ? tracking.events : [];
   return el('section', { class: 'summary-card' }, [
-    el('h2', { class: 'summary-title' }, 'Shipment tracking'),
-    tracking.shipment ? el('p', {}, `Shipment status: ${tracking.shipment.status || 'Unknown'}`) : el('p', { class: 'muted' }, 'No courier shipment is attached yet.'),
-    el('ol', { style: 'padding-left:20px;' }, events.map((event) => el('li', { style: 'margin-bottom:6px;' }, `${event.title || event.key || 'Update'} · ${event.state || 'unknown'}`))),
+    el('h2', { class: 'summary-title' }, 'Delivery Updates'),
+    tracking.shipment ? el('p', {}, `Shipment Status: ${tracking.shipment.status || 'Processing'}`) : el('p', { class: 'muted' }, "Shipping updates will appear here when they're available."),
+    events.length ? el('ol', { style: 'padding-left:20px;' }, events.map((event) => el('li', { style: 'margin-bottom:6px;' }, `${event.title || event.key || 'Update'} · ${event.state || 'Confirmed'}`))) : null,
   ]);
 }
 
 async function cancelOrder(id, scope, button) {
   return runAction(scope, button, async () => {
-    const confirmed = await openDialog('Cancel this order?', 'Inventory changes only after the server confirms cancellation.');
+    const confirmed = await openDialog('Cancel this order?', 'Are you sure you want to cancel this order? Once cancelled, this action cannot be undone.');
     if (!confirmed || !isCurrent(scope)) return;
     await request(`/orders/${id}/cancel/`, { method: 'POST', body: {} }, scope);
     if (!isCurrent(scope)) return;
-    announce('Cancellation request confirmed by the server.');
+    announce('Your order has been cancelled.');
     render();
   });
 }
@@ -1360,9 +1378,6 @@ async function renderAccount(_route, scope) {
   if (!state.session) return signInPanel(customerHref('/account'));
   const profile = await request('/profile/', {}, scope);
   const addresses = profile.addresses;
-  const addressNote = Array.isArray(addresses)
-    ? 'Saved addresses are a list. This page will not rewrite that shape.'
-    : 'Profile address text uses the same addresses.address field as the mobile app.';
   const form = el('form', { class: 'summary-card', onsubmit: async (event) => {
     event.preventDefault();
     return runAction(scope, form.querySelector('button[type="submit"]'), async () => {
@@ -1376,25 +1391,30 @@ async function renderAccount(_route, scope) {
         const current = addresses && typeof addresses === 'object' ? addresses : {};
         body.addresses = { ...current, address: String(data.get('address') || '') };
       }
-      await request('/profile/', { method: 'PUT', body }, scope);
-      if (!isCurrent(scope)) return;
-      announce('Profile saved.');
-      render();
+      try {
+        await request('/profile/', { method: 'PUT', body }, scope);
+        if (!isCurrent(scope)) return;
+        announce('Your account information has been updated.');
+        render();
+      } catch (err) {
+        if (!isCurrent(scope)) return;
+        announce("We couldn't save your changes. Please try again.");
+      }
     });
   } }, [
-    el('h3', { class: 'summary-title' }, 'Customer Profile'),
-    field('Name', 'name', profile.name || ''),
-    field('Email', 'email', profile.email || ''),
-    field('Phone', 'phone', profile.phone || ''),
-    Array.isArray(addresses) ? null : field('Address note', 'address', addresses?.address || ''),
-    el('p', { class: 'muted', style: 'font-size:13px;' }, addressNote),
-    el('button', { class: 'btn btn-primary', type: 'submit' }, 'Save profile'),
+    el('h2', { class: 'summary-title', style: 'font-size:20px; margin-bottom:4px;' }, 'Personal Information'),
+    el('p', { class: 'muted', style: 'font-size:13px; margin:0 0 16px;' }, 'Keep your contact details up to date for a smoother shopping experience.'),
+    field('Full Name', 'name', profile.name || ''),
+    field('Email Address', 'email', profile.email || ''),
+    field('Phone Number', 'phone', profile.phone || ''),
+    Array.isArray(addresses) ? null : field('Address', 'address', addresses?.address || ''),
+    el('button', { class: 'btn btn-primary', type: 'submit', style: 'margin-top:8px;' }, 'Save Changes'),
   ]);
 
   return el('section', { class: 'page account-page' }, [
-    breadcrumbs({ label: 'Home', href: customerHref('/') }, { label: 'Account' }),
-    el('h1', {}, 'My Account'),
-    el('p', { class: 'lede' }, profile.email || ''),
+    breadcrumbs({ label: 'Home', href: customerHref('/') }, { label: 'My Account' }),
+    el('h1', { tabindex: '-1' }, 'My Account'),
+    el('p', { class: 'lede' }, 'Manage your profile, review your orders, and access your saved items.'),
     form,
     el('div', { style: 'display:flex; gap:12px; margin-top:20px; flex-wrap:wrap;' }, [
       el('a', { class: 'btn btn-secondary', href: customerHref('/orders') }, 'My Orders'),
@@ -1425,8 +1445,10 @@ async function renderWishlist(_route, scope) {
   if (!state.session) return signInPanel(customerHref('/wishlist'));
   const items = await request('/wishlist/', {}, scope);
   const list = Array.isArray(items) ? items : [];
-  if (!list.length) return page('Wishlist is empty', 'Saved products appear after you add one from a product page.', el('a', { class: 'btn btn-primary', href: customerHref('/shop') }, 'Explore streetwear'));
-  return page('Wishlist', 'This list is your account’s saved products.', el('div', { class: 'grid' }, list.map((item) => el('article', { class: 'product-card' }, [
+  if (!list.length) {
+    return page('Wishlist', 'No saved items yet. Explore our collection to find your next fit.', el('a', { class: 'btn btn-primary', href: customerHref('/shop') }, 'Shop Collection'));
+  }
+  return page('Wishlist', 'Review your saved products.', el('div', { class: 'grid' }, list.map((item) => el('article', { class: 'product-card' }, [
     el('div', { class: 'product-card-media-wrap' }, [
       usableImageUrl(item.image_url)
         ? el('img', {
@@ -1458,11 +1480,13 @@ async function renderNotifications(_route, scope) {
   try {
     data = await request('/notifications/', {}, scope);
   } catch (error) {
-    return page('Notifications unavailable', error.message, el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => render() }, 'Retry'));
+    return page('Notifications', 'We could not load your notifications right now. Please try again.', el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => render() }, 'Retry'));
   }
   const results = Array.isArray(data?.results) ? data.results : [];
-  if (!results.length) return page('No notifications', 'The server returned an empty owned list, not a hidden error.');
-  return page('Notifications', `${data.unread_count || 0} unread.`, el('button', { class: 'btn btn-secondary', style: 'margin-bottom:16px;', type: 'button', onclick: (event) => runAction(scope, event.currentTarget, async () => {
+  if (!results.length) {
+    return page('Notifications', 'No notifications yet. Updates about your orders and account will appear here.', el('a', { class: 'btn btn-primary', href: customerHref('/shop') }, 'Shop Collection'));
+  }
+  return page('Notifications', `${data.unread_count || 0} unread notifications.`, el('button', { class: 'btn btn-secondary', style: 'margin-bottom:16px;', type: 'button', onclick: (event) => runAction(scope, event.currentTarget, async () => {
     await request('/notifications/read-all/', { method: 'POST', body: {} }, scope);
     if (!isCurrent(scope)) return;
     announce('All visible notifications marked read.');
@@ -1483,11 +1507,84 @@ async function renderNotifications(_route, scope) {
 }
 
 async function renderReviews() {
-  return page('My reviews', 'The current API can show and accept reviews on a product page. It does not provide an account-wide review list, so this page does not invent one.', el('a', { class: 'btn btn-primary', href: customerHref('/shop') }, 'Browse products'));
+  return page('My Reviews', 'Reviews are currently submitted and displayed on each product page. An account-wide review history is not available yet.', el('a', { class: 'btn btn-primary', href: customerHref('/shop') }, 'Browse Products'));
 }
 
+const FAQ_ITEMS = [
+  {
+    q: 'How can I track my order?',
+    a: 'Sign in to your account, open Orders & Tracking, and select an order to view its latest available updates.',
+  },
+  {
+    q: 'What payment methods can I use?',
+    a: 'Available payment methods are shown at checkout. Options may vary depending on payment service availability.',
+  },
+  {
+    q: 'When will my order arrive?',
+    a: 'Delivery times depend on your location and the shipping service. You can check your order page for available shipping updates.',
+  },
+  {
+    q: 'Can I cancel an order?',
+    a: 'Some orders can be cancelled before they reach certain fulfillment or payment stages. Open your order details to check whether cancellation is available.',
+  },
+  {
+    q: 'How do I update my account information?',
+    a: 'Sign in, go to My Account, update the available profile fields, and select Save Changes.',
+  },
+  {
+    q: 'How do I choose the right size?',
+    a: 'Check the sizing and variation details on the product page before completing your order.',
+  },
+  {
+    q: 'What if I need a return or exchange?',
+    a: 'Contact MetroDrip through its confirmed support channel before returning an item so the team can review your request and provide instructions.',
+  },
+];
+
 async function renderSupport() {
-  return page('Support', 'Browser support requests are not connected to a working delivery endpoint. Sending this page does not create a ticket or send an email.', el('p', {}, 'Use a channel your store has actually published outside this form. Password reset delivery is also not configured.'), el('a', { class: 'btn btn-secondary', href: customerHref('/forgot-password') }, 'Password reset status'));
+  const faqNodes = FAQ_ITEMS.map((item) => el('details', { class: 'faq-item' }, [
+    el('summary', { class: 'faq-question' }, [
+      el('span', {}, item.q),
+      el('span', { class: 'faq-icon', 'aria-hidden': 'true' }, '+'),
+    ]),
+    el('div', { class: 'faq-answer' }, [
+      el('p', {}, item.a),
+    ]),
+  ]));
+
+  const contactSection = el('section', { class: 'contact-card', 'aria-labelledby': 'support-contacts-title' }, [
+    el('h2', { id: 'support-contacts-title', class: 'summary-title', style: 'font-size:20px; margin:0 0 4px;' }, 'Contact Support'),
+    el('p', { class: 'muted', style: 'font-size:14px; margin:0 0 16px;' }, 'Have questions about your order or need assistance? Reach out to our team directly.'),
+    el('div', { class: 'contact-grid' }, [
+      el('div', { class: 'contact-item' }, [
+        el('span', { class: 'contact-item-label' }, 'Email'),
+        el('span', { class: 'contact-item-value' }, el('a', { href: 'mailto:support@metrodrip.ph' }, 'support@metrodrip.ph')),
+      ]),
+      el('div', { class: 'contact-item' }, [
+        el('span', { class: 'contact-item-label' }, 'Support Hours'),
+        el('span', { class: 'contact-item-value' }, 'Monday–Saturday, 9:00 AM–6:00 PM PHT'),
+      ]),
+      el('div', { class: 'contact-item' }, [
+        el('span', { class: 'contact-item-label' }, 'Location'),
+        el('span', { class: 'contact-item-value' }, 'Metro Manila, Philippines'),
+      ]),
+    ]),
+  ]);
+
+  const navSection = el('div', { style: 'display:flex; gap:12px; margin-top:24px; flex-wrap:wrap;' }, [
+    el('a', { class: 'btn btn-primary', href: customerHref('/shop') }, 'Shop Collection'),
+    el('a', { class: 'btn btn-secondary', href: customerHref('/orders') }, 'Orders & Tracking'),
+    el('a', { class: 'btn btn-secondary', href: customerHref('/account') }, 'My Account'),
+  ]);
+
+  return el('section', { class: 'page support-page' }, [
+    breadcrumbs({ label: 'Home', href: customerHref('/') }, { label: 'Help & FAQ' }),
+    el('h1', { tabindex: '-1' }, 'Help & FAQ'),
+    el('p', { class: 'lede' }, 'Need a hand? Find answers about shopping, payments, deliveries, and your MetroDrip account.'),
+    el('div', { class: 'faq-list', role: 'region', 'aria-label': 'Frequently Asked Questions' }, faqNodes),
+    contactSection,
+    navSection,
+  ]);
 }
 
 async function renderTeam() {
@@ -1909,22 +2006,21 @@ async function renderForgot(_route, scope) {
         form.querySelector('button[type="submit"]')?.setAttribute('disabled', 'true');
       } catch (err) {
         if (!isCurrent(scope)) return;
-        const msg = err?.message || 'Password recovery is temporarily unavailable.';
         statusContainer.replaceChildren(
           el('div', { class: 'auth-feedback is-error', style: 'padding: 16px; background: rgba(255,51,102,0.08); border: 1px solid var(--color-danger, #FF3366); border-radius: 6px; margin-bottom: 16px;' }, [
-            el('p', { style: 'font-weight: 600; margin: 0 0 6px; color: #FFF;' }, 'Delivery Unavailable'),
-            el('p', { class: 'muted', style: 'font-size: 13px; margin: 0;' }, msg),
+            el('p', { style: 'font-weight: 600; margin: 0 0 6px; color: #FFF;' }, 'Password Recovery Unavailable'),
+            el('p', { class: 'muted', style: 'font-size: 13px; margin: 0;' }, 'Password recovery is temporarily unavailable. Please try again later or contact support@metrodrip.ph for assistance.'),
           ])
         );
       }
     });
   } }, [
-    el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Forgot password'),
+    el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Forgot Password'),
     el('p', { class: 'muted', style: 'margin:0 0 16px;' }, 'Enter your account email to receive a secure, time-limited password recovery link.'),
     statusContainer,
-    field('Account Email *', 'email', ''),
-    el('button', { class: 'btn btn-primary btn-full', type: 'submit' }, 'Send reset link'),
-    el('a', { class: 'btn btn-secondary btn-full', style: 'text-align:center;', href: customerHref('/sign-in') }, 'Return to sign in'),
+    field('Email Address *', 'email', ''),
+    el('button', { class: 'btn btn-primary btn-full', type: 'submit' }, 'Send Reset Link'),
+    el('a', { class: 'btn btn-secondary btn-full', style: 'text-align:center;', href: customerHref('/sign-in') }, 'Return to Sign In'),
   ]);
 
   return el('section', { class: 'page auth-page' }, [
@@ -1947,22 +2043,22 @@ async function renderResetPassword(scope) {
 
   if (!token) {
     container.replaceChildren(
-      el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Reset password'),
+      el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Reset Password'),
       el('div', { class: 'auth-feedback is-error', style: 'padding: 16px; background: rgba(255,51,102,0.08); border: 1px solid var(--color-danger, #FF3366); border-radius: 6px; margin: 16px 0;' }, [
         el('p', { style: 'font-weight: 600; margin: 0 0 6px; color: #FFF;' }, 'Missing Security Token'),
-        el('p', { class: 'muted', style: 'font-size: 13px; margin: 0;' }, 'Password reset token is missing. Please use the complete recovery link from your email.'),
+        el('p', { class: 'muted', style: 'font-size: 13px; margin: 0;' }, 'The password reset token is missing or incomplete. Please use the complete recovery link from your email or request a new one.'),
       ]),
-      el('a', { class: 'btn btn-secondary btn-full', style: 'text-align:center;', href: customerHref('/forgot-password') }, 'Request a new reset link')
+      el('a', { class: 'btn btn-secondary btn-full', style: 'text-align:center;', href: customerHref('/forgot-password') }, 'Request a New Reset Link')
     );
     return el('section', { class: 'page auth-page' }, [
-      breadcrumbs({ label: 'Home', href: customerHref('/') }, { label: 'Reset password' }),
+      breadcrumbs({ label: 'Home', href: customerHref('/') }, { label: 'Reset Password' }),
       el('div', { class: 'auth-workspace' }, [brandPanel, container]),
     ]);
   }
 
   container.replaceChildren(
-    el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Reset password'),
-    el('p', { class: 'muted', style: 'margin:16px 0;' }, 'Verifying security token…')
+    el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Reset Password'),
+    el('p', { class: 'muted', style: 'margin:16px 0;' }, 'Verifying security link…')
   );
 
   (async () => {
@@ -1979,15 +2075,15 @@ async function renderResetPassword(scope) {
         if (res?.code === 'token_already_used') {
           msg = 'This password reset link has already been used. Please request another one.';
         } else if (res?.code === 'token_expired') {
-          msg = 'This password reset link has expired (links are valid for 30 minutes).';
+          msg = 'This password reset link has expired. Password reset links are valid for 30 minutes.';
         }
         container.replaceChildren(
-          el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Reset password'),
+          el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Reset Password'),
           el('div', { class: 'auth-feedback is-error', style: 'padding: 16px; background: rgba(255,51,102,0.08); border: 1px solid var(--color-danger, #FF3366); border-radius: 6px; margin: 16px 0;' }, [
             el('p', { style: 'font-weight: 600; margin: 0 0 6px; color: #FFF;' }, 'Link Expired or Invalid'),
             el('p', { class: 'muted', style: 'font-size: 13px; margin: 0;' }, msg),
           ]),
-          el('a', { class: 'btn btn-secondary btn-full', style: 'text-align:center;', href: customerHref('/forgot-password') }, 'Request a new reset link')
+          el('a', { class: 'btn btn-secondary btn-full', style: 'text-align:center;', href: customerHref('/forgot-password') }, 'Request a New Reset Link')
         );
         return;
       }
@@ -2031,7 +2127,7 @@ async function renderResetPassword(scope) {
         confirmPassInput,
       ]);
 
-      const submitBtn = el('button', { class: 'btn btn-primary btn-full', type: 'submit' }, 'Set new password');
+      const submitBtn = el('button', { class: 'btn btn-primary btn-full', type: 'submit' }, 'Save New Password');
 
       const form = el('form', {
         class: 'auth-form-card',
@@ -2072,9 +2168,9 @@ async function renderResetPassword(scope) {
                 el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0 0 16px;' }, 'Password Updated'),
                 el('div', { class: 'auth-feedback is-success', style: 'padding: 16px; background: rgba(0,255,102,0.08); border: 1px solid var(--color-primary, #00FF66); border-radius: 6px; margin-bottom: 20px;' }, [
                   el('p', { style: 'font-weight: 600; margin: 0 0 6px; color: #FFF;' }, 'Password Reset Complete'),
-                  el('p', { class: 'muted', style: 'font-size: 13px; margin: 0;' }, confirmRes?.message || 'Your permanent password has been set. All previous active sessions have been securely revoked.'),
+                  el('p', { class: 'muted', style: 'font-size: 13px; margin: 0;' }, confirmRes?.message || 'Your password has been updated. You can now sign in with your new password.'),
                 ]),
-                el('a', { class: 'btn btn-primary btn-full', style: 'text-align:center;', href: customerHref('/sign-in') }, 'Return to sign in')
+                el('a', { class: 'btn btn-primary btn-full', style: 'text-align:center;', href: customerHref('/sign-in') }, 'Sign In')
               );
             } catch (err) {
               if (!isCurrent(scope)) return;
@@ -2096,8 +2192,8 @@ async function renderResetPassword(scope) {
       ]);
 
       container.replaceChildren(
-        el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Set new password'),
-        el('p', { class: 'muted', style: 'margin:0 0 16px;' }, 'Establish a new permanent password for your customer account.'),
+        el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Set New Password'),
+        el('p', { class: 'muted', style: 'margin:0 0 16px;' }, 'Enter a new permanent password for your customer account.'),
         form
       );
     } catch (err) {

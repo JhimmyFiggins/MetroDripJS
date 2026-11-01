@@ -2,6 +2,7 @@ from django.urls import path
 from .merchant_views import (
     MerchantDashboardAPIView,
     MerchantProductsAPIView,
+    MerchantProductsBulkAPIView,
     MerchantProductDetailAPIView,
     MerchantProductMediaAPIView,
     MerchantProductMediaDetailAPIView,
@@ -30,6 +31,7 @@ urlpatterns = [
     path('dashboard/', MerchantDashboardAPIView.as_view(), name='merchant-dashboard'),
     path('orders/settings/', MerchantOrderSettingsAPIView.as_view(), name='merchant-orders-settings'),
     path('products/', MerchantProductsAPIView.as_view(), name='merchant-products'),
+    path('products/bulk/', MerchantProductsBulkAPIView.as_view(), name='merchant-products-bulk'),
     path('products/<int:pk>/', MerchantProductDetailAPIView.as_view(), name='merchant-product-detail'),
     path('products/<int:pk>/media/', MerchantProductMediaAPIView.as_view(), name='merchant-product-media'),
     path('products/<int:pk>/media/<int:media_id>/', MerchantProductMediaDetailAPIView.as_view(), name='merchant-product-media-detail'),

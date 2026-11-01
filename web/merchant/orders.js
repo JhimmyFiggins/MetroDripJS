@@ -105,6 +105,7 @@
     if (method.includes('card')) return 'card';
     if (method.includes('gcash')) return 'gcash';
     if (method.includes('maya')) return 'maya';
+    if (method.includes('qrph') || method.includes('qr')) return 'qrph';
     if (method.includes('cod') || method.includes('cash')) return 'cod';
     return method || 'unknown';
   }

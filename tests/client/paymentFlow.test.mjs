@@ -11,7 +11,7 @@ const {
 } = await import('../../mobile/Checkout/src/data/paymentFlow.js');
 
 test('online methods use the hosted flow while COD does not', () => {
-  for (const method of ['gcash', 'maya', 'card']) assert.equal(isOnlinePaymentMethod(method), true);
+  for (const method of ['gcash', 'maya', 'card', 'qrph']) assert.equal(isOnlinePaymentMethod(method), true);
   assert.equal(isOnlinePaymentMethod('cod'), false);
 });
 

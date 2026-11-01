@@ -13,7 +13,7 @@ import {
   quantityLimit,
 } from '../../../context/cartLogic';
 
-const PAYMENT_METHODS = new Set(['cod', 'gcash', 'maya', 'card']);
+const PAYMENT_METHODS = new Set(['cod', 'gcash', 'maya', 'card', 'qrph']);
 const checkoutAttempts = new WeakMap();
 const attemptKeys = new Map();
 const closedAttempts = new Set();

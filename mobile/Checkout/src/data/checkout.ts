@@ -17,6 +17,7 @@ export const paymentOptions: readonly PaymentOptionModel[] = [
   { id: 'gcash', title: 'GCash', subtitle: 'Continue in PayMongo secure checkout' },
   { id: 'maya', title: 'Maya', subtitle: 'Continue in PayMongo secure checkout' },
   { id: 'card', title: 'Credit or Debit Card', subtitle: 'Enter card details securely on PayMongo' },
+  { id: 'qrph', title: 'QR Ph', subtitle: 'Scan and pay using your preferred bank or e-wallet' },
 ];
 
 // Provide realistic Philippine delivery zones for the interactive selector.

@@ -164,7 +164,10 @@
       </tr>`;
   }
 
+  let consoleMutationsEnabled = true;
+
   function setConsoleMutationsEnabled(enabled) {
+    consoleMutationsEnabled = Boolean(enabled);
     [
       'btn-merchant-export-csv',
       'btn-merchant-add-product',
@@ -463,50 +466,540 @@
   });
 
   const searchInput = document.getElementById('input-catalog-search');
-  const categoryTabs = document.querySelectorAll('.category-tab-btn');
+  const selectCategoryFilter = document.getElementById('select-category-filter');
+  const selectStatusFilter = document.getElementById('select-status-filter');
+
+  const selectedProductIds = new Set();
+  const selectAllProductsCheckbox = document.getElementById('select-all-products');
+  const bulkSelectionCount = document.getElementById('bulk-selection-count');
+  const btnBulkDeselect = document.getElementById('btn-bulk-deselect');
+  const btnBulkActions = document.getElementById('btn-bulk-actions');
+  const menuBulkActions = document.getElementById('menu-bulk-actions');
 
   function getProductRows() {
     return document.querySelectorAll('#products-tbody tr[data-product-id]');
   }
 
+  function updateBulkSelectionUI() {
+    const visibleRows = Array.from(getProductRows()).filter((row) => row.style.display !== 'none');
+    const visibleCheckedCount = visibleRows.filter((row) => selectedProductIds.has(Number(row.dataset.productId))).length;
+
+    if (selectAllProductsCheckbox) {
+      if (visibleRows.length > 0 && visibleCheckedCount === visibleRows.length) {
+        selectAllProductsCheckbox.checked = true;
+        selectAllProductsCheckbox.indeterminate = false;
+      } else if (visibleCheckedCount > 0) {
+        selectAllProductsCheckbox.checked = false;
+        selectAllProductsCheckbox.indeterminate = true;
+      } else {
+        selectAllProductsCheckbox.checked = false;
+        selectAllProductsCheckbox.indeterminate = false;
+      }
+    }
+
+    const count = selectedProductIds.size;
+    if (bulkSelectionCount) {
+      bulkSelectionCount.textContent = `${count} selected`;
+      bulkSelectionCount.style.display = count > 0 ? '' : 'none';
+    }
+    if (btnBulkDeselect) {
+      btnBulkDeselect.style.display = count > 0 ? '' : 'none';
+    }
+    if (btnBulkActions) {
+      btnBulkActions.disabled = count === 0 || !consoleMutationsEnabled;
+    }
+    if (count === 0 && menuBulkActions) {
+      menuBulkActions.style.display = 'none';
+      btnBulkActions?.setAttribute('aria-expanded', 'false');
+    }
+
+    document.querySelectorAll('.product-row-select').forEach((cb) => {
+      const pid = Number(cb.dataset.productId);
+      cb.checked = selectedProductIds.has(pid);
+    });
+  }
+
   function applyProductFilters() {
     const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
-    const activeTab = document.querySelector('.category-tab-btn.is-active');
-    const category = activeTab ? activeTab.dataset.category : 'all';
+    const selectedCategoryId = selectCategoryFilter ? selectCategoryFilter.value : 'all';
+    const selectedStatus = selectStatusFilter ? selectStatusFilter.value : 'all';
+
     let matchCount = 0;
     getProductRows().forEach((row) => {
       const matchesSearch = !query || row.textContent.toLowerCase().includes(query);
-      const matchesCategory = category === 'all'
-        || (category === 'inactive' ? row.dataset.status === 'inactive' : row.dataset.category === category);
-      row.style.display = matchesSearch && matchesCategory ? '' : 'none';
-      if (matchesSearch && matchesCategory) matchCount += 1;
+      const matchesCategory = selectedCategoryId === 'all'
+        || row.dataset.categoryId === String(selectedCategoryId);
+      const matchesStatus = selectedStatus === 'all'
+        || row.dataset.status === selectedStatus;
+      const isVisible = matchesSearch && matchesCategory && matchesStatus;
+      row.style.display = isVisible ? '' : 'none';
+      if (isVisible) matchCount += 1;
     });
+
+    // Clear selection on filter changes
+    selectedProductIds.clear();
+    updateBulkSelectionUI();
 
     const subhead = document.getElementById('catalog-summary-subhead');
     if (!subhead || !catalogProductsLoaded) return;
-    subhead.textContent = query || category !== 'all'
+    const isFiltered = query || selectedCategoryId !== 'all' || selectedStatus !== 'all';
+    subhead.textContent = isFiltered
       ? `${matchCount} PRODUCT${matchCount === 1 ? '' : 'S'} SHOWN · FILTERED`
       : `${catalogProducts.length} PRODUCT${catalogProducts.length === 1 ? '' : 'S'} · LIVE CATALOG`;
   }
 
   searchInput?.addEventListener('input', applyProductFilters);
-  categoryTabs.forEach((tab) => {
-    tab.addEventListener('click', () => {
-      categoryTabs.forEach((item) => {
-        item.classList.remove('is-active');
-        item.setAttribute('aria-selected', 'false');
-      });
-      tab.classList.add('is-active');
-      tab.setAttribute('aria-selected', 'true');
-      applyProductFilters();
+  selectCategoryFilter?.addEventListener('change', applyProductFilters);
+  selectStatusFilter?.addEventListener('change', applyProductFilters);
+
+  // Bulk selection event listeners
+  selectAllProductsCheckbox?.addEventListener('change', () => {
+    const isChecked = selectAllProductsCheckbox.checked;
+    const visibleRows = Array.from(getProductRows()).filter((row) => row.style.display !== 'none');
+    visibleRows.forEach((row) => {
+      const pid = Number(row.dataset.productId);
+      if (isChecked) {
+        selectedProductIds.add(pid);
+      } else {
+        selectedProductIds.delete(pid);
+      }
     });
+    updateBulkSelectionUI();
   });
+
+  document.getElementById('products-tbody')?.addEventListener('change', (event) => {
+    const target = event.target;
+    if (target && target.classList.contains('product-row-select')) {
+      const pid = Number(target.dataset.productId);
+      if (target.checked) {
+        selectedProductIds.add(pid);
+      } else {
+        selectedProductIds.delete(pid);
+      }
+      updateBulkSelectionUI();
+    }
+  });
+
+  btnBulkDeselect?.addEventListener('click', () => {
+    selectedProductIds.clear();
+    updateBulkSelectionUI();
+  });
+
+  btnBulkActions?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (!menuBulkActions) return;
+    const isOpen = menuBulkActions.style.display !== 'none';
+    menuBulkActions.style.display = isOpen ? 'none' : 'block';
+    btnBulkActions.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+  });
+
+  document.addEventListener('click', (event) => {
+    if (menuBulkActions && !event.target.closest('.bulk-actions-dropdown')) {
+      menuBulkActions.style.display = 'none';
+      btnBulkActions?.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && menuBulkActions && menuBulkActions.style.display !== 'none') {
+      menuBulkActions.style.display = 'none';
+      btnBulkActions?.setAttribute('aria-expanded', 'false');
+      btnBulkActions?.focus();
+    }
+  });
+
+  // Bulk Modals & Handlers
+  let currentBulkAction = null;
+  const modalBulkConfirm = document.getElementById('modal-bulk-confirm');
+  const btnCloseBulkConfirm = document.getElementById('btn-close-bulk-confirm');
+  const btnCancelBulkConfirm = document.getElementById('btn-cancel-bulk-confirm');
+  const btnSubmitBulkConfirm = document.getElementById('btn-submit-bulk-confirm');
+  const bulkConfirmMessage = document.getElementById('bulk-confirm-message');
+  const modalBulkConfirmTitle = document.getElementById('modal-bulk-confirm-title');
+
+  const modalBulkCategory = document.getElementById('modal-bulk-category');
+  const btnCloseBulkCategory = document.getElementById('btn-close-bulk-category');
+  const btnCancelBulkCategory = document.getElementById('btn-cancel-bulk-category');
+  const formBulkCategory = document.getElementById('form-bulk-category');
+  const bulkSelectCategory = document.getElementById('bulk-select-category');
+
+  const modalBulkStock = document.getElementById('modal-bulk-stock');
+  const btnCloseBulkStock = document.getElementById('btn-close-bulk-stock');
+  const btnCancelBulkStock = document.getElementById('btn-cancel-bulk-stock');
+  const formBulkStock = document.getElementById('form-bulk-stock');
+  const bulkStockMode = document.getElementById('bulk-stock-mode');
+  const bulkStockQty = document.getElementById('bulk-stock-qty');
+
+  function openBulkConfirm(action, title, message, isDanger = false) {
+    currentBulkAction = action;
+    if (!modalBulkConfirm || !modalBulkConfirmTitle || !bulkConfirmMessage || !btnSubmitBulkConfirm) return;
+    modalBulkConfirmTitle.textContent = title;
+    bulkConfirmMessage.textContent = message;
+    if (isDanger) {
+      btnSubmitBulkConfirm.className = 'btn btn-danger';
+      btnSubmitBulkConfirm.textContent = 'Confirm Delete';
+    } else {
+      btnSubmitBulkConfirm.className = 'btn btn-primary';
+      btnSubmitBulkConfirm.textContent = 'Confirm';
+    }
+    btnSubmitBulkConfirm.disabled = false;
+    modalBulkConfirm.hidden = false;
+    setActiveModal(modalBulkConfirm);
+    btnSubmitBulkConfirm.focus();
+  }
+
+  function closeBulkModals() {
+    if (modalBulkConfirm) modalBulkConfirm.hidden = true;
+    if (modalBulkCategory) modalBulkCategory.hidden = true;
+    if (modalBulkStock) modalBulkStock.hidden = true;
+    currentBulkAction = null;
+    clearActiveModal();
+    btnBulkActions?.focus();
+  }
+
+  [btnCloseBulkConfirm, btnCancelBulkConfirm].forEach((btn) => btn?.addEventListener('click', closeBulkModals));
+  [btnCloseBulkCategory, btnCancelBulkCategory].forEach((btn) => btn?.addEventListener('click', closeBulkModals));
+  [btnCloseBulkStock, btnCancelBulkStock].forEach((btn) => btn?.addEventListener('click', closeBulkModals));
+
+  async function executeBulkAction(action, params = {}) {
+    const pids = Array.from(selectedProductIds);
+    if (!pids.length) return;
+    setPageState('loading', `Executing bulk ${action}`, 'Updating selected products on the server...');
+    try {
+      const result = await requestJson('/products/bulk/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, product_ids: pids, params }),
+      });
+      closeBulkModals();
+      selectedProductIds.clear();
+      await loadCatalog();
+      setPageState('ready');
+      showToast(result.message || `Bulk ${action} completed successfully.`);
+    } catch (error) {
+      setPageState('ready');
+      showActionError(`Bulk ${action} failed`, error);
+    }
+  }
+
+  btnSubmitBulkConfirm?.addEventListener('click', async () => {
+    if (!currentBulkAction) return;
+    btnSubmitBulkConfirm.disabled = true;
+    await executeBulkAction(currentBulkAction);
+  });
+
+  formBulkCategory?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const catId = bulkSelectCategory?.value;
+    if (!catId) return;
+    const submitBtn = document.getElementById('btn-submit-bulk-category');
+    if (submitBtn) submitBtn.disabled = true;
+    await executeBulkAction('change_category', { category_id: Number(catId) });
+    if (submitBtn) submitBtn.disabled = false;
+  });
+
+  formBulkStock?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const mode = bulkStockMode?.value || 'set';
+    const quantity = Number(bulkStockQty?.value);
+    if (!Number.isInteger(quantity) || (mode === 'set' && quantity < 0) || (mode !== 'set' && quantity <= 0)) {
+      showToast('Enter a valid stock quantity.', 'error');
+      return;
+    }
+    const submitBtn = document.getElementById('btn-submit-bulk-stock');
+    if (submitBtn) submitBtn.disabled = true;
+    await executeBulkAction('update_stock', { mode, quantity });
+    if (submitBtn) submitBtn.disabled = false;
+  });
+
+  menuBulkActions?.addEventListener('click', (event) => {
+    const item = event.target.closest('.dropdown-item');
+    if (!item) return;
+    const action = item.dataset.action;
+    menuBulkActions.style.display = 'none';
+    btnBulkActions?.setAttribute('aria-expanded', 'false');
+
+    const count = selectedProductIds.size;
+    if (action === 'activate') {
+      openBulkConfirm('activate', 'Activate Selected Products', `Are you sure you want to activate ${count} selected product(s)? They will become publicly visible.`);
+    } else if (action === 'deactivate') {
+      openBulkConfirm('deactivate', 'Deactivate Selected Products', `Are you sure you want to deactivate ${count} selected product(s)? They will be hidden from customer storefronts.`);
+    } else if (action === 'change_category') {
+      if (modalBulkCategory) {
+        modalBulkCategory.hidden = false;
+        setActiveModal(modalBulkCategory);
+        bulkSelectCategory?.focus();
+      }
+    } else if (action === 'update_stock') {
+      if (modalBulkStock) {
+        modalBulkStock.hidden = false;
+        setActiveModal(modalBulkStock);
+        bulkStockQty?.focus();
+      }
+    } else if (action === 'delete') {
+      openBulkConfirm('delete', 'Delete Selected Products', `Permanently deactivate and delete ${count} selected product(s)? Products with active customer reservations cannot be removed.`, true);
+    }
+  });
+
+  // Variation Manager for Add & Edit Product Modals
+  function setupVariationManager(prefix) {
+    const toggle = document.getElementById(`${prefix}-prod-has-variants`);
+    const section = document.getElementById(`${prefix}-prod-variants-section`);
+    const attrContainer = document.getElementById(`${prefix}-prod-attributes-container`);
+    const btnAddAttr = document.getElementById(`btn-add-attr-${prefix}-prod`);
+    const combosPreview = document.getElementById(`${prefix}-prod-combos-preview`);
+    const btnGenerate = document.getElementById(`btn-generate-${prefix}-variants`);
+    const tableContainer = document.getElementById(`${prefix}-prod-variants-table-container`);
+    const tbody = document.getElementById(`${prefix}-prod-variants-tbody`);
+    const skuInput = document.getElementById(`${prefix}-prod-sku`);
+    const priceInput = document.getElementById(`${prefix}-prod-price`);
+
+    let attributes = [];
+    let nextAttrId = 1;
+
+    toggle?.addEventListener('change', () => {
+      const isChecked = toggle.checked;
+      if (section) section.style.display = isChecked ? 'block' : 'none';
+      if (isChecked && attributes.length === 0) {
+        addAttribute('Size', 'S, M, L');
+      }
+      updateCombosPreview();
+    });
+
+    function addAttribute(name = '', valuesStr = '') {
+      const id = nextAttrId++;
+      attributes.push({ id, name, values: parseValues(valuesStr) });
+      renderAttributes();
+    }
+
+    function parseValues(str) {
+      return String(str || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+
+    function renderAttributes() {
+      if (!attrContainer) return;
+      attrContainer.innerHTML = attributes.map((attr) => `
+        <div class="attr-row" data-attr-id="${attr.id}" style="display: flex; gap: 8px; align-items: center;">
+          <input class="form-input attr-name" type="text" placeholder="Attribute name (e.g. Size)" value="${escapeHtml(attr.name)}" style="width: 140px;" required>
+          <input class="form-input attr-values" type="text" placeholder="Values comma-separated (e.g. S, M, L)" value="${escapeHtml(attr.values.join(', '))}" style="flex: 1;" required>
+          <button type="button" class="btn btn-secondary btn-sm btn-remove-attr" aria-label="Remove attribute" style="padding: 4px 8px;">✕</button>
+        </div>
+      `).join('');
+      updateCombosPreview();
+    }
+
+    attrContainer?.addEventListener('input', (e) => {
+      const row = e.target.closest('.attr-row');
+      if (!row) return;
+      const id = Number(row.dataset.attrId);
+      const attr = attributes.find((a) => a.id === id);
+      if (!attr) return;
+      if (e.target.classList.contains('attr-name')) {
+        attr.name = e.target.value.trim();
+      } else if (e.target.classList.contains('attr-values')) {
+        attr.values = parseValues(e.target.value);
+      }
+      updateCombosPreview();
+    });
+
+    attrContainer?.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn-remove-attr');
+      if (!btn) return;
+      const row = btn.closest('.attr-row');
+      if (!row) return;
+      const id = Number(row.dataset.attrId);
+      attributes = attributes.filter((a) => a.id !== id);
+      renderAttributes();
+    });
+
+    btnAddAttr?.addEventListener('click', () => {
+      addAttribute();
+    });
+
+    function getCombinations() {
+      const validAttrs = attributes.filter((a) => a.name && a.values.length > 0);
+      if (!validAttrs.length) return [];
+      let combos = [{}];
+      for (const attr of validAttrs) {
+        const next = [];
+        for (const existing of combos) {
+          for (const val of attr.values) {
+            next.push({ ...existing, [attr.name]: val });
+          }
+        }
+        combos = next;
+      }
+      return combos;
+    }
+
+    function updateCombosPreview() {
+      const combos = getCombinations();
+      const count = combos.length;
+      if (combosPreview) {
+        if (count > 50) {
+          combosPreview.textContent = `${count} combinations (exceeds limit of 50)`;
+          combosPreview.style.color = 'var(--color-danger)';
+          if (btnGenerate) btnGenerate.disabled = true;
+        } else {
+          combosPreview.textContent = `${count} combination${count === 1 ? '' : 's'}`;
+          combosPreview.style.color = 'var(--color-muted)';
+          if (btnGenerate) btnGenerate.disabled = count === 0;
+        }
+      }
+    }
+
+    btnGenerate?.addEventListener('click', () => {
+      const combos = getCombinations();
+      if (!combos.length || combos.length > 50) return;
+      const baseSku = (skuInput?.value || 'SKU').trim();
+      const basePrice = Number(priceInput?.value || 0);
+
+      const existingVariantsMap = new Map();
+      tbody?.querySelectorAll('tr[data-combo-key]').forEach((tr) => {
+        const key = tr.dataset.comboKey;
+        const sku = tr.querySelector('.var-sku')?.value;
+        const price = tr.querySelector('.var-price')?.value;
+        const stock = tr.querySelector('.var-stock')?.value;
+        const active = tr.querySelector('.var-active')?.checked;
+        const varId = tr.dataset.variantId;
+        existingVariantsMap.set(key, { sku, price, stock, active, varId });
+      });
+
+      if (tbody) {
+        tbody.innerHTML = combos.map((combo) => {
+          const comboKey = Object.entries(combo).map(([k, v]) => `${k}:${v}`).sort().join('|');
+          const comboLabel = Object.entries(combo).map(([k, v]) => `${escapeHtml(k)}: ${escapeHtml(v)}`).join(' / ');
+          const preserved = existingVariantsMap.get(comboKey);
+
+          const defaultSku = baseSku + '-' + Object.values(combo).map((v) => String(v).replace(/[^a-zA-Z0-9]/g, '').toUpperCase()).join('-');
+          const skuVal = preserved?.sku || defaultSku;
+          const priceVal = preserved?.price ?? '';
+          const stockVal = preserved?.stock ?? '10';
+          const activeChecked = preserved?.active !== false;
+          const varIdAttr = preserved?.varId ? ` data-variant-id="${preserved.varId}"` : '';
+
+          return `
+            <tr data-combo-key="${escapeHtml(comboKey)}"${varIdAttr} data-attributes='${escapeHtml(JSON.stringify(combo))}'>
+              <td style="font-weight: 600; font-size: 11px;">${comboLabel}</td>
+              <td><input class="form-input var-sku" type="text" value="${escapeHtml(skuVal)}" style="padding: 4px 6px; font-size: 11px; height: 28px;" required></td>
+              <td><input class="form-input var-price" type="number" step="1" min="1" placeholder="${basePrice || 'Base'}" value="${escapeHtml(priceVal)}" style="padding: 4px 6px; font-size: 11px; height: 28px; width: 80px;"></td>
+              <td><input class="form-input var-stock" type="number" min="0" step="1" value="${escapeHtml(stockVal)}" style="padding: 4px 6px; font-size: 11px; height: 28px; width: 70px;" required></td>
+              <td style="text-align: center;"><input class="var-active" type="checkbox" ${activeChecked ? 'checked' : ''} style="cursor: pointer;"></td>
+              <td style="text-align: center;"><button type="button" class="btn btn-secondary btn-sm btn-remove-var" aria-label="Remove variation" style="padding: 2px 6px; font-size: 11px;">✕</button></td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      if (tableContainer) tableContainer.style.display = 'block';
+    });
+
+    tbody?.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn-remove-var');
+      if (btn) {
+        const tr = btn.closest('tr');
+        tr?.remove();
+        if (tbody.querySelectorAll('tr').length === 0 && tableContainer) {
+          tableContainer.style.display = 'none';
+        }
+      }
+    });
+
+    function getVariantsPayload() {
+      if (!toggle?.checked) return null;
+      const rows = Array.from(tbody?.querySelectorAll('tr') || []);
+      if (!rows.length) return null;
+      return rows.map((tr) => {
+        const sku = tr.querySelector('.var-sku')?.value.trim();
+        const priceOverride = tr.querySelector('.var-price')?.value.trim();
+        const stock = Number(tr.querySelector('.var-stock')?.value);
+        const isActive = Boolean(tr.querySelector('.var-active')?.checked);
+        const attributes = JSON.parse(tr.dataset.attributes || '{}');
+        const varId = tr.dataset.variantId ? Number(tr.dataset.variantId) : undefined;
+        return {
+          id: varId,
+          sku,
+          attributes,
+          price_override: priceOverride ? Number(priceOverride) : null,
+          stock: Number.isInteger(stock) && stock >= 0 ? stock : 0,
+          is_active: isActive,
+        };
+      });
+    }
+
+    function reset() {
+      if (toggle) toggle.checked = false;
+      if (section) section.style.display = 'none';
+      if (tableContainer) tableContainer.style.display = 'none';
+      if (tbody) tbody.innerHTML = '';
+      attributes = [];
+      nextAttrId = 1;
+      renderAttributes();
+    }
+
+    function loadExisting(variants, basePrice, parentSku) {
+      reset();
+      if (!Array.isArray(variants) || variants.length === 0) return;
+      const hasAttributes = variants.some((v) => v.attributes && Object.keys(v.attributes).length > 0);
+      if (!hasAttributes && variants.length <= 1) return;
+
+      if (toggle) toggle.checked = true;
+      if (section) section.style.display = 'block';
+
+      const attrMap = new Map();
+      variants.forEach((v) => {
+        if (v.attributes) {
+          Object.entries(v.attributes).forEach(([k, val]) => {
+            if (!attrMap.has(k)) attrMap.set(k, new Set());
+            if (val) attrMap.get(k).add(String(val));
+          });
+        }
+      });
+
+      attributes = Array.from(attrMap.entries()).map(([name, valSet]) => ({
+        id: nextAttrId++,
+        name,
+        values: Array.from(valSet),
+      }));
+      renderAttributes();
+
+      if (tbody) {
+        tbody.innerHTML = variants.map((v) => {
+          const combo = v.attributes || {};
+          const comboKey = Object.entries(combo).map(([k, val]) => `${k}:${val}`).sort().join('|');
+          const comboLabel = Object.entries(combo).map(([k, val]) => `${escapeHtml(k)}: ${escapeHtml(val)}`).join(' / ') || 'Default';
+          const priceOverrideVal = v.price_override != null ? v.price_override : (Number(v.price_adjustment) !== 0 ? v.effective_price : '');
+
+          return `
+            <tr data-combo-key="${escapeHtml(comboKey)}" data-variant-id="${v.id}" data-attributes='${escapeHtml(JSON.stringify(combo))}'>
+              <td style="font-weight: 600; font-size: 11px;">${comboLabel}</td>
+              <td><input class="form-input var-sku" type="text" value="${escapeHtml(v.sku)}" style="padding: 4px 6px; font-size: 11px; height: 28px;" required></td>
+              <td><input class="form-input var-price" type="number" step="1" min="1" placeholder="${basePrice || 'Base'}" value="${escapeHtml(priceOverrideVal)}" style="padding: 4px 6px; font-size: 11px; height: 28px; width: 80px;"></td>
+              <td><input class="form-input var-stock" type="number" min="0" step="1" value="${escapeHtml(v.stock)}" style="padding: 4px 6px; font-size: 11px; height: 28px; width: 70px;" required></td>
+              <td style="text-align: center;"><input class="var-active" type="checkbox" ${v.is_active ? 'checked' : ''} style="cursor: pointer;"></td>
+              <td style="text-align: center;"><button type="button" class="btn btn-secondary btn-sm btn-remove-var" aria-label="Remove variation" style="padding: 2px 6px; font-size: 11px;">✕</button></td>
+            </tr>
+          `;
+        }).join('');
+      }
+      if (tableContainer) tableContainer.style.display = 'block';
+    }
+
+    return { getVariantsPayload, reset, loadExisting };
+  }
+
+  const addProdVariants = setupVariationManager('add');
+  const editProdVariants = setupVariationManager('edit');
 
   function normalizeProduct(raw) {
     return {
       id: Number(raw.id),
       name: String(raw.name || 'Unnamed product'),
       category: String(raw.category || 'Uncategorized'),
+      categoryId: raw.category_id != null ? Number(raw.category_id) : null,
       variantsCount: Number(raw.variants_count ?? raw.variant_count ?? 1),
       stock: Number(raw.stock ?? 0),
       totalStock: Number(raw.total_stock ?? raw.stock ?? 0),
@@ -516,6 +1009,7 @@
       sku: String(raw.sku || ''),
       imageUrl: String(raw.image_url || ''),
       media: Array.isArray(raw.media) ? raw.media : [],
+      variants: Array.isArray(raw.variants) ? raw.variants : [],
       isActive: raw.is_active !== undefined ? Boolean(raw.is_active) : String(raw.status || 'Active').toLowerCase() === 'active',
       description: String(raw.description || ''),
     };
@@ -526,14 +1020,16 @@
     if (!tbody) return;
     tbody.setAttribute('aria-busy', 'false');
     if (!catalogProducts.length) {
-      setTableState('products-tbody', 8, 'empty', 'No products found', 'Products created through the merchant API will appear here.');
+      setTableState('products-tbody', 9, 'empty', 'No products found', 'Products created through the merchant API will appear here.');
       const subhead = document.getElementById('catalog-summary-subhead');
       if (subhead) subhead.textContent = '0 PRODUCTS · LIVE CATALOG';
+      updateBulkSelectionUI();
       return;
     }
     tbody.innerHTML = catalogProducts.map((product) => {
       const status = product.isActive ? 'active' : 'inactive';
       const initialLetter = escapeHtml((product.name.charAt(0) || 'P').toUpperCase());
+      const isChecked = selectedProductIds.has(product.id);
       const thumbContent = product.imageUrl
         ? `<div class="product-thumb-container" style="width:36px;height:36px;border-radius:6px;overflow:hidden;background:var(--color-surface, #1e1e1e);display:flex;align-items:center;justify-content:center;border:1px solid var(--color-border, #333);">
              <img src="${escapeHtml(product.imageUrl)}" alt="${escapeHtml(product.name)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
@@ -542,7 +1038,8 @@
         : `<div class="product-thumb-letter" aria-hidden="true">${initialLetter}</div>`;
 
       return `
-        <tr data-product-id="${product.id}" data-category="${categoryKey(product.category)}" data-status="${status}">
+        <tr data-product-id="${product.id}" data-category-id="${product.categoryId != null ? product.categoryId : ''}" data-category="${categoryKey(product.category)}" data-status="${status}">
+          <td style="text-align: center;"><input type="checkbox" class="product-row-select" data-product-id="${product.id}" aria-label="Select ${escapeHtml(product.name)}" ${isChecked ? 'checked' : ''} style="cursor: pointer;"></td>
           <td>${thumbContent}</td>
           <td class="td-strong">${escapeHtml(product.name)}</td>
           <td class="td-mono td-muted">${escapeHtml(product.category)}</td>
@@ -555,8 +1052,7 @@
     }).join('');
     applyProductFilters();
   }
-
-  function renderReviews(reviews) {
+function renderReviews(reviews) {
     const tbody = document.getElementById('reviews-tbody');
     if (!tbody) return;
     tbody.setAttribute('aria-busy', 'false');
@@ -610,7 +1106,46 @@
         : '<option value="" disabled selected>No categories available</option>';
       if (catalogCategories.some((category) => category.name === currentValue)) select.value = currentValue;
     });
+
+    const bulkSelect = document.getElementById('bulk-select-category');
+    if (bulkSelect) {
+      const currentVal = bulkSelect.value;
+      const activeCats = catalogCategories.filter((c) => c.is_active !== false);
+      bulkSelect.innerHTML = activeCats.length
+        ? activeCats.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')
+        : '<option value="" disabled selected>No categories available</option>';
+      if (activeCats.some((c) => String(c.id) === currentVal)) bulkSelect.value = currentVal;
+    }
+
+    const filterSelect = document.getElementById('select-category-filter');
+    if (filterSelect) {
+      const currentFilter = filterSelect.value;
+      const activeCats = catalogCategories.filter((c) => c.is_active !== false);
+      filterSelect.innerHTML = [
+        '<option value="all">All categories</option>',
+        ...activeCats.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`),
+      ].join('');
+      if (activeCats.some((c) => String(c.id) === currentFilter)) {
+        filterSelect.value = currentFilter;
+      } else {
+        filterSelect.value = 'all';
+      }
+    }
   }
+
+  window.addEventListener('focus', async () => {
+    if (catalogProductsLoaded) {
+      try {
+        const latestCategories = await requestJson('/categories/');
+        if (Array.isArray(latestCategories)) {
+          catalogCategories = latestCategories;
+          renderCategoryOptions();
+        }
+      } catch {
+        // silent re-sync attempt
+      }
+    }
+  });
 
   async function loadCatalog() {
     catalogProductsLoaded = false;
@@ -618,7 +1153,7 @@
     catalogCategories = [];
     reviewCache.clear();
     setConsoleMutationsEnabled(false);
-    setTableState('products-tbody', 8, 'loading', '', 'Loading products');
+    setTableState('products-tbody', 9, 'loading', '', 'Loading products');
     setTableState('reviews-tbody', 4, 'loading', '', 'Loading customer reviews');
     setTableState('movements-tbody', 4, 'loading', '', 'Loading stock movements');
     const subhead = document.getElementById('catalog-summary-subhead');
@@ -635,7 +1170,7 @@
     const permissionFailure = results.find((result) => result.status === 'rejected' && [401, 403].includes(result.reason?.status));
     if (permissionFailure) {
       const error = permissionFailure.reason;
-      setTableState('products-tbody', 8, 'error', 'Merchant access required', error.message);
+      setTableState('products-tbody', 9, 'error', 'Merchant access required', error.message);
       setTableState('reviews-tbody', 4, 'error', 'Merchant access required', error.message);
       setTableState('movements-tbody', 4, 'error', 'Merchant access required', error.message);
       if (subhead) subhead.textContent = 'LIVE CATALOG UNAVAILABLE';
@@ -648,7 +1183,7 @@
       catalogProductsLoaded = true;
       renderProducts();
     } else {
-      setTableState('products-tbody', 8, 'error', 'Products unavailable', productsResult.reason.message);
+      setTableState('products-tbody', 9, 'error', 'Products unavailable', productsResult.reason.message);
       if (subhead) subhead.textContent = 'PRODUCT DATA UNAVAILABLE';
     }
 
@@ -836,6 +1371,7 @@
   const formAddProduct = document.getElementById('form-add-product');
 
   function openAddProductModal() {
+    addProdVariants.reset();
     if (!modalAddProduct) return;
     if (!catalogCategories.length) {
       showToast('Load or create a category before adding a product.', 'error');
@@ -868,6 +1404,7 @@
   });
 
   function closeAddProductModal() {
+    addProdVariants.reset();
     if (modalAddProduct) modalAddProduct.hidden = true;
     formAddProduct?.reset();
     if (addProdMediaPreview) addProdMediaPreview.style.display = 'none';
@@ -901,13 +1438,33 @@
       return;
     }
 
+    const variantsPayload = addProdVariants.getVariantsPayload();
+    if (variantsPayload) {
+      if (variantsPayload.length === 0) {
+        showToast('Generate at least one variation before publishing.', 'error');
+        return;
+      }
+      const seenSkus = new Set();
+      for (const v of variantsPayload) {
+        if (!v.sku) {
+          showToast('All variations must have a SKU.', 'error');
+          return;
+        }
+        if (seenSkus.has(v.sku.toLowerCase())) {
+          showToast(`Duplicate SKU "${v.sku}" in variations.`, 'error');
+          return;
+        }
+        seenSkus.add(v.sku.toLowerCase());
+      }
+    }
+
     const submit = document.getElementById('btn-submit-product');
     if (submit) submit.disabled = true;
     try {
       const created = await requestJson('/products/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, category, price, stock, sku, description }),
+        body: JSON.stringify({ name, category, price, stock, sku, description, variants: variantsPayload || undefined }),
       });
 
       const mediaFile = addProdMediaInput?.files?.[0];
@@ -1121,6 +1678,7 @@
       document.getElementById('edit-prod-status').value = product.is_active ? 'active' : 'inactive';
       document.getElementById('edit-prod-desc').value = product.description || '';
       renderEditGallery(product.media || []);
+      editProdVariants.loadExisting(product.variants || [], product.price, product.sku);
       if (editProdUploadStatus) editProdUploadStatus.textContent = 'Max 12 images, 8 MiB each (JPG, PNG, WebP)';
       setEditFormDisabled(false);
       setPageState('ready');
@@ -1133,6 +1691,7 @@
   }
 
   function closeEditProductModal() {
+    editProdVariants.reset();
     if (modalEditProduct) modalEditProduct.hidden = true;
     formEditProduct?.reset();
     currentEditingProductId = null;
@@ -1167,13 +1726,33 @@
       return;
     }
 
+    const variantsPayload = editProdVariants.getVariantsPayload();
+    if (variantsPayload) {
+      if (variantsPayload.length === 0) {
+        showToast('A product with variations must have at least one variant.', 'error');
+        return;
+      }
+      const seenSkus = new Set();
+      for (const v of variantsPayload) {
+        if (!v.sku) {
+          showToast('All variations must have a SKU.', 'error');
+          return;
+        }
+        if (seenSkus.has(v.sku.toLowerCase())) {
+          showToast(`Duplicate SKU "${v.sku}" in variations.`, 'error');
+          return;
+        }
+        seenSkus.add(v.sku.toLowerCase());
+      }
+    }
+
     const submit = document.getElementById('btn-save-edit-product');
     if (submit) submit.disabled = true;
     try {
       const updated = await requestJson(`/products/${currentEditingProductId}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, category, price, stock, sku, is_active: isActive, description }),
+        body: JSON.stringify({ name, category, price, stock, sku, is_active: isActive, description, variants: variantsPayload || undefined }),
       });
       const normalized = normalizeProduct(updated);
       catalogProducts = catalogProducts.map((product) => product.id === normalized.id ? normalized : product);
