@@ -216,10 +216,10 @@
     }
     tbody.innerHTML = filtered.map((zone) => `
       <tr data-zone-id="${zone.id}" tabindex="0" class="clickable-row" style="${zone.id === selectedZoneId ? 'background-color: var(--color-info-bg);' : ''}">
-        <td class="td-strong">${escapeHtml(zone.name)}</td>
-        <td class="td-mono td-muted">#${zone.id}</td>
-        <td class="td-mono" style="font-weight: 700;">${escapeHtml(zone.formattedFee)}</td>
-        <td><span class="status-pill ${zone.isActive ? 'active' : ''}">${zone.isActive ? 'Active' : 'Inactive'}</span></td>
+        <td class="td-strong" data-label="Zone / coverage">${escapeHtml(zone.name)}</td>
+        <td class="td-mono td-strong" data-label="Standard fee">${escapeHtml(zone.formattedFee)}</td>
+        <td class="td-mono td-muted" data-label="ID">#${zone.id}</td>
+        <td data-label="Status"><span class="status-pill ${zone.isActive ? 'active' : ''}">${zone.isActive ? 'Active' : 'Inactive'}</span></td>
       </tr>`).join('');
   }
 

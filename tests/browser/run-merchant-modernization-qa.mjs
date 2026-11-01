@@ -380,6 +380,7 @@ console.log('✓ Add Product submitted valid variations payload to backend');
 // 2b. Edit Product Modal with Variations
 await page.click('#products-tbody tr[data-product-id="1"] .btn-edit-product');
 await page.waitForSelector('#modal-edit-product:not([hidden])');
+await page.waitForFunction(() => !document.getElementById('edit-prod-name')?.disabled && document.getElementById('edit-prod-name')?.value === 'Drip Zip-Up Hoodie');
 
 const editVariantsToggle = page.locator('#edit-prod-has-variants');
 const isChecked = await editVariantsToggle.isChecked();

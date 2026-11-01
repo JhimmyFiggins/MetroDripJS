@@ -712,9 +712,15 @@ async function renderShop() {
 }
 
 function field(label, name, value, hint) {
+  const isEmail = name === 'email';
   return el('label', { class: 'field' }, [
     el('span', {}, label),
-    el('input', { name, value, type: name === 'search' ? 'search' : 'text' }),
+    el('input', {
+      name,
+      value,
+      type: name === 'search' ? 'search' : isEmail ? 'email' : 'text',
+      autocomplete: isEmail ? 'email' : undefined,
+    }),
     hint ? el('small', {}, hint) : null,
   ]);
 }
@@ -1300,6 +1306,181 @@ async function renderOrders(_route, scope) {
   ]);
 }
 
+function formatPaymentMethod(method) {
+  const map = {
+    gcash: 'GCash',
+    maya: 'Maya',
+    card: 'Credit / Debit Card',
+    qrph: 'QR Ph',
+    cod: 'Cash on Delivery',
+  };
+  return map[(method || '').toLowerCase()] || (method ? method.toUpperCase() : 'Unknown');
+}
+
+function paymentStatusConfig(order, queryReturn) {
+  const pStatus = (order.payment_status || '').toLowerCase();
+  const oStatus = (order.status || '').toLowerCase();
+  const method = (order.payment_method || '').toLowerCase();
+  const deferred = order.reconciliation_status === 'deferred';
+
+  // State 6: Paid payment requiring manual review
+  if (oStatus === 'payment_review' || pStatus === 'under_review') {
+    return {
+      state: 'review',
+      badgeClass: 'badge-review',
+      badgeText: 'Payment Under Review',
+      title: 'Payment Received — Manual Review in Progress',
+      lede: 'Your payment was recorded, but order fulfillment is temporarily on hold pending review.',
+      description: 'This occurs if payment was confirmed after the inventory reservation window expired or if transaction details required additional verification. Our fulfillment team is reviewing your order.',
+      icon: 'review',
+      themeClass: 'order-state-review',
+    };
+  }
+
+  // State 1: Payment confirmed
+  if (pStatus === 'paid' || ['paid', 'processing', 'packed', 'shipped', 'out_for_delivery', 'delivered', 'completed'].includes(oStatus)) {
+    return {
+      state: 'confirmed',
+      badgeClass: 'badge-confirmed',
+      badgeText: 'Payment Confirmed',
+      title: 'Payment Verified & Confirmed',
+      lede: 'Your payment has been successfully verified directly with PayMongo.',
+      description: 'Thank you for your order! Your streetwear pieces are being prepared by our fulfillment team. You can monitor your delivery progress below.',
+      icon: 'confirmed',
+      themeClass: 'order-state-confirmed',
+    };
+  }
+
+  // State 5: Provider temporarily unavailable
+  if (deferred) {
+    return {
+      state: 'deferred',
+      badgeClass: 'badge-deferred',
+      badgeText: 'Provider Delayed',
+      title: 'Payment Provider Verification Delayed',
+      lede: 'PayMongo is temporarily slow or unreachable. Your checkout session is safe.',
+      description: 'Our backend will automatically check and reconcile your payment status as soon as PayMongo recovers. Please do not place a duplicate payment.',
+      icon: 'deferred',
+      themeClass: 'order-state-deferred',
+    };
+  }
+
+  // State 3: Payment not completed or cancelled
+  if (pStatus === 'cancelled' || oStatus === 'cancelled' || (queryReturn === 'cancelled' && pStatus === 'awaiting_payment')) {
+    return {
+      state: 'cancelled',
+      badgeClass: 'badge-cancelled',
+      badgeText: 'Checkout Incomplete',
+      title: 'Payment Incomplete or Cancelled',
+      lede: 'You returned from PayMongo without completing payment or the checkout was cancelled.',
+      description: 'No charge was applied to your account. If you wish to complete your purchase, you can resume checkout below or select another payment method.',
+      icon: 'cancelled',
+      themeClass: 'order-state-cancelled',
+    };
+  }
+
+  // State 4: Payment expired or failed
+  if (['expired', 'setup_failed'].includes(pStatus) || ['payment_expired', 'payment_setup_failed'].includes(oStatus)) {
+    return {
+      state: 'expired',
+      badgeClass: 'badge-expired',
+      badgeText: 'Payment Expired',
+      title: 'Payment Window Expired',
+      lede: 'The reservation window for this order has expired.',
+      description: 'Reserved inventory holds have been safely returned to stock. No funds were collected. If you still wish to purchase these items, please place a new order from your bag.',
+      icon: 'expired',
+      themeClass: 'order-state-expired',
+    };
+  }
+
+  // Cash on Delivery
+  if (method === 'cod') {
+    return {
+      state: 'cod',
+      badgeClass: 'badge-cod',
+      badgeText: 'Cash on Delivery',
+      title: 'Order Placed — Pending Cash Collection',
+      lede: 'Your order has been recorded and will be prepared for delivery.',
+      description: 'Please have the exact amount ready upon courier delivery. Your package will be inspected and collected at your doorstep.',
+      icon: 'cod',
+      themeClass: 'order-state-cod',
+    };
+  }
+
+  // State 2: Payment pending verification
+  return {
+    state: 'pending',
+    badgeClass: 'badge-pending',
+    badgeText: 'Verification in Progress',
+    title: 'Awaiting Payment Confirmation',
+    lede: 'We are actively checking your transaction status with PayMongo.',
+    description: 'If you have completed your payment on PayMongo, confirmation typically arrives within moments. This page checks automatically in the background.',
+    icon: 'pending',
+    themeClass: 'order-state-pending',
+  };
+}
+
+function orderStateIcon(type) {
+  if (type === 'confirmed') {
+    return el('div', { class: 'order-hero-icon', 'aria-hidden': 'true' }, [
+      el('svg', { width: '28', height: '28', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, [
+        el('path', { d: 'M20 6L9 17l-5-5' }),
+      ]),
+    ]);
+  }
+  if (type === 'cancelled') {
+    return el('div', { class: 'order-hero-icon', 'aria-hidden': 'true' }, [
+      el('svg', { width: '28', height: '28', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, [
+        el('circle', { cx: '12', cy: '12', r: '10' }),
+        el('line', { x1: '12', y1: '8', x2: '12', y2: '12' }),
+        el('line', { x1: '12', y1: '16', x2: '12.01', y2: '16' }),
+      ]),
+    ]);
+  }
+  if (type === 'expired') {
+    return el('div', { class: 'order-hero-icon', 'aria-hidden': 'true' }, [
+      el('svg', { width: '28', height: '28', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, [
+        el('circle', { cx: '12', cy: '12', r: '10' }),
+        el('polyline', { points: '12 6 12 12 16 14' }),
+      ]),
+    ]);
+  }
+  if (type === 'deferred') {
+    return el('div', { class: 'order-hero-icon', 'aria-hidden': 'true' }, [
+      el('svg', { width: '28', height: '28', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, [
+        el('path', { d: 'M21.5 2v6h-6' }),
+        el('path', { d: 'M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67' }),
+      ]),
+    ]);
+  }
+  if (type === 'review') {
+    return el('div', { class: 'order-hero-icon', 'aria-hidden': 'true' }, [
+      el('svg', { width: '28', height: '28', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, [
+        el('path', { d: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' }),
+        el('polyline', { points: '14 2 14 8 20 8' }),
+        el('line', { x1: '16', y1: '13', x2: '8', y2: '13' }),
+        el('line', { x1: '16', y1: '17', x2: '8', y2: '17' }),
+      ]),
+    ]);
+  }
+  if (type === 'cod') {
+    return el('div', { class: 'order-hero-icon', 'aria-hidden': 'true' }, [
+      el('svg', { width: '28', height: '28', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, [
+        el('rect', { x: '1', y: '3', width: '15', height: '13' }),
+        el('polygon', { points: '16 8 20 8 23 11 23 16 16 16 8' }),
+        el('circle', { cx: '5.5', cy: '18.5', r: '2.5' }),
+        el('circle', { cx: '18.5', cy: '18.5', r: '2.5' }),
+      ]),
+    ]);
+  }
+  return el('div', { class: 'order-hero-icon', 'aria-hidden': 'true' }, [
+    el('svg', { class: 'spin-icon', width: '28', height: '28', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, [
+      el('circle', { cx: '12', cy: '12', r: '10', 'stroke-opacity': '0.2' }),
+      el('path', { d: 'M12 2a10 10 0 0 1 10 10' }),
+    ]),
+  ]);
+}
+
 async function renderOrder(route, scope) {
   if (!state.session) return signInPanel(customerHref(`/orders/${route.id}`));
   let order;
@@ -1326,30 +1507,190 @@ async function renderOrder(route, scope) {
     ? ['placed', 'processing'].includes(order.status) && order.payment_status === 'pending_collection'
     : ['pending_payment', 'payment_setup_failed'].includes(order.status) && ['awaiting_payment', 'setup_failed'].includes(order.payment_status);
 
+  const searchParams = new URLSearchParams(location.search);
+  const paymentReturn = searchParams.get('payment_return');
+  const statusCfg = paymentStatusConfig(order, paymentReturn);
+
+  let pollingBox = null;
+  let pollingText = null;
+
+  if (statusCfg.state === 'pending') {
+    pollingText = el('span', { class: 'polling-text' }, 'Checking payment status with PayMongo (attempt 1 of 5)…');
+    pollingBox = el('div', { class: 'polling-status-box' }, [
+      el('span', { class: 'polling-pulse', 'aria-hidden': 'true' }),
+      pollingText,
+    ]);
+
+    let attempt = 0;
+    const intervals = [3000, 5000, 8000, 12000, 15000];
+    const maxAttempts = intervals.length;
+    let isPolling = true;
+
+    const pollNext = () => {
+      if (!isCurrent(scope) || !isPolling) return;
+      if (attempt >= maxAttempts) {
+        if (pollingBox) {
+          pollingBox.replaceChildren(
+            el('span', { class: 'muted', style: 'font-size:13px;' }, 'Payment verification is taking longer than usual. You can check again using the button below or check your email for confirmation.')
+          );
+        }
+        return;
+      }
+      const delay = intervals[attempt];
+      attempt += 1;
+      if (pollingText) {
+        pollingText.textContent = `Checking payment status with PayMongo (attempt ${attempt} of ${maxAttempts})…`;
+      }
+      setTimeout(async () => {
+        if (!isCurrent(scope) || !isPolling) return;
+        try {
+          const fresh = await request(`/orders/${route.id}/`, {}, scope);
+          if (!isCurrent(scope) || !isPolling) return;
+          const freshPaymentStatus = (fresh.payment_status || '').toLowerCase();
+          if (freshPaymentStatus !== 'awaiting_payment' || fresh.reconciliation_status === 'deferred') {
+            isPolling = false;
+            render();
+            return;
+          }
+        } catch {
+          // Continue gracefully on network glitch
+        }
+        pollNext();
+      }, delay);
+    };
+    pollNext();
+  }
+
+  // Hero action buttons
+  const heroActions = [];
+  if (canContinue) {
+    heroActions.push(el('a', { class: 'btn btn-primary', href: action.url }, 'Continue to PayMongo'));
+  }
+  if (statusCfg.state === 'pending' || statusCfg.state === 'deferred') {
+    heroActions.push(
+      el('button', {
+        class: 'btn btn-secondary',
+        type: 'button',
+        onclick: async (e) => {
+          const btn = e.currentTarget;
+          btn.disabled = true;
+          btn.textContent = 'Checking…';
+          try {
+            await request(`/orders/${route.id}/`, {}, scope);
+          } catch {}
+          if (isCurrent(scope)) render();
+        },
+      }, 'Check Status Now')
+    );
+  }
+  if (canCancel) {
+    heroActions.push(
+      el('button', {
+        class: 'btn btn-danger',
+        type: 'button',
+        onclick: (event) => cancelOrder(route.id, scope, event.currentTarget),
+      }, 'Cancel Order')
+    );
+  }
+  if (statusCfg.state === 'confirmed') {
+    heroActions.push(el('a', { class: 'btn btn-primary', href: '#delivery-updates' }, 'Track Delivery'));
+    heroActions.push(el('a', { class: 'btn btn-secondary', href: customerHref('/shop') }, 'Continue Shopping'));
+  } else if (statusCfg.state === 'cancelled' || statusCfg.state === 'expired') {
+    heroActions.push(el('a', { class: 'btn btn-primary', href: customerHref('/shop') }, 'Browse Catalog'));
+    heroActions.push(el('a', { class: 'btn btn-secondary', href: customerHref('/cart') }, 'View Bag'));
+  }
+
+  const addr = order.shipping_address;
+  const addressBlock = addr ? el('div', { class: 'summary-card' }, [
+    el('h2', { class: 'summary-title', style: 'font-size:20px;' }, 'Delivery Address'),
+    el('p', { style: 'font-weight:600; margin:0;' }, addr.name || 'Recipient'),
+    addr.phone ? el('p', { class: 'muted', style: 'font-size:14px; margin:0;' }, addr.phone) : null,
+    el('p', { style: 'margin:8px 0 0; font-size:14px; line-height:1.5;' }, [
+      addr.address_line1,
+      addr.address_line2 ? el('br') : null,
+      addr.address_line2 || null,
+      el('br'),
+      `${addr.city || ''}, ${addr.state || ''} ${addr.postal_code || ''}`.trim(),
+      el('br'),
+      addr.country || 'Philippines',
+    ]),
+  ]) : null;
+
+  const paymentTotalsBlock = el('div', { class: 'summary-card' }, [
+    el('h2', { class: 'summary-title', style: 'font-size:20px;' }, 'Payment & Summary'),
+    el('div', { class: 'summary-row' }, [
+      el('span', {}, 'Payment Method'),
+      el('span', { style: 'font-weight:600;' }, formatPaymentMethod(order.payment_method)),
+    ]),
+    el('div', { class: 'summary-row' }, [
+      el('span', {}, 'Order Status'),
+      el('span', { style: 'font-weight:600; text-transform:capitalize;' }, (order.status || 'Unknown').replace(/_/g, ' ')),
+    ]),
+    el('div', { class: 'summary-row' }, [
+      el('span', {}, 'Payment Status'),
+      el('span', { style: 'font-weight:600; text-transform:capitalize;' }, (order.payment_status || 'Unknown').replace(/_/g, ' ')),
+    ]),
+    el('div', { class: 'summary-row' }, [
+      el('span', {}, 'Subtotal'),
+      el('span', { class: 'mono' }, money(order.subtotal)),
+    ]),
+    el('div', { class: 'summary-row' }, [
+      el('span', {}, 'Shipping Fee'),
+      el('span', { class: 'mono' }, money(order.shipping)),
+    ]),
+    toCentavos(order.discount) > 0 ? el('div', { class: 'summary-row', style: 'color:var(--ok);' }, [
+      el('span', {}, 'Discount'),
+      el('span', { class: 'mono' }, `-${money(order.discount)}`),
+    ]) : null,
+    el('div', { class: 'summary-row-total' }, [
+      el('span', {}, 'Order Total'),
+      el('span', { class: 'summary-total-price mono' }, money(order.total)),
+    ]),
+  ]);
+
   return el('section', { class: 'page order-details-page' }, [
     breadcrumbs({ label: 'Orders & Tracking', href: customerHref('/orders') }, { label: order.order_no || `Order #${order.id}` }),
     el('h1', { tabindex: '-1' }, order.order_no || `Order #${order.id}`),
-    el('p', { class: 'lede' }, 'Review your order details, payment progress, and the latest available delivery updates.'),
-    el('div', { class: 'summary-card', style: 'margin-bottom:24px;' }, [
-      el('p', {}, `Order Status: ${order.status || 'Unknown'}`),
-      el('p', {}, `Payment Status: ${order.payment_status || 'Unknown'}`),
-      el('p', {}, `Payment Method: ${order.payment_method ? order.payment_method.toUpperCase() : 'Unknown'}`),
-      el('p', { class: 'pdp-price', style: 'font-size:24px;' }, `Order Total: ${money(order.total)}`),
-      el('p', { class: 'muted', style: 'font-size:14px; margin-top:-8px;' }, `Shipping Fee: ${money(order.shipping)}`),
-      order.reconciliation_status === 'deferred' ? notice('info', 'Payment confirmation is still being checked with the payment provider. Please do not attempt a duplicate payment while this check is in progress.') : null,
-      canContinue ? el('a', { class: 'btn btn-primary', href: action.url }, 'Continue to Checkout') : null,
-      action?.url && !canContinue ? notice('error', 'A payment link was present but rejected because it is not PayMongo hosted checkout.') : null,
-      el('div', { style: 'display:flex; gap:10px; margin-top:16px;' }, [
-        el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => render() }, 'Refresh Status'),
-        canCancel ? el('button', { class: 'btn btn-danger', type: 'button', onclick: (event) => cancelOrder(route.id, scope, event.currentTarget) }, 'Cancel Order') : null,
+    el('p', { class: 'lede' }, order.created_at ? `Placed on ${new Date(order.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : 'Review your order details, payment progress, and delivery updates.'),
+
+    // Hero Confirmation Card
+    el('div', { class: `order-confirmation-hero ${statusCfg.themeClass}` }, [
+      el('div', { class: 'order-confirmation-top' }, [
+        el('span', { class: 'order-state-badge' }, [
+          el('span', { class: 'badge-dot', 'aria-hidden': 'true' }),
+          statusCfg.badgeText,
+        ]),
+        orderStateIcon(statusCfg.icon),
       ]),
+      el('h2', { class: 'order-hero-title' }, statusCfg.title),
+      el('p', { class: 'order-hero-lede' }, statusCfg.lede),
+      el('p', { class: 'order-hero-desc' }, statusCfg.description),
+      order.reconciliation_status === 'deferred' ? notice('info', 'Payment confirmation is still being checked with the payment provider. Please do not attempt a duplicate payment while this check is in progress.') : null,
+      action?.url && !canContinue ? notice('error', 'A payment link was present but rejected because it is not a trusted PayMongo hosted checkout URL.') : null,
+      pollingBox,
+      heroActions.length ? el('div', { class: 'order-actions-row' }, heroActions) : null,
     ]),
-    el('h2', { class: 'section-title', style: 'font-size:24px; margin-bottom:12px;' }, 'Items Ordered'),
-    el('div', { class: 'summary-card', style: 'margin-bottom:24px;' }, (order.items || []).map((item) => el('div', { style: 'display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--border); font-size:14px;' }, [
-      el('span', {}, `${item.product_name || 'Item'} · ${item.variant_desc || item.sku || 'Variant'} (×${item.quantity})`),
-      el('span', { class: 'mono' }, money(item.total_price)),
+
+    // Two-Column Grid: Payment/Totals + Shipping Address
+    el('div', { class: 'order-grid-two-col' }, [
+      paymentTotalsBlock,
+      addressBlock,
+    ]),
+
+    // Items Ordered
+    el('h2', { class: 'section-title', style: 'font-size:24px; margin-bottom:12px;' }, `Items Ordered (${(order.items || []).reduce((acc, it) => acc + (it.quantity || 1), 0)})`),
+    el('div', { class: 'summary-card', style: 'margin-bottom:24px;' }, (order.items || []).map((item) => el('div', { style: 'display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--border); font-size:14px;' }, [
+      el('div', {}, [
+        el('p', { style: 'font-weight:600; margin:0;' }, item.product_name || 'Item'),
+        el('p', { class: 'muted', style: 'font-size:13px; margin:2px 0 0;' }, `${item.variant_desc || item.sku || 'Variant'} (×${item.quantity})`),
+      ]),
+      el('span', { class: 'mono', style: 'font-weight:600;' }, money(item.total_price)),
     ]))),
-    trackingError ? notice('error', "We couldn't load your latest delivery updates. Please try again.") : trackingBlock(tracking),
+
+    // Delivery Updates
+    el('div', { id: 'delivery-updates' }, [
+      trackingError ? notice('error', "We couldn't load your latest delivery updates. Please try again.") : trackingBlock(tracking),
+    ]),
   ]);
 }
 
@@ -1899,20 +2240,20 @@ async function renderSignIn(_route, scope) {
       navigate(next, { replace: true });
     });
   } }, [
-    el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Welcome back'),
-    el('p', { class: 'muted', style: 'margin:0 0 12px;' }, 'Sign in to your MetroDrip account.'),
-    el('div', { class: 'auth-tabs' }, [
-      el('button', { type: 'button', class: 'auth-tab-btn is-active' }, 'Sign in'),
-      el('button', { type: 'button', class: 'auth-tab-btn', onclick: () => navigate(customerHref('/sign-up')) }, 'Create account'),
+    el('h1', { class: 'auth-title' }, 'Welcome back'),
+    el('p', { class: 'auth-subtitle' }, 'Sign in to your MetroDrip account.'),
+    el('div', { class: 'auth-tabs', role: 'tablist', 'aria-label': 'Authentication tabs' }, [
+      el('button', { type: 'button', class: 'auth-tab-btn is-active', role: 'tab', 'aria-selected': 'true' }, 'Sign in'),
+      el('button', { type: 'button', class: 'auth-tab-btn', role: 'tab', 'aria-selected': 'false', onclick: () => navigate(customerHref('/sign-up')) }, 'Create account'),
     ]),
     field('Email *', 'email', ''),
     secretField('Password *', 'password'),
-    el('div', { style: 'display:flex; justify-content:flex-end; margin:-4px 0 10px;' }, [
-      el('a', { class: 'muted', style: 'font-size:13px; text-decoration:underline;', href: customerHref('/forgot-password') }, 'Forgot password?')
+    el('div', { class: 'auth-forgot-link-row' }, [
+      el('a', { class: 'auth-forgot-link', href: customerHref('/forgot-password') }, 'Forgot password?')
     ]),
     el('button', { class: 'btn btn-primary btn-full', type: 'submit' }, 'Sign in'),
     el('button', { class: 'btn btn-secondary btn-full', type: 'button', onclick: () => navigate(customerHref('/shop')) }, 'Browse without signing in'),
-    el('p', { class: 'muted', style: 'font-size:13px; text-align:center; margin:8px 0 0;' }, 'Checkout requires a customer account. Browsing does not place an order.'),
+    el('p', { class: 'auth-notice-text' }, 'Checkout requires a customer account. Browsing does not place an order.'),
   ]);
 
   return el('section', { class: 'page auth-page' }, [
@@ -1948,11 +2289,11 @@ async function renderSignUp(_route, scope) {
       navigate(customerHref('/sign-in'));
     });
   } }, [
-    el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Create account'),
-    el('p', { class: 'muted', style: 'margin:0 0 12px;' }, 'Password rules come from the server.'),
-    el('div', { class: 'auth-tabs' }, [
-      el('button', { type: 'button', class: 'auth-tab-btn', onclick: () => navigate(customerHref('/sign-in')) }, 'Sign in'),
-      el('button', { type: 'button', class: 'auth-tab-btn is-active' }, 'Create account'),
+    el('h1', { class: 'auth-title' }, 'Create account'),
+    el('p', { class: 'auth-subtitle' }, 'Password rules come from the server.'),
+    el('div', { class: 'auth-tabs', role: 'tablist', 'aria-label': 'Authentication tabs' }, [
+      el('button', { type: 'button', class: 'auth-tab-btn', role: 'tab', 'aria-selected': 'false', onclick: () => navigate(customerHref('/sign-in')) }, 'Sign in'),
+      el('button', { type: 'button', class: 'auth-tab-btn is-active', role: 'tab', 'aria-selected': 'true' }, 'Create account'),
     ]),
     field('Full name *', 'name', ''),
     field('Email *', 'email', ''),
@@ -2015,8 +2356,8 @@ async function renderForgot(_route, scope) {
       }
     });
   } }, [
-    el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Forgot Password'),
-    el('p', { class: 'muted', style: 'margin:0 0 16px;' }, 'Enter your account email to receive a secure, time-limited password recovery link.'),
+    el('h1', { class: 'auth-title' }, 'Forgot Password'),
+    el('p', { class: 'auth-subtitle' }, 'Enter your account email to receive a secure, time-limited password recovery link.'),
     statusContainer,
     field('Email Address *', 'email', ''),
     el('button', { class: 'btn btn-primary btn-full', type: 'submit' }, 'Send Reset Link'),
@@ -2043,7 +2384,7 @@ async function renderResetPassword(scope) {
 
   if (!token) {
     container.replaceChildren(
-      el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Reset Password'),
+      el('h1', { class: 'auth-title' }, 'Reset Password'),
       el('div', { class: 'auth-feedback is-error', style: 'padding: 16px; background: rgba(255,51,102,0.08); border: 1px solid var(--color-danger, #FF3366); border-radius: 6px; margin: 16px 0;' }, [
         el('p', { style: 'font-weight: 600; margin: 0 0 6px; color: #FFF;' }, 'Missing Security Token'),
         el('p', { class: 'muted', style: 'font-size: 13px; margin: 0;' }, 'The password reset token is missing or incomplete. Please use the complete recovery link from your email or request a new one.'),
@@ -2057,7 +2398,7 @@ async function renderResetPassword(scope) {
   }
 
   container.replaceChildren(
-    el('h1', { style: 'font-family:var(--font-display); font-size:36px; margin:0;' }, 'Reset Password'),
+    el('h1', { class: 'auth-title' }, 'Reset Password'),
     el('p', { class: 'muted', style: 'margin:16px 0;' }, 'Verifying security link…')
   );
 

@@ -1255,6 +1255,222 @@ button, input, select, textarea {
   color: var(--color-ink);
 }
 
+/* ==========================================================================
+   Bulk Actions Toolbar & Dropdown Menu
+   ========================================================================== */
+
+.bulk-actions-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bulk-selection-count {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-accent-text);
+  white-space: nowrap;
+}
+
+.bulk-actions-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+#btn-bulk-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+#btn-bulk-actions[aria-expanded="true"] {
+  background-color: var(--color-surface);
+  border-color: var(--color-border-hover);
+  color: var(--color-ink);
+}
+
+:root[data-theme='dark'] #btn-bulk-actions[aria-expanded="true"] {
+  background-color: #262624;
+  border-color: var(--color-volt);
+  color: var(--color-volt);
+}
+
+.dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 100;
+  min-width: 190px;
+  max-width: calc(100vw - 32px);
+  padding: 6px 0;
+  margin: 0;
+  list-style: none;
+  background-color: var(--color-paper);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+:root[data-theme='dark'] .dropdown-menu {
+  background-color: var(--color-paper);
+  border-color: var(--color-border);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 16px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+  color: var(--color-ink);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+  outline: none;
+  box-sizing: border-box;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.dropdown-item:hover {
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+}
+
+.dropdown-item:focus,
+.dropdown-item:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: -2px;
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+}
+
+.dropdown-item:active {
+  background-color: var(--color-border);
+  color: var(--color-ink);
+}
+
+:root[data-theme='dark'] .dropdown-item {
+  color: var(--color-ink);
+}
+
+:root[data-theme='dark'] .dropdown-item:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+:root[data-theme='dark'] .dropdown-item:focus,
+:root[data-theme='dark'] .dropdown-item:focus-visible {
+  outline: 2px solid var(--color-volt);
+  outline-offset: -2px;
+  background-color: rgba(211, 238, 66, 0.12);
+  color: #ffffff;
+}
+
+:root[data-theme='dark'] .dropdown-item:active {
+  background-color: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+/* Destructive dropdown item */
+.dropdown-item.text-danger,
+.dropdown-item.is-destructive {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.dropdown-item.text-danger:hover,
+.dropdown-item.is-destructive:hover {
+  background-color: var(--color-danger-bg);
+  color: #8c181d;
+}
+
+.dropdown-item.text-danger:focus,
+.dropdown-item.text-danger:focus-visible,
+.dropdown-item.is-destructive:focus,
+.dropdown-item.is-destructive:focus-visible {
+  outline: 2px solid var(--color-danger);
+  outline-offset: -2px;
+  background-color: var(--color-danger-bg);
+  color: #8c181d;
+}
+
+.dropdown-item.text-danger:active,
+.dropdown-item.is-destructive:active {
+  background-color: rgba(194, 40, 45, 0.16);
+  color: #721217;
+}
+
+:root[data-theme='dark'] .dropdown-item.text-danger,
+:root[data-theme='dark'] .dropdown-item.is-destructive {
+  color: #ff6b6b;
+}
+
+:root[data-theme='dark'] .dropdown-item.text-danger:hover,
+:root[data-theme='dark'] .dropdown-item.is-destructive:hover {
+  background-color: rgba(248, 113, 113, 0.14);
+  color: #fca5a5;
+}
+
+:root[data-theme='dark'] .dropdown-item.text-danger:focus,
+:root[data-theme='dark'] .dropdown-item.text-danger:focus-visible,
+:root[data-theme='dark'] .dropdown-item.is-destructive:focus,
+:root[data-theme='dark'] .dropdown-item.is-destructive:focus-visible {
+  outline: 2px solid #ff6b6b;
+  outline-offset: -2px;
+  background-color: rgba(248, 113, 113, 0.18);
+  color: #ffffff;
+}
+
+:root[data-theme='dark'] .dropdown-item.text-danger:active,
+:root[data-theme='dark'] .dropdown-item.is-destructive:active {
+  background-color: rgba(248, 113, 113, 0.24);
+  color: #ffffff;
+}
+
+/* Disabled dropdown item */
+.dropdown-item:disabled,
+.dropdown-item[disabled],
+.dropdown-item[aria-disabled="true"],
+.dropdown-item.is-disabled {
+  color: var(--color-muted) !important;
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+  background-color: transparent !important;
+  outline: none !important;
+}
+
+:root[data-theme='dark'] .dropdown-item:disabled,
+:root[data-theme='dark'] .dropdown-item[disabled],
+:root[data-theme='dark'] .dropdown-item[aria-disabled="true"],
+:root[data-theme='dark'] .dropdown-item.is-disabled {
+  color: var(--color-muted) !important;
+  opacity: 0.5;
+}
+
+/* Dropdown divider */
+.dropdown-divider {
+  height: 1px;
+  margin: 5px 0;
+  overflow: hidden;
+  background-color: var(--color-border);
+  border: none;
+}
+
+:root[data-theme='dark'] .dropdown-divider {
+  background-color: var(--color-border);
+}
+
 /* Data Tables */
 .table-responsive {
   width: 100%;
@@ -3011,14 +3227,99 @@ button, input, select, textarea {
 }
 
 /* ==========================================================================
-   Address Shipping Calculator (Merchant Shipping Zones)
+   Address Shipping Calculator & Shipping Zones Forms
    ========================================================================== */
+
+.stat-cards-grid--3col {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.shipping-card-form {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.shipping-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.shipping-form-group .form-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+
+.shipping-form-group .form-input,
+.shipping-form-group .form-textarea,
+.shipping-form-group .toolbar-select {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  font-family: var(--font-body);
+}
+
+.shipping-form-group textarea.form-textarea,
+.shipping-form-group textarea.form-input {
+  width: 100%;
+  min-height: 84px;
+  resize: vertical;
+  line-height: 1.5;
+  padding: 10px 12px;
+  box-sizing: border-box;
+}
+
+.shipping-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.shipping-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink);
+  margin: 0;
+  user-select: none;
+}
+
+.shipping-checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+}
+
 .eligibility-result-pill {
-  margin-top: 12px;
-  padding: 12px 14px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  padding: 12px 16px;
   border-radius: 6px;
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
+  word-break: break-word;
 }
 
 .eligibility-result-pill.eligible {
@@ -3041,10 +3342,13 @@ button, input, select, textarea {
 .eligibility-result-pill p {
   font-size: 11px;
   color: var(--color-muted);
+  line-height: 1.4;
+  margin: 0;
 }
 
 @media (max-width: 1024px) {
-  .stat-cards-grid {
+  .stat-cards-grid,
+  .stat-cards-grid--3col {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 
@@ -3106,9 +3410,24 @@ button, input, select, textarea {
   }
 }
 
-@media (max-width: 480px) {
-  .stat-cards-grid {
+@media (max-width: 680px) {
+  .stat-cards-grid,
+  .stat-cards-grid--3col {
     grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .shipping-card-form {
+    padding: 14px;
+  }
+
+  .shipping-form-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .shipping-form-actions .btn {
+    width: 100%;
+    justify-content: center;
   }
 }
 

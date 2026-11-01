@@ -104,7 +104,7 @@
       </header>
 
       <!-- 3 Stat Metric Cards -->
-      <section class="stat-cards-grid" style="grid-template-columns: repeat(3, 1fr);" aria-label="Shipping zone metrics">
+      <section class="stat-cards-grid stat-cards-grid--3col" aria-label="Shipping zone metrics">
         <article class="stat-card">
           <p class="stat-label">ACTIVE ZONES</p>
           <p class="stat-value" id="metric-active-zones">—</p>
@@ -167,29 +167,31 @@
           <div class="panel-header">
             <h2 class="panel-title" id="heading-edit-zone">Edit shipping zone</h2>
           </div>
-          <form id="form-edit-zone" style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
-            <div>
+          <form id="form-edit-zone" class="shipping-card-form">
+            <div class="shipping-form-group">
               <label class="form-label" for="edit-zone-coverage">Coverage</label>
-              <select class="toolbar-select" id="edit-zone-coverage" style="width: 100%;">
+              <select class="toolbar-select" id="edit-zone-coverage">
                 <option value="">Loading zones…</option>
               </select>
             </div>
 
-            <div>
-              <label class="form-label" for="edit-zone-fee">Standard fee</label>
+            <div class="shipping-form-group">
+              <label class="form-label" for="edit-zone-fee">Standard fee (PHP)</label>
               <input type="number" class="form-input" id="edit-zone-fee" min="0" step="1" placeholder="Shipping fee in PHP" required>
             </div>
-            <div>
-              <label class="form-label" for="edit-zone-active">
-                <input type="checkbox" id="edit-zone-active"> Zone is active
+
+            <div class="shipping-form-group">
+              <label class="shipping-checkbox-label" for="edit-zone-active">
+                <input type="checkbox" id="edit-zone-active">
+                <span>Zone is active</span>
               </label>
             </div>
 
-            <p class="td-muted" style="font-size: 11px;" id="edit-zone-status-text">
+            <p class="td-muted" style="font-size: 11px; margin: 0;" id="edit-zone-status-text">
               Select a loaded zone before editing.
             </p>
 
-            <div style="display: flex; gap: 10px; margin-top: 4px;">
+            <div class="shipping-form-actions">
               <button type="submit" class="btn btn-primary" id="btn-save-zone">Save zone</button>
               <button type="button" class="btn btn-secondary" id="btn-cancel-zone">Cancel</button>
             </div>
@@ -197,21 +199,21 @@
         </section>
 
         <!-- Right: Check an Address Calculator Card -->
-        <section class="panel-card" aria-labelledby="heading-check-address">
+        <section class="panel-card" id="card-check-address" aria-labelledby="heading-check-address">
           <div class="panel-header">
             <h2 class="panel-title" id="heading-check-address">Check an address</h2>
           </div>
-          <form id="form-check-address" style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
-            <div>
+          <form id="form-check-address" class="shipping-card-form">
+            <div class="shipping-form-group">
               <label class="form-label" for="calc-address">Complete delivery address</label>
-              <textarea class="form-input" id="calc-address" rows="3" placeholder="Street, city, province, and postal code" required></textarea>
+              <textarea class="form-input form-textarea" id="calc-address" rows="3" placeholder="Street, city, province, and postal code" required></textarea>
             </div>
 
-            <div>
+            <div class="shipping-form-actions">
               <button type="submit" class="btn btn-secondary" id="btn-check-shipping">Check shipping</button>
             </div>
 
-            <div class="eligibility-result-pill ineligible" id="calc-result-box">
+            <div class="eligibility-result-pill ineligible" id="calc-result-box" role="status" aria-live="polite">
               <h5 id="calc-result-title">Not checked</h5>
               <p id="calc-result-sub">Address eligibility is unavailable until a matcher is configured.</p>
             </div>

@@ -1273,3 +1273,80 @@ class HostedCheckoutAPITest(TestCase):
         self.assertEqual(shipped['state'], 'done')
         self.assertIsNone(shipped['timestamp'])
         self.assertEqual(shipped['timestamp_source'], 'unavailable')
+
+    def test_payment_return_page_branded_rendering(self):
+        response = self.client.get('/payment/return?result=success&order_id=42')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Cache-Control'], 'no-store, no-cache, must-revalidate, max-age=0')
+        self.assertEqual(response['Pragma'], 'no-cache')
+        self.assertIn("default-src 'self'", response['Content-Security-Policy'])
+        self.assertIn("https://fonts.googleapis.com", response['Content-Security-Policy'])
+        content = response.content.decode('utf-8')
+        self.assertIn('Verifying Your Payment', content)
+        self.assertIn('VERIFYING PAYMENT STATUS', content)
+        self.assertIn('MD-42', content)
+        self.assertIn('/customer/orders/42?payment_return=success', content)
+        self.assertIn('Security Notice: This return redirect does not confirm payment.', content)
+        self.assertIn('brand-logo-emblem', content)
+        self.assertIn('METRO', content)
+        self.assertIn('DRIP', content)
+        self.assertIn('theme-toggle', content)
+        self.assertIn('metrodrip.customer.theme', content)
+
+    def test_payment_return_page_cancelled_rendering(self):
+        response = self.client.get('/payment/return?result=cancelled&order_id=99')
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode('utf-8')
+        self.assertIn('Checkout Not Completed', content)
+        self.assertIn('CHECKOUT INCOMPLETE', content)
+        self.assertIn('MD-99', content)
+        self.assertIn('/customer/orders/99?payment_return=cancelled', content)
+        self.assertIn('Your payment session was cancelled and no charges were made to your account.', content)
+
+    def test_payment_return_page_no_order_id(self):
+        response = self.client.get('/payment/return')
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode('utf-8')
+        self.assertIn('Payment Session Ended', content)
+        self.assertIn('/customer/orders', content)
+
+    def test_payment_return_page_xss_protection(self):
+        response = self.client.get('/payment/return?result=<script>alert(1)</script>&order_id=42"><script>alert(2)</script>')
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode('utf-8')
+        self.assertNotIn('<script>alert(1)</script>', content)
+        self.assertNotIn('<script>alert(2)</script>', content)
+
+    def test_order_detail_ownership_enforcement(self):
+        checkout = self.client.post('/api/orders/checkout/', self.payload(), format='json', **self.auth)
+        order_id = checkout.data['id']
+
+        other_customer = AccountsCustomer(
+            email='other@example.com',
+            name='Other Customer',
+            phone='09181234567',
+            addresses={},
+            is_active=True,
+            is_staff=False,
+            is_superuser=False,
+            role='customer',
+            date_joined=self.now,
+        )
+        other_customer.set_password('correct horse battery staple')
+        other_customer.save()
+        _, raw_other_token = CustomerAccessToken.issue(other_customer)
+        other_auth = {'HTTP_AUTHORIZATION': f'Bearer {raw_other_token}'}
+
+        response = self.client.get(f'/orders/{order_id}/', **other_auth)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.data['error'], 'Order not found.')
+
+    def test_order_detail_reconciliation_deferred_on_provider_error(self):
+        order, _provider = self._online_order(method='gcash', key='reconcile-deferred-key')
+        with patch('orders.checkout.PayMongoClient') as mock_client_cls:
+            mock_client = mock_client_cls.return_value
+            mock_client.retrieve_checkout_session.side_effect = PayMongoError('Provider unavailable', retryable=True)
+            response = self.client.get(f'/orders/{order.id}/', **self.auth)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data['reconciliation_status'], 'deferred')
+            self.assertEqual(response.data['payment_status'], 'awaiting_payment')

@@ -128,20 +128,20 @@
       <section class="panel-card full-width" style="margin-bottom: 24px;" aria-labelledby="heading-products-list">
         <div class="panel-header">
           <h2 class="panel-title" id="heading-products-list">Products</h2>
-          <div class="bulk-actions-toolbar" style="display: flex; align-items: center; gap: 8px;">
-            <span id="bulk-selection-count" class="bulk-selection-count" style="display: none; font-size: 12px; font-weight: 600; color: var(--color-volt);">0 selected</span>
-            <button type="button" id="btn-bulk-deselect" class="btn btn-secondary btn-sm" style="display: none; padding: 4px 8px; font-size: 11px;">Clear</button>
-            <div class="bulk-actions-dropdown" style="position: relative;">
+          <div class="bulk-actions-toolbar">
+            <span id="bulk-selection-count" class="bulk-selection-count" style="display: none;">0 selected</span>
+            <button type="button" id="btn-bulk-deselect" class="btn btn-secondary btn-sm" style="display: none;">Clear</button>
+            <div class="bulk-actions-dropdown">
               <button type="button" id="btn-bulk-actions" class="btn btn-secondary btn-sm" disabled aria-expanded="false" aria-haspopup="true">
                 Bulk actions ▾
               </button>
-              <div id="menu-bulk-actions" class="dropdown-menu" style="display: none; position: absolute; right: 0; top: calc(100% + 4px); z-index: 100; min-width: 180px; background: var(--color-surface, #1e1e1e); border: 1px solid var(--color-border, #333); border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.5); padding: 4px 0;" role="menu" aria-label="Bulk actions menu">
-                <button type="button" class="dropdown-item" data-action="activate" role="menuitem" style="display: block; width: 100%; text-align: left; padding: 8px 14px; background: none; border: none; color: var(--color-text, #fff); font-size: 13px; cursor: pointer;">Activate selected</button>
-                <button type="button" class="dropdown-item" data-action="deactivate" role="menuitem" style="display: block; width: 100%; text-align: left; padding: 8px 14px; background: none; border: none; color: var(--color-text, #fff); font-size: 13px; cursor: pointer;">Deactivate selected</button>
-                <button type="button" class="dropdown-item" data-action="change_category" role="menuitem" style="display: block; width: 100%; text-align: left; padding: 8px 14px; background: none; border: none; color: var(--color-text, #fff); font-size: 13px; cursor: pointer;">Change category…</button>
-                <button type="button" class="dropdown-item" data-action="update_stock" role="menuitem" style="display: block; width: 100%; text-align: left; padding: 8px 14px; background: none; border: none; color: var(--color-text, #fff); font-size: 13px; cursor: pointer;">Update stock…</button>
-                <div style="height: 1px; background: var(--color-border, #333); margin: 4px 0;" role="separator"></div>
-                <button type="button" class="dropdown-item text-danger" data-action="delete" role="menuitem" style="display: block; width: 100%; text-align: left; padding: 8px 14px; background: none; border: none; color: var(--color-danger, #ff4d4f); font-size: 13px; cursor: pointer;">Delete selected…</button>
+              <div id="menu-bulk-actions" class="dropdown-menu" style="display: none;" role="menu" aria-label="Bulk actions menu">
+                <button type="button" class="dropdown-item" data-action="activate" role="menuitem">Activate selected</button>
+                <button type="button" class="dropdown-item" data-action="deactivate" role="menuitem">Deactivate selected</button>
+                <button type="button" class="dropdown-item" data-action="change_category" role="menuitem">Change category…</button>
+                <button type="button" class="dropdown-item" data-action="update_stock" role="menuitem">Update stock…</button>
+                <div class="dropdown-divider" role="separator"></div>
+                <button type="button" class="dropdown-item text-danger is-destructive" data-action="delete" role="menuitem">Delete selected…</button>
               </div>
             </div>
           </div>

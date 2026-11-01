@@ -168,6 +168,9 @@
 
   function setConsoleMutationsEnabled(enabled) {
     consoleMutationsEnabled = Boolean(enabled);
+    if (typeof updateBulkSelectionUI === 'function') {
+      updateBulkSelectionUI();
+    }
     [
       'btn-merchant-export-csv',
       'btn-merchant-add-product',
@@ -585,12 +588,59 @@
     updateBulkSelectionUI();
   });
 
+  function getEnabledBulkMenuItems() {
+    if (!menuBulkActions) return [];
+    return Array.from(menuBulkActions.querySelectorAll('.dropdown-item:not([disabled]):not([aria-disabled="true"])'));
+  }
+
   btnBulkActions?.addEventListener('click', (event) => {
     event.stopPropagation();
     if (!menuBulkActions) return;
     const isOpen = menuBulkActions.style.display !== 'none';
     menuBulkActions.style.display = isOpen ? 'none' : 'block';
     btnBulkActions.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+  });
+
+  btnBulkActions?.addEventListener('keydown', (event) => {
+    if (!btnBulkActions || btnBulkActions.disabled || !menuBulkActions) return;
+    if (event.key === 'ArrowDown' || event.key === 'Down') {
+      event.preventDefault();
+      menuBulkActions.style.display = 'block';
+      btnBulkActions.setAttribute('aria-expanded', 'true');
+      const items = getEnabledBulkMenuItems();
+      if (items.length) items[0].focus();
+    } else if (event.key === 'ArrowUp' || event.key === 'Up') {
+      event.preventDefault();
+      menuBulkActions.style.display = 'block';
+      btnBulkActions.setAttribute('aria-expanded', 'true');
+      const items = getEnabledBulkMenuItems();
+      if (items.length) items[items.length - 1].focus();
+    }
+  });
+
+  menuBulkActions?.addEventListener('keydown', (event) => {
+    const items = getEnabledBulkMenuItems();
+    if (!items.length) return;
+    const currentIndex = items.indexOf(document.activeElement);
+
+    if (event.key === 'ArrowDown' || event.key === 'Down') {
+      event.preventDefault();
+      const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % items.length : 0;
+      items[nextIndex].focus();
+    } else if (event.key === 'ArrowUp' || event.key === 'Up') {
+      event.preventDefault();
+      const prevIndex = currentIndex >= 0 ? (currentIndex - 1 + items.length) % items.length : items.length - 1;
+      items[prevIndex].focus();
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      items[0].focus();
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      items[items.length - 1].focus();
+    } else if (event.key === 'Tab') {
+      menuBulkActions.style.display = 'none';
+      btnBulkActions?.setAttribute('aria-expanded', 'false');
+    }
   });
 
   document.addEventListener('click', (event) => {
