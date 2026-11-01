@@ -281,13 +281,13 @@ try {
   await page.locator('#detail-user-role').selectOption('administrator');
   await page.locator('#btn-save-user-role').click();
   await page.getByText('Account change was not saved', { exact: true }).waitFor();
-  if ((await page.locator('tr[data-user-id="3"] td').nth(1).textContent()).trim() !== 'Merchant') {
+  if ((await page.locator('tr[data-user-id="3"] td[data-label="Role"]').textContent()).trim() !== 'Merchant') {
     throw new Error('Failed admin write changed the rendered role');
   }
   apiState.adminPatch = 'success';
   await page.locator('#detail-user-role').selectOption('administrator');
   await page.locator('#btn-save-user-role').click();
-  await page.locator('tr[data-user-id="3"] td').nth(1).filter({ hasText: 'Administrator' }).waitFor();
+  await page.locator('tr[data-user-id="3"] td[data-label="Role"]').filter({ hasText: 'Administrator' }).waitFor();
 
   await page.setViewportSize({ width: 320, height: 844 });
   if (!(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))) {
