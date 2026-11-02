@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
 } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -24,7 +23,11 @@ export default function ProfileManagement() {
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('');
     const [address, setAddress] = useState('');
+    const [addressMeta, setAddressMeta] = useState({});
     const [memberSince, setMemberSince] = useState('');
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [feedback, setFeedback] = useState('');
 
     const screenTitle = "Profile Management"
     useEffect(() => {
@@ -35,6 +38,7 @@ export default function ProfileManagement() {
         setName(data.name || '');
         setEmail(data.email || '');
         setPhone(data.phone || '');
+        setAddressMeta(data.addresses || {});
 
         const savedAddress = data.addresses?.address || '';
         setAddress(savedAddress);
@@ -47,28 +51,36 @@ export default function ProfileManagement() {
         }
         })
         .catch(error => {
-        console.error('Failed to load profile:', error);
-        });
+        if (active) setFeedback(error.message || 'Failed to load profile.');
+        })
+        .finally(() => { if (active) setLoading(false); });
     return () => {
         active = false;
     };
     }, []);
     const handleSave = () => {
+    if (saving) return;
+    if (!name.trim() || !/^\S+@\S+\.\S+$/.test(email.trim())) {
+        setFeedback('Enter a name and valid email address.');
+        return;
+    }
+    setSaving(true);
+    setFeedback('Saving…');
     updateProfile({
-        name: name,
-        email: email,
-        phone: phone,
-        addresses: {
-            address: address,
-        },
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        addresses: Array.isArray(addressMeta)
+            ? addressMeta
+            : { ...(addressMeta && typeof addressMeta === 'object' ? addressMeta : {}), address },
     })
         .then(() => {
-        Alert.alert('Profile updated.');
+        setFeedback('Profile updated.');
         })
         .catch(error => {
-        console.error('Failed to update profile:', error);
-        Alert.alert('Failed to update profile.');
-        });
+        setFeedback(error.message || 'Failed to update profile.');
+        })
+        .finally(() => setSaving(false));
     };
 
   return (
@@ -80,6 +92,8 @@ export default function ProfileManagement() {
               showsVerticalScrollIndicator={false}
             >
               <AdaptHeader screenTitle={screenTitle}/>
+              {loading ? <Text accessibilityRole="text">Loading profile…</Text> : null}
+              {feedback ? <Text accessibilityRole="alert" style={styles.feedback}>{feedback}</Text> : null}
 
           {/* Profile */}
             <View style={styles.profile}>
@@ -114,6 +128,8 @@ export default function ProfileManagement() {
 
             <TextInput
                 style={styles.input}
+                accessibilityLabel="Full name"
+                maxLength={150}
                 value={name}
                 onChangeText={setName}
                 placeholder="Full name"
@@ -126,6 +142,8 @@ export default function ProfileManagement() {
 
             <TextInput
                 style={styles.input}
+                accessibilityLabel="Email address"
+                maxLength={254}
                 value={email}
                 onChangeText={setEmail}
                 placeholder="Email address"
@@ -140,6 +158,8 @@ export default function ProfileManagement() {
 
             <TextInput
                 style={styles.input}
+                accessibilityLabel="Phone number"
+                maxLength={32}
                 value={phone}
                 onChangeText={setPhone}
                 placeholder="Phone number"
@@ -155,6 +175,7 @@ export default function ProfileManagement() {
 
             <TextInput
                 style={styles.addressInput}
+                accessibilityLabel="Saved address"
                 value={address}
                 onChangeText={setAddress}
                 placeholder="Saved address"
@@ -163,28 +184,15 @@ export default function ProfileManagement() {
             />
             </View>
 
-            {/* Address */}
-            <Text style={styles.sectionTitle}>SAVED ADDRESS</Text>
-
-             <View style={styles.addressCard}>
-                <Text style={styles.addressLabel}>PRIMARY ADDRESS</Text>
-
-                <TextInput
-                style={styles.addressInput}
-                value={address}
-                onChangeText={setAddress}
-                placeholder="Saved address"
-                placeholderTextColor={colors.muted}
-                multiline
-                />
-             </View>
-
           {/* Save */}
           <TouchableOpacity
             style={styles.saveButton}
             onPress={handleSave}
+            disabled={loading || saving}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: loading || saving }}
           >
-            <Text style={styles.saveText}>SAVE CHANGES</Text>
+            <Text style={styles.saveText}>{saving ? 'SAVING…' : 'SAVE CHANGES'}</Text>
           </TouchableOpacity>
 
           {/* Back */}
@@ -201,6 +209,7 @@ export default function ProfileManagement() {
 }
 
 const styles = StyleSheet.create({
+    feedback: { color: colors.ink, marginHorizontal: 20, marginVertical: 10 },
     screen: {
         flex: 1,
         paddingTop: 50,

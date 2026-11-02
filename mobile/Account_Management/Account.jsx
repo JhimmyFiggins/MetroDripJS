@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,6 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Linking,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -17,7 +19,8 @@ import Footer from '../components/Footer';
 import BrandLogo from '../components/BrandLogo';
 
 import { useAuth } from '../context/AuthContext';
-import { getProfile } from '../../src/services/authService';
+import { useCart } from '../context/CartContext';
+import { getProfile, closeAccount, getMyReviews } from '../../src/services/authService';
 import { getOrders } from '../../src/services/orderService';
 import { getWishlist } from '../../src/services/wishlistService';
 import { getUnreadCount } from '../../src/services/notificationService';
@@ -143,6 +146,7 @@ function PanelHeader({ title, onBack }) {
 
 export default function Account() {
   const { user, isGuest, logout } = useAuth();
+  const { clearCart } = useCart();
   const navigation = useNavigation();
 
   const signedOut = isGuest || !user;
@@ -151,8 +155,32 @@ export default function Account() {
   const [orders, setOrders] = useState([]);
   const [wishlistCount, setWishlistCount] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardError, setDashboardError] = useState('');
+  const [dashboardReload, setDashboardReload] = useState(0);
   const [panel, setPanel] = useState(null);
   const [openFaq, setOpenFaq] = useState(null);
+  const [closePassword, setClosePassword] = useState('');
+  const [closeConfirmation, setCloseConfirmation] = useState('');
+  const [closeError, setCloseError] = useState('');
+  const [closing, setClosing] = useState(false);
+  const [reviews, setReviews] = useState([]);
+  const [reviewsError, setReviewsError] = useState('');
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewsReload, setReviewsReload] = useState(0);
+
+  useEffect(() => {
+    if (signedOut || panel !== 'reviews') return undefined;
+    let active = true;
+    setReviewsLoading(true);
+    setReviewsError('');
+    getMyReviews()
+      .then((data) => { if (active) setReviews(Array.isArray(data) ? data : []); })
+      .catch((error) => { if (active) setReviewsError(error.message || 'Could not load reviews.'); })
+      .finally(() => { if (active) setReviewsLoading(false); });
+    return () => { active = false; };
+  }, [signedOut, panel, reviewsReload]);
 
   useFocusEffect(
     useCallback(() => {
@@ -161,15 +189,22 @@ export default function Account() {
       let active = true;
 
       const load = async () => {
-        const [profileRes, ordersRes, wishlistRes, unreadRes] =
+        setDashboardLoading(true);
+        setDashboardError('');
+        const [profileRes, ordersRes, wishlistRes, unreadRes, reviewsRes] =
           await Promise.allSettled([
             getProfile(),
             getOrders(),
             getWishlist(),
             getUnreadCount(),
+            getMyReviews(),
           ]);
 
         if (!active) return;
+        setDashboardLoading(false);
+        if ([profileRes, ordersRes, wishlistRes, unreadRes, reviewsRes].some((result) => result.status === 'rejected')) {
+          setDashboardError('Some account information could not be loaded.');
+        }
 
         if (profileRes.status === 'fulfilled') setProfile(profileRes.value);
         if (ordersRes.status === 'fulfilled' && Array.isArray(ordersRes.value)) {
@@ -181,18 +216,52 @@ export default function Account() {
         if (unreadRes.status === 'fulfilled') {
           setUnreadCount(unreadRes.value || 0);
         }
+        if (reviewsRes.status === 'fulfilled' && Array.isArray(reviewsRes.value)) {
+          setReviewCount(reviewsRes.value.length);
+        }
       };
 
       load();
       return () => {
         active = false;
       };
-    }, [signedOut])
+    }, [signedOut, dashboardReload])
   );
 
   const handleSignOut = () => {
     logout();
     navigation.reset({ index: 0, routes: [{ name: 'Initial' }] });
+  };
+
+  const handleCloseAccount = () => {
+    if (closing) return;
+    if (closeConfirmation !== 'CLOSE MY ACCOUNT' || !closePassword) {
+      setCloseError('Enter your password and type CLOSE MY ACCOUNT.');
+      return;
+    }
+    Alert.alert(
+      'Close your account?',
+      'Sign-in will be disabled. Profile, saved items, reviews and notifications will be removed. Historical order, payment, shipping and audit records remain pending retention review. Open orders must be resolved first.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Close account', style: 'destructive', onPress: async () => {
+          setClosing(true);
+          setCloseError('');
+          try {
+            const result = await closeAccount(closePassword);
+            setClosePassword('');
+            clearCart();
+            logout();
+            navigation.reset({ index: 0, routes: [{ name: 'Initial' }] });
+            Alert.alert('Account closed', result.message || 'Sign-in is disabled.');
+          } catch (error) {
+            setCloseError(error.message || 'Account closure failed. Please try again.');
+          } finally {
+            setClosing(false);
+          }
+        } },
+      ]
+    );
   };
 
   const name = profile?.name || user?.name || '';
@@ -285,10 +354,47 @@ export default function Account() {
   const renderReviewsPanel = () => (
     <View>
       <PanelHeader title="My Reviews" onBack={() => setPanel(null)} />
-      <Text style={styles.emptyText}>
-        Review history is not available in the app yet. Approved reviews remain
-        visible on their product pages.
-      </Text>
+      {reviewsLoading ? <Text style={styles.emptyText}>Loading reviews…</Text> : null}
+      {reviewsError ? <Text accessibilityRole="alert" style={styles.closeError}>{reviewsError}</Text> : null}
+      {reviewsError ? <TouchableOpacity accessibilityRole="button" onPress={() => setReviewsReload((value) => value + 1)}><Text style={styles.guestLink}>Retry</Text></TouchableOpacity> : null}
+      {!reviewsLoading && !reviewsError && reviews.length === 0 ? <Text style={styles.emptyText}>You have not submitted a review yet.</Text> : null}
+      {!reviewsLoading && !reviewsError ? reviews.map((review) => (
+        <View key={review.id} style={styles.addressCard}>
+          <Text style={styles.addressLabel}>{review.product_name}</Text>
+          <Text style={styles.addressLine}>{review.rating}/5 · {review.status}</Text>
+          <Text style={styles.addressLine}>{review.comment}</Text>
+          {review.product_ref ? <TouchableOpacity accessibilityRole="button" onPress={() => { setPanel(null); navigation.navigate('ProductDetails', { selectedProductId: review.product_ref }); }}><Text style={styles.guestLink}>View product</Text></TouchableOpacity> : null}
+        </View>
+      )) : null}
+    </View>
+  );
+
+  const renderClosePanel = () => (
+    <View>
+      <PanelHeader title="Close account" onBack={() => setPanel(null)} />
+      <Text style={styles.emptyText}>Your profile, saved items, reviews, notifications and device registrations will be removed. Historical order, payment, shipping and audit records remain pending retention review. Open orders must be resolved first.</Text>
+      <TextInput
+        accessibilityLabel="Current password"
+        placeholder="Current password"
+        secureTextEntry
+        value={closePassword}
+        onChangeText={setClosePassword}
+        style={styles.closeInput}
+        editable={!closing}
+      />
+      <TextInput
+        accessibilityLabel="Type CLOSE MY ACCOUNT"
+        placeholder="Type CLOSE MY ACCOUNT"
+        value={closeConfirmation}
+        onChangeText={setCloseConfirmation}
+        autoCapitalize="characters"
+        style={styles.closeInput}
+        editable={!closing}
+      />
+      {closeError ? <Text accessibilityRole="alert" style={styles.closeError}>{closeError}</Text> : null}
+      <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: closing }} disabled={closing} style={styles.signOutButton} onPress={handleCloseAccount}>
+        <Text style={styles.signOutText}>{closing ? 'Closing…' : 'Close my account'}</Text>
+      </TouchableOpacity>
     </View>
   );
 
@@ -345,6 +451,8 @@ export default function Account() {
         return renderAddressesPanel();
       case 'reviews':
         return renderReviewsPanel();
+      case 'close':
+        return renderClosePanel();
       case 'faq':
         return renderFaqPanel();
       case 'contact':
@@ -380,6 +488,9 @@ export default function Account() {
             renderPanel()
           ) : (
             <>
+              {dashboardLoading ? <Text>Loading account information…</Text> : null}
+              {dashboardError ? <Text accessibilityRole="alert" style={styles.closeError}>{dashboardError}</Text> : null}
+              {dashboardError ? <TouchableOpacity accessibilityRole="button" onPress={() => setDashboardReload((value) => value + 1)}><Text style={styles.guestLink}>Retry account information</Text></TouchableOpacity> : null}
               {/* Profile */}
               <View style={styles.profile}>
                 <View style={styles.avatar}>
@@ -405,13 +516,15 @@ export default function Account() {
                   <Text style={styles.statLabel}>WISHLIST</Text>
                 </View>
                 <View style={styles.statCard}>
-                  <Text style={styles.statNumber}>—</Text>
+                  <Text style={styles.statNumber}>{reviewCount}</Text>
                   <Text style={styles.statLabel}>REVIEWS</Text>
                 </View>
               </View>
 
               {/* Menu */}
+              <Text style={styles.sectionTitle}>MY ACCOUNT</Text>
               <View style={styles.menu}>
+                <MenuRow icon="◉" label="Personal Information" onPress={() => navigation.navigate('Profile')} />
                 <MenuRow
                   icon="▤"
                   label="My Orders"
@@ -458,6 +571,8 @@ export default function Account() {
                 />
               </View>
 
+              <Text style={styles.sectionTitle}>ACCOUNT SETTINGS</Text>
+
               <TouchableOpacity
                 accessibilityLabel="Sign out"
                 accessibilityRole="button"
@@ -465,6 +580,9 @@ export default function Account() {
                 onPress={handleSignOut}
               >
                 <Text style={styles.signOutText}>Sign out</Text>
+              </TouchableOpacity>
+              <TouchableOpacity accessibilityLabel="Close account" accessibilityRole="button" style={styles.signOutButton} onPress={() => setPanel('close')}>
+                <Text style={styles.signOutText}>Close account</Text>
               </TouchableOpacity>
             </>
           )}
@@ -476,6 +594,9 @@ export default function Account() {
 }
 
 const styles = StyleSheet.create({
+  closeInput: { minHeight: 48, borderWidth: 1, borderColor: colors.border, color: colors.ink, backgroundColor: colors.surface, paddingHorizontal: 12, marginVertical: 8 },
+  closeError: { color: '#a12828', marginVertical: 8 },
+  sectionTitle: { fontFamily: fonts.monoRegular, fontSize: 11, color: colors.muted, letterSpacing: 1, marginTop: 24, marginBottom: 8 },
   screen: {
     height: '100%',
     backgroundColor: colors.paper,

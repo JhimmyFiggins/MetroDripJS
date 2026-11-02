@@ -142,6 +142,7 @@ REST_FRAMEWORK = {
         'payment_status': '120/min',
         'payment_webhook': '300/min',
         'review_submission': '5/day',
+        'account_close': '5/hour',
     },
     'NUM_PROXIES': 1,
 }

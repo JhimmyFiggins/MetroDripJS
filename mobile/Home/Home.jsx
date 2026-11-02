@@ -23,8 +23,9 @@ export default function Home({ navigation, route }) {
 
     const [categoryList, setCategoryList] = useState([]);
     const [selectedProductId, setSelectedProductId] = useState(null);
-    const [currentCategory, setCurrentCategory] = useState(1);
+    const [currentCategory, setCurrentCategory] = useState(null);
     const [categoriesLoading, setCategoriesLoading] = useState(true);
+    const [categoriesError, setCategoriesError] = useState('');
     const [showTopSection, setShowTopSection] = useState(true);
     const [heroBanner, setHeroBanner] = useState(null);
     const [secondaryBanner, setSecondaryBanner] = useState(null);
@@ -33,9 +34,14 @@ export default function Home({ navigation, route }) {
     const [imageError, setImageError] = useState(false);
 
     const loadHome = useCallback(() => {
+            setCategoriesLoading(true);
+            setCategoriesError('');
             apiFetch('/categories/', { auth: false })
                 .then(data => setCategoryList(Array.isArray(data) ? data : []))
-                .catch(error => console.error('Failed to load categories:', error))
+                .catch(error => {
+                    setCategoryList([]);
+                    setCategoriesError(error.message || 'Categories could not be loaded.');
+                })
                 .finally(() => setCategoriesLoading(false));
 
             apiFetch('/banners/', { auth: false })
@@ -217,6 +223,8 @@ export default function Home({ navigation, route }) {
                 ) : null}
 
                 <View style={styles.CategorySection}>
+                    {categoriesError ? <Text accessibilityRole="alert">{categoriesError}</Text> : null}
+                    {categoriesError ? <TouchableOpacity accessibilityRole="button" onPress={loadHome}><Text>Retry categories</Text></TouchableOpacity> : null}
                     {categoriesLoading ? (
                         <ActivityIndicator size="small" color="#000" style={{ padding: 20 }} />
                     ) : (
@@ -227,6 +235,9 @@ export default function Home({ navigation, route }) {
                 
                             contentContainerStyle={styles.CategoryScroll}
                         >
+                            <TouchableOpacity accessibilityLabel="All products" accessibilityRole="button" accessibilityState={{ selected: currentCategory == null }} style={[styles.CategoryChip, currentCategory == null && styles.ActiveCategoryChip]} onPress={() => setCurrentCategory(null)}>
+                                <Text style={[styles.CategoryText, currentCategory == null && styles.ActiveCategoryText]}>All Products</Text>
+                            </TouchableOpacity>
                             {categoryList.map((category, index) => {
                                 const isActive = category.id === currentCategory;
                                 return(

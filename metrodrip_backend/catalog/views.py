@@ -29,6 +29,9 @@ class ProductListAPIView(ListAPIView):
     def get_queryset(self):
         qs = CatalogProduct.objects.filter(is_active=True).prefetch_related('media')
 
+        if self.request.query_params.get('featured') == '1':
+            qs = qs.filter(is_featured=True)
+
         category_param = self.request.query_params.get('category')
         if category_param and category_param not in ['0', 'all', 'All']:
             if category_param.isdigit():

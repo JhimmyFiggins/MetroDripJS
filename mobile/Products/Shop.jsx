@@ -37,6 +37,7 @@ const DEFAULT_FILTERS = {
   color: null,
   fit: null,
   sort: 'newest',
+  featured: false,
 };
 
 const SORT_OPTIONS = [
@@ -58,6 +59,9 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
   const [showTopSection, setShowTopSection] = useState(true);
 
   const [categories, setCategories] = useState([]);
+  const [categoryError, setCategoryError] = useState('');
+  const [categoryLoading, setCategoryLoading] = useState(true);
+  const [categoryReload, setCategoryReload] = useState(0);
   const [productList, setProductList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -93,15 +97,23 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
 
   useEffect(() => {
     let cancelled = false;
+    setCategoryLoading(true);
+    setCategoryError('');
     apiFetch('/categories/', { auth: false })
       .then((data) => {
         if (!cancelled) setCategories(Array.isArray(data) ? data : []);
       })
-      .catch((fetchError) => console.error('Failed to load categories:', fetchError));
+      .catch((fetchError) => {
+        if (!cancelled) {
+          setCategories([]);
+          setCategoryError(fetchError.message || 'Categories could not be loaded.');
+        }
+      })
+      .finally(() => { if (!cancelled) setCategoryLoading(false); });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [categoryReload]);
 
   // Single source of truth: refetch whenever any filter/sort/search changes.
   useEffect(() => {
@@ -116,6 +128,7 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
         color: filters.color,
         fit: filters.fit,
         sort: filters.sort,
+        featured: filters.featured ? '1' : null,
       })
       .then((data) => {
         if (!cancelled) setProductList(Array.isArray(data) ? data : []);
@@ -145,6 +158,7 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
   if (filters.size) activeChips.push({ key: 'size', label: `Size ${filters.size}` });
   if (filters.color) activeChips.push({ key: 'color', label: filters.color });
   if (filters.fit) activeChips.push({ key: 'fit', label: filters.fit });
+  if (filters.featured) activeChips.push({ key: 'featured', label: 'Featured' });
   if (filters.sort && filters.sort !== 'newest') {
     activeChips.push({ key: 'sort', label: sortLabel(filters.sort) });
   }
@@ -153,6 +167,7 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
   const removeChip = (key) => {
     if (key === 'search') onFiltersChange({ search: '' });
     else if (key === 'sort') onFiltersChange({ sort: 'newest' });
+    else if (key === 'featured') onFiltersChange({ featured: false });
     else onFiltersChange({ [key]: null });
   };
 
@@ -270,6 +285,10 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
           </View>
 
           {/* Category chips row */}
+          {categoryLoading ? <Text>Loading categories…</Text> : null}
+          {categoryError ? <Text accessibilityRole="alert">{categoryError}</Text> : null}
+          {categoryError ? <TouchableOpacity accessibilityRole="button" onPress={() => setCategoryReload((value) => value + 1)}><Text>Retry categories</Text></TouchableOpacity> : null}
+          {!categoryLoading && !categoryError && categories.length === 0 ? <Text>No categories available.</Text> : null}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -313,6 +332,15 @@ function ShopContent({ navigation, route, filters, onFiltersChange, onClearAll }
             style={styles.chipsScrollView}
             contentContainerStyle={styles.chipsRow}
           >
+            <TouchableOpacity
+              accessibilityLabel="Featured products"
+              accessibilityRole="button"
+              accessibilityState={{ selected: filters.featured }}
+              style={[styles.categoryChip, filters.featured && styles.categoryChipActive]}
+              onPress={() => onFiltersChange({ featured: !filters.featured })}
+            >
+              <Text style={[styles.categoryChipText, filters.featured && styles.categoryChipTextActive]}>Featured</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               accessibilityLabel={`Open filters, ${filterCount} active`}
               accessibilityRole="button"

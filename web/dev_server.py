@@ -39,7 +39,8 @@ BACKEND_PATH_PREFIXES = (
     '/payment/',
     '/auth/',
 )
-BACKEND_PATHS = {'/login/', '/logout/'}
+# Account closure and owned reviews must reach Django just like login/logout.
+BACKEND_PATHS = {'/login/', '/logout/', '/account/close/', '/reviews/mine/'}
 CUSTOMER_STATIC_SUFFIXES = {'.css', '.html', '.ico', '.js', '.png', '.svg'}
 
 class DevHTTPRequestHandler(SimpleHTTPRequestHandler):
@@ -71,7 +72,9 @@ class DevHTTPRequestHandler(SimpleHTTPRequestHandler):
             path = '/merchant/account-settings.html'
         elif clean_path in ('/account/settings', '/account-settings'):
             path = '/merchant/account-settings.html'
-        elif clean_path in ('/favicon.ico', '/favicon.png'):
+        elif clean_path == '/favicon.ico':
+            path = '/assets/favicon.ico'
+        elif clean_path == '/favicon.png':
             path = '/assets/favicon.png'
         elif clean_path in ('/favicon.svg',):
             path = '/assets/favicon.svg'

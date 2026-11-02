@@ -253,6 +253,23 @@ button, input, select, textarea {
   background-color: var(--paper);
 }
 
+.nav-group { position: relative; }
+.nav-group summary, .mobile-nav-group summary { cursor: pointer; list-style: none; }
+.nav-group summary::after, .mobile-nav-group summary::after { content: ' ▾'; }
+.nav-dropdown { position: absolute; top: 100%; left: 0; min-width: 220px; max-height: 65vh; overflow: auto; padding: 8px; background: var(--card); border: 1px solid var(--border); box-shadow: 0 12px 30px #0002; z-index: 100; }
+.nav-dropdown a, .nav-dropdown span, .mobile-nav-group a, .mobile-nav-group span { display: block; padding: 10px 12px; color: var(--ink); }
+.nav-dropdown a:hover, .mobile-nav-group a:hover { background: var(--paper); }
+.nav-group summary:focus-visible, .nav-dropdown a:focus-visible, .mobile-nav-group summary:focus-visible, .site-nav a:focus-visible, .header-btn:focus-visible { outline: 3px solid var(--olive); outline-offset: 2px; }
+.mobile-nav-group summary { padding: 10px 14px; min-height: 44px; font-weight: 600; }
+.mobile-nav-group > div { padding-left: 12px; }
+#mobile-search { display: grid; gap: 8px; padding: 10px 14px; }
+#mobile-search input { min-width: 0; padding: 10px; border: 1px solid var(--border); background: var(--card); color: var(--ink); }
+#mobile-search button { padding: 10px; border: 1px solid var(--border); background: var(--paper); color: var(--ink); cursor: pointer; }
+.account-layout { display: grid; grid-template-columns: minmax(170px, 240px) minmax(0, 1fr); gap: 24px; align-items: start; }
+.account-links { display: grid; gap: 8px; }
+.account-links a, .account-links button { display: block; width: 100%; text-align: left; }
+@media (max-width: 700px) { .account-layout { grid-template-columns: 1fr; } }
+
 .header-search {
   flex: 1;
   max-width: 320px;
@@ -2041,6 +2058,7 @@ button, input, select, textarea {
   .menu-button {
     display: flex;
   }
+  .header-notifications-btn { display: none; }
   .footer-columns {
     grid-template-columns: 1fr;
     gap: 32px;

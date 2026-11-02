@@ -334,7 +334,32 @@ function navigate(path, { replace = false } = {}) {
   else history.pushState({}, '', next);
   nav.classList.remove('is-open');
   menuButton.setAttribute('aria-expanded', 'false');
+  document.querySelectorAll('.nav-group, .mobile-nav-group').forEach((group) => { group.open = false; });
   render();
+}
+
+async function loadNavigationCategories() {
+  const targets = [document.querySelector('#desktop-categories'), document.querySelector('#mobile-categories')];
+  try {
+    const categories = await api('/categories/', { auth: false });
+    if (!Array.isArray(categories)) throw new Error('Category response is unavailable.');
+    for (const target of targets) {
+      target.replaceChildren();
+      if (target.id === 'desktop-categories') target.append(el('a', { href: customerHref('/shop') }, 'All Products'));
+      if (!categories.length) target.append(el('span', {}, 'No categories available.'));
+      for (const category of categories) {
+        if (!category.is_active && category.is_active !== undefined) continue;
+        target.append(el('a', { href: customerHref(`/shop?category=${encodeURIComponent(category.slug || category.id)}`) }, category.name));
+      }
+    }
+  } catch {
+    for (const target of targets) {
+      target.replaceChildren(
+        el('a', { href: customerHref('/shop') }, 'All Products'),
+        el('button', { type: 'button', onclick: loadNavigationCategories }, 'Retry categories')
+      );
+    }
+  }
 }
 
 async function refreshUnread() {
@@ -475,8 +500,7 @@ async function renderHome() {
   }
   const categoryList = Array.isArray(categories) ? categories : [];
   const productList = Array.isArray(products) ? products : [];
-  const featured = productList.filter((product) => product.is_featured).slice(0, 8);
-  const arrivals = (featured.length ? featured : productList).slice(0, 8);
+  const arrivals = productList.slice(0, 8);
 
   const heroBanner = bannerError ? null : bannersForPlacement(published, 'homepage_hero')[0] || null;
   const secondaryBanner = bannerError ? null : bannersForPlacement(published, 'homepage_secondary')[0] || null;
@@ -606,7 +630,7 @@ async function renderHome() {
 async function renderShop() {
   const params = new URLSearchParams(location.search);
   const query = new URLSearchParams();
-  for (const key of ['search', 'category', 'size', 'color', 'fit', 'sort']) {
+  for (const key of ['search', 'category', 'size', 'color', 'fit', 'sort', 'featured']) {
     const value = params.get(key);
     if (value) query.set(key, value);
   }
@@ -1023,7 +1047,7 @@ async function renderCart(_route, scope) {
     itemsNodes.push(el('div', { class: 'cart-item-row' }, [
       el('div', { class: 'cart-item-thumb' }, [el('span', { class: 'artwork-initial', style: 'font-size:36px;' }, initial)]),
       el('div', { class: 'cart-item-info' }, [
-        el('h4', { class: 'cart-item-title' }, line.name),
+        el('h2', { class: 'cart-item-title' }, line.name),
         el('span', { class: 'cart-item-variant' }, line.label),
         el('small', { class: 'muted' }, stockNote),
       ]),
@@ -1054,25 +1078,18 @@ async function renderCart(_route, scope) {
     ]));
   }
 
-  const shippingCents = 8500; // NCR baseline estimate ₱85
-  const totalCents = subtotalCents + shippingCents;
-
   const summary = el('div', { class: 'summary-card' }, [
     el('h3', { class: 'summary-title' }, 'Order summary'),
     el('div', { class: 'summary-row' }, [
-      el('span', {}, `Subtotal · ${state.cart.reduce((s, i) => s + i.quantity, 0)} items`),
+      el('span', {}, `Estimated subtotal · ${state.cart.reduce((s, i) => s + i.quantity, 0)} items`),
       el('span', {}, formatCentavos(subtotalCents)),
     ]),
     el('div', { class: 'summary-row' }, [
-      el('span', {}, 'Shipping · NCR estimate'),
-      el('span', {}, formatCentavos(shippingCents)),
-    ]),
-    el('div', { class: 'summary-row summary-row-total' }, [
-      el('span', {}, 'Estimated Total'),
-      el('span', { class: 'summary-total-price' }, formatCentavos(totalCents)),
+      el('span', {}, 'Shipping'),
+      el('span', {}, 'Calculated at checkout'),
     ]),
     el('a', { class: 'btn btn-primary btn-full', href: customerHref('/checkout') }, 'Check out'),
-    el('p', { class: 'summary-note' }, 'Guest checkout available. Pay with GCash, Maya, or card.'),
+    el('p', { class: 'summary-note' }, 'Sign in to place your order. Available payment methods appear at checkout.'),
     el('a', { href: customerHref('/shop'), style: 'font-size:14px; text-align:center; color:var(--muted);' }, 'Continue shopping'),
   ]);
 
@@ -1162,7 +1179,7 @@ async function renderCheckout(_route, scope) {
       ])),
     ]),
     el('p', { class: 'muted', style: 'font-size:13px;' }, 'The server calculates the PHP total and delivery fee. Card details never touch MetroDrip servers.'),
-    el('button', { class: 'btn btn-primary btn-full', type: 'submit', disabled: zones.length === 0 }, 'Proceed to Payment'),
+    el('button', { class: 'btn btn-primary btn-full', type: 'submit', disabled: zones.length === 0 }, 'Place order or continue to payment'),
     state.attempt ? el('button', { class: 'btn btn-secondary btn-full', type: 'button', onclick: () => { clearAttempt(); announce('Saved checkout key cleared. The next submission starts a new checkout.'); } }, 'Start a new checkout') : null,
   ]);
 
@@ -1739,7 +1756,7 @@ async function renderAccount(_route, scope) {
         render();
       } catch (err) {
         if (!isCurrent(scope)) return;
-        announce("We couldn't save your changes. Please try again.");
+        announce(err.message || "We couldn't save your changes. Please try again.");
       }
     });
   } }, [
@@ -1751,17 +1768,61 @@ async function renderAccount(_route, scope) {
     Array.isArray(addresses) ? null : field('Address', 'address', addresses?.address || ''),
     el('button', { class: 'btn btn-primary', type: 'submit', style: 'margin-top:8px;' }, 'Save Changes'),
   ]);
+  for (const name of ['name', 'email']) form.elements[name].required = true;
+  form.elements.name.maxLength = 150;
+  form.elements.email.maxLength = 254;
+  form.elements.phone.maxLength = 32;
+
+  const closeForm = el('form', { class: 'summary-card', onsubmit: async (event) => {
+    event.preventDefault();
+    const data = new FormData(closeForm);
+    if (String(data.get('confirmation') || '') !== 'CLOSE MY ACCOUNT') {
+      announce('Type CLOSE MY ACCOUNT to confirm.');
+      return;
+    }
+    return runAction(scope, closeForm.querySelector('button[type="submit"]'), async () => {
+      const confirmed = await openDialog('Close your account?', 'Your sign-in will be disabled. Profile, wishlist, reviews and notifications will be removed. Historical orders, payments, shipping and audit records remain pending retention review.');
+      if (!confirmed || !isCurrent(scope)) return;
+      const result = await request('/account/close/', { method: 'POST', body: {
+        confirmation: 'CLOSE MY ACCOUNT',
+        password: String(data.get('password') || ''),
+      } }, scope);
+      if (!isCurrent(scope)) return;
+      changeSession(null);
+      state.cart = [];
+      saveCart();
+      clearAttempt();
+      navigate(customerHref('/'), { replace: true });
+      announce(result.message || 'Account closed.');
+    });
+  } }, [
+    el('h2', { class: 'summary-title' }, 'Close account'),
+    el('p', { class: 'muted' }, 'This disables sign-in and removes your profile, saved items, reviews, notifications and device registrations. Historical order, payment, shipping and audit records remain while their retention policy is reviewed. Open orders must be resolved first.'),
+    el('label', { class: 'field' }, [el('span', {}, 'Current password'), el('input', { name: 'password', type: 'password', required: true, autocomplete: 'current-password' })]),
+    el('label', { class: 'field' }, [el('span', {}, 'Type CLOSE MY ACCOUNT'), el('input', { name: 'confirmation', required: true, autocomplete: 'off' })]),
+    el('button', { class: 'btn btn-danger', type: 'submit' }, 'Close my account'),
+  ]);
 
   return el('section', { class: 'page account-page' }, [
     breadcrumbs({ label: 'Home', href: customerHref('/') }, { label: 'My Account' }),
     el('h1', { tabindex: '-1' }, 'My Account'),
     el('p', { class: 'lede' }, 'Manage your profile, review your orders, and access your saved items.'),
-    form,
-    el('div', { style: 'display:flex; gap:12px; margin-top:20px; flex-wrap:wrap;' }, [
-      el('a', { class: 'btn btn-secondary', href: customerHref('/orders') }, 'My Orders'),
-      el('a', { class: 'btn btn-secondary', href: customerHref('/wishlist') }, 'Wishlist'),
-      el('a', { class: 'btn btn-secondary', href: customerHref('/reviews') }, 'Reviews'),
-      el('button', { class: 'btn btn-danger', type: 'button', onclick: () => signOut(scope) }, 'Sign out'),
+    el('div', { class: 'account-layout' }, [
+      el('nav', { class: 'account-links', 'aria-label': 'Account sections' }, [
+        el('a', { class: 'btn btn-secondary', href: '#personal-information' }, 'Personal Information'),
+        el('a', { class: 'btn btn-secondary', href: customerHref('/orders') }, 'My Orders'),
+        el('a', { class: 'btn btn-secondary', href: customerHref('/wishlist') }, 'Wishlist'),
+        el('a', { class: 'btn btn-secondary', href: customerHref('/reviews') }, 'My Reviews'),
+        el('a', { class: 'btn btn-secondary', href: '#account-settings' }, 'Account Settings'),
+      ]),
+      el('div', {}, [
+        el('div', { id: 'personal-information' }, form),
+        el('section', { id: 'account-settings' }, [
+          el('h2', {}, 'Account Settings'),
+          el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => signOut(scope) }, 'Sign out'),
+          closeForm,
+        ]),
+      ]),
     ]),
   ]);
 }
@@ -1847,8 +1908,16 @@ async function renderNotifications(_route, scope) {
   ]))));
 }
 
-async function renderReviews() {
-  return page('My Reviews', 'Reviews are currently submitted and displayed on each product page. An account-wide review history is not available yet.', el('a', { class: 'btn btn-primary', href: customerHref('/shop') }, 'Browse Products'));
+async function renderReviews(_route, scope) {
+  if (!state.session) return signInPanel(customerHref('/reviews'));
+  const reviews = await request('/reviews/mine/', {}, scope);
+  if (!reviews.length) return page('My Reviews', 'You have not submitted a review yet.', el('a', { class: 'btn btn-primary', href: customerHref('/shop') }, 'Browse Products'));
+  return page('My Reviews', 'Your submitted product reviews.', el('div', { class: 'grid' }, reviews.map((review) => el('article', { class: 'summary-card' }, [
+    el('h2', {}, review.product_name),
+    el('p', {}, `${review.rating}/5 · ${review.status}`),
+    el('p', {}, review.comment),
+    review.product_ref ? el('a', { href: customerHref(`/products/${review.product_ref}`) }, 'View product') : null,
+  ]))));
 }
 
 const FAQ_ITEMS = [
@@ -2607,6 +2676,60 @@ async function render() {
   app.focus({ preventScroll: true });
 }
 
+function initializeCustomerNavigation() {
+  const desktop = document.querySelector('.desktop-main-links');
+  desktop.replaceChildren(
+    el('details', { class: 'nav-group', id: 'desktop-shop' }, [
+      el('summary', { class: 'desktop-nav-link' }, 'Shop'),
+      el('div', { class: 'nav-dropdown', id: 'desktop-categories' }, [
+        el('a', { href: customerHref('/shop') }, 'All Products'),
+        el('span', {}, 'Loading categories…'),
+      ]),
+    ]),
+    el('details', { class: 'nav-group', id: 'desktop-discover' }, [
+      el('summary', { class: 'desktop-nav-link' }, 'Discover'),
+      el('div', { class: 'nav-dropdown' }, [
+        el('a', { href: customerHref('/shop?sort=newest') }, 'New Arrivals'),
+        el('a', { href: customerHref('/shop?featured=1') }, 'Featured Products'),
+      ]),
+    ])
+  );
+  document.querySelector('.header-actions').prepend(
+    el('a', { class: 'header-btn header-notifications-btn', href: customerHref('/notifications'), 'aria-label': 'Notifications' }, [
+      'Notifications ', el('span', { 'data-unread-count': '', hidden: true }, '0'),
+    ])
+  );
+  nav.querySelector('.site-nav-inner').replaceChildren(
+    el('a', { href: customerHref('/') }, 'Home'),
+    el('a', { href: customerHref('/shop') }, 'Shop All'),
+    el('details', { class: 'mobile-nav-group' }, [
+      el('summary', {}, 'Shop categories'),
+      el('div', { id: 'mobile-categories' }, el('span', {}, 'Loading categories…')),
+    ]),
+    el('details', { class: 'mobile-nav-group' }, [
+      el('summary', {}, 'Discover'),
+      el('div', {}, [
+        el('a', { href: customerHref('/shop?sort=newest') }, 'New Arrivals'),
+        el('a', { href: customerHref('/shop?featured=1') }, 'Featured Products'),
+      ]),
+    ]),
+    el('form', { id: 'mobile-search', role: 'search' }, [
+      el('label', { for: 'mobile-catalog-search' }, 'Search products'),
+      el('input', { id: 'mobile-catalog-search', name: 'q', type: 'search' }),
+      el('button', { type: 'submit' }, 'Search'),
+    ]),
+    el('a', { href: customerHref('/wishlist') }, 'Wishlist'),
+    el('a', { href: customerHref('/orders') }, 'Orders & Tracking'),
+    el('a', { href: customerHref('/notifications') }, [
+      'Notifications ', el('span', { 'data-unread-count': '', hidden: true }, '0'),
+    ]),
+    el('a', { href: customerHref('/account') }, 'My Account'),
+    el('a', { href: '/' , class: 'staff-link' }, 'Staff Portal')
+  );
+}
+
+initializeCustomerNavigation();
+
 document.addEventListener('click', (event) => {
   const link = event.target.closest('a[href^="/customer"]');
   if (!link || event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
@@ -2615,10 +2738,38 @@ document.addEventListener('click', (event) => {
   navigate(`${link.pathname}${link.search}`);
 });
 window.addEventListener('popstate', () => render());
+document.querySelectorAll('.nav-group').forEach((group) => group.addEventListener('toggle', () => {
+  if (group.open) {
+    document.querySelectorAll('.nav-group').forEach((other) => { if (other !== group) other.open = false; });
+    if (group.id === 'desktop-shop') loadNavigationCategories();
+  }
+}));
+document.querySelectorAll('.mobile-nav-group').forEach((group) => group.addEventListener('toggle', () => {
+  if (group.open && group.querySelector('#mobile-categories')) loadNavigationCategories();
+}));
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  if (nav.classList.contains('is-open')) {
+    nav.classList.remove('is-open');
+    menuButton.setAttribute('aria-expanded', 'false');
+    menuButton.focus();
+  }
+  document.querySelectorAll('.nav-group, .mobile-nav-group').forEach((group) => { group.open = false; });
+});
 menuButton.addEventListener('click', () => {
   const open = !nav.classList.contains('is-open');
   nav.classList.toggle('is-open', open);
   menuButton.setAttribute('aria-expanded', String(open));
+  if (open) nav.querySelector('a')?.focus();
+});
+document.addEventListener('click', (event) => {
+  if (nav.classList.contains('is-open') && !nav.contains(event.target) && !menuButton.contains(event.target)) {
+    nav.classList.remove('is-open');
+    menuButton.setAttribute('aria-expanded', 'false');
+  }
+  if (!event.target.closest('.nav-group')) {
+    document.querySelectorAll('.nav-group').forEach((group) => { group.open = false; });
+  }
 });
 themeButton.addEventListener('click', () => {
   const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
@@ -2637,8 +2788,14 @@ searchForm.addEventListener('submit', (event) => {
   const q = String(new FormData(searchForm).get('q') || '').trim();
   navigate(q ? `${customerHref('/shop')}?search=${encodeURIComponent(q)}` : customerHref('/shop'));
 });
+document.querySelector('#mobile-search').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const q = String(new FormData(event.currentTarget).get('q') || '').trim();
+  navigate(q ? `${customerHref('/shop')}?search=${encodeURIComponent(q)}` : customerHref('/shop'));
+});
 
 loadCart();
+loadNavigationCategories();
 paintChrome();
 syncAnnouncementBanner();
 render();

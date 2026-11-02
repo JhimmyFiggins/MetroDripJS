@@ -21,13 +21,9 @@ export default function ProductCards({ selectedCategory, onSelectProduct, produc
     let filteredProducts;
 
     // Add new arrivals and trending logic here
-    if (!isControlled && selectedCategory) {
-        if(selectedCategory === 1){ //Default Category - All
-            filteredProducts = sourceProducts;
-        }else{
-            filteredProducts = sourceProducts.filter(product =>
-            product.category === selectedCategory);
-        }
+    if (!isControlled && selectedCategory != null) {
+        filteredProducts = sourceProducts.filter(product =>
+            String(product.category) === String(selectedCategory));
     } else {
         filteredProducts = sourceProducts;
     }

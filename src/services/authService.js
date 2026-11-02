@@ -75,6 +75,18 @@ export async function updateProfile(data) {
   });
 }
 
+// Closure requires the active customer token plus a fresh password check on the server.
+export async function closeAccount(password) {
+  return apiFetch('/account/close/', {
+    method: 'POST',
+    body: { password, confirmation: 'CLOSE MY ACCOUNT' },
+  });
+}
+
+export async function getMyReviews() {
+  return apiFetch('/reviews/mine/');
+}
+
 // Authenticated password change (requires existing bearer token and current_password)
 export async function changePassword(currentPassword, newPassword, confirmPassword) {
   const body = {

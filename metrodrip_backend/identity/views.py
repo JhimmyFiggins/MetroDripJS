@@ -12,6 +12,8 @@ from .models import (
     PlatformSetting,
 )
 from catalog.models import CatalogProduct
+from orders.models import OrdersOrder, ReviewsReview
+from fulfillment.models import NotificationsDeviceToken, NotificationsNotification
 from django.utils import timezone
 from .authentication import CustomerAuthentication, CustomerTokenAuthentication
 from .permissions import IsAdminRole, IsMerchantOrAdminRole
@@ -27,6 +29,7 @@ from .otp import issue_challenge, login_requires_otp, otp_enforced, resend_chall
 from .throttling import DatabaseScopedRateThrottle
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.db import IntegrityError, transaction
 from .brevo import (
     is_brevo_configured,
@@ -244,6 +247,7 @@ class ProfileAPIView(APIView):
             'email': customer.email,
             'phone': customer.phone,
             'addresses': customer.addresses,
+            'date_joined': customer.date_joined,
             'role': customer.role,
         })
 
@@ -252,16 +256,28 @@ class ProfileAPIView(APIView):
         if not customer:
             return Response({'error': 'Authentication required.'}, status=401)
 
-        customer.name = request.data.get('name', customer.name)
+        name = request.data.get('name', customer.name)
+        if not isinstance(name, str) or not name.strip() or len(name.strip()) > 150:
+            return Response({'error': 'Name must be 1 to 150 characters.'}, status=400)
+        customer.name = name.strip()
         new_email = request.data.get('email')
-        normalized_email = new_email.strip().lower() if isinstance(new_email, str) else ''
-        if normalized_email and normalized_email != customer.email:
+        normalized_email = new_email.strip().lower() if isinstance(new_email, str) else customer.email
+        try:
+            validate_email(normalized_email)
+        except ValidationError:
+            return Response({'error': 'Enter a valid email address.'}, status=400)
+        if len(normalized_email) > 254:
+            return Response({'error': 'Email address is too long.'}, status=400)
+        if normalized_email != customer.email:
             existing = AccountsCustomer.objects.filter(email__iexact=normalized_email).exclude(id=customer.id).first()
             if existing:
                 return Response({'error': 'An account with this email already exists.'}, status=400)
             customer.email = normalized_email
 
-        customer.phone = request.data.get('phone', customer.phone)
+        phone = request.data.get('phone', customer.phone)
+        if not isinstance(phone, str) or len(phone.strip()) > 32:
+            return Response({'error': 'Phone number must be 32 characters or fewer.'}, status=400)
+        customer.phone = phone.strip()
         customer.addresses = request.data.get(
             'addresses',
             customer.addresses
@@ -276,8 +292,90 @@ class ProfileAPIView(APIView):
             'email': customer.email,
             'phone': customer.phone,
             'addresses': customer.addresses,
+            'date_joined': customer.date_joined,
             'role': customer.role,
         })
+
+
+class CustomerCloseAccountAPIView(APIView):
+    """Close a customer login while retaining historical transaction records."""
+
+    authentication_classes = [CustomerAuthentication]
+    permission_classes = [IsAuthenticated]
+    renderer_classes = [JSONRenderer]
+    throttle_classes = [DatabaseScopedRateThrottle]
+    throttle_scope = 'account_close'
+
+    def post(self, request):
+        if request.data.get('confirmation') != 'CLOSE MY ACCOUNT':
+            return Response({'error': 'Type CLOSE MY ACCOUNT to confirm.'}, status=400)
+
+        password = request.data.get('password')
+        if not isinstance(password, str) or not password:
+            return Response({'error': 'Your current password is required.'}, status=400)
+
+        with transaction.atomic():
+            customer = AccountsCustomer.objects.select_for_update().filter(pk=request.user.pk).first()
+            if not customer or not customer.is_active or customer.is_deleted:
+                return Response({'error': 'Account is already closed.'}, status=409)
+            if customer.role != 'customer' or customer.is_staff or customer.is_superuser:
+                return Response({'error': 'Only customer accounts can be closed here.'}, status=403)
+            if not customer.check_password(password):
+                return Response({'error': 'Current password does not match.'}, status=400)
+
+            # Open orders still need customer contact and support access.
+            if OrdersOrder.objects.filter(customer_id=customer.id).exclude(
+                status__in=['cancelled', 'payment_expired', 'delivered', 'completed']
+            ).exists():
+                return Response({
+                    'error': 'Resolve your open orders with support before closing your account.'
+                }, status=409)
+
+            customer.email = f'closed-{customer.id}@example.invalid'
+            customer.name = 'Closed customer'
+            customer.phone = ''
+            customer.addresses = {}
+            customer.set_password(None)
+            customer.is_active = False
+            customer.is_deleted = True
+            customer.deleted_at = timezone.now()
+            customer.save(update_fields=[
+                'email', 'name', 'phone', 'addresses', 'password',
+                'is_active', 'is_deleted', 'deleted_at',
+            ])
+
+            # These rows are account-specific and have no financial retention use.
+            AccountsWishlistItem.objects.filter(customer=customer).delete()
+            ReviewsReview.objects.filter(customer_ref=customer.id).delete()
+            NotificationsNotification.objects.filter(customer_ref=customer.id).delete()
+            NotificationsDeviceToken.objects.filter(customer_ref=customer.id).delete()
+            CustomerAccessToken.objects.filter(customer=customer).delete()
+            PasswordResetToken.objects.filter(customer=customer).delete()
+            EmailOtpChallenge.objects.filter(customer=customer).delete()
+
+        return Response({
+            'message': 'Account closed. Sign-in and all sessions are disabled.',
+            'erasure_complete': False,
+            'retained': 'Historical order, payment, shipping, and audit records remain pending the approved retention policy.',
+        })
+
+
+class CustomerReviewsAPIView(APIView):
+    authentication_classes = [CustomerAuthentication]
+    permission_classes = [IsAuthenticated]
+    renderer_classes = [JSONRenderer]
+
+    def get(self, request):
+        reviews = ReviewsReview.objects.filter(customer_ref=request.user.id).order_by('-created_at', '-id')[:100]
+        return Response([{
+            'id': review.id,
+            'product_ref': review.product_ref,
+            'product_name': review.product_name,
+            'rating': review.rating,
+            'comment': review.body,
+            'status': review.status,
+            'created_at': review.created_at,
+        } for review in reviews])
 
 class ForgotPasswordAPIView(APIView):
     renderer_classes = [JSONRenderer]

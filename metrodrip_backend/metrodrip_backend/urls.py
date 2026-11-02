@@ -28,6 +28,8 @@ urlpatterns = [
     path('', include('identity.urls')),
     path('', console_file, name='console-home'),
     path('favicon.ico', console_file, {'asset_path': 'favicon.ico'}, name='console-favicon'),
+    path('favicon.svg', console_file, {'asset_path': 'assets/favicon.svg'}, name='console-favicon-svg'),
+    path('favicon.png', console_file, {'asset_path': 'assets/favicon.png'}, name='console-favicon-png'),
     re_path(
         r'^(?P<asset_path>(?:Registration|admin|assets|css|js|merchant|customer)(?:/.*)?)$',
         console_file,

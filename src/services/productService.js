@@ -1,7 +1,7 @@
 import { apiFetch } from './apiClient';
 
 // Query params supported by GET /products/ (see metrodrip_backend/catalog/views.py).
-const FILTER_KEYS = ['search', 'category', 'size', 'color', 'fit', 'sort'];
+const FILTER_KEYS = ['search', 'category', 'size', 'color', 'fit', 'sort', 'featured'];
 
 function buildQueryString(params = {}) {
   const parts = [];

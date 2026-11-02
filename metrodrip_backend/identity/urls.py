@@ -15,6 +15,8 @@ from .views import (
     UserPasswordAPIView,
     UserMfaAPIView,
     UserSessionsAPIView,
+    CustomerCloseAccountAPIView,
+    CustomerReviewsAPIView,
 )
 
 urlpatterns = [
@@ -31,6 +33,8 @@ urlpatterns = [
     path('api/password-reset/confirm/', PasswordResetConfirmAPIView.as_view(), name='api-password-reset-confirm'),
     path('check-customer/', CheckCustomerAPIView.as_view(), name='check-customer'),
     path('profile/', ProfileAPIView.as_view(), name='customer-profile'),
+    path('account/close/', CustomerCloseAccountAPIView.as_view(), name='customer-close-account'),
+    path('reviews/mine/', CustomerReviewsAPIView.as_view(), name='customer-reviews'),
     path('wishlist/', WishlistAPIView.as_view(), name='customer-wishlist'),
     path('users/me/', UserMeAPIView.as_view(), name='user-me'),
     path('api/users/me/', UserMeAPIView.as_view(), name='api-user-me'),
