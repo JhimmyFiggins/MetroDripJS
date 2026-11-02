@@ -44,18 +44,21 @@ class ConsoleFileViewIntegrationTests(SimpleTestCase):
 
     def test_favicon_endpoints_are_served(self):
         cases = (
-            ('/favicon.ico', 'image/x-icon'),
-            ('/favicon.svg', 'image/svg+xml'),
-            ('/favicon.png', 'image/png'),
-            ('/assets/favicon.svg', 'image/svg+xml'),
-            ('/assets/favicon-32x32.png', 'image/png'),
-            ('/assets/apple-touch-icon.png', 'image/png'),
+            ('/favicon.ico', ('image/x-icon', 'image/vnd.microsoft.icon')),
+            ('/favicon.svg', ('image/svg+xml',)),
+            ('/favicon.png', ('image/png',)),
+            ('/assets/favicon.svg', ('image/svg+xml',)),
+            ('/assets/favicon-32x32.png', ('image/png',)),
+            ('/assets/apple-touch-icon.png', ('image/png',)),
         )
-        for url, expected_content_type in cases:
+        for url, expected_content_types in cases:
             with self.subTest(url=url):
                 response = self.client.get(url)
                 self.assertEqual(response.status_code, 200)
-                self.assertIn(expected_content_type, response['Content-Type'])
+                self.assertTrue(
+                    any(expected in response['Content-Type'] for expected in expected_content_types),
+                    f"Unexpected Content-Type {response['Content-Type']!r} for {url}; expected one of {expected_content_types}",
+                )
 
     def test_public_asset_is_served_with_a_bounded_cache_policy(self):
         response = self.client.get('/Registration/AppLogin.js')
