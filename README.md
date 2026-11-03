@@ -1,77 +1,210 @@
 # MetroDripJS
 
-> **Academic-demo and production status: HOLD.** The 2026-10-19 audit found unsafe deploy-time staff credential seeding, a hosted console/API topology that cannot work as configured, and current client/browser test regressions. The no-paid target is one secured same-origin Django service, one no-cost PostgreSQL database, and a directly installed EAS Android APK. Start with the [current comprehensive audit and implementation plan](Project%20Guidelines/Comprehensive%20Repository%20Audit%20and%20Academic%20Demo%20Plan%20-%202026-10-19.md), then the controlling [plan](Project%20Guidelines/Plan%20and%20Goals.md), [architecture](Project%20Guidelines/Architecture%20and%20Operations.md), [backend contract](Project%20Guidelines/Backend%20Functionalities.md), [database plan](Project%20Guidelines/Database%20Structure.md), and [ADRs](Project%20Guidelines/Decisions%20and%20Handover.md#active-architecture-decisions--2026-09-28).
+> **Academic-demo and production status: HOLD.** All local unit, invariant, integration, Playwright browser, accessibility (WCAG 2.1 AA), and multiplatform bundle compilation checks are **VERIFIED and PASSING** (as of 2026-11-03). Production release and live demo remain on **HOLD** pending physical Android/iOS device execution, live PayMongo payment charges, and stakeholder data retention sign-off. See the [QA Report](docs/qa/QA-REPORT.md), [Test Results](docs/qa/TEST-RESULTS.md), and [Current Verification & Evaluation](Project%20Guidelines/Verification%20and%20Evaluation.md).
 
-MetroDripJS is an urban streetwear e-commerce platform with an Expo/React Native customer app and responsive merchant/admin web consoles. The active implementation path is `metrodrip_backend/`: one Django/DRF process containing identity, catalog, orders/payments, fulfillment, content, and staff-console APIs. Local development defaults to SQLite. The repository Blueprint wires Django to a free PostgreSQL database but also declares the currently broken separate static console described in the audit; its exact relationship to the existing public services is unverified.
+MetroDripJS is an urban streetwear e-commerce platform featuring an Expo/React Native customer mobile app, responsive web consoles for merchants and administrators, and a modular monolithic Django REST Framework backend.
 
-## Current modular-monolith setup
+---
 
-### Backend
+## 1. System Architecture & Tech Stack
 
-```powershell
+```
+                                  ┌─────────────────────────────┐
+                                  │     Client Applications     │
+                                  ├──────────────┬──────────────┤
+                                  │ Web Consoles │ Expo Mobile  │
+                                  │ (Admin/Merch/│ (Android/iOS/│
+                                  │  Storefront) │  Web Bundle) │
+                                  └──────┬───────┴──────┬───────┘
+                                         │              │
+                                         ▼              ▼
+                              ┌──────────────────────────────────┐
+                              │  Development Reverse Proxy       │
+                              │  web/dev_server.py (:3000)       │
+                              └──────────────────┬───────────────┘
+                                                 │
+                                                 ▼
+                              ┌──────────────────────────────────┐
+                              │  Modular Monolith API Backend    │
+                              │  Django 6.1.2 / DRF 3.18.3       │
+                              │  metrodrip_backend/ (:8000)      │
+                              ├──────────────────────────────────┤
+                              │ • identity   • catalog           │
+                              │ • orders     • fulfillment       │
+                              │ • content                        │
+                              └──────────────────┬───────────────┘
+                                                 │
+                                                 ▼
+                              ┌──────────────────────────────────┐
+                              │  Database                        │
+                              │  SQLite (dev) / PostgreSQL (prod)│
+                              └──────────────────────────────────┘
+```
+
+- **Backend**: Python 3.12, Django 6.1.2, Django REST Framework 3.18.3, WhiteNoise, Psycopg 3.
+- **Frontend Consoles & Storefront**: HTML5, Vanilla ES6 JavaScript, CSS Custom Properties (Light/Dark themes), Axe Core accessibility tooling.
+- **Mobile Application**: React Native 0.81.5, Expo SDK 54, React 19.1.0, React Navigation 7, EAS Build (Android standalone APK).
+- **Payment Gateway**: PayMongo Hosted Checkout v2 (GCash, Maya, Card, QR Ph) with HMAC-SHA256 signature-verified webhooks.
+- **Transactional Communication**: Brevo (formerly Sendinblue) transactional email API for OTP and password recovery.
+
+---
+
+## 2. Applications in Scope
+
+### A. Admin Console (`web/admin/`)
+- **Dashboard & Platform Metrics**: Global GMV, user volume, merchant accounts, and active orders (`/api/admin/dashboard/`).
+- **User Directory**: Search, filter, inspect status, view 2FA enablement, and provision staff (`/api/admin/users/`).
+- **Roles & Permissions**: Granular capability toggles, base role inheritance, and custom role creation (`/api/admin/roles/`).
+- **Platform Configuration**: Self-service registration toggles, OTP enforcement settings, maintenance alerts (`/api/admin/settings/`).
+- **Audit Trails**: Security event logs, IP logging, and CSV exports (`/api/admin/audit-logs/`).
+- **Account Management**: Password updates, multi-factor authentication setup, and session revocation.
+
+### B. Merchant Console (`web/merchant/`)
+- **Dashboard & Performance**: Daily store revenue, pending orders, and inventory restock alerts (`/api/merchant/dashboard/`).
+- **Product & Variation Catalog**: SKU generation, multi-attribute matrices (Size/Color), base pricing, and status management (`/api/merchant/products/`).
+- **Gallery & Media Manager**: Drag-and-drop sort orders, primary image badges, and automatic MIME validation.
+- **Bulk Actions**: Batch product activation, deactivation, stock adjustment, category reassignment, and deletion (`/api/merchant/products/bulk/`).
+- **Inventory Control**: Warehouse stock levels, reservations holds, and movements log (`/api/merchant/inventory/`).
+- **Orders & Fulfillment**: Order status transitions (`placed`, `packed`, `shipped`, `delivered`), cancellation workflows, and shipment waybills (`/api/merchant/orders/`).
+- **Shipping Zones & Rates**: Zone fee configuration and address validation test checker (`/api/merchant/shipping-zones/`).
+- **Customer Reviews Moderation**: Storefront review monitoring and merchant replies (`/api/merchant/reviews/`).
+- **Content & Banners CMS**: 5 placement locations (`announcement_bar`, `homepage_hero`, `homepage_secondary`, `category_banner`, `checkout_footer`), graphic typography vs image mode, and live preview simulator (`/api/merchant/banners/`).
+
+### C. Customer Web Storefront (`web/customer/`)
+- **Discovery & Navigation**: Dynamic Shop and Discover dropdowns powered by `GET /categories/` and `featured=1` filters.
+- **Product Browsing & Details**: Search, category filters, variant selectors, stock availability, and image fallbacks.
+- **Shopping Cart**: Real-time quantity updates, cart item removal, price estimate, and "Calculated at checkout" shipping disclosure.
+- **Checkout & Payments**: Server-authoritative totals, delivery zone fee calculation, COD placement, and PayMongo Hosted Checkout v2 linking.
+- **Customer Account & Security**: Personal information management, order history, tracking snapshots, and password-confirmed self-service account closure (`POST /account/close/`).
+- **Our Team Page**: Verified 5-member development team showcase with academic TIP affiliation, accurate technology responsibilities, and light/dark theme-aware branding.
+
+### D. Customer Mobile Application (`mobile/`, `src/`)
+- **Cross-Platform Expo Native**: Feature parity with web storefront across browsing, cart, checkout, orders, notifications, and profile management.
+- **Centralized Data & Services**: Shared `teamData.js`, centralized `apiClient.js` with cross-origin credential protection, and reactive `CartContext` / `AuthContext`.
+- **Stand-alone Android APK**: Build configuration via EAS CLI (`eas.json` preview profile) with zero cleartext traffic.
+
+---
+
+## 3. Local Development Setup
+
+### Prerequisites
+- Python 3.12+
+- Node.js 20+ & npm 10+
+- Google Chrome or Chromium (for Playwright browser test suites)
+
+### A. Backend Setup
+
+```bash
 cd metrodrip_backend
-python -m pip install -r requirements.txt
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver 127.0.0.1:8000
 ```
 
-The health endpoint is `GET http://127.0.0.1:8000/health/`. Local SQLite is convenient for development and focused tests, but it does not verify PostgreSQL behavior. The 2026-10-13 release-blocker pass separately verified migrations, rollback boundaries, backup/restore, and critical concurrency on disposable PostgreSQL 16; connected Render PostgreSQL still requires acceptance.
+The health check endpoint is accessible at `GET http://127.0.0.1:8000/health/`.
 
-### Staff accounts and consoles
+### B. Staff Account Provisioning
+Provision administrative or merchant accounts using the secure command-line tool (never seed credentials in migrations or source code):
 
-Create staff accounts through the interactive command; do not use browser-selected roles or seeded identities as access control:
-
-```powershell
+```bash
 cd metrodrip_backend
 python manage.py provision_staff --email admin@example.com --name "MetroDrip Admin" --role admin
 python manage.py provision_staff --email merchant@example.com --name "MetroDrip Merchant" --role merchant
 ```
 
-In another terminal, serve the consoles:
+### C. Web Consoles & Customer Storefront
 
-```powershell
-npm ci
-$env:BACKEND_URL = "http://127.0.0.1:8000"
-npm run dev
+```bash
+# In the project root directory
+npm install
+BACKEND_URL=http://127.0.0.1:8000 npm run dev
 ```
 
-On Bash, use `BACKEND_URL=http://127.0.0.1:8000 npm run dev`. Set this explicitly until the development server's unsafe public-backend default is repaired.
+- Staff Login: `http://127.0.0.1:3000/Registration/screens/`
+- Customer Storefront: `http://127.0.0.1:3000/customer/`
+- Our Team Page: `http://127.0.0.1:3000/customer/team`
 
-Open the merchant or administrator login under `http://127.0.0.1:3000/Registration/screens/`. Both post credentials to `POST /login/`. Successful staff login returns an opaque bearer token plus the persisted `role` and `is_staff` values. The browser keeps the current account only in `sessionStorage`, sends `Authorization: Bearer <token>` to console APIs, and calls the role-specific logout endpoint to revoke the token. Server permissions currently enforce a coarse persisted-role boundary: `admin` for administrator APIs and `merchant` or `admin` for merchant APIs. Store-scoped ABAC, MFA challenges, and recent-authentication gates are not implemented and remain release work.
+### D. Mobile App Development
 
-### Checkout and online payments
+```bash
+# Start Expo development server
+npm start
 
-Authenticated customers submit `POST /api/orders/checkout/` with `idempotency_key` in JSON, cart variant IDs/quantities, a Philippine shipping address, a delivery zone, and `payment_method` set to `cod`, `gcash`, `maya`, `card`, or `qrph` (QR Ph). Prices, shipping, currency, and stock are calculated by the server. Online methods create a PayMongo Hosted Checkout action; MetroDrip does not collect PAN, CVV, wallet credentials, PINs, or OTPs. A return page is informational only—payment becomes paid only after a verified provider result is applied by the signed webhook or bounded owned-order reconciliation.
+# Run in Web browser
+npm run web
 
-PayMongo secrets are optional for COD-only local work and must stay in environment variables (`PAYMONGO_ENABLED_METHODS=gcash,maya,card,qrph` with `PAYMONGO_MODE=test`). Live provider capability, native browser/deep-link return, and real charges/refunds are **UNVERIFIED** and are not authorized by this repository setup.
+# Export multiplatform bundle
+npx expo export --platform all
+```
 
-#### QR Ph Hosted Checkout Integration (PayMongo v2)
-MetroDripJS integrates QR Ph via PayMongo Hosted Checkout v2 (`POST /v2/checkout_sessions`). When a customer selects QR Ph:
-- A checkout session is created with `payment_method_types: ["qrph"]`.
-- The customer is directed to PayMongo's secure hosted page (`checkout.paymongo.com`) displaying the dynamic QR Ph code.
-- Supported banks and e-wallets scan the standard QR Ph code to process payments in PHP (minimum amount: PHP 1.00).
-- **Expiration Behavior**: A single QR Ph scan window expiration does not expire the MetroDrip checkout session or order. Order reservations expire independently after 30 minutes, or upon explicit provider session expiration.
-- **Merchant Controls**: Merchants can enable or disable QR Ph under Merchant Console → Order Settings → Payment Methods (`enabled_payment_methods`).
-- **Security & Webhooks**: Orders transition to `paid` strictly upon cryptographically verified `checkout_session.payment.paid` webhooks with HMAC-SHA256 signatures or server reconciliation. Redirects, screenshots, or client claims are never accepted as proof of payment.
+---
 
-### Current verification commands
+## 4. Automated Testing & Quality Assurance
 
-```powershell
-cd metrodrip_backend
-python manage.py test
-python manage.py check --deploy
-python manage.py makemigrations --check
+All suites run against disposable databases or mocked endpoints to ensure safety.
 
-cd ..
+```bash
+# 1. Run all Node.js client service & invariant unit tests (250 tests)
 npm run test:client
+
+# 2. Run Django modular monolith backend tests (246 tests)
+cd metrodrip_backend
+python manage.py test --pattern="tests*.py"
+cd ..
+
+# 3. TypeScript static type validation
 npx tsc --noEmit
+
+# 4. Django migration schema consistency check
+python metrodrip_backend/manage.py makemigrations --check
+
+# 5. Expo SDK health and dependency check
+npx expo-doctor
+
+# 6. Playwright browser E2E suites (dev server running on :3000)
+npm run test:browser              # Console layout, dialog focus & keyboard containment (64 checks)
+npm run test:customer             # Customer public-page Axe scans and responsive navigation
+npm run test:merchant:catalog     # Merchant catalog, variation modals & media manager
+npm run test:merchant:banners     # Banner CMS, 5 placements & artwork customization
+npm run test:qa:banners-theme     # Banner synchronization & theme switching across 6 screens
+node tests/browser/run-admin-roles-qa.mjs       # Granular RBAC permissions & custom role creation
+node tests/browser/run-admin-users-qa.mjs       # Admin users directory & 2FA indicators
+node tests/browser/run-shipping-zones-qa.mjs    # Responsive shipping zones & address checker
+node tests/browser/run-team-page.mjs            # Our Team page & theme logo visibility
+node tests/browser/verify-live-svg.mjs          # Favicon SVG pixel rendering test
+
+# 7. Disposable live browser end-to-end integration workflows
+QA_MANAGE_SERVERS=1 QA_DATABASE_URL=sqlite:////tmp/disposable-qa.sqlite3 QA_STAFF_PASSWORD='TestPassword123!' node tests/browser/run-console-integration.mjs
+QA_DISPOSABLE_DB=1 EMAIL_OTP_ENFORCED=false QA_WEB_BASE=http://127.0.0.1:3011 node tests/browser/run-customer-live-account.mjs
+QA_DISPOSABLE_DB=1 QA_WEB_BASE=http://127.0.0.1:3011 node tests/browser/run-customer-live-checkout.mjs
+
+# 8. Performance and local concurrency probe
+QA_PYTHON=./metrodrip_backend/.venv/bin/python QA_DATABASE_URL=sqlite:////tmp/disposable-qa.sqlite3 npm run test:load:local
 ```
 
-For the mocked Chromium console harness, first start `npm run dev`, then run `npm run test:browser` in another terminal. It checks responsive layouts and representative loading, default, empty, partial-failure, failed-write/retry, development-fixture, permission, Escape, focus-return, and Tab-containment behavior. `npm run test:browser:integration` is the separate real browser-to-Django harness and requires the disposable QA environment variables documented by the script; it must never point at production. `npm run test:load:local` is likewise capped and disposable-only. Final rerun results belong in [Verification and Evaluation](Project%20Guidelines/Verification%20and%20Evaluation.md).
+---
 
-### Free-tier deployment boundary
+## 5. Comprehensive QA Documentation
 
-Repository records label [`render.yaml`](render.yaml) review-only/unapplied, but public services exist and their exact association with this file and commit is unverified. The file is free-only, but it declares a Python service, a separate static console, and a PostgreSQL database; pins stale `archim`; leaves static-site auto-deploy implicit; and runs unsafe privileged seeding. Do not apply or resync it. The accepted target and repair sequence are in the [2026-10-19 audit](Project%20Guidelines/Comprehensive%20Repository%20Audit%20and%20Academic%20Demo%20Plan%20-%202026-10-19.md). No paid Render change is authorized.
+Authoritative QA logs, test evidence, and integration reports are maintained in the [`docs/qa/`](docs/qa/) directory:
+- [QA Execution Report](docs/qa/QA-REPORT.md) — Executive summary, subsystem audit outcomes, and security analysis.
+- [Test Plan](docs/qa/TEST-PLAN.md) — Multi-tier test strategy, environments, and entry/exit criteria.
+- [Test Results Log](docs/qa/TEST-RESULTS.md) — Comprehensive execution logs across all 24 suites.
+- [Bug Fix & Remediation Log](docs/qa/BUG-FIX-LOG.md) — Root causes, code diffs, and verification steps for remediated defects.
+- [Cross-Platform Feature Parity](docs/qa/FEATURE-PARITY.md) — Feature-by-feature parity matrix between Customer Website and Mobile App.
+- [API Integration Audit](docs/qa/API-INTEGRATION-AUDIT.md) — Internal and external API inventory, auth scopes, and PayMongo/Brevo boundaries.
+
+---
+
+## 6. Security, Payment & Privacy Governance
+
+- **Zero PAN/CVV Collection**: MetroDrip never handles, stores, or logs raw credit card numbers, CVVs, bank PINs, or wallet credentials.
+- **PayMongo Hosted Checkout v2**: Customers transact directly on PayMongo's secure domain (`checkout.paymongo.com`). Orders transition to `paid` strictly upon cryptographically verified HMAC-SHA256 webhooks or server reconciliation.
+- **Idempotency Keys**: Order checkouts require unique client-provided idempotency keys to eliminate duplicate orders or multiple charges on flaky connections.
+- **Throttling & Rate Limiting**: Sensitive operations (login, registration, password recovery, account closure) enforce strict database-backed sliding-window rate limiters.
+- **Account Closure & Data Retention**: Account deletion requests (`POST /account/close/`) require password confirmation and explicit phrase typing. The service immediately invalidates tokens, anonymizes personal profiles, and deletes wishlists/reviews, while retaining historical orders, payment references, and audit logs to comply with Philippine accounting regulations (BIR RR 5-2014) and Data Privacy Act requirements.
 
 ## Historical five-service reference
 
