@@ -234,18 +234,56 @@ STATIC_URL = '/static/'
 STATIC_ROOT = Path(os.environ.get('DJANGO_STATIC_ROOT', BASE_DIR / 'staticfiles'))
 MEDIA_URL = '/media/'
 MEDIA_ROOT = Path(os.environ.get('DJANGO_MEDIA_ROOT', BASE_DIR / 'media'))
+# Durable media storage configuration (Cloudinary / FileSystem)
+CLOUDINARY_URL = os.environ.get('CLOUDINARY_URL', '').strip()
+CLOUDINARY_CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME', '').strip()
+CLOUDINARY_API_KEY = os.environ.get('CLOUDINARY_API_KEY', '').strip()
+CLOUDINARY_API_SECRET = os.environ.get('CLOUDINARY_API_SECRET', '').strip()
+
+CLOUDINARY_CONFIGURED = bool(
+    CLOUDINARY_URL or (CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET)
+)
+
+if CLOUDINARY_CONFIGURED:
+    try:
+        import cloudinary
+        if CLOUDINARY_URL:
+            cloudinary.config(cloudinary_url=CLOUDINARY_URL, secure=True)
+        else:
+            cloudinary.config(
+                cloud_name=CLOUDINARY_CLOUD_NAME,
+                api_key=CLOUDINARY_API_KEY,
+                api_secret=CLOUDINARY_API_SECRET,
+                secure=True,
+            )
+    except Exception:
+        pass
+
+# Determine storage backend
+_DEFAULT_STORAGE = (
+    'metrodrip_backend.storage.CloudinaryMediaStorage'
+    if CLOUDINARY_CONFIGURED
+    else 'django.core.files.storage.FileSystemStorage'
+)
 MEDIA_STORAGE_BACKEND = os.environ.get(
     'DJANGO_MEDIA_STORAGE_BACKEND',
-    'django.core.files.storage.FileSystemStorage',
-).strip() or 'django.core.files.storage.FileSystemStorage'
-# Local filesystem media is suitable for development only. A production
-# operator must configure a durable storage backend before uploads are accepted;
-# otherwise a deploy/restart can leave permanent database URLs pointing at
-# missing files.
-MEDIA_STORAGE_DURABLE = env_bool(
-    'DJANGO_MEDIA_STORAGE_DURABLE',
-    DEBUG and not IS_RENDER,
-)
+    _DEFAULT_STORAGE,
+).strip() or _DEFAULT_STORAGE
+
+# Local filesystem media is suitable for development only. On Render Free,
+# storage is ephemeral and discarded on container restart or redeploy.
+# Durable storage is strictly enforced when running in production/Render.
+if 'CloudinaryMediaStorage' in MEDIA_STORAGE_BACKEND:
+    MEDIA_STORAGE_DURABLE = CLOUDINARY_CONFIGURED
+elif IS_RENDER:
+    # Ephemeral filesystem storage on Render Free cannot be durable
+    MEDIA_STORAGE_DURABLE = False
+else:
+    MEDIA_STORAGE_DURABLE = env_bool(
+        'DJANGO_MEDIA_STORAGE_DURABLE',
+        DEBUG and not IS_RENDER,
+    )
+
 STORAGES = {
     'default': {
         'BACKEND': MEDIA_STORAGE_BACKEND,

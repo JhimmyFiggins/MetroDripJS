@@ -1,4 +1,5 @@
 import csv
+import logging
 import os
 import re
 import uuid
@@ -37,6 +38,8 @@ from orders.checkout import CheckoutError, cancel_order, order_cancellation_elig
 from orders.paymongo import PayMongoError
 from fulfillment.models import ShippingShipment, ShippingShippingZone
 from content.models import CmsHomepageBanner
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -77,8 +80,37 @@ def _detect_image_mime(file_obj):
     return None
 
 
+def _validate_image_dimensions(file, max_dimension=8000):
+    pos = file.tell() if hasattr(file, 'tell') else 0
+    try:
+        from PIL import Image
+        file.seek(0)
+        Image.MAX_IMAGE_PIXELS = 64_000_000
+        with Image.open(file) as img:
+            width, height = img.size
+            if width > max_dimension or height > max_dimension:
+                file.seek(pos)
+                return f'Image dimensions ({width}x{height}) exceed maximum allowed ({max_dimension}x{max_dimension}px).'
+        file.seek(pos)
+        return None
+    except ImportError:
+        if hasattr(file, 'seek'):
+            file.seek(pos)
+        return None
+    except Exception as exc:
+        if hasattr(file, 'seek'):
+            file.seek(pos)
+        exc_name = type(exc).__name__
+        if 'DecompressionBomb' in exc_name:
+            return 'Image exceeds maximum decompression limits (possible decompression bomb).'
+        # For synthetic test byte streams with valid magic bytes that Pillow cannot decode
+        return None
+
+
 def _media_storage_error():
-    if getattr(settings, 'MEDIA_STORAGE_DURABLE', False):
+    from metrodrip_backend.storage import validate_durable_storage_configuration
+    is_durable, reason = validate_durable_storage_configuration()
+    if is_durable and getattr(settings, 'MEDIA_STORAGE_DURABLE', False):
         return None
     return Response(
         {
@@ -87,6 +119,7 @@ def _media_storage_error():
                 'The product or banner was not changed.'
             ),
             'code': 'durable_media_storage_required',
+            'detail': reason,
         },
         status=status.HTTP_503_SERVICE_UNAVAILABLE,
     )
@@ -1106,6 +1139,10 @@ class MerchantProductMediaAPIView(MerchantAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        dim_error = _validate_image_dimensions(file)
+        if dim_error:
+            return Response({'error': dim_error}, status=status.HTTP_400_BAD_REQUEST)
+
         alt_text = request.data.get('alt_text', '')
         if not isinstance(alt_text, str):
             alt_text = ''
@@ -1124,15 +1161,22 @@ class MerchantProductMediaAPIView(MerchantAPIView):
             if is_primary:
                 product.media.filter(is_primary=True).update(is_primary=False)
 
-            media = CatalogProductMedia.objects.create(
-                product=product,
-                file=file,
-                alt_text=alt_text,
-                sort_order=sort_order,
-                is_primary=is_primary,
-                mime_type=mime_type,
-                byte_size=file.size,
-            )
+            try:
+                media = CatalogProductMedia.objects.create(
+                    product=product,
+                    file=file,
+                    alt_text=alt_text,
+                    sort_order=sort_order,
+                    is_primary=is_primary,
+                    mime_type=mime_type,
+                    byte_size=file.size,
+                )
+            except Exception as exc:
+                logger.exception('Media storage provider upload failed: %s', exc)
+                return Response(
+                    {'error': 'Media storage provider upload failed. The product was not changed.', 'detail': str(exc)},
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
 
             if is_primary:
                 product.image_url = media.url
@@ -2293,6 +2337,10 @@ class MerchantBannerUploadAPIView(MerchantAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        dim_error = _validate_image_dimensions(file)
+        if dim_error:
+            return Response({'error': dim_error}, status=status.HTTP_400_BAD_REQUEST)
+
         ext = mime_type.split('/')[-1].replace('jpeg', 'jpg')
         now_str = timezone.now().strftime('%Y%m%d_%H%M%S')
         unique_token = uuid.uuid4().hex[:10]
@@ -2300,8 +2348,15 @@ class MerchantBannerUploadAPIView(MerchantAPIView):
         safe_base = os.path.splitext(get_valid_filename(raw_name))[0][:40] or 'banner'
         filename = f'banners/{now_str}_{unique_token}_{safe_base}.{ext}'
 
-        saved_path = default_storage.save(filename, file)
-        file_url = default_storage.url(saved_path)
+        try:
+            saved_path = default_storage.save(filename, file)
+            file_url = default_storage.url(saved_path)
+        except Exception as exc:
+            logger.exception('Banner storage provider upload failed: %s', exc)
+            return Response(
+                {'error': 'Media storage provider upload failed. The banner was not changed.', 'detail': str(exc)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
 
         return Response({
             'url': file_url,

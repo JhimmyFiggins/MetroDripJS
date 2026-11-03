@@ -1,4 +1,22 @@
 {
     "kimi.yoloMode": true,
-    "kimi.showThinkingExpanded": true
+    "kimi.showThinkingExpanded": true,
+    "java.home": "C:\\Users\\Kim Chim\\.jdk\\jdk-17.0.20.1+1",
+    "java.jdt.ls.java.home": "C:\\Users\\Kim Chim\\.jdk\\jdk-17.0.20.1+1",
+    "java.import.gradle.java.home": "C:\\Users\\Kim Chim\\.jdk\\jdk-17.0.20.1+1",
+    "gradle.java.home": "C:\\Users\\Kim Chim\\.jdk\\jdk-17.0.20.1+1",
+    "gradle.autoDetect": "off",
+    "gradle.nestedProjects": false,
+    "java.gradle.buildServer.enabled": "off",
+    "java.configuration.updateBuildConfiguration": "interactive",
+    "files.exclude": {
+        "**/node_modules": true
+    },
+    "files.watcherExclude": {
+        "**/node_modules/**": true,
+        "**/.gradle/**": true,
+        "**/android/.gradle/**": true,
+        "**/android/app/build/**": true
+    },
+    "java.compile.nullAnalysis.mode": "automatic"
 }

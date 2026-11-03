@@ -65,6 +65,20 @@ services:
         sync: false
       - key: PASSWORD_RESET_TOKEN_TTL_SECONDS
         value: "1800"
+      # Durable Media Storage (Cloudinary Free Tier)
+      # Provides persistent storage for product gallery images and banner artwork on Render Free.
+      - key: CLOUDINARY_URL
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: DJANGO_MEDIA_STORAGE_BACKEND
+        sync: false
+      - key: DJANGO_MEDIA_STORAGE_DURABLE
+        sync: false
 
 databases:
   - name: metrodrip-postgres

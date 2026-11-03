@@ -39,6 +39,19 @@ def media_file_view(request, path):
     if target_path.is_file():
         return serve(request, path, document_root=settings.MEDIA_ROOT)
 
+    # If external durable storage is configured, redirect to the external URL
+    storages_config = getattr(settings, 'STORAGES', {})
+    backend_name = storages_config.get('default', {}).get('BACKEND', '')
+    if 'CloudinaryMediaStorage' in backend_name or 'cloudinary' in backend_name.lower():
+        try:
+            from django.core.files.storage import default_storage
+            from django.http import HttpResponseRedirect
+            ext_url = default_storage.url(path)
+            if ext_url and ext_url.startswith(('http://', 'https://')):
+                return HttpResponseRedirect(ext_url)
+        except Exception:
+            pass
+
     # Graceful fallback for missing image files to prevent broken 404 images
     ext = target_path.suffix.lower()
     if ext in {'.png', '.jpg', '.jpeg', '.webp'}:
