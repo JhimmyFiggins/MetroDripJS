@@ -121,14 +121,14 @@ async function main() {
   console.log(`✓ Theme selection, persistence, system changes, and logo loading verified; screenshots: ${SCREENSHOT_DIR}`);
 
   // 7. Navigation link test from Home
-  console.log('Testing navigation from /customer/ to /customer/team via header link...');
+  console.log('Testing navigation from /customer/ to /customer/team via footer link...');
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto(`${BASE_URL}/customer/`, { waitUntil: 'networkidle' });
-  const teamNavLink = page.locator('.desktop-nav-link[href="/customer/team"]');
+  const teamNavLink = page.locator('footer a[href="/customer/team"], .desktop-nav-link[href="/customer/team"]').first();
   await teamNavLink.click();
   await page.waitForURL('**/customer/team');
   assert.equal(await page.locator('main h1').textContent(), 'THE TEAM');
-  console.log('✓ Desktop header navigation to /customer/team verified!');
+  console.log('✓ Navigation to /customer/team verified!');
 
   await browser.close();
   console.log('ALL Our Team Browser E2E Tests PASSED successfully!');

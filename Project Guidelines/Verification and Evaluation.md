@@ -6,6 +6,33 @@
 
 **Evidence rule:** An executed unit/mock/SQLite/static check is labeled separately from PostgreSQL, native-device, PayMongo, and Render evidence.
 
+## Full-Stack QA Audit, Test Automation & Regression Pass — 2026-11-03
+
+Executed comprehensive autonomous QA audit, test automation suite execution, bug fixes, and feature parity evaluations across all four MetroDripJS interfaces (Admin Console, Merchant Console, Customer Storefront, Expo Mobile App) and the Django modular monolith backend on disposable SQLite and local proxy servers.
+
+| Check | Result |
+|---|---|
+| `python manage.py test --pattern="tests*.py"` | **PASS**, 246 tests (240 passed, 6 PostgreSQL concurrency checks skipped on SQLite). Covers identity, catalog, orders, fulfillment, content. |
+| `npm run test:client` | **PASS**, 250/250 unit and invariant tests. Includes API client isolation, cart logic, product variants, checkout builder, and team dataset sync. |
+| `npx tsc --noEmit` | **PASS**, 0 diagnostics. |
+| `python manage.py makemigrations --check` | **PASS**, 0 schema drift across 58 applied migrations. |
+| `npx expo-doctor` | **PASS**, 18/18 checks passed. Native dependencies current. |
+| `npx expo export --platform all` | **PASS**, exit 0. Generated 1538 bundled modules: Web (1.7 MB), iOS bytecode HBC (4.48 MB), Android bytecode HBC (4.50 MB). |
+| `QA_MANAGE_SERVERS=1 node tests/browser/run-console-integration.mjs` | **PASS**, 7 checks passed against live Django and dev server; Axe WCAG 2.1 AA scans passed on 4 console pages with 0 violations after resolving `--color-warning` contrast deficiency. |
+| `QA_DISPOSABLE_DB=1 EMAIL_OTP_ENFORCED=false node tests/browser/run-customer-live-account.mjs` | **PASS**, live browser signup, signin, profile save, owned reviews query, closure cancellation, confirmed closure, and token revocation on disposable SQLite. |
+| `QA_DISPOSABLE_DB=1 node tests/browser/run-customer-live-checkout.mjs` | **PASS**, live browser catalog navigation, variant/stock selection, cart estimation, address entry, COD checkout, and server-authoritative order calculation (₱185 total). |
+| `node tests/browser/run-team-page.mjs` | **PASS**, 5 team member cards verified, Axe WCAG 2.1 AA 0 violations, responsive viewports (320px–1280px), theme switching, and live navigation verified. |
+| `node tests/browser/run-bulk-dropdown-contrast-qa.mjs` | **PASS**, light/dark contrast and keyboard navigation (Arrow, Home, End, Tab) with 0 Axe violations. |
+| `node tests/browser/run-shipping-zones-qa.mjs` | **PASS**, 8 viewports, responsive table and address check component with 0 Axe violations. |
+| `node tests/browser/run-merchant-catalog.mjs` | **PASS**, products table, variation modal, media manager with 0 Axe violations. |
+| `node tests/browser/run-merchant-banners.mjs` | **PASS**, banner CMS, 5 placements, hero graphic customization, preview simulator with 0 Axe violations. |
+| `node tests/browser/run-banner-sync-and-theme-qa.mjs` | **PASS**, light/dark theme switches across 6 screens and 5 banner placements with 0 Axe violations. |
+| `node tests/browser/run-merchant-modernization-qa.mjs` | **PASS**, bulk updates, multi-attribute variant matrix generation, stock adjustment with 0 Axe violations. |
+| `node tests/browser/run-customer-integration.mjs` | **PASS**, 5 public customer pages Axe scans, 3 responsive navigation checks, 3 mocked account checks. |
+| `node tests/browser/run-customer-auth-qa.mjs` | **PASS**, 8 viewports, light/dark Axe scans with 0 violations, auth navigation. |
+| `node tests/performance/run-local-api-smoke.mjs` | **PASS**, 200 requests (10 concurrency): cold start 498.9ms, health p95 44ms, catalog p95 63.6ms, 0 errors. |
+| Live PayMongo charges & physical device APK execution | **UNVERIFIED** (Requires live provider credentials and physical mobile hardware). ACADEMIC DEMO HOLD remains active. |
+
 ## Team content and logo visibility — 2026-10-27
 
 The shared Our Team dataset now describes role responsibilities against the active Django/DRF modular monolith, HTML/CSS/JavaScript storefront, Expo/React Native client, SQLite/PostgreSQL path, Hosted Checkout integration, and current QA/build tooling. It no longer attributes unverified individual authorship or presents HTMX, Alpine.js, MySQL 8, completed CI/CD, or the historical five-service topology as current team work.
