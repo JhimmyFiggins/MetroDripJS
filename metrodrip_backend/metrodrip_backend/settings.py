@@ -234,7 +234,23 @@ STATIC_URL = '/static/'
 STATIC_ROOT = Path(os.environ.get('DJANGO_STATIC_ROOT', BASE_DIR / 'staticfiles'))
 MEDIA_URL = '/media/'
 MEDIA_ROOT = Path(os.environ.get('DJANGO_MEDIA_ROOT', BASE_DIR / 'media'))
-# Durable media storage configuration (Cloudinary / FileSystem)
+
+# Ensure media directory structure exists for local and Render ephemeral storage
+try:
+    os.makedirs(MEDIA_ROOT, exist_ok=True)
+    os.makedirs(MEDIA_ROOT / 'products', exist_ok=True)
+    os.makedirs(MEDIA_ROOT / 'banners', exist_ok=True)
+except Exception:
+    pass
+
+# Storage driver selection: 'local' (default without credentials) or 'cloudinary'
+# Can be explicitly selected via MEDIA_STORAGE_DRIVER or DJANGO_MEDIA_STORAGE_DRIVER
+MEDIA_STORAGE_DRIVER = os.environ.get(
+    'MEDIA_STORAGE_DRIVER',
+    os.environ.get('DJANGO_MEDIA_STORAGE_DRIVER', ''),
+).strip().lower()
+
+# Cloudinary configuration (optional durable storage provider)
 CLOUDINARY_URL = os.environ.get('CLOUDINARY_URL', '').strip()
 CLOUDINARY_CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME', '').strip()
 CLOUDINARY_API_KEY = os.environ.get('CLOUDINARY_API_KEY', '').strip()
@@ -259,24 +275,38 @@ if CLOUDINARY_CONFIGURED:
     except Exception:
         pass
 
-# Determine storage backend
-_DEFAULT_STORAGE = (
-    'metrodrip_backend.storage.CloudinaryMediaStorage'
-    if CLOUDINARY_CONFIGURED
-    else 'django.core.files.storage.FileSystemStorage'
-)
+# Determine storage backend:
+# If driver is explicitly 'local' or 'filesystem', use FileSystemStorage even if credentials exist.
+# If driver is 'cloudinary', use CloudinaryMediaStorage.
+# Otherwise, prefer Cloudinary if credentials are configured, else default to FileSystemStorage.
+if MEDIA_STORAGE_DRIVER in ('local', 'filesystem'):
+    _DEFAULT_STORAGE = 'django.core.files.storage.FileSystemStorage'
+elif MEDIA_STORAGE_DRIVER == 'cloudinary':
+    _DEFAULT_STORAGE = 'metrodrip_backend.storage.CloudinaryMediaStorage'
+elif CLOUDINARY_CONFIGURED:
+    _DEFAULT_STORAGE = 'metrodrip_backend.storage.CloudinaryMediaStorage'
+else:
+    _DEFAULT_STORAGE = 'django.core.files.storage.FileSystemStorage'
+
 MEDIA_STORAGE_BACKEND = os.environ.get(
     'DJANGO_MEDIA_STORAGE_BACKEND',
     _DEFAULT_STORAGE,
 ).strip() or _DEFAULT_STORAGE
 
-# Local filesystem media is suitable for development only. On Render Free,
-# storage is ephemeral and discarded on container restart or redeploy.
-# Durable storage is strictly enforced when running in production/Render.
+# Whether durable storage is strictly required for uploads.
+# Defaults to False so Render Free ephemeral filesystem uploads are accepted
+# out of the box without requiring third-party subscriptions or accounts.
+MEDIA_STORAGE_REQUIRE_DURABLE = env_bool(
+    'DJANGO_MEDIA_STORAGE_REQUIRE_DURABLE',
+    env_bool('MEDIA_STORAGE_REQUIRE_DURABLE', False),
+)
+
+# Durability classification: Cloudinary is durable; local disk on Render Free is
+# ephemeral across instance restarts/redeploys.
 if 'CloudinaryMediaStorage' in MEDIA_STORAGE_BACKEND:
     MEDIA_STORAGE_DURABLE = CLOUDINARY_CONFIGURED
 elif IS_RENDER:
-    # Ephemeral filesystem storage on Render Free cannot be durable
+    # Ephemeral filesystem storage on Render Free is not durable across restarts
     MEDIA_STORAGE_DURABLE = False
 else:
     MEDIA_STORAGE_DURABLE = env_bool(

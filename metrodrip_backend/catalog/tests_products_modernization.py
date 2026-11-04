@@ -152,7 +152,7 @@ class ProductsModernizationTests(TestCase):
         )
         self.assertIn(res.status_code, [401, 403])
 
-    @override_settings(MEDIA_STORAGE_DURABLE=False)
+    @override_settings(MEDIA_STORAGE_DURABLE=False, MEDIA_STORAGE_REQUIRE_DURABLE=True)
     def test_production_like_ephemeral_storage_rejects_upload_without_side_effects(self):
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.merchant_token}')
         uploaded = SimpleUploadedFile(
@@ -170,6 +170,37 @@ class ProductsModernizationTests(TestCase):
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.data['code'], 'durable_media_storage_required')
         self.assertFalse(CatalogProductMedia.objects.filter(product=self.product).exists())
+
+    @override_settings(
+        MEDIA_STORAGE_DURABLE=False,
+        MEDIA_STORAGE_REQUIRE_DURABLE=False,
+        IS_RENDER=True,
+        STORAGES={
+            'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+            'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage'},
+        },
+        MEDIA_STORAGE_BACKEND='django.core.files.storage.FileSystemStorage',
+    )
+    def test_render_free_ephemeral_storage_allows_upload_when_durable_not_required(self):
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.merchant_token}')
+        uploaded = SimpleUploadedFile(
+            'render_tee.jpg',
+            self._make_dummy_image('jpeg'),
+            content_type='image/jpeg',
+        )
+
+        response = self.client.post(
+            f'/api/merchant/products/{self.product.id}/media/',
+            {'file': uploaded},
+            format='multipart',
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIn('url', response.data)
+        self.assertTrue(response.data['url'].startswith('/media/products/'))
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.image_url, response.data['url'])
+        self.assertTrue(CatalogProductMedia.objects.filter(product=self.product).exists())
 
     def test_merchant_upload_valid_images_and_sync_primary(self):
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.merchant_token}')

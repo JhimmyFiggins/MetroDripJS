@@ -108,21 +108,80 @@ def _validate_image_dimensions(file, max_dimension=8000):
 
 
 def _media_storage_error():
-    from metrodrip_backend.storage import validate_durable_storage_configuration
-    is_durable, reason = validate_durable_storage_configuration()
-    if is_durable and getattr(settings, 'MEDIA_STORAGE_DURABLE', False):
-        return None
-    return Response(
-        {
-            'error': (
-                'Image uploads are unavailable until durable media storage is configured. '
-                'The product or banner was not changed.'
-            ),
-            'code': 'durable_media_storage_required',
-            'detail': reason,
-        },
-        status=status.HTTP_503_SERVICE_UNAVAILABLE,
+    storages_config = getattr(settings, 'STORAGES', {})
+    backend_class = (
+        storages_config.get('default', {}).get('BACKEND', '')
+        or getattr(settings, 'MEDIA_STORAGE_BACKEND', '')
     )
+    is_durable = getattr(settings, 'MEDIA_STORAGE_DURABLE', False)
+    require_durable = getattr(settings, 'MEDIA_STORAGE_REQUIRE_DURABLE', False)
+
+    # 1. If operator configuration explicitly requires durable media storage
+    if require_durable and not is_durable:
+        from metrodrip_backend.storage import validate_durable_storage_configuration
+        _, reason = validate_durable_storage_configuration()
+        return Response(
+            {
+                'error': (
+                    'Image uploads are unavailable until durable media storage is configured. '
+                    'The product or banner was not changed.'
+                ),
+                'code': 'durable_media_storage_required',
+                'detail': reason,
+            },
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    # 2. If Cloudinary durable storage is selected, verify credentials
+    if 'CloudinaryMediaStorage' in backend_class or 'cloudinary' in backend_class.lower():
+        from metrodrip_backend.storage import validate_durable_storage_configuration
+        is_configured, reason = validate_durable_storage_configuration()
+        if not is_configured:
+            return Response(
+                {
+                    'error': (
+                        'Image uploads are unavailable until durable media storage is configured. '
+                        'The product or banner was not changed.'
+                    ),
+                    'code': 'durable_media_storage_required',
+                    'detail': reason,
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        return None
+
+    # 3. For local/ephemeral filesystem storage on Render Free or local development,
+    # verify that MEDIA_ROOT exists and is writable.
+    media_root = getattr(settings, 'MEDIA_ROOT', None)
+    if not media_root:
+        return Response(
+            {
+                'error': 'Filesystem media storage directory is not configured.',
+                'code': 'filesystem_storage_unavailable',
+            },
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    try:
+        os.makedirs(media_root, exist_ok=True)
+        if not os.access(media_root, os.W_OK):
+            return Response(
+                {
+                    'error': 'Filesystem media storage directory is not writable. Check folder permissions.',
+                    'code': 'filesystem_storage_not_writable',
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+    except Exception as exc:
+        return Response(
+            {
+                'error': f'Failed to initialize filesystem media directory: {exc}',
+                'code': 'filesystem_storage_error',
+            },
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    return None
 
 
 class MerchantDashboardAPIView(MerchantAPIView):

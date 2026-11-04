@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 from django.conf import settings
@@ -5,6 +6,8 @@ from django.http import HttpResponse, Http404
 from django.views.static import serve
 import struct
 import zlib
+
+logger = logging.getLogger(__name__)
 
 
 def _build_fallback_png():
@@ -25,7 +28,35 @@ def _build_fallback_png():
     return b'\x89PNG\r\n\x1a\n' + ihdr_chunk + idat_chunk + iend_chunk
 
 
+def _build_fallback_jpeg():
+    try:
+        from PIL import Image
+        import io
+        img = Image.new('RGB', (300, 300), color=(30, 30, 30))
+        buf = io.BytesIO()
+        img.save(buf, format='JPEG')
+        return buf.getvalue()
+    except Exception:
+        # Minimal valid 1x1 JPEG fallback
+        return b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00C\x00\x08\x06\x06\x07\x06\x05\x08\x07\x07\x07\t\t\x08\n\x0c\x14\r\x0c\x0b\x0b\x0c\x19\x12\x13\x0f\x14\x1d\x1a\x1f\x1e\x1d\x1a\x1c\x1c $.\' \",#\x1c\x1c(7),01444\x1f\'9=82<.342\xff\xc0\x00\x0b\x08\x00\x01\x00\x01\x01\x01\x11\x00\xff\xc4\x00\x1f\x00\x00\x01\x05\x01\x01\x01\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\xff\xda\x00\x08\x01\x01\x00\x00?\x00\xbf\x00\xff\xd9'
+
+
+def _build_fallback_webp():
+    try:
+        from PIL import Image
+        import io
+        img = Image.new('RGB', (300, 300), color=(30, 30, 30))
+        buf = io.BytesIO()
+        img.save(buf, format='WEBP')
+        return buf.getvalue()
+    except Exception:
+        # Minimal valid 1x1 WEBP fallback
+        return b'RIFF\x1a\x00\x00\x00WEBPVP8 \x0e\x00\x00\x00\x30\x01\x00\x9d\x01\x2a\x01\x00\x01\x00\x02\x00\x34\x25\xa4\x00\x03\x70\x00\xfe\xfb\xfd\xb0\x00\x00'
+
+
 _FALLBACK_PNG = _build_fallback_png()
+_FALLBACK_JPEG = _build_fallback_jpeg()
+_FALLBACK_WEBP = _build_fallback_webp()
 
 
 def media_file_view(request, path):
@@ -53,20 +84,22 @@ def media_file_view(request, path):
             pass
 
     # Graceful fallback for missing image files to prevent broken 404 images
+    # e.g., if a Render Free container restarted and temporary files were cleared.
     ext = target_path.suffix.lower()
     if ext in {'.png', '.jpg', '.jpeg', '.webp'}:
+        logger.warning("Media file '%s' not found on filesystem storage; serving fallback placeholder.", path)
         if ext in {'.jpg', '.jpeg'}:
             jpeg_sample = media_root / 'products' / '2026' / '10' / 'front.jpg'
-            if jpeg_sample.is_file():
-                response = HttpResponse(jpeg_sample.read_bytes(), content_type='image/jpeg')
-                response['Cache-Control'] = 'public, max-age=86400'
-                return response
+            content = jpeg_sample.read_bytes() if jpeg_sample.is_file() else _FALLBACK_JPEG
+            response = HttpResponse(content, content_type='image/jpeg')
+            response['Cache-Control'] = 'public, max-age=86400'
+            return response
         elif ext == '.webp':
             webp_sample = media_root / 'products' / '2026' / '10' / 'detail.webp'
-            if webp_sample.is_file():
-                response = HttpResponse(webp_sample.read_bytes(), content_type='image/webp')
-                response['Cache-Control'] = 'public, max-age=86400'
-                return response
+            content = webp_sample.read_bytes() if webp_sample.is_file() else _FALLBACK_WEBP
+            response = HttpResponse(content, content_type='image/webp')
+            response['Cache-Control'] = 'public, max-age=86400'
+            return response
 
         response = HttpResponse(_FALLBACK_PNG, content_type='image/png')
         response['Cache-Control'] = 'public, max-age=86400'
