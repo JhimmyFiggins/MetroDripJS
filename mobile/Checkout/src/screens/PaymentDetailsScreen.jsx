@@ -64,22 +64,33 @@ export function PaymentDetailsScreen() {
   const initialMethod = requestedOption?.enabled
     ? requestedMethod
     : availablePaymentMethods.find((method) => method.enabled)?.id || 'cod';
-  const hasRouteOrderId = Object.prototype.hasOwnProperty.call(route.params || {}, 'orderId');
-  const deepLinkedOrderId = normalizeOrderId(route.params?.orderId);
+  const rawOrderId = route.params?.orderId ?? route.params?.order_id;
+  const hasRouteOrderId = rawOrderId !== undefined && rawOrderId !== null && String(rawOrderId).trim() !== '';
+  const deepLinkedOrderId = normalizeOrderId(rawOrderId);
+  const routePaymentResult = String(route.params?.result || route.params?.payment_return || '').toLowerCase();
+  const isCancelledRoute = ['cancelled', 'canceled'].includes(routePaymentResult);
   const hasLiveDraft = !hasRouteOrderId && Array.isArray(orderDraft?.items) && orderDraft.items.length > 0;
 
   const [selectedMethod, setSelectedMethod] = useState(initialMethod);
   const [methodModalVisible, setMethodModalVisible] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [flowState, setFlowState] = useState(
-    deepLinkedOrderId ? 'pending' : hasLiveDraft ? 'idle' : hasRouteOrderId ? 'lookup_error' : 'entry_error',
+    deepLinkedOrderId
+      ? (isCancelledRoute ? 'cancelled' : 'pending')
+      : hasLiveDraft
+        ? 'idle'
+        : hasRouteOrderId
+          ? 'lookup_error'
+          : 'entry_error',
   );
   const [flowMessage, setFlowMessage] = useState(
-    hasLiveDraft || deepLinkedOrderId
-      ? ''
-      : hasRouteOrderId
-        ? 'This payment link does not contain a valid order reference.'
-        : 'Open payment from Checkout or choose an existing order from Order history.',
+    isCancelledRoute && deepLinkedOrderId
+      ? 'Payment session was cancelled. You can retry payment or select another method below.'
+      : hasLiveDraft || deepLinkedOrderId
+        ? ''
+        : hasRouteOrderId
+          ? 'This payment link does not contain a valid order reference.'
+          : 'Open payment from Checkout or choose an existing order from Order history.',
   );
   const [pendingOrder, setPendingOrder] = useState(
     deepLinkedOrderId ? { id: deepLinkedOrderId } : null,
@@ -146,10 +157,15 @@ export function PaymentDetailsScreen() {
 
     if (hasRouteOrderId) {
       setPendingOrder(deepLinkedOrderId ? { id: deepLinkedOrderId } : null);
-      setFlowState(deepLinkedOrderId ? 'pending' : 'lookup_error');
-      setFlowMessage(
-        deepLinkedOrderId ? '' : 'This payment link does not contain a valid order reference.',
-      );
+      if (isCancelledRoute && deepLinkedOrderId) {
+        setFlowState('cancelled');
+        setFlowMessage('Payment session was cancelled. You can retry payment or select another method below.');
+      } else {
+        setFlowState(deepLinkedOrderId ? 'pending' : 'lookup_error');
+        setFlowMessage(
+          deepLinkedOrderId ? '' : 'This payment link does not contain a valid order reference.',
+        );
+      }
       return;
     }
 
@@ -400,6 +416,7 @@ export function PaymentDetailsScreen() {
         styles.statusCard,
         [
           'failed',
+          'cancelled',
           'setup_failed',
           'open_error',
           'request_error',
@@ -426,6 +443,7 @@ export function PaymentDetailsScreen() {
           {flowState === 'degraded' && 'Verification temporarily degraded'}
           {flowState === 'setup_failed' && 'Secure payment setup failed'}
           {flowState === 'failed' && 'Payment was not completed'}
+          {flowState === 'cancelled' && 'Payment was cancelled'}
           {flowState === 'open_error' && 'Secure checkout did not open'}
           {flowState === 'request_error' && 'Order request needs attention'}
           {flowState === 'status_error' && 'Status check unavailable'}
@@ -538,7 +556,7 @@ export function PaymentDetailsScreen() {
       >
         <Text style={styles.secondaryButtonText}>Check payment status</Text>
       </Pressable>
-      {flowState === 'failed' && (
+      {['failed', 'cancelled'].includes(flowState) && (
         <Pressable
           accessibilityRole="button"
           onPress={() => navigation.goBack()}

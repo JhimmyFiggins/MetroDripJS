@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.http import JsonResponse
 from django.urls import include, path, re_path
 from django.views.static import serve
 
@@ -13,7 +14,27 @@ from orders.views import (
     PayMongoWebhookAPIView,
 )
 
+
+def assetlinks_view(request):
+    return JsonResponse(
+        [
+            {
+                "relation": ["delegate_permission/common.handle_all_urls"],
+                "target": {
+                    "namespace": "android_app",
+                    "package_name": "com.metrodrip.js",
+                    "sha256_cert_fingerprints": [
+                        "FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C"
+                    ],
+                },
+            }
+        ],
+        safe=False,
+    )
+
+
 urlpatterns = [
+    path('.well-known/assetlinks.json', assetlinks_view, name='assetlinks'),
     path('health/', HealthAPIView.as_view(), name='health'),
     path('api/admin/', include('identity.admin_urls')),
     path('api/merchant/', include('catalog.merchant_urls')),

@@ -80,13 +80,27 @@ export default function AppNavigator() {
         <NavigationContainer
             ref={navigationRef}
             linking={{
-                prefixes: ['metrodripjs://'],
+                prefixes: [
+                    'metrodripjs://',
+                    'https://metrodripjs.onrender.com',
+                    'https://metrodripjs-q4ik.onrender.com',
+                ],
                 config: {
                     screens: {
                         Checkout: 'checkout',
                         PaymentDetails: {
                             path: 'payment-details',
-                            parse: { orderId: normalizeOrderId },
+                            parse: {
+                                orderId: normalizeOrderId,
+                                order_id: normalizeOrderId,
+                            },
+                        },
+                        PaymentReturn: {
+                            path: 'payment/return',
+                            parse: {
+                                orderId: normalizeOrderId,
+                                order_id: normalizeOrderId,
+                            },
                         },
                         History: 'orders',
                         OrderTracking: {
@@ -117,7 +131,12 @@ export default function AppNavigator() {
                 <Stack.Screen
                     name="PaymentDetails"
                     component={PaymentDetailsScreen}
-                    getId={({ params }) => normalizeOrderId(params?.orderId) || 'active-checkout'}
+                    getId={({ params }) => normalizeOrderId(params?.orderId || params?.order_id) || 'active-checkout'}
+                />
+                <Stack.Screen
+                    name="PaymentReturn"
+                    component={PaymentDetailsScreen}
+                    getId={({ params }) => normalizeOrderId(params?.orderId || params?.order_id) || 'active-checkout'}
                 />
                 <Stack.Screen name="OrderConfirmation" component={OrderConfirmationScreen} />
                 <Stack.Screen name="Account" component={Account} />

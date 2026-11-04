@@ -440,8 +440,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  priceContainer:{
-    marginTop: 100,
+  priceContainer: {
+    marginTop: 'auto',
+    paddingTop: 8,
+    alignSelf: 'flex-end',
   },
   productPrice: {
     color: '#111111',

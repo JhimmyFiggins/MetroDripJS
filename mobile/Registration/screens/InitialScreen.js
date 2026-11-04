@@ -1,6 +1,6 @@
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, fonts } from '../../Checkout/src/theme';
 import BrandLogo from '../../components/BrandLogo';
@@ -22,7 +22,15 @@ export default function InitialScreen({ navigation }) {
     const insets = useSafeAreaInsets();
 
     return (
-        <View style={[styles.container, { paddingTop: Math.max(insets.top, 20), paddingBottom: Math.max(insets.bottom, 44) }]}>
+        <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={[
+                styles.container,
+                { paddingTop: Math.max(insets.top, 20), paddingBottom: Math.max(insets.bottom, 44) },
+            ]}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+        >
             <StatusBar style="light" backgroundColor="#141414" translucent />
 
             {/* Central Branding & Tagline (Figma frame 63:10) */}
@@ -96,13 +104,17 @@ export default function InitialScreen({ navigation }) {
                     <Text style={styles.guestBtnText}>Continue as guest</Text>
                 </TouchableOpacity>
             </View>
-        </View>
+        </ScrollView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
+    scroll: {
         flex: 1,
+        backgroundColor: '#141414',
+    },
+    container: {
+        flexGrow: 1,
         backgroundColor: '#141414',
         justifyContent: 'space-between',
         paddingHorizontal: 24,

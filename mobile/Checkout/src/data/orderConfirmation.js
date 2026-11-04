@@ -1,6 +1,6 @@
 import { normalizeOrderId } from '../../../../src/services/orderService';
 
-const ONLINE_METHODS = new Set(['gcash', 'maya', 'card']);
+const ONLINE_METHODS = new Set(['gcash', 'maya', 'card', 'qrph']);
 
 function firstDefined(source, keys) {
   for (const key of keys) {

@@ -1285,6 +1285,9 @@ class HostedCheckoutAPITest(TestCase):
         self.assertIn('Verifying Your Payment', content)
         self.assertIn('VERIFYING PAYMENT STATUS', content)
         self.assertIn('MD-42', content)
+        self.assertIn('Open in MetroDrip App', content)
+        self.assertIn('metrodripjs://payment-details?orderId=42&result=success', content)
+        self.assertIn('com.metrodrip.js', content)
         self.assertIn('/customer/orders/42?payment_return=success', content)
         self.assertIn('Security Notice: This return redirect does not confirm payment.', content)
         self.assertIn('brand-logo-emblem', content)
@@ -1300,8 +1303,22 @@ class HostedCheckoutAPITest(TestCase):
         self.assertIn('Checkout Not Completed', content)
         self.assertIn('CHECKOUT INCOMPLETE', content)
         self.assertIn('MD-99', content)
+        self.assertIn('Open in MetroDrip App', content)
+        self.assertIn('metrodripjs://payment-details?orderId=99&result=cancelled', content)
         self.assertIn('/customer/orders/99?payment_return=cancelled', content)
         self.assertIn('Your payment session was cancelled and no charges were made to your account.', content)
+
+    def test_assetlinks_endpoint_serves_valid_fingerprint(self):
+        response = self.client.get('/.well-known/assetlinks.json')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/json')
+        data = response.json()
+        self.assertIsInstance(data, list)
+        self.assertEqual(data[0]['target']['package_name'], 'com.metrodrip.js')
+        self.assertIn(
+            'FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C',
+            data[0]['target']['sha256_cert_fingerprints'],
+        )
 
     def test_payment_return_page_no_order_id(self):
         response = self.client.get('/payment/return')

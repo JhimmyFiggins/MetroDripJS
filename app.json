@@ -25,7 +25,39 @@
         "foregroundImage": "./mobile/assets/adaptive-icon.png",
         "backgroundColor": "#141414"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "metrodripjs.onrender.com",
+              "pathPrefix": "/payment/return"
+            },
+            {
+              "scheme": "https",
+              "host": "metrodripjs.onrender.com",
+              "pathPrefix": "/customer/orders"
+            },
+            {
+              "scheme": "https",
+              "host": "metrodripjs-q4ik.onrender.com",
+              "pathPrefix": "/payment/return"
+            },
+            {
+              "scheme": "https",
+              "host": "metrodripjs-q4ik.onrender.com",
+              "pathPrefix": "/customer/orders"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "favicon": "./web/assets/favicon.png"

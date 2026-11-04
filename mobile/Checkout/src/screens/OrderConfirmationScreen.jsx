@@ -58,12 +58,14 @@ export function OrderConfirmationScreen() {
 
   const isCashOnDelivery = order.paymentMethod === 'cod';
   const requiresReview = order.orderStatus === 'payment_review';
-  const paymentMethodLabel = {
-    cod: 'Cash on Delivery · pay on arrival',
-    gcash: 'GCash · confirmed by PayMongo',
-    maya: 'Maya · confirmed by PayMongo',
-    card: 'Card · confirmed by PayMongo',
-  }[order.paymentMethod];
+  const paymentMethodLabel =
+    {
+      cod: 'Cash on Delivery · pay on arrival',
+      gcash: 'GCash · confirmed by PayMongo',
+      maya: 'Maya · confirmed by PayMongo',
+      card: 'Card · confirmed by PayMongo',
+      qrph: 'QR Ph · confirmed by PayMongo',
+    }[order.paymentMethod] || `${String(order.paymentMethod || '').toUpperCase()} · confirmed by PayMongo`;
   const paymentSummary = isCashOnDelivery
     ? 'ORDER PLACED · CASH ON DELIVERY'
     : requiresReview

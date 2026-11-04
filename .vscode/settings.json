@@ -6,7 +6,22 @@
     "java.import.gradle.java.home": "C:\\Users\\Kim Chim\\.jdk\\jdk-17.0.20.1+1",
     "gradle.java.home": "C:\\Users\\Kim Chim\\.jdk\\jdk-17.0.20.1+1",
     "gradle.autoDetect": "off",
-    "gradle.nestedProjects": false,
+    "gradle.nestedProjects": [
+        "android"
+    ],
+    "java.import.exclusions": [
+        "**/node_modules/**",
+        "**/.expo/**",
+        "**/dist/**"
+    ],
+    "java.project.resourceFilters": [
+        "**/node_modules/**",
+        "**/.expo/**"
+    ],
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/.expo": true
+    },
     "java.gradle.buildServer.enabled": "off",
     "java.configuration.updateBuildConfiguration": "interactive",
     "files.exclude": {

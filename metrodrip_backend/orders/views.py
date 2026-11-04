@@ -276,11 +276,13 @@ class PaymentReturnAPIView(APIView):
             </div>
             '''
             target_url = f'/customer/orders/{safe_order_id}?payment_return={safe_result}'
+            app_deep_link = f'metrodripjs://payment-details?orderId={safe_order_id}&result={safe_result}'
+            app_intent_link = f'intent://payment-details?orderId={safe_order_id}&result={safe_result}#Intent;scheme=metrodripjs;package=com.metrodrip.js;end'
             if cancelled:
                 action_buttons = f'''
                 <div class="actions">
-                  <a href="{target_url}" class="btn btn-primary" id="continue-action">Review Order &amp; Try Again</a>
-                  <a href="/customer/shop" class="btn btn-secondary">Continue Shopping</a>
+                  <a href="{app_deep_link}" class="btn btn-primary" id="open-app-action" data-intent="{app_intent_link}">Open in MetroDrip App</a>
+                  <a href="{target_url}" class="btn btn-secondary" id="continue-action">Continue on Website</a>
                 </div>
                 '''
                 auto_js = f'''
@@ -291,12 +293,17 @@ class PaymentReturnAPIView(APIView):
                     timestamp: Date.now()
                   }}));
                 }} catch (e) {{}}
+                if (/android|iphone|ipad|ipod/i.test(navigator.userAgent)) {{
+                  setTimeout(function() {{
+                    window.location.href = '{app_deep_link}';
+                  }}, 300);
+                }}
                 '''
             else:
                 action_buttons = f'''
                 <div class="actions">
-                  <a href="{target_url}" class="btn btn-primary" id="continue-action">Continue to Order Confirmation</a>
-                  <a href="/customer/orders" class="btn btn-secondary">View All Orders</a>
+                  <a href="{app_deep_link}" class="btn btn-primary" id="open-app-action" data-intent="{app_intent_link}">Open in MetroDrip App</a>
+                  <a href="{target_url}" class="btn btn-secondary" id="continue-action">Continue on Website</a>
                 </div>
                 '''
                 auto_js = f'''
@@ -307,9 +314,15 @@ class PaymentReturnAPIView(APIView):
                     timestamp: Date.now()
                   }}));
                 }} catch (e) {{}}
-                setTimeout(function() {{
-                  window.location.replace('{target_url}');
-                }}, 1200);
+                if (/android|iphone|ipad|ipod/i.test(navigator.userAgent)) {{
+                  setTimeout(function() {{
+                    window.location.href = '{app_deep_link}';
+                  }}, 300);
+                }} else {{
+                  setTimeout(function() {{
+                    window.location.replace('{target_url}');
+                  }}, 1200);
+                }}
                 '''
         else:
             order_ref_box = ''
@@ -694,6 +707,18 @@ class PaymentReturnAPIView(APIView):
             localStorage.setItem('metrodrip.customer.theme', next);
           }} catch (e) {{}}
           updateThemeUI(next);
+        }});
+      }}
+
+      var appBtn = document.getElementById('open-app-action');
+      if (appBtn) {{
+        appBtn.addEventListener('click', function(e) {{
+          var intentUrl = appBtn.getAttribute('data-intent');
+          if (/android/i.test(navigator.userAgent) && intentUrl) {{
+            setTimeout(function() {{
+              window.location.href = intentUrl;
+            }}, 50);
+          }}
         }});
       }}
 

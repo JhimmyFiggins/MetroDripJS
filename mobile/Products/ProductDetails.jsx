@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator, Alert, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { fonts } from '../../src/theme/font';
 import { productService } from '../../src/services/productService';
@@ -30,6 +31,9 @@ export default function ProductDetails({
 
     const { addToCart } = useCart();
     const { user, isGuest } = useAuth();
+    const insets = useSafeAreaInsets();
+    const { height: windowHeight } = useWindowDimensions();
+    const responsiveImageHeight = Math.min(Math.max(Math.round(windowHeight * 0.4), 260), 400);
 
 
     const [product, setProduct] = useState(null);
@@ -280,7 +284,7 @@ export default function ProductDetails({
             style={styles.container}>
             <StatusBar style="dark" />
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { marginTop: Math.max(insets.top, 16) }]}>
                 <TouchableOpacity onPress={onBack}>
                     <Text style={styles.backArrow}>←</Text>
                 </TouchableOpacity>
@@ -302,7 +306,7 @@ export default function ProductDetails({
                 <ProductImage
                     accessibilityLabel={`${product.product_name || product.name} product image`}
                     product={product}
-                    style={styles.imagePlaceholder}
+                    style={[styles.imagePlaceholder, { height: responsiveImageHeight }]}
                     resizeMode="contain"
                 />
                 <View style={styles.dotsContainer}>
@@ -439,7 +443,7 @@ export default function ProductDetails({
             <TouchableOpacity
                 accessibilityLabel={`Add ${product.product_name || product.name} to cart`}
                 accessibilityRole="button"
-                style={styles.addToCartButton}
+                style={[styles.addToCartButton, { marginBottom: Math.max(insets.bottom, 24) }]}
                 onPress={handleAddToCart}
             >
                 <Text style={styles.addToCartText}>
@@ -476,7 +480,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginTop: 50,
         marginBottom: 16,
     },
     backArrow: {

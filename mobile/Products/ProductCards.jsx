@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { StyleSheet, FlatList, TouchableOpacity, Text, View, ActivityIndicator } from 'react-native';
+import { StyleSheet, FlatList, TouchableOpacity, Text, View, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { productService } from '../../src/services/productService';
 import { fonts } from '../Checkout/src/theme';
 import { useNavigation } from '@react-navigation/native'; // Import navigation hook
@@ -7,6 +7,10 @@ import ProductImage from '../components/ProductImage';
 
 export default function ProductCards({ selectedCategory, onSelectProduct, products: productsProp }) {
     const navigation = useNavigation();
+    const { width } = useWindowDimensions();
+    const numColumns = width >= 768 ? 3 : 2;
+    const cardWidth = `${Math.floor(100 / numColumns) - 2}%`;
+    const imageHeight = Math.min(Math.round((width / numColumns) * 0.75), 180);
 
     // When the parent passes `products`, it owns fetching/filtering (Shop).
     // Otherwise keep the legacy self-fetch behavior (Home).
@@ -70,29 +74,29 @@ export default function ProductCards({ selectedCategory, onSelectProduct, produc
     return (
         <View style={styles.container}>
             <FlatList
+                key={`grid-${numColumns}`}
                 showsVerticalScrollIndicator={false}
                 showsHorizontalScrollIndicator={false}
                 data={filteredProducts}
-                numColumns={2}
+                numColumns={numColumns}
                 columnWrapperStyle={styles.row}
                 renderItem={({ item }) => (
                     <TouchableOpacity
                         accessibilityLabel={`${item.name}, ${formatPrice(Number(item.base_price))}`}
                         accessibilityRole="button"
-                        style={styles.productCard}
-                        // 3. Fixed: Use item.id instead of 'id'
+                        style={[styles.productCard, { width: cardWidth }]}
                         onPress={() => onSelectProduct(item.id)}
                     >
                         <ProductImage
                             accessibilityLabel={`${item.name} product image`}
                             product={item}
                             resizeMode="contain"
-                            style={styles.productImage}
+                            style={[styles.productImage, { height: imageHeight }]}
                         />
-                        <Text style={styles.productDetails}>
+                        <Text numberOfLines={1} ellipsizeMode="tail" style={styles.productDetails}>
                             {item.name}
                         </Text>
-                        <Text style={styles.productDetails}>
+                        <Text numberOfLines={1} style={[styles.productDetails, styles.productPrice]}>
                             {formatPrice(item.base_price)}
                         </Text>
                     </TouchableOpacity>
@@ -116,25 +120,32 @@ const styles = StyleSheet.create({
     },
     productCard: {
         width: '48%',
-        height: 200,
+        minHeight: 210,
+        paddingBottom: 8,
         borderColor: 'black',
         borderWidth: .5,
         backgroundColor: 'rgb(255, 255, 255)',
         borderRadius: 10,
+        overflow: 'hidden',
     },
     productImage: {
         backgroundColor: 'rgb(244, 244, 242)',
         height: 150,
-        width: '99.8%',
+        width: '100%',
         paddingTop: 10,
         paddingLeft: 10,
-        borderRadius: 10,
+        borderTopLeftRadius: 9,
+        borderTopRightRadius: 9,
         resizeMode: 'contain',
     },
     productDetails:{
-        paddingTop: 5,
-        paddingLeft: 5,
+        paddingTop: 4,
+        paddingHorizontal: 8,
         fontSize: 12,
         fontFamily: fonts.monoSemiBold,
+    },
+    productPrice: {
+        marginTop: 2,
+        color: '#141414',
     },
 });

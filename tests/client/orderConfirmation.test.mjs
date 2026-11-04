@@ -50,6 +50,19 @@ test('a paid server order becomes a validated confirmation without client-priced
   assert.equal(validateConfirmationRoute(confirmation), confirmation);
 });
 
+test('a paid QR Ph order becomes a validated confirmation matching online method invariants', () => {
+  const qrphOrder = {
+    ...validOrder,
+    payment_method: 'qrph',
+    payment_status: 'paid',
+  };
+  const confirmation = createServerConfirmation(qrphOrder);
+  assert.ok(confirmation);
+  assert.equal(confirmation.paymentMethod, 'qrph');
+  assert.equal(confirmation.paymentStatus, 'paid');
+  assert.equal(validateConfirmationRoute(confirmation), confirmation);
+});
+
 test('legacy response aliases remain accepted during the additive API migration', () => {
   const confirmation = createServerConfirmation({
     ...validOrder,
