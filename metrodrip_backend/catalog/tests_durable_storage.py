@@ -400,6 +400,7 @@ class DurableStorageMediaTests(TestCase):
         },
         MEDIA_STORAGE_BACKEND='django.core.files.storage.FileSystemStorage',
         MEDIA_STORAGE_DURABLE=False,
+        MEDIA_STORAGE_REQUIRE_DURABLE=True,
         IS_RENDER=True,
     )
     def test_10_missing_storage_credentials_503(self):

@@ -156,6 +156,7 @@ class FilesystemMediaStorageWorkflowTests(TestCase):
         # First image uploaded should be primary
         primary = self.product.media.filter(is_primary=True).first()
         self.assertIsNotNone(primary)
+        self.product.refresh_from_db()
         self.assertEqual(self.product.image_url, primary.url)
 
     # --------------------------------------------------------------------------
